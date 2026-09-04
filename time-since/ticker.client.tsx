@@ -7,7 +7,7 @@ import {
 import { useToast } from "@getpaseo/plugin/react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Text } from "react-native";
-import { formatTimeSinceLabel } from "./elapsed";
+import { formatTimeSinceLabel, isWorkingStatus } from "./elapsed";
 
 const showAbsolute = new Map<string, () => void>();
 
@@ -44,9 +44,9 @@ function TimeSincePill({ theme, agentId }: PluginComposerPillProps) {
     };
   }, [agent?.lastActivityAt, agentId, toast]);
 
-  const label = agent
-    ? formatTimeSinceLabel(agent.lastActivityAt, agent.status, nowMs)
-    : null;
+  if (isWorkingStatus(agent?.status)) return null;
+
+  const label = agent ? formatTimeSinceLabel(agent.lastActivityAt, nowMs) : null;
 
   return (
     <>
@@ -62,11 +62,25 @@ export function contributeClient(client: PluginClientContext) {
   const pills = new Map<string, () => void>();
   let stopped = false;
 
-  const register = (agent: { id: string; workspaceId?: string | null }) => {
+  const remove = (agentId: string) => {
+    pills.get(agentId)?.();
+    pills.delete(agentId);
+    showAbsolute.delete(agentId);
+  };
+
+  const register = (agent: {
+    id: string;
+    workspaceId?: string | null;
+    status?: "initializing" | "idle" | "running" | "error" | "closed" | null;
+  }) => {
     if (stopped || !agent.workspaceId) return;
+    if (isWorkingStatus(agent.status)) {
+      remove(agent.id);
+      return;
+    }
     pills.get(agent.id)?.();
     const workspaceId = agent.workspaceId;
-    const remove = client.addComposerPill({
+    const dispose = client.addComposerPill({
       id: "time-since",
       title: "Time since last activity",
       workspaceId,
@@ -76,13 +90,7 @@ export function contributeClient(client: PluginClientContext) {
         showAbsolute.get(agent.id)?.();
       },
     });
-    pills.set(agent.id, remove);
-  };
-
-  const remove = (agentId: string) => {
-    pills.get(agentId)?.();
-    pills.delete(agentId);
-    showAbsolute.delete(agentId);
+    pills.set(agent.id, dispose);
   };
 
   const unsubscribe = client.paseo.agents.subscribe((update) => {
