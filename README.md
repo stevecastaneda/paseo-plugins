@@ -16,15 +16,24 @@ Composer pill that ticks elapsed time since an agent's last activity. It sits in
 paseo plugin add stevecastaneda/paseo-plugins:time-since
 ```
 
+## setup-monitor
+
+Live view of `worktree.setup` from `paseo.json`. While that script runs, Setup opens in Explorer so the chat tab stays selected. A composer pill shows progress and failure.
+
+```bash
+paseo plugin add stevecastaneda/paseo-plugins:setup-monitor
+```
+
 Turn on **Settings → Plugins → Enable plugins** on the daemon first.
 
 ## Local development
 
 ```bash
-cd time-since
+cd time-since   # or setup-monitor
 npm install
 npm run typecheck
 npm test
 paseo plugin install "$PWD"
 paseo plugin reload time-since
 ```
+
