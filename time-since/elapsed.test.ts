@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatElapsed, formatTimeSinceLabel, isWorkingStatus } from "./elapsed.ts";
+import {
+  formatElapsed,
+  formatTimeSinceLabel,
+  isWorkingStatus,
+  lastThreadMessageAt,
+  lastThreadMessageAtFromStream,
+} from "./elapsed.ts";
 
 test("formatElapsed clamps negatives and reports seconds under a minute", () => {
   assert.equal(formatElapsed(-50), "0s");
@@ -35,4 +41,60 @@ test("isWorkingStatus hides the pill during a live turn", () => {
   assert.equal(isWorkingStatus("idle"), false);
   assert.equal(isWorkingStatus("error"), false);
   assert.equal(isWorkingStatus("closed"), false);
+});
+
+test("lastThreadMessageAt prefers the newest user or assistant row", () => {
+  const older = "2026-09-04T12:00:00.000Z";
+  const user = "2026-09-04T12:10:00.000Z";
+  const assistant = "2026-09-04T12:12:00.000Z";
+  const tool = "2026-09-04T12:13:00.000Z";
+  assert.equal(
+    lastThreadMessageAt([
+      { timestamp: older, item: { type: "user_message" } },
+      { timestamp: user, item: { type: "user_message" } },
+      { timestamp: assistant, item: { type: "assistant_message" } },
+      { timestamp: tool, item: { type: "tool_call" } },
+    ]),
+    assistant,
+  );
+});
+
+test("lastThreadMessageAt falls back to the newest timeline row when no chat messages exist", () => {
+  assert.equal(lastThreadMessageAt([]), null);
+  assert.equal(
+    lastThreadMessageAt([{ timestamp: "nope", item: { type: "user_message" } }]),
+    null,
+  );
+  assert.equal(
+    lastThreadMessageAt([
+      { timestamp: "2026-09-04T12:00:00.000Z", item: { type: "tool_call" } },
+      { timestamp: "2026-09-04T12:05:00.000Z", item: { type: "reasoning" } },
+    ]),
+    "2026-09-04T12:05:00.000Z",
+  );
+});
+
+test("lastThreadMessageAtFromStream only accepts chat message timeline events", () => {
+  const at = "2026-09-04T12:12:00.000Z";
+  assert.equal(
+    lastThreadMessageAtFromStream({
+      timestamp: at,
+      event: { type: "timeline", item: { type: "assistant_message" } },
+    }),
+    at,
+  );
+  assert.equal(
+    lastThreadMessageAtFromStream({
+      timestamp: at,
+      event: { type: "timeline", item: { type: "tool_call" } },
+    }),
+    null,
+  );
+  assert.equal(
+    lastThreadMessageAtFromStream({
+      timestamp: at,
+      event: { type: "turn_completed" },
+    }),
+    null,
+  );
 });
