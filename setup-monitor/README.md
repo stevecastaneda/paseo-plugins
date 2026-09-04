@@ -6,6 +6,8 @@ Paseo 0.7 live view of worktree setup. Paseo already tracks `worktree.setup` fro
 - Composer pill while setup is running or failed. Click it to open Setup in Explorer.
 - Setup panel: command rows, live log, check when it finishes, alert if it fails. Command Center opens it in Explorer too.
 
+![setup-monitor in Explorer](explorer.png)
+
 ```bash
 paseo plugin add stevecastaneda/paseo-plugins:setup-monitor
 ```
