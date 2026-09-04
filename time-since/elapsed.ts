@@ -36,3 +36,46 @@ export function formatTimeSinceLabel(lastActivityAt: string, nowMs: number): str
   if (Number.isNaN(started)) return null;
   return formatElapsed(nowMs - started);
 }
+
+export function isThreadMessageType(type: string | undefined): boolean {
+  return type === "user_message" || type === "assistant_message";
+}
+
+export type TimelineStamp = {
+  timestamp: string;
+  item: { type: string };
+};
+
+export function lastThreadMessageAt(entries: readonly TimelineStamp[]): string | null {
+  let lastMessage: string | null = null;
+  let lastMessageMs = Number.NEGATIVE_INFINITY;
+  let lastAny: string | null = null;
+  let lastAnyMs = Number.NEGATIVE_INFINITY;
+
+  for (const entry of entries) {
+    const ms = Date.parse(entry.timestamp);
+    if (Number.isNaN(ms)) continue;
+    if (ms >= lastAnyMs) {
+      lastAnyMs = ms;
+      lastAny = entry.timestamp;
+    }
+    if (!isThreadMessageType(entry.item.type)) continue;
+    if (ms >= lastMessageMs) {
+      lastMessageMs = ms;
+      lastMessage = entry.timestamp;
+    }
+  }
+
+  return lastMessage ?? lastAny;
+}
+
+export function lastThreadMessageAtFromStream(payload: {
+  timestamp?: string;
+  event?: { type?: string; item?: { type?: string } };
+}): string | null {
+  if (payload.event?.type !== "timeline") return null;
+  if (!isThreadMessageType(payload.event.item?.type)) return null;
+  const at = payload.timestamp;
+  if (!at || Number.isNaN(Date.parse(at))) return null;
+  return at;
+}

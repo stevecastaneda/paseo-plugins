@@ -6,7 +6,7 @@ Plugin code is trusted and unsandboxed. Server code runs as the daemon user. Cli
 
 ## time-since
 
-Composer pill that ticks elapsed time since an agent's last activity. It sits in the track above the composer, so it tracks the current chat rather than every historical message.
+Composer pill that ticks elapsed time since the last chat message in the agent thread. It sits in the track above the composer.
 
 Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds. Hidden while a turn is running. Press the pill for the absolute timestamp.
 
