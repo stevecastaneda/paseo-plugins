@@ -6,6 +6,8 @@ It sits in the track above the composer, so it tracks the current chat rather th
 
 Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds. Hidden while a turn is running. Press the pill for the absolute timestamp.
 
+![time-since composer pill](composer-pill.png)
+
 ## Install
 
 Paseo 0.7.x. Enable plugins in **Settings → Plugins**, then:

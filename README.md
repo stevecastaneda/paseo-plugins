@@ -10,6 +10,8 @@ Composer pill that ticks elapsed time since an agent's last activity. It sits in
 
 Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds. Hidden while a turn is running. Press the pill for the absolute timestamp.
 
+![time-since composer pill](time-since/composer-pill.png)
+
 ```bash
 paseo plugin add stevecastaneda/paseo-plugins:time-since
 ```
@@ -17,6 +19,8 @@ paseo plugin add stevecastaneda/paseo-plugins:time-since
 ## setup-monitor
 
 Live view of `worktree.setup` from `paseo.json`. While that script runs, Setup opens in Explorer so the chat tab stays selected. A composer pill shows progress and failure.
+
+![setup-monitor in Explorer](setup-monitor/explorer.png)
 
 ```bash
 paseo plugin add stevecastaneda/paseo-plugins:setup-monitor
