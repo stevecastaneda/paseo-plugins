@@ -17,7 +17,7 @@ export default function contribute(plugin: PluginContext) {
   });
   plugin.addCommandCenterItem({
     id: "open-setup",
-    title: "Open setup",
+    title: "Open Setup",
     icon: "Package",
     keywords: ["install", "npm", "worktree", "setup"],
     context: "workspace",

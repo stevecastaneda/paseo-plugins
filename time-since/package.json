@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test elapsed.test.ts"
+    "test": "node --experimental-strip-types --test *.test.ts"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.7.2",
