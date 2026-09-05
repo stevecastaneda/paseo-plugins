@@ -15,6 +15,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
   const openingRef = useRef(false);
   const [opening, setOpening] = useState(false);
   const [exampleExpanded, setExampleExpanded] = useState(false);
+  const [guideExpanded, setGuideExpanded] = useState(false);
   const [hoveredLink, setHoveredLink] = useState<number | null>(null);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ configured: boolean; links: { label: string; url: string }[] } | null>(null);
@@ -49,6 +50,45 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
       setOpening(false);
     }
   }
+
+  const setupGuide = (
+    <View style={{ paddingHorizontal: 12, paddingTop: isEmpty ? 20 : 4, paddingBottom: 16, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        {isEmpty ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Icon name="Link" size={18} color={colors.foregroundMuted} />
+            <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "500" }}>Add your first link</Text>
+          </View>
+        ) : null}
+        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+          {result?.configured ? "Add URLs to " : "Create "}<Text style={{ color: colors.foreground }}>workspace-links.json</Text> in the workspace root for your app, tools, or docs.
+        </Text>
+        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+          Edit it by hand or generate it during setup, then refresh.
+        </Text>
+        <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 6, overflow: "hidden" }}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: exampleExpanded }}
+            onPress={() => setExampleExpanded((expanded) => !expanded)}
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
+            <Icon name="Code" size={14} color={colors.foregroundMuted} />
+            <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>JSON example</Text>
+            <Icon name={exampleExpanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} />
+          </Pressable>
+          {exampleExpanded ? (
+            <ScrollView horizontal style={{ backgroundColor: colors.surface1, borderTopWidth: 1, borderTopColor: colors.border }}
+              contentContainerStyle={{ padding: 10 }}>
+              <Text selectable accessibilityLabel="Example workspace-links.json" style={{ color: colors.foreground, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 12, lineHeight: 18 }}>
+                {`[
+  {
+    "label": "App",
+    "url": "http://localhost:3000"
+  }
+]`}
+              </Text>
+            </ScrollView>
+          ) : null}
+        </View>
+    </View>
+  );
 
   return (
     <ScrollView
@@ -93,44 +133,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
           Opening browser on {host.label}…
         </Text>
       ) : null}
-      <View style={{ paddingHorizontal: 12, paddingTop: isEmpty ? 20 : 12, paddingBottom: 16, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        {isEmpty ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Icon name="Link" size={18} color={colors.foregroundMuted} />
-            <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "500" }}>Add your first link</Text>
-          </View>
-        ) : (
-          <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Add links</Text>
-        )}
-        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          {result?.configured ? "Add URLs to " : "Create "}<Text style={{ color: colors.foreground }}>workspace-links.json</Text> in the workspace root for your app, tools, or docs.
-        </Text>
-        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          Edit it by hand or generate it during setup, then refresh.
-        </Text>
-        <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 6, overflow: "hidden" }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: exampleExpanded }}
-            onPress={() => setExampleExpanded((expanded) => !expanded)}
-            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
-            <Icon name="Code" size={14} color={colors.foregroundMuted} />
-            <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>JSON example</Text>
-            <Icon name={exampleExpanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} />
-          </Pressable>
-          {exampleExpanded ? (
-            <ScrollView horizontal style={{ backgroundColor: colors.surface1, borderTopWidth: 1, borderTopColor: colors.border }}
-              contentContainerStyle={{ padding: 10 }}>
-              <Text selectable accessibilityLabel="Example workspace-links.json" style={{ color: colors.foreground, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 12, lineHeight: 18 }}>
-                {`[
-  {
-    "label": "App",
-    "url": "http://localhost:3000"
-  }
-]`}
-              </Text>
-            </ScrollView>
-          ) : null}
-        </View>
-      </View>
+      {isEmpty ? setupGuide : null}
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingTop: 12 }}>Options</Text>
         <Pressable accessibilityRole="switch" accessibilityLabel="Show link pill"
@@ -152,6 +155,17 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
           This workspace · Resets when the plugin reloads
         </Text>
       </View>
+      {result && !isEmpty ? (
+        <View>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: guideExpanded }}
+            onPress={() => setGuideExpanded((expanded) => !expanded)}
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
+            <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Setup guide</Text>
+            <Icon name={guideExpanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} />
+          </Pressable>
+          {guideExpanded ? setupGuide : null}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
