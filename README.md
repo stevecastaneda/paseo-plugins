@@ -28,6 +28,16 @@ paseo plugin add stevecastaneda/paseo-plugins:setup-monitor
 
 Turn on **Settings → Plugins → Enable plugins** on the daemon first.
 
+## workspace-links
+
+Browser links for each workspace, supplied by a simple JSON file. A link-icon composer pill opens the panel, which includes setup instructions and an option to hide the pill. Links open in the Paseo host's default browser on macOS, Windows, or Linux.
+
+See [Workspace Links](workspace-links/README.md) for configuration.
+
+```bash
+paseo plugin add stevecastaneda/paseo-plugins:workspace-links
+```
+
 ## Local development
 
 ```bash
@@ -38,4 +48,3 @@ npm test
 paseo plugin install "$PWD"
 paseo plugin reload time-since
 ```
-
