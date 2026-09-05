@@ -13,6 +13,8 @@ import {
   lastThreadMessageAtFromStream,
 } from "./elapsed";
 import { getLastThreadMessage } from "./last-message.shared";
+import { useSettings } from "./settings.client";
+import { defaultSettings } from "./settings.shared";
 
 const lastMessageAt = new Map<string, string>();
 const lastMessageListeners = new Map<string, Set<() => void>>();
@@ -61,7 +63,8 @@ function useLastMessageAt(agentId: string) {
   );
 }
 
-function TimeSincePill({ theme, agentId }: PluginComposerPillProps) {
+function TimeSincePill({ theme, agentId, host }: PluginComposerPillProps) {
+  const settings = useSettings(host.id).data ?? defaultSettings;
   const agent = useAgent(agentId, ({ status }) => ({ status }));
   const lastAt = useLastMessageAt(agentId);
   const toast = useToast();
@@ -97,9 +100,9 @@ function TimeSincePill({ theme, agentId }: PluginComposerPillProps) {
 
   return (
     <>
-      <Icon name="Clock" size={14} color={theme.colors.foregroundMuted} />
+      {settings.showIcon ? <Icon name="Clock" size={14} color={theme.colors.foregroundMuted} /> : null}
       <Text style={textStyle} numberOfLines={1}>
-        {label ?? "…"}
+        {label ? `${label}${settings.showAgo ? " ago" : ""}` : "…"}
       </Text>
     </>
   );
