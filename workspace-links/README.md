@@ -1,6 +1,6 @@
 # Workspace Links
 
-A small Paseo 0.7 plugin that reads `workspace-links.json` from the active workspace and displays clickable links. Open **Workspace Links** in the Command Center to show the panel in Explorer.
+A small Paseo 0.8 plugin that reads `workspace-links.json` from the active workspace and displays clickable links. Open **Workspace Links** in the Command Center to show the panel in Explorer.
 
 A link-icon pill opens the panel, even when the workspace has no links yet, so the setup guide is always accessible. The panel never opens automatically.
 

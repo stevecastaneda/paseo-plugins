@@ -1,4 +1,5 @@
-import { Icon, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin";
+import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -10,9 +11,9 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
-import type { SetupCommand, SetupStatus } from "./setup.shared";
-import { getSetupStatus } from "./setup.shared";
-import { formatDuration, processCarriageReturns, runningCommand } from "./snapshot";
+import type { SetupCommand, SetupStatus } from "../shared/setup";
+import { getSetupStatus } from "../shared/setup";
+import { formatDuration, processCarriageReturns, runningCommand } from "../shared/snapshot";
 
 function CommandStatusIcon({
   status,

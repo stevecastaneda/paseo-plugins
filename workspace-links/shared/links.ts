@@ -1,4 +1,4 @@
-import { defineRpc } from "@getpaseo/plugin/server";
+import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
 export const webUrlSchema = z.url().refine((value) => /^https?:\/\//i.test(value), "Use an HTTP or HTTPS URL");

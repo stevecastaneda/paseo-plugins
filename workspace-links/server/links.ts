@@ -1,8 +1,8 @@
-import type { PluginHandlerContext } from "@getpaseo/plugin";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { linksSchema } from "./links.shared.ts";
-import { launchUrl } from "./browser.server.ts";
+import { linksSchema } from "../shared/links.ts";
+import { launchUrl } from "./browser.ts";
 
 export async function readLinks(directory: string) {
   let contents: string;

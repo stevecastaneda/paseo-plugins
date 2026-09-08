@@ -1,6 +1,6 @@
 # Paseo plugins
 
-Three plugins for [Paseo](https://paseo.sh) 0.7. Each plugin lives in its own directory and can be installed independently.
+Three plugins for [Paseo](https://paseo.sh) 0.8. Each plugin lives in its own directory and can be installed independently.
 
 | Plugin | What it adds |
 | --- | --- |
@@ -10,7 +10,7 @@ Three plugins for [Paseo](https://paseo.sh) 0.7. Each plugin lives in its own di
 
 ## Install
 
-Use Paseo 0.7.x and turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want.
+Use Paseo 0.8.x and turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want.
 
 Plugin code is trusted and unsandboxed. Server code runs as the daemon user. Client code runs inside Paseo.
 

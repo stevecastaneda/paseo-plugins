@@ -1,20 +1,19 @@
 import {
-  Icon,
   type PluginClientContext,
   type PluginComposerPillProps,
   useAgent,
-} from "@getpaseo/plugin";
-import { useToast } from "@getpaseo/plugin/react-native";
+} from "@getpaseo/plugin/client";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Text } from "react-native";
 import {
   formatTimeSinceLabel,
   isWorkingStatus,
   lastThreadMessageAtFromStream,
-} from "./elapsed";
-import { getLastThreadMessage } from "./last-message.shared";
-import { useSettings } from "./settings.client";
-import { defaultSettings } from "./settings.shared";
+} from "../shared/elapsed";
+import { getLastThreadMessage } from "../shared/last-message";
+import { useSettings } from "./settings";
+import { defaultSettings } from "../shared/settings";
 
 const lastMessageAt = new Map<string, string>();
 const lastMessageListeners = new Map<string, Set<() => void>>();

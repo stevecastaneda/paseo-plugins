@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { defaultSettings, settingsSchema, type TimeSinceSettings } from "./settings.shared.ts";
+import { defaultSettings, settingsSchema, type TimeSinceSettings } from "../shared/settings.ts";
 
 const writes = new Map<string, Promise<void>>();
 

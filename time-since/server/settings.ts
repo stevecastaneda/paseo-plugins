@@ -1,6 +1,6 @@
-import type { PluginHandlerContext } from "@getpaseo/plugin";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { settingsStore } from "./settings.storage.ts";
-import type { TimeSinceSettings } from "./settings.shared.ts";
+import type { TimeSinceSettings } from "../shared/settings.ts";
 
 export function handleGetSettings(
   _input: Record<string, never>,

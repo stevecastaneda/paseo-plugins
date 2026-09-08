@@ -1,6 +1,6 @@
 # setup-monitor
 
-Paseo 0.7 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.
+Paseo 0.8 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.
 
 - Auto-opens Setup in Explorer while `worktree.setup` is running, so the main chat tab stays selected.
 - Composer pill while setup is running or failed. Click it to open Setup in Explorer.

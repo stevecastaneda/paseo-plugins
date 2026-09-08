@@ -1,3 +1,6 @@
 {
-  "id": "setup-monitor"
+  "id": "setup-monitor",
+  "requirements": {
+    "paseo": ">=0.8.0"
+  }
 }

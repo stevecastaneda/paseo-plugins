@@ -1,7 +1,7 @@
 import { execFile, type ExecFileOptions } from "node:child_process";
 import { win32 } from "node:path";
 import { promisify } from "node:util";
-import { webUrlSchema } from "./links.shared.ts";
+import { webUrlSchema } from "../shared/links.ts";
 
 const execute = promisify(execFile);
 

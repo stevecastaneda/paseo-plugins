@@ -6,8 +6,8 @@ import {
   parsePaseoFrame,
   readFreshSetupStatus,
   type DaemonPort,
-} from "./daemon.server.ts";
-import type { SetupSnapshot } from "./setup.shared.ts";
+} from "./daemon.ts";
+import type { SetupSnapshot } from "../shared/setup.ts";
 
 class FakePort implements DaemonPort {
   sent: string[] = [];

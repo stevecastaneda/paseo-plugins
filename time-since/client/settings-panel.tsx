@@ -1,9 +1,10 @@
-import { Icon, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin";
+import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { settingsQueryKey, useSettings } from "./settings.client";
-import { updateSettings, type TimeSinceSettings } from "./settings.shared";
+import { settingsQueryKey, useSettings } from "./settings";
+import { updateSettings, type TimeSinceSettings } from "../shared/settings";
 
 export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps) {
   const { colors } = theme;

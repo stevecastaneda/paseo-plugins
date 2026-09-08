@@ -1,15 +1,15 @@
 import {
-  Icon,
   type PluginClientContext,
   type PluginComposerPillProps,
   useRpc,
-} from "@getpaseo/plugin";
+} from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
-import type { SetupSnapshot } from "./setup.shared";
-import { getSetupStatus } from "./setup.shared";
-import { pillLabel, shouldShowPill, statusIconName } from "./snapshot";
+import type { SetupSnapshot } from "../shared/setup";
+import { getSetupStatus } from "../shared/setup";
+import { pillLabel, shouldShowPill, statusIconName } from "../shared/snapshot";
 
 const EXPLORER = { location: "explorer" as const };
 const CHAT_SEED_MS = 1_200;

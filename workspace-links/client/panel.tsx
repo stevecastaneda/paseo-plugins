@@ -1,8 +1,9 @@
-import { Icon, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin";
+import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { getLinks, openLink } from "./links.shared";
-import { isShortcutEnabled, setShortcutEnabled } from "./pills.client";
+import { getLinks, openLink } from "../shared/links";
+import { isShortcutEnabled, setShortcutEnabled } from "./pills";
 
 export function LinksPanel(props: PluginWorkspacePanelProps) {
   return <WorkspaceLinks key={`${props.host.id}:${props.workspaceId}`} {...props} />;

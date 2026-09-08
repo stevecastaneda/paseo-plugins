@@ -1,4 +1,4 @@
-import type { SetupCommand, SetupSnapshot, SetupStatus } from "./setup.shared.ts";
+import type { SetupCommand, SetupSnapshot, SetupStatus } from "./setup.ts";
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;

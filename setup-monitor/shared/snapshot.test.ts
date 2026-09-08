@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { SetupCommand, SetupSnapshot } from "./setup.shared.ts";
+import type { SetupCommand, SetupSnapshot } from "./setup.ts";
 import {
   commandLabel,
   completedDurationMs,

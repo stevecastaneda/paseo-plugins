@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readLinks } from "./links.server.ts";
+import { readLinks } from "./links.ts";
 
 test("reads each workspace's own file and refreshes generated links", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "workspace-links-"));
@@ -26,7 +26,7 @@ test("malformed files and non-web URLs produce a useful error", async (t) => {
 });
 
 test("OS launch commands keep URL punctuation out of executable code", async () => {
-  const { browserCommand } = await import("./browser.server.ts");
+  const { browserCommand } = await import("./browser.ts");
   const url = "https://example.com/?q=$('test')&other=%22quoted%22";
   assert.deepEqual(browserCommand(url, "darwin"), { file: "/usr/bin/open", args: [url] });
   assert.deepEqual(browserCommand(url, "linux"), { file: "xdg-open", args: [url] });
@@ -38,7 +38,7 @@ test("OS launch commands keep URL punctuation out of executable code", async () 
 });
 
 test("launcher hides the console, passes the URL as data, and surfaces failures", async () => {
-  const { launchUrl } = await import("./browser.server.ts");
+  const { launchUrl } = await import("./browser.ts");
   const url = "https://example.com/?a=1&b=2";
   const run = (async (_file: string, _args: string[], options: Record<string, unknown>) => {
     assert.equal(options.shell, false);

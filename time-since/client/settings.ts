@@ -1,6 +1,6 @@
-import { useRpc } from "@getpaseo/plugin";
+import { useRpc } from "@getpaseo/plugin/client";
 import { useQuery } from "@tanstack/react-query";
-import { getSettings } from "./settings.shared";
+import { getSettings } from "../shared/settings";
 
 export const settingsQueryKey = (hostId: string) => ["time-since", "settings", hostId];
 

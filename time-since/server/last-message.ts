@@ -1,5 +1,5 @@
-import type { PluginHandlerContext } from "@getpaseo/plugin";
-import { lastThreadMessageAt } from "./elapsed";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
+import { lastThreadMessageAt } from "../shared/elapsed";
 
 export async function handleGetLastThreadMessage(
   input: { agentId: string },

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { SetupSnapshot } from "./setup.shared.ts";
-import { setupSnapshotSchema } from "./setup.shared.ts";
-import { trimSnapshot } from "./snapshot.ts";
+import type { SetupSnapshot } from "../shared/setup.ts";
+import { setupSnapshotSchema } from "../shared/setup.ts";
+import { trimSnapshot } from "../shared/snapshot.ts";
 
 export interface DaemonPort {
   send(frame: string): void;

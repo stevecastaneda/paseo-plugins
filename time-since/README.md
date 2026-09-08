@@ -1,6 +1,6 @@
 # time-since
 
-Paseo 0.7 composer pill that ticks elapsed time since the last `user_message` or `assistant_message` in the agent thread.
+Paseo 0.8 composer pill that ticks elapsed time since the last `user_message` or `assistant_message` in the agent thread.
 
 It sits in the track above the composer. The clock is the last chat-message timestamp on the timeline, so it survives closing Paseo and reopening the workspace. It does not replace Paseo's message renderer.
 
@@ -12,7 +12,7 @@ Open **Time Since Options** in Command Center to show or hide the clock icon and
 
 ## Install
 
-Paseo 0.7.x. Enable plugins in **Settings → Plugins**, then:
+Paseo 0.8.x. Enable plugins in **Settings → Plugins**, then:
 
 ```bash
 paseo plugin add stevecastaneda/paseo-plugins:time-since

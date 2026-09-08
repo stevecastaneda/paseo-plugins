@@ -1,4 +1,5 @@
-import { Icon, type PluginClientContext, type PluginComposerPillProps } from "@getpaseo/plugin";
+import type { PluginClientContext, PluginComposerPillProps } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 
 const hidden = new Set<string>();
 const listeners = new Set<() => void>();
