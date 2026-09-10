@@ -7,6 +7,7 @@ import type {
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import {
   defaultShortcut,
+  getShortcutSettings,
   headerButtonLabel,
   type ShortcutSettings,
 } from "../shared/shortcut";
@@ -16,24 +17,30 @@ function LinksIcon(props: PluginButtonIconProps) {
   return <Icon name="Link" size={size} color={props.color} />;
 }
 
-const settings = new Map<string, ShortcutSettings>();
+let settings: ShortcutSettings = { ...defaultShortcut };
 const listeners = new Set<() => void>();
 
 function notify() {
   for (const sync of listeners) sync();
 }
 
-export function getShortcut(workspaceId: string): ShortcutSettings {
-  return settings.get(workspaceId) ?? defaultShortcut;
+export function getShortcut(): ShortcutSettings {
+  return settings;
 }
 
-export function setShortcut(workspaceId: string, patch: Partial<ShortcutSettings>) {
-  const next = { ...getShortcut(workspaceId), ...patch };
-  const current = settings.get(workspaceId);
-  if (current && current.placement === next.placement && current.headerShowsLabel === next.headerShowsLabel) {
+export function subscribeShortcut(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function setShortcut(patch: Partial<ShortcutSettings>) {
+  const next = { ...settings, ...patch };
+  if (settings.placement === next.placement && settings.headerShowsLabel === next.headerShowsLabel) {
     return;
   }
-  settings.set(workspaceId, next);
+  settings = next;
   notify();
 }
 
@@ -67,13 +74,13 @@ export function contributeClient(client: PluginClientContext) {
 
     for (const [agentId, entry] of pills) {
       const workspaceId = agents.get(agentId);
-      if (!workspaceId || workspaceId !== entry.workspaceId || getShortcut(workspaceId).placement !== "composer") {
+      if (!workspaceId || workspaceId !== entry.workspaceId || getShortcut().placement !== "composer") {
         entry.pill.remove();
         pills.delete(agentId);
       }
     }
     for (const [workspaceId, entry] of headers) {
-      const shortcut = getShortcut(workspaceId);
+      const shortcut = getShortcut();
       if (!knownWorkspaces.has(workspaceId) || shortcut.placement !== "header" || entry.showLabel !== shortcut.headerShowsLabel) {
         entry.button.remove();
         headers.delete(workspaceId);
@@ -81,7 +88,7 @@ export function contributeClient(client: PluginClientContext) {
     }
 
     for (const [agentId, workspaceId] of agents) {
-      if (getShortcut(workspaceId).placement !== "composer" || pills.has(agentId)) continue;
+      if (getShortcut().placement !== "composer" || pills.has(agentId)) continue;
       const pill = client.addComposerPill({
         id: "workspace-links",
         workspaceId,
@@ -91,7 +98,7 @@ export function contributeClient(client: PluginClientContext) {
       pills.set(agentId, { workspaceId, pill });
     }
     for (const workspaceId of knownWorkspaces) {
-      const shortcut = getShortcut(workspaceId);
+      const shortcut = getShortcut();
       if (shortcut.placement !== "header" || headers.has(workspaceId)) continue;
       const button = client.addHeaderButton({
         id: "workspace-links",
@@ -105,6 +112,11 @@ export function contributeClient(client: PluginClientContext) {
 
   async function syncTargets() {
     try {
+      try {
+        const nextShortcut = await client.rpc(getShortcutSettings, {});
+        if (stopped) return;
+        setShortcut(nextShortcut);
+      } catch { /* Keep the last known placement until the next tick. */ }
       const nextAgents = new Map<string, string>();
       const nextWorkspaces = new Set<string>();
       let agentCursor: string | undefined;
