@@ -1,9 +1,99 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { getLinks, openLink } from "../shared/links";
-import { isShortcutEnabled, setShortcutEnabled } from "./pills";
+import { PLACEMENT_OPTIONS } from "../shared/shortcut";
+import { getShortcut, setShortcut } from "./pills";
+
+function CompactSelect<Value extends string>({
+  colors,
+  label,
+  value,
+  options,
+  onValueChange,
+}: {
+  colors: PluginWorkspacePanelProps["theme"]["colors"];
+  label: string;
+  value: Value;
+  options: readonly { label: string; value: Value }[];
+  onValueChange(value: Value): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value)?.label ?? value;
+  return (
+    <View style={{ position: "relative", zIndex: open ? 10 : 0 }}>
+      <View style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        minHeight: 32,
+        paddingHorizontal: 12,
+        paddingTop: 8,
+        paddingBottom: 4,
+      }}>
+        <Text style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{label}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${label}, ${selected}`}
+          accessibilityState={{ expanded: open }}
+          onPress={() => setOpen((current) => !current)}
+          style={({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            paddingHorizontal: 6,
+            paddingVertical: 4,
+            borderRadius: 6,
+            backgroundColor: hovered || open ? colors.surface1 : "transparent",
+          })}
+        >
+          <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{selected}</Text>
+          <Icon name="ChevronDown" size={14} color={colors.foregroundMuted} />
+        </Pressable>
+      </View>
+      {open ? (
+        <View style={{
+          position: "absolute",
+          right: 12,
+          top: 32,
+          minWidth: 168,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 6,
+          overflow: "hidden",
+          backgroundColor: colors.surface0,
+        }}>
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="menuitem"
+                accessibilityState={{ selected: isSelected }}
+                onPress={() => {
+                  onValueChange(option.value);
+                  setOpen(false);
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  backgroundColor: pressed ? colors.surface1 : colors.surface0,
+                })}
+              >
+                <Text style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{option.label}</Text>
+                {isSelected ? <Icon name="Check" size={14} color={colors.foreground} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export function LinksPanel(props: PluginWorkspacePanelProps) {
   return <WorkspaceLinks key={`${props.host.id}:${props.workspaceId}`} {...props} />;
@@ -12,7 +102,7 @@ export function LinksPanel(props: PluginWorkspacePanelProps) {
 function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps) {
   const fetchLinks = useRpc(getLinks);
   const launch = useRpc(openLink);
-  const [showPill, setShowPill] = useState(() => isShortcutEnabled(workspaceId));
+  const [shortcut, setLocalShortcut] = useState(() => getShortcut(workspaceId));
   const openingRef = useRef(false);
   const [opening, setOpening] = useState(false);
   const [exampleExpanded, setExampleExpanded] = useState(false);
@@ -135,25 +225,58 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
         </Text>
       ) : null}
       {isEmpty ? setupGuide : null}
-      <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingTop: 12 }}>Options</Text>
-        <Pressable accessibilityRole="switch" accessibilityLabel="Show link pill"
-          accessibilityState={{ checked: showPill }}
-          onPress={() => { setShortcutEnabled(workspaceId, !showPill); setShowPill(!showPill); }}
-          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 40, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
-          <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>Show link pill</Text>
-          <View style={{ width: 28, height: 16, borderRadius: 8, padding: 2, justifyContent: "center", alignItems: showPill ? "flex-end" : "flex-start", backgroundColor: showPill ? colors.accent : colors.surface2, borderWidth: showPill ? 0 : 1, borderColor: colors.border }}>
-            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: showPill ? colors.accentForeground : colors.foregroundMuted }} />
-          </View>
-        </Pressable>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 12, paddingBottom: 12 }}>
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Preview</Text>
-          <View accessible accessibilityLabel="Link pill preview" style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface1, borderColor: colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-            <Icon name="Link" size={14} color={colors.foregroundMuted} />
-            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>Links</Text>
-          </View>
-        </View>
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingBottom: 12 }}>
+      <View style={{ zIndex: 1, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 }}>
+        <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2 }}>
+          Options
+        </Text>
+        <CompactSelect
+          colors={colors}
+          label="Show as"
+          value={shortcut.placement}
+          options={PLACEMENT_OPTIONS}
+          onValueChange={(placement) => {
+            setShortcut(workspaceId, { placement });
+            setLocalShortcut(getShortcut(workspaceId));
+          }}
+        />
+        {shortcut.placement === "header" ? (
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel="Show label"
+            accessibilityState={{ checked: shortcut.headerShowsLabel }}
+            onPress={() => {
+              setShortcut(workspaceId, { headerShowsLabel: !shortcut.headerShowsLabel });
+              setLocalShortcut(getShortcut(workspaceId));
+            }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              minHeight: 28,
+              paddingHorizontal: 12,
+              paddingTop: 4,
+              paddingBottom: 8,
+            }}
+          >
+            <Text style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>Show label</Text>
+            <View style={{
+              width: 28,
+              height: 16,
+              borderRadius: 8,
+              padding: 2,
+              justifyContent: "center",
+              alignItems: shortcut.headerShowsLabel ? "flex-end" : "flex-start",
+              backgroundColor: shortcut.headerShowsLabel ? colors.accent : colors.surface2,
+              borderWidth: shortcut.headerShowsLabel ? 0 : 1,
+              borderColor: colors.border,
+            }}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: shortcut.headerShowsLabel ? colors.accentForeground : colors.foregroundMuted }} />
+            </View>
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 12, paddingVertical: 10 }}>
+        <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
           This workspace · Resets when the plugin reloads
         </Text>
       </View>
