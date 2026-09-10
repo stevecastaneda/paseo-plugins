@@ -40,7 +40,7 @@ paseo plugin add stevecastaneda/paseo-plugins --path setup-monitor
 
 ## workspace-links
 
-Browser links for each workspace, supplied by `workspace-links.json` at the workspace root. Open the panel from the Links composer pill or **Workspace Links** in Command Center. The panel includes setup instructions and an option to hide the pill.
+Browser links for each workspace, supplied by `workspace-links.json` at the workspace root. Open the panel from the Links composer pill or **Workspace Links** in Command Center. The panel includes setup instructions and a control to use the composer pill or a header button.
 
 Links open in the default browser on the **machine running the Paseo daemon** (macOS, Windows, or Linux). For remote workspaces, that means the remote host; `localhost` refers to that host too.
 
