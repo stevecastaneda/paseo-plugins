@@ -18,7 +18,7 @@ Plugin code is trusted and unsandboxed. Server code runs as the daemon user. Cli
 
 Composer pill that ticks elapsed time since the last chat message in the agent thread. It sits in the track above the composer.
 
-Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds. Hidden while a turn is running. Press the pill for the absolute timestamp.
+Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds. Hidden while a turn is running. Press the pill to open a popover with the absolute timestamp.
 
 Open **Time Since Options** in Command Center to customize the clock icon and optional `ago` suffix. See the [plugin README](time-since/README.md) for details.
 

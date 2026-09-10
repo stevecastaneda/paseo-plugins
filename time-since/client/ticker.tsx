@@ -1,10 +1,12 @@
 import {
+  type PluginButtonContentProps,
   type PluginButtonIconProps,
   type PluginButtonRegistration,
   type PluginClientContext,
 } from "@getpaseo/plugin/client";
-import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
-import React, { useEffect, useSyncExternalStore } from "react";
+import { Icon } from "@getpaseo/plugin/client/react-native";
+import React, { useSyncExternalStore } from "react";
+import { Text, View } from "react-native";
 import {
   formatTimeSincePillLabel,
   isWorkingStatus,
@@ -16,7 +18,6 @@ import { defaultSettings, getSettings, type TimeSinceSettings } from "../shared/
 
 const lastMessageAt = new Map<string, string>();
 const lastMessageListeners = new Map<string, Set<() => void>>();
-const showAbsolute = new Map<string, () => void>();
 
 function emitLastMessage(agentId: string) {
   for (const listener of lastMessageListeners.get(agentId) ?? []) listener();
@@ -63,28 +64,34 @@ function useLastMessageAt(agentId: string) {
 
 function TimeSinceIcon(props: PluginButtonIconProps) {
   if (props.context !== "agent") return null;
-  const { host, agentId, size, color } = props;
-  const settings = useSettings(host.id).data ?? defaultSettings;
-  const lastAt = useLastMessageAt(agentId);
-  const toast = useToast();
-
-  useEffect(() => {
-    if (!lastAt) {
-      showAbsolute.delete(agentId);
-      return;
-    }
-    showAbsolute.set(agentId, () => {
-      const when = new Date(lastAt);
-      if (Number.isNaN(when.getTime())) return;
-      toast.show(when.toLocaleString(), { variant: "info" });
-    });
-    return () => {
-      showAbsolute.delete(agentId);
-    };
-  }, [lastAt, agentId, toast]);
-
+  const settings = useSettings(props.host.id).data ?? defaultSettings;
   if (!settings.showIcon) return null;
-  return <Icon name="Clock" size={size} color={color} />;
+  return <Icon name="Clock" size={props.size} color={props.color} />;
+}
+
+function TimeSincePopover(props: PluginButtonContentProps) {
+  const agentId = props.context === "agent" ? props.agentId : "";
+  const lastAt = useLastMessageAt(agentId);
+  if (props.context !== "agent") return null;
+  const when = lastAt ? new Date(lastAt) : null;
+  const valid = when !== null && !Number.isNaN(when.getTime());
+  const muted = props.theme.colors.foregroundMuted;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        marginVertical: -4,
+      }}
+    >
+      <Text style={{ color: muted, fontSize: 12, lineHeight: 18, flexShrink: 1 }}>Last message</Text>
+      <Text selectable style={{ color: props.theme.colors.foreground, fontSize: 12, lineHeight: 18 }}>
+        {valid ? when.toLocaleString() : "None yet"}
+      </Text>
+    </View>
+  );
 }
 
 type AgentSnap = {
@@ -111,7 +118,6 @@ export function contributeClient(client: PluginClientContext) {
     pills.get(agentId)?.pill.remove();
     pills.delete(agentId);
     tracked.delete(agentId);
-    showAbsolute.delete(agentId);
     stopWatch(agentId);
   };
 
@@ -159,10 +165,8 @@ export function contributeClient(client: PluginClientContext) {
           label,
           visible,
           behavior: {
-            kind: "action",
-            onPress() {
-              showAbsolute.get(agent.id)?.();
-            },
+            kind: "popover",
+            Content: TimeSincePopover,
           },
         },
       });
@@ -228,6 +232,5 @@ export function contributeClient(client: PluginClientContext) {
     watches.clear();
     lastMessageAt.clear();
     lastMessageListeners.clear();
-    showAbsolute.clear();
   };
 }
