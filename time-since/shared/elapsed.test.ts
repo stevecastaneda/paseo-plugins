@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   formatElapsed,
   formatTimeSinceLabel,
+  formatTimeSincePillLabel,
   isWorkingStatus,
   lastThreadMessageAt,
   lastThreadMessageAtFromStream,
@@ -33,6 +34,15 @@ test("formatTimeSinceLabel returns elapsed time without a suffix", () => {
   const now = Date.parse(at) + 125_000;
   assert.equal(formatTimeSinceLabel(at, now), "2m 5s");
   assert.equal(formatTimeSinceLabel("not-a-date", now), null);
+});
+
+test("formatTimeSincePillLabel adds the ago suffix and falls back to an ellipsis", () => {
+  const at = "2026-09-04T12:00:00.000Z";
+  const now = Date.parse(at) + 125_000;
+  assert.equal(formatTimeSincePillLabel(at, now, false), "2m 5s");
+  assert.equal(formatTimeSincePillLabel(at, now, true), "2m 5s ago");
+  assert.equal(formatTimeSincePillLabel(null, now, true), "…");
+  assert.equal(formatTimeSincePillLabel("not-a-date", now, false), "…");
 });
 
 test("isWorkingStatus hides the pill during a live turn", () => {

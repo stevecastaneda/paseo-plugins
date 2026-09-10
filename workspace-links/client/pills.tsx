@@ -1,5 +1,4 @@
-import type { PluginClientContext, PluginComposerPillProps } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import type { PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 
 const hidden = new Set<string>();
 const listeners = new Set<() => void>();
@@ -10,30 +9,38 @@ export function setShortcutEnabled(workspaceId: string, enabled: boolean) {
   for (const sync of listeners) sync();
 }
 
-function LinksPill({ theme }: PluginComposerPillProps) {
-  return <Icon name="Link" size={14} color={theme.colors.foregroundMuted} />;
-}
-
 export function contributeClient(client: PluginClientContext) {
   let eligible = new Map<string, string>();
-  const pills = new Map<string, { workspaceId: string; remove: () => void | Promise<void> }>();
+  const pills = new Map<string, { workspaceId: string; pill: PluginButtonRegistration }>();
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const sync = () => {
     if (stopped) return;
-    for (const [id, pill] of pills) {
-      if (eligible.get(id) !== pill.workspaceId || !isShortcutEnabled(pill.workspaceId)) {
-        void pill.remove();
+    for (const [id, entry] of pills) {
+      if (eligible.get(id) !== entry.workspaceId || !isShortcutEnabled(entry.workspaceId)) {
+        entry.pill.remove();
         pills.delete(id);
       }
     }
     for (const [agentId, workspaceId] of eligible) {
       if (!isShortcutEnabled(workspaceId) || pills.has(agentId)) continue;
-      const remove = client.addComposerPill({
-        id: "workspace-links", title: "Workspace Links", workspaceId, agentId, Component: LinksPill,
-        onPress() { client.openPanel("links", { workspaceId, location: "explorer" }); },
+      const pill = client.addComposerPill({
+        id: "workspace-links",
+        workspaceId,
+        agentId,
+        button: {
+          title: "Workspace Links",
+          icon: "Link",
+          label: "Links",
+          behavior: {
+            kind: "action",
+            onPress() {
+              client.openPanel("links", { workspaceId, location: "explorer" });
+            },
+          },
+        },
       });
-      pills.set(agentId, { workspaceId, remove });
+      pills.set(agentId, { workspaceId, pill });
     }
   };
   listeners.add(sync);
@@ -59,7 +66,7 @@ export function contributeClient(client: PluginClientContext) {
     stopped = true;
     if (timer) clearTimeout(timer);
     listeners.delete(sync);
-    for (const { remove } of pills.values()) void remove();
+    for (const { pill } of pills.values()) pill.remove();
     pills.clear();
   };
 }

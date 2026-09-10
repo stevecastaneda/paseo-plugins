@@ -148,8 +148,9 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
         </Pressable>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 12, paddingBottom: 12 }}>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Preview</Text>
-          <View accessible accessibilityLabel="Link pill preview" style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface1, borderColor: colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
+          <View accessible accessibilityLabel="Link pill preview" style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface1, borderColor: colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
             <Icon name="Link" size={14} color={colors.foregroundMuted} />
+            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>Links</Text>
           </View>
         </View>
         <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingBottom: 12 }}>

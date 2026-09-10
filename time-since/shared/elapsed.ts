@@ -37,6 +37,15 @@ export function formatTimeSinceLabel(lastActivityAt: string, nowMs: number): str
   return formatElapsed(nowMs - started);
 }
 
+export function formatTimeSincePillLabel(
+  lastActivityAt: string | null | undefined,
+  nowMs: number,
+  showAgo: boolean,
+): string {
+  const label = lastActivityAt ? formatTimeSinceLabel(lastActivityAt, nowMs) : null;
+  return label ? `${label}${showAgo ? " ago" : ""}` : "…";
+}
+
 export function isThreadMessageType(type: string | undefined): boolean {
   return type === "user_message" || type === "assistant_message";
 }

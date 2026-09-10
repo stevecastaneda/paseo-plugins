@@ -1,19 +1,18 @@
 import {
+  type PluginButtonIconProps,
+  type PluginButtonRegistration,
   type PluginClientContext,
-  type PluginComposerPillProps,
-  useAgent,
 } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
-import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Text } from "react-native";
+import React, { useEffect, useSyncExternalStore } from "react";
 import {
-  formatTimeSinceLabel,
+  formatTimeSincePillLabel,
   isWorkingStatus,
   lastThreadMessageAtFromStream,
 } from "../shared/elapsed";
 import { getLastThreadMessage } from "../shared/last-message";
 import { useSettings } from "./settings";
-import { defaultSettings } from "../shared/settings";
+import { defaultSettings, getSettings, type TimeSinceSettings } from "../shared/settings";
 
 const lastMessageAt = new Map<string, string>();
 const lastMessageListeners = new Map<string, Set<() => void>>();
@@ -62,21 +61,12 @@ function useLastMessageAt(agentId: string) {
   );
 }
 
-function TimeSincePill({ theme, agentId, host }: PluginComposerPillProps) {
+function TimeSinceIcon(props: PluginButtonIconProps) {
+  if (props.context !== "agent") return null;
+  const { host, agentId, size, color } = props;
   const settings = useSettings(host.id).data ?? defaultSettings;
-  const agent = useAgent(agentId, ({ status }) => ({ status }));
   const lastAt = useLastMessageAt(agentId);
   const toast = useToast();
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const textStyle = useMemo(
-    () => ({ color: theme.colors.foregroundMuted, flexShrink: 1 }),
-    [theme],
-  );
-
-  useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     if (!lastAt) {
@@ -93,24 +83,23 @@ function TimeSincePill({ theme, agentId, host }: PluginComposerPillProps) {
     };
   }, [lastAt, agentId, toast]);
 
-  if (isWorkingStatus(agent?.status)) return null;
-
-  const label = lastAt ? formatTimeSinceLabel(lastAt, nowMs) : null;
-
-  return (
-    <>
-      {settings.showIcon ? <Icon name="Clock" size={14} color={theme.colors.foregroundMuted} /> : null}
-      <Text style={textStyle} numberOfLines={1}>
-        {label ? `${label}${settings.showAgo ? " ago" : ""}` : "…"}
-      </Text>
-    </>
-  );
+  if (!settings.showIcon) return null;
+  return <Icon name="Clock" size={size} color={color} />;
 }
 
+type AgentSnap = {
+  id: string;
+  workspaceId: string;
+  status?: "initializing" | "idle" | "running" | "error" | "closed" | null;
+};
+
 export function contributeClient(client: PluginClientContext) {
-  const pills = new Map<string, () => void>();
+  const pills = new Map<string, { workspaceId: string; pill: PluginButtonRegistration }>();
   const watches = new Map<string, () => void>();
+  const tracked = new Map<string, AgentSnap>();
+  let settings: TimeSinceSettings = defaultSettings;
   let stopped = false;
+  let timer: ReturnType<typeof setInterval> | undefined;
 
   const stopWatch = (agentId: string) => {
     watches.get(agentId)?.();
@@ -119,8 +108,9 @@ export function contributeClient(client: PluginClientContext) {
   };
 
   const remove = (agentId: string) => {
-    pills.get(agentId)?.();
+    pills.get(agentId)?.pill.remove();
     pills.delete(agentId);
+    tracked.delete(agentId);
     showAbsolute.delete(agentId);
     stopWatch(agentId);
   };
@@ -147,33 +137,66 @@ export function contributeClient(client: PluginClientContext) {
     });
   };
 
+  const publishAgent = (agent: AgentSnap) => {
+    if (stopped) return;
+    watch(agent.id);
+    const visible = !isWorkingStatus(agent.status);
+    const label = formatTimeSincePillLabel(lastMessageAt.get(agent.id), Date.now(), settings.showAgo);
+    const existing = pills.get(agent.id);
+    if (existing && existing.workspaceId !== agent.workspaceId) {
+      existing.pill.remove();
+      pills.delete(agent.id);
+    }
+    const current = pills.get(agent.id);
+    if (!current) {
+      const pill = client.addComposerPill({
+        id: "time-since",
+        workspaceId: agent.workspaceId,
+        agentId: agent.id,
+        button: {
+          title: "Time since last message",
+          icon: TimeSinceIcon,
+          label,
+          visible,
+          behavior: {
+            kind: "action",
+            onPress() {
+              showAbsolute.get(agent.id)?.();
+            },
+          },
+        },
+      });
+      pills.set(agent.id, { workspaceId: agent.workspaceId, pill });
+      return;
+    }
+    current.pill.update({ label, visible });
+  };
+
+  const publishAll = () => {
+    if (stopped) return;
+    for (const agent of tracked.values()) publishAgent(agent);
+  };
+
+  const refreshSettings = async () => {
+    try {
+      settings = await client.rpc(getSettings, {});
+    } catch {
+      // Keep the last known settings until the next tick.
+    }
+  };
+
   const register = (agent: {
     id: string;
     workspaceId?: string | null;
     status?: "initializing" | "idle" | "running" | "error" | "closed" | null;
   }) => {
     if (stopped || !agent.workspaceId) return;
-    if (isWorkingStatus(agent.status)) {
-      pills.get(agent.id)?.();
-      pills.delete(agent.id);
-      showAbsolute.delete(agent.id);
-      watch(agent.id);
-      return;
-    }
-    watch(agent.id);
-    pills.get(agent.id)?.();
-    const workspaceId = agent.workspaceId;
-    const dispose = client.addComposerPill({
-      id: "time-since",
-      title: "Time since last message",
-      workspaceId,
-      agentId: agent.id,
-      Component: TimeSincePill,
-      onPress() {
-        showAbsolute.get(agent.id)?.();
-      },
+    tracked.set(agent.id, {
+      id: agent.id,
+      workspaceId: agent.workspaceId,
+      status: agent.status,
     });
-    pills.set(agent.id, dispose);
+    publishAgent(tracked.get(agent.id)!);
   };
 
   const unsubscribe = client.paseo.agents.subscribe((update) => {
@@ -189,11 +212,18 @@ export function contributeClient(client: PluginClientContext) {
     })
     .catch(() => undefined);
 
+  void refreshSettings();
+  timer = setInterval(() => {
+    void refreshSettings().then(publishAll);
+  }, 1000);
+
   return () => {
     stopped = true;
     unsubscribe();
-    for (const dispose of pills.values()) dispose();
+    if (timer) clearInterval(timer);
+    for (const { pill } of pills.values()) pill.remove();
     pills.clear();
+    tracked.clear();
     for (const stop of watches.values()) stop();
     watches.clear();
     lastMessageAt.clear();
