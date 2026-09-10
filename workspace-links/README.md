@@ -9,7 +9,7 @@ Under **Options**, turn off **Show link pill** to hide it for this workspace unt
 ## Install
 
 ```sh
-paseo plugin add stevecastaneda/paseo-plugins:workspace-links
+paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
 ```
 
 Enable plugins under **Settings → Plugins** on the Paseo host.

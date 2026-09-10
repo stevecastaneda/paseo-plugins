@@ -9,7 +9,7 @@ Paseo 0.8 live view of worktree setup. Paseo already tracks `worktree.setup` fro
 ![setup-monitor in Explorer](explorer.png)
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins:setup-monitor
+paseo plugin add stevecastaneda/paseo-plugins --path setup-monitor
 ```
 
 Turn on **Settings → Plugins → Enable plugins** on the daemon first.

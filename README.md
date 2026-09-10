@@ -25,7 +25,7 @@ Open **Time Since Options** in Command Center to customize the clock icon and op
 <img src="time-since/composer-pill.png" alt="time-since composer pill" width="336">
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins:time-since
+paseo plugin add stevecastaneda/paseo-plugins --path time-since
 ```
 
 ## setup-monitor
@@ -35,7 +35,7 @@ Live view of `worktree.setup` from `paseo.json`. While that script runs, Setup o
 <img src="setup-monitor/explorer.png" alt="setup-monitor in Explorer" width="451">
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins:setup-monitor
+paseo plugin add stevecastaneda/paseo-plugins --path setup-monitor
 ```
 
 ## workspace-links
@@ -47,7 +47,7 @@ Links open in the default browser on the **machine running the Paseo daemon** (m
 See [Workspace Links](workspace-links/README.md) for configuration.
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins:workspace-links
+paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
 ```
 
 ## Local development
