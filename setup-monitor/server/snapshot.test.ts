@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { SetupCommand, SetupSnapshot } from "./setup.ts";
+import type { SetupCommand, SetupSnapshot } from "../shared/setup.ts";
 import {
   commandLabel,
   completedDurationMs,
@@ -16,7 +16,7 @@ import {
   statusIconName,
   trimLog,
   trimSnapshot,
-} from "./snapshot.ts";
+} from "../shared/snapshot.ts";
 
 function command(partial: Partial<SetupCommand> & Pick<SetupCommand, "command" | "status">): SetupCommand {
   return {
