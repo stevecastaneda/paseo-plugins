@@ -3,8 +3,8 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { getLinks, openLink } from "../shared/links";
-import { PLACEMENT_OPTIONS } from "../shared/shortcut";
-import { getShortcut, setShortcut } from "./pills";
+import { getShortcutSettings, PLACEMENT_OPTIONS, updateShortcutSettings, type ShortcutSettings } from "../shared/shortcut";
+import { getShortcut, setShortcut, subscribeShortcut } from "./pills";
 
 function CompactSelect<Value extends string>({
   colors,
@@ -102,7 +102,13 @@ export function LinksPanel(props: PluginWorkspacePanelProps) {
 function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps) {
   const fetchLinks = useRpc(getLinks);
   const launch = useRpc(openLink);
-  const [shortcut, setLocalShortcut] = useState(() => getShortcut(workspaceId));
+  const fetchShortcut = useRpc(getShortcutSettings);
+  const saveShortcut = useRpc(updateShortcutSettings);
+  const [shortcut, setLocalShortcut] = useState(getShortcut);
+  const [shortcutLoaded, setShortcutLoaded] = useState(false);
+  const [shortcutSaving, setShortcutSaving] = useState(false);
+  const [shortcutLoadError, setShortcutLoadError] = useState<string | null>(null);
+  const [shortcutSaveError, setShortcutSaveError] = useState<string | null>(null);
   const openingRef = useRef(false);
   const [opening, setOpening] = useState(false);
   const [exampleExpanded, setExampleExpanded] = useState(false);
@@ -115,6 +121,8 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
   const colors = theme.colors;
   const isEmpty = result !== null && result.links.length === 0;
 
+  useEffect(() => subscribeShortcut(() => setLocalShortcut(getShortcut())), []);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -126,6 +134,42 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
     ).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [fetchLinks, workspaceId, revision]);
+
+  useEffect(() => {
+    let active = true;
+    setShortcutLoaded(false);
+    setShortcutLoadError(null);
+    setShortcutSaveError(null);
+    fetchShortcut({}).then(
+      (data) => {
+        if (!active) return;
+        setShortcut(data);
+        setShortcutLoaded(true);
+      },
+      () => {
+        if (!active) return;
+        setShortcutLoadError("Could not load options. Try again.");
+        setShortcutLoaded(true);
+      },
+    );
+    return () => { active = false; };
+  }, [fetchShortcut]);
+
+  async function persistShortcut(patch: Partial<ShortcutSettings>) {
+    if (!shortcutLoaded || shortcutSaving || shortcutLoadError) return;
+    const previous = getShortcut();
+    setShortcut(patch);
+    setShortcutSaving(true);
+    setShortcutSaveError(null);
+    try {
+      setShortcut(await saveShortcut(patch));
+    } catch {
+      setShortcut(previous);
+      setShortcutSaveError("Could not save options. Your previous settings are still shown. Try the control again.");
+    } finally {
+      setShortcutSaving(false);
+    }
+  }
 
   async function openUrl(url: string) {
     if (openingRef.current) return;
@@ -229,25 +273,46 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
         <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2 }}>
           Options
         </Text>
+        {!shortcutLoaded ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading options" style={{ padding: 12 }} /> : null}
+        {shortcutLoadError ? (
+          <View style={{ gap: 8, paddingHorizontal: 12, paddingBottom: 8 }}>
+            <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
+              {shortcutLoadError}
+            </Text>
+            <Pressable accessibilityRole="button" onPress={() => {
+              setShortcutLoaded(false);
+              setShortcutLoadError(null);
+              fetchShortcut({}).then(
+                (data) => {
+                  setShortcut(data);
+                  setShortcutLoaded(true);
+                },
+                () => {
+                  setShortcutLoadError("Could not load options. Try again.");
+                  setShortcutLoaded(true);
+                },
+              );
+            }}>
+              <Text style={{ color: colors.accent, fontSize: 12, lineHeight: 18 }}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {shortcutLoaded && !shortcutLoadError ? (
+          <View style={{ opacity: shortcutSaving ? 0.6 : 1 }}>
         <CompactSelect
           colors={colors}
           label="Show as"
           value={shortcut.placement}
           options={PLACEMENT_OPTIONS}
-          onValueChange={(placement) => {
-            setShortcut(workspaceId, { placement });
-            setLocalShortcut(getShortcut(workspaceId));
-          }}
+          onValueChange={(placement) => { void persistShortcut({ placement }); }}
         />
         {shortcut.placement === "header" ? (
           <Pressable
             accessibilityRole="switch"
             accessibilityLabel="Show label"
-            accessibilityState={{ checked: shortcut.headerShowsLabel }}
-            onPress={() => {
-              setShortcut(workspaceId, { headerShowsLabel: !shortcut.headerShowsLabel });
-              setLocalShortcut(getShortcut(workspaceId));
-            }}
+            accessibilityState={{ checked: shortcut.headerShowsLabel, disabled: shortcutSaving }}
+            disabled={shortcutSaving}
+            onPress={() => { void persistShortcut({ headerShowsLabel: !shortcut.headerShowsLabel }); }}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -274,10 +339,17 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
             </View>
           </Pressable>
         ) : null}
+          </View>
+        ) : null}
+        {shortcutSaveError ? (
+          <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingBottom: 8 }}>
+            {shortcutSaveError}
+          </Text>
+        ) : null}
       </View>
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 12, paddingVertical: 10 }}>
         <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          This workspace · Resets when the plugin reloads
+          {shortcutSaving ? "Saving..." : `All workspaces on ${host.label} · Auto-save`}
         </Text>
       </View>
       {result && !isEmpty ? (

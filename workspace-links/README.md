@@ -4,7 +4,7 @@ A small Paseo 0.8 plugin that reads `workspace-links.json` from the active works
 
 A Links composer pill opens the panel, even when the workspace has no links yet, so the setup guide is always accessible. The panel never opens automatically.
 
-Under **Show as**, switch this workspace between the composer pill and a workspace header button. Header buttons can hide the **Links** label. This preference is not saved to disk.
+Under **Show as**, switch between the composer pill and a workspace header button. Header buttons can hide the **Links** label. Changes apply to all workspaces on the connected host and persist across restarts. The composer pill is the default.
 
 ## Install
 

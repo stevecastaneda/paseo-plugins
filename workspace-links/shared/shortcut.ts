@@ -1,14 +1,18 @@
+import { defineRpc } from "@getpaseo/plugin";
+import { z } from "zod";
+
 export const PLACEMENT_OPTIONS = [
   { value: "composer", label: "Composer Pill" },
   { value: "header", label: "Header Button" },
 ] as const;
 
-export type ShortcutPlacement = (typeof PLACEMENT_OPTIONS)[number]["value"];
+export const shortcutSchema = z.object({
+  placement: z.enum(["composer", "header"]),
+  headerShowsLabel: z.boolean(),
+});
 
-export type ShortcutSettings = {
-  placement: ShortcutPlacement;
-  headerShowsLabel: boolean;
-};
+export type ShortcutSettings = z.infer<typeof shortcutSchema>;
+export type ShortcutPlacement = ShortcutSettings["placement"];
 
 export const defaultShortcut = {
   placement: "composer",
@@ -18,3 +22,18 @@ export const defaultShortcut = {
 export function headerButtonLabel(showLabel: boolean) {
   return showLabel ? "Links" : undefined;
 }
+
+export const getShortcutSettings = defineRpc({
+  name: "workspace-links.shortcut.get",
+  input: z.object({}),
+  output: shortcutSchema,
+});
+
+export const updateShortcutSettings = defineRpc({
+  name: "workspace-links.shortcut.update",
+  input: z.object({
+    placement: z.enum(["composer", "header"]).optional(),
+    headerShowsLabel: z.boolean().optional(),
+  }),
+  output: shortcutSchema,
+});
