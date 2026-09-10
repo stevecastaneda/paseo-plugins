@@ -8,6 +8,8 @@ Paseo 0.8 live view of worktree setup. Paseo already tracks `worktree.setup` fro
 
 ![setup-monitor in Explorer](explorer.png)
 
+## Install
+
 ```bash
 paseo plugin add stevecastaneda/paseo-plugins --path setup-monitor
 ```
