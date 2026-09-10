@@ -7,7 +7,7 @@ import {
   isWorkingStatus,
   lastThreadMessageAt,
   lastThreadMessageAtFromStream,
-} from "./elapsed.ts";
+} from "../shared/elapsed.ts";
 
 test("formatElapsed clamps negatives and reports seconds under a minute", () => {
   assert.equal(formatElapsed(-50), "0s");
