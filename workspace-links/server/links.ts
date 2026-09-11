@@ -21,14 +21,18 @@ export async function readLinks(directory: string) {
   }
 }
 
-export async function handleGetLinks(input: { workspaceId: string }, { paseo }: PluginHandlerContext) {
-  const workspace = await paseo.workspaces.ref(input.workspaceId).refresh();
-  if (!workspace) throw new Error("Workspace is no longer available");
-  return readLinks(workspace.workspaceDirectory);
+export async function handleGetLinks(
+  input: { workspaceId: string; workspaceDirectory: string },
+  _context: PluginHandlerContext,
+) {
+  return readLinks(input.workspaceDirectory);
 }
 
-export async function handleOpenLink(input: { workspaceId: string; url: string }, context: PluginHandlerContext) {
-  const { links } = await handleGetLinks(input, context);
+export async function handleOpenLink(
+  input: { workspaceId: string; workspaceDirectory: string; url: string },
+  _context: PluginHandlerContext,
+) {
+  const { links } = await readLinks(input.workspaceDirectory);
   if (!links.some((link) => link.url === input.url)) {
     throw new Error("This link has changed or was removed. Refresh the list.");
   }

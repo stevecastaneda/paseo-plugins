@@ -1,4 +1,4 @@
-import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
+import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
@@ -100,6 +100,7 @@ export function LinksPanel(props: PluginWorkspacePanelProps) {
 }
 
 function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps) {
+  const workspaceDirectory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const fetchLinks = useRpc(getLinks);
   const launch = useRpc(openLink);
   const fetchShortcut = useRpc(getShortcutSettings);
@@ -124,16 +125,22 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
   useEffect(() => subscribeShortcut(() => setLocalShortcut(getShortcut())), []);
 
   useEffect(() => {
+    if (!workspaceDirectory) {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
     setResult(null);
-    fetchLinks({ workspaceId }).then(
+    fetchLinks({ workspaceId, workspaceDirectory }).then(
       (data) => { if (active) setResult(data); },
       (reason) => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); },
     ).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [fetchLinks, workspaceId, revision]);
+  }, [fetchLinks, workspaceDirectory, workspaceId, revision]);
 
   useEffect(() => {
     let active = true;
@@ -172,12 +179,12 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
   }
 
   async function openUrl(url: string) {
-    if (openingRef.current) return;
+    if (openingRef.current || !workspaceDirectory) return;
     openingRef.current = true;
     setOpening(true);
     setError(null);
     try {
-      await launch({ workspaceId, url });
+      await launch({ workspaceId, workspaceDirectory, url });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not open the host’s browser.");
     } finally {
