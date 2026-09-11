@@ -3,7 +3,18 @@ import { test } from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readLinks } from "./links.ts";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
+import { handleGetLinks, readLinks } from "./links.ts";
+
+function unusedPaseo(): PluginHandlerContext {
+  return {
+    paseo: new Proxy({} as PluginHandlerContext["paseo"], {
+      get() {
+        throw new Error("handleGetLinks must not call paseo");
+      },
+    }),
+  };
+}
 
 test("reads each workspace's own file and refreshes generated links", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "workspace-links-"));
@@ -49,4 +60,15 @@ test("launcher hides the console, passes the URL as data, and surfaces failures"
   await launchUrl(url, run);
   const failing = (async () => { throw new Error("unavailable"); }) as Parameters<typeof launchUrl>[1];
   await assert.rejects(launchUrl(url, failing), /default browser/);
+});
+
+test("loads links from workspace-links.json without calling paseo", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "workspace-links-rpc-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const links = [{ label: "App", url: "http://localhost:4321" }];
+  await writeFile(join(directory, "workspace-links.json"), JSON.stringify(links));
+  assert.deepEqual(
+    await handleGetLinks({ workspaceId: "ws-1", workspaceDirectory: directory }, unusedPaseo()),
+    { configured: true, links },
+  );
 });
