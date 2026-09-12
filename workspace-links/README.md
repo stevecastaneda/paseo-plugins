@@ -1,8 +1,8 @@
 # Workspace Links
 
-A small Paseo 0.8 plugin that reads `workspace-links.json` from the active workspace and displays clickable links. Open **Workspace Links** in the Command Center to show the panel in Explorer.
+A small Paseo 0.8 plugin that reads `workspace-links.json` from the active workspace and puts those URLs on the Links trigger. Press the composer pill or header button and choose a URL to open it in the host browser. **Manage links** (or **Add links** when the file is empty or missing) opens the setup panel in Explorer. The Command Center item **Workspace Links** opens that panel too.
 
-A Links composer pill opens the panel, even when the workspace has no links yet, so the setup guide is always accessible. The panel never opens automatically.
+The trigger stays available when the workspace has no links yet, so the setup guide is always one menu item away. The panel never opens automatically.
 
 Under **Show as**, switch between the composer pill and a workspace header button. Header buttons can hide the **Links** label. Changes apply to all workspaces on the connected host and persist across restarts. The composer pill is the default.
 
@@ -26,7 +26,7 @@ Put this file at the workspace root:
 ]
 ```
 
-Use fixed URLs or have your existing setup/dev script generate this same file with the workspace's current URLs. Gitignore it if it contains workspace-specific values. Click **Refresh** after changing it. The plugin does not execute scripts.
+Use fixed URLs or have your existing setup/dev script generate this same file with the workspace's current URLs. Gitignore it if it contains workspace-specific values. The Links menu rereads the file on its own. Click **Refresh** in the panel if that list still looks stale. The plugin does not execute scripts.
 
 Links open in the **default browser on the machine running the Paseo daemon**. Set Chrome as that machine's default browser if you prefer Chrome. No terminal tab, browser selector, or extra runtime dependency is needed.
 
