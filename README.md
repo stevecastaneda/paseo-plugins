@@ -46,6 +46,8 @@ Links open in the default browser on the **machine running the Paseo daemon** (m
 
 See [Workspace Links](workspace-links/README.md) for configuration.
 
+<img src="workspace-links/explorer.png" alt="workspace-links in Explorer" width="890">
+
 ```bash
 paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
 ```

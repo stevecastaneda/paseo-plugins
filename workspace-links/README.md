@@ -6,6 +6,8 @@ The trigger stays available when the workspace has no links yet, so the setup gu
 
 Under **Show as**, switch between the composer pill and a workspace header button. Header buttons can hide the **Links** label. Changes apply to all workspaces on the connected host and persist across restarts. The composer pill is the default.
 
+![workspace-links in Explorer](explorer.png)
+
 ## Install
 
 ```sh
