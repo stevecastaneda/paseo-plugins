@@ -71,3 +71,9 @@ paseo plugin reload time-since
 ```
 
 Replace `time-since` in the reload command with the plugin you are working on. In PowerShell, use `(Get-Location).Path` instead of `"$PWD"` in the install command.
+
+## Versioning
+
+Each plugin versions itself in that directory's `package.json`, starting at `0.1.0`. Paseo Cafe uses that field as the update identity, so bump it whenever you ship a change to that plugin. Sibling plugins and the git tag on this repository do not count.
+
+Do not cut a GitHub Release for the whole repo. A plugin update is: increment that plugin's `package.json` (and matching `package-lock.json`), merge to `main`. Cafe's next scan picks it up. `paseo plugin update` still pulls the tracked git branch.
