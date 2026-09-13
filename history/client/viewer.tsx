@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, Text, View, type ScrollView as NativeScrollView, type LayoutChangeEvent } from "react-native";
 import { useRpc, type PluginButtonIconProps } from "@getpaseo/plugin/client";
-import { FlatList, Icon, copyText } from "@getpaseo/plugin/client/react-native";
+import { FlatList, ScrollView, Icon, copyText } from "@getpaseo/plugin/client/react-native";
 import type { RpcOutput } from "@getpaseo/plugin";
 import { readHistory } from "../shared/history";
 import { groupTurns, parseEntries, type HistoryEntry, type HistoryTurn } from "../shared/entries";
@@ -70,7 +70,7 @@ function Message({ entry, colors, copy, onError }: { entry: HistoryEntry; colors
   </View>;
 }
 
-function Turn({ turn, colors, copy, onError }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onError(message: string): void }) {
+function Turn({ turn, colors, copy, onError, onLayout }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onError(message: string): void; onLayout(event: LayoutChangeEvent): void }) {
   const [detail, setDetail] = useState<string | null>(null);
   const messages = turn.entries.filter((entry) => entry.category === "message");
   const timestamp = turn.entries.find((entry) => entry.timestamp)?.timestamp;
@@ -80,7 +80,7 @@ function Turn({ turn, colors, copy, onError }: { turn: HistoryTurn; colors: Colo
       || (category === "tools" && entry.hasTools) || (category === "reasoning" && entry.hasReasoning)) }))
     .filter((tag) => tag.entries.length);
   const shown = detail === "raw" ? turn.entries : tags.find((tag) => tag.category === detail)?.entries ?? [];
-  return <View style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 4 }}>
+  return <View onLayout={onLayout} style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 4 }}>
     <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: messages.length ? 4 : 0 }}>
       <View style={{ flexDirection: "row", gap: 7, alignItems: "center" }}>
         <Icon name={turn.title === "Session details" ? "Info" : "MessagesSquare"} size={13} color={colors.foregroundMuted} />
@@ -111,6 +111,10 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const [notice, setNotice] = useState("");
   const [source, setSource] = useState(false);
   const request = useRef(0);
+  const conversationScroll = useRef<NativeScrollView>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const [positions, setPositions] = useState<Record<string, number>>({});
+  const measure = (key: string, y: number) => setPositions(previous => previous[key] === y ? previous : { ...previous, [key]: y });
   const colors = theme.colors;
   const entries = useMemo(() => parseEntries(text), [text]);
   const turns = useMemo(() => groupTurns(entries).filter((turn) => turn.title !== "Session details"
@@ -135,6 +139,12 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const copy = (value: string) => {
     void copyText(value).then(() => setNotice("Copied")).catch(() => setError("Could not copy. You can select the text instead."));
   };
+  const turnOffsets = turns.map((_, index) => positions[`turn-${index}`]);
+  const currentTurn = Math.max(0, turnOffsets.findLastIndex(y => y !== undefined && y <= scrollY + 2));
+  const jumpTurn = (direction: number) => {
+    const y = turnOffsets[currentTurn + direction];
+    if (y !== undefined) conversationScroll.current?.scrollTo({ y, animated: true });
+  };
   const hasMore = page && page.nextOffset < page.totalBytes;
   return <View style={{ flex: 1, minHeight: 0 }}>
     <View style={{ flexDirection: "row", gap: 4, alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -155,13 +165,18 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
     </View> : null}
     {source ? <FlatList data={entries} keyExtractor={(_, index) => String(index)} style={{ flex: 1, minHeight: 0 }}
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }} renderItem={({ item }) => <RawEntry entry={item} colors={colors} copy={copy} />} />
-      : <FlatList data={turns} keyExtractor={(_, index) => String(index)} style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }} renderItem={({ item }) => <Turn turn={item} colors={colors} copy={copy} onError={setError} />}
-        ListEmptyComponent={<View style={{ alignItems: "center", padding: 32, gap: 12 }}>
-          <Icon name="MessagesSquare" size={24} color={colors.foregroundMuted} />
-          <Text style={{ color: colors.foregroundMuted, fontSize: 13 }}>{busy ? "Reading history…" : page ? "No messages saved yet" : "No history to display"}</Text>
-        </View>} />}
+      : <ScrollView ref={conversationScroll} style={{ flex: 1, minHeight: 0 }} scrollEventThrottle={16}
+        onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+        {turns.map((turn, index) => <Turn key={index} turn={turn} colors={colors} copy={copy} onError={setError}
+          onLayout={event => measure(`turn-${index}`, event.nativeEvent.layout.y)}
+ />)}
+        {turns.length === 0 ? <Text style={{ color: colors.foregroundMuted, padding: 32 }}>{busy ? "Reading history…" : "No messages saved yet"}</Text> : null}
+      </ScrollView>}
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+      {!source ? <View style={{ flexDirection: "row" }}>
+        <Action colors={colors} label="Previous turn" icon="ChevronUp" disabled={busy || currentTurn === 0} onPress={() => jumpTurn(-1)} />
+        <Action colors={colors} label="Next turn" icon="ChevronDown" disabled={busy || currentTurn >= turnOffsets.length - 1} onPress={() => jumpTurn(1)} />
+      </View> : null}
       <Icon name={notice ? "Check" : "Database"} size={12} color={colors.foregroundMuted} />
       <Text accessibilityLiveRegion="polite" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 11 }}>
         {notice || (page ? `${entries.length} entries${hasMore ? ' · Partial history' : ' · All loaded'}` : 'Saved on this host')}

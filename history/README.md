@@ -2,7 +2,7 @@
 
 A **History** composer pill with Paseo’s built-in Gallery Vertical End icon opens a dialog for inspecting a chat's saved history.
 
-The default **Conversation** view groups saved records into turns and displays user and assistant messages. Tags reveal tools, reasoning, context, and other events. Each message has **Copy message** and an expandable **Raw** view with **Copy JSON**. **Raw source** shows the original JSONL records and their file path.
+The default **Conversation** view groups saved records into turns and displays user and assistant messages. Use the footer’s up/down arrows to scroll to the previous or next loaded turn. Tags reveal tools, reasoning, context, and other events. Each message has **Copy message** and an expandable **Raw** view with **Copy JSON**. **Raw source** shows the original JSONL records and their file path.
 
 Messages render Markdown, including headings, emphasis, lists, links, and tables. Code blocks scroll horizontally and have a **Copy code** action. **Copy message** keeps the original Markdown. Internal citation metadata is hidden in the readable view and preserved in Raw; HTML stays plain text. Web links open normally, while local file links copy their destination. Images appear as labeled links rather than loading remote files.
 
