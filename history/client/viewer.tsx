@@ -6,6 +6,7 @@ import type { RpcOutput } from "@getpaseo/plugin";
 import { readHistory } from "../shared/history";
 import { groupTurns, parseEntries, type HistoryEntry, type HistoryTurn } from "../shared/entries";
 import { loadConversationBatch } from "./load-history";
+import { MarkdownMessage } from "./markdown";
 
 type Colors = PluginButtonIconProps["theme"]["colors"];
 const mono = () => Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -47,7 +48,7 @@ function RawEntry({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors
   </View>;
 }
 
-function Message({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors; copy(text: string): void }) {
+function Message({ entry, colors, copy, onError }: { entry: HistoryEntry; colors: Colors; copy(text: string): void; onError(message: string): void }) {
   const [raw, setRaw] = useState(false);
   return <View style={{ gap: 6, paddingVertical: 10 }}>
     <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
@@ -56,12 +57,12 @@ function Message({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors;
       <Action colors={colors} label="Copy message" icon="Copy" onPress={() => copy(entry.preview)} />
       <Action colors={colors} label="Show raw message" icon="Braces" active={raw} onPress={() => setRaw(!raw)} />
     </View>
-    <Text selectable style={{ color: colors.foreground, fontSize: 13, lineHeight: 21 }}>{entry.preview}</Text>
+    <MarkdownMessage text={entry.preview} colors={colors} copy={copy} onError={onError} />
     {raw ? <RawEntry entry={entry} colors={colors} copy={copy} /> : null}
   </View>;
 }
 
-function Turn({ turn, colors, copy }: { turn: HistoryTurn; colors: Colors; copy(text: string): void }) {
+function Turn({ turn, colors, copy, onError }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onError(message: string): void }) {
   const [detail, setDetail] = useState<string | null>(null);
   const messages = turn.entries.filter((entry) => entry.category === "message");
   const timestamp = turn.entries.find((entry) => entry.timestamp)?.timestamp;
@@ -79,7 +80,7 @@ function Turn({ turn, colors, copy }: { turn: HistoryTurn; colors: Colors; copy(
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 11 }}>{date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</Text>
     </View>
-    {messages.map((entry, index) => <Message key={index} entry={entry} colors={colors} copy={copy} />)}
+    {messages.map((entry, index) => <Message key={index} entry={entry} colors={colors} copy={copy} onError={onError} />)}
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, marginLeft: -6 }}>
       {tags.map((tag) => <Action key={tag.category} colors={colors} label={`${tag.label}: ${tag.entries.length} entries`}
         text={`${tag.label} ${tag.entries.length}`} icon={tag.icon} active={detail === tag.category}
@@ -147,7 +148,7 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
     {source ? <FlatList data={entries} keyExtractor={(_, index) => String(index)} style={{ flex: 1, minHeight: 0 }}
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }} renderItem={({ item }) => <RawEntry entry={item} colors={colors} copy={copy} />} />
       : <FlatList data={turns} keyExtractor={(_, index) => String(index)} style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }} renderItem={({ item }) => <Turn turn={item} colors={colors} copy={copy} />}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }} renderItem={({ item }) => <Turn turn={item} colors={colors} copy={copy} onError={setError} />}
         ListEmptyComponent={<View style={{ alignItems: "center", padding: 32, gap: 12 }}>
           <Icon name="MessagesSquare" size={24} color={colors.foregroundMuted} />
           <Text style={{ color: colors.foregroundMuted, fontSize: 13 }}>{busy ? "Reading history…" : page ? "No messages saved yet" : "No history to display"}</Text>
