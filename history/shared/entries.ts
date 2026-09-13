@@ -1,3 +1,5 @@
+import { parseTaskNotification, type TaskNotification } from "./task-notification.ts";
+
 type RecordValue = Record<string, unknown>;
 function record(value: unknown): RecordValue {
   return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {};
@@ -16,6 +18,7 @@ export interface HistoryEntry {
   startsTurn: boolean;
   hasTools: boolean;
   hasReasoning: boolean;
+  notification?: TaskNotification;
 }
 
 function contentText(value: unknown): string {
@@ -56,11 +59,14 @@ export function parseEntries(text: string): HistoryEntry[] {
         .map((block) => string(block.text)).join("\n\n");
       const category = context ? "context" : messageText && (role === "user" || role === "assistant") ? "message" : tool ? "tools" : reasoning ? "reasoning"
         : role === "user" || role === "assistant" ? "message" : "events";
+      const displayText = category === "message" ? messageText || preview : preview;
+      const notification = category === "message" ? parseTaskNotification(displayText) ?? undefined : undefined;
       // Codex event_msg item_completed/message mirrors are kept as events; only
       // canonical response_item messages enter the readable conversation.
       return { raw, title, kind: subtype && subtype !== kind ? `${kind} · ${subtype}` : kind,
-        timestamp: string(data.timestamp) || string(body.timestamp), preview: category === "message" ? messageText || preview : preview, valid: true,
-        category, role, startsTurn: subtype === "task_started" || (kind === "user" && !tool), hasTools: tool, hasReasoning: reasoning };
+        timestamp: string(data.timestamp) || string(body.timestamp), preview: displayText, valid: true,
+        category, role, startsTurn: subtype === "task_started" || (kind === "user" && !tool && !notification),
+        hasTools: tool, hasReasoning: reasoning, notification };
     } catch {
       return { raw, title: "Unparsed entry", kind: "raw text", timestamp: "",
         preview: "This line is incomplete or is not valid JSON. Its original text is preserved below.", valid: false,
@@ -75,7 +81,7 @@ export function groupTurns(entries: HistoryEntry[]): HistoryTurn[] {
   const turns: HistoryTurn[] = [];
   const explicitTurns = entries.some((entry) => entry.kind === "event_msg · task_started");
   for (const entry of entries) {
-    const startsTurn = entry.startsTurn || (!explicitTurns && entry.category === "message" && entry.role === "user");
+    const startsTurn = entry.startsTurn || (!explicitTurns && entry.category === "message" && entry.role === "user" && !entry.notification);
     if (!turns.length || (startsTurn && turns.at(-1)!.entries.length)) {
       turns.push({ entries: [], title: startsTurn ? `Turn ${turns.filter((turn) => turn.title !== "Session details").length + 1}` : "Session details" });
     }

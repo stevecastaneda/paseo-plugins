@@ -7,6 +7,7 @@ import { readHistory } from "../shared/history";
 import { groupTurns, parseEntries, type HistoryEntry, type HistoryTurn } from "../shared/entries";
 import { loadConversationBatch } from "./load-history";
 import { MarkdownMessage } from "./markdown";
+import { TaskNotificationBody } from "./task-notification";
 
 type Colors = PluginButtonIconProps["theme"]["colors"];
 const mono = () => Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -50,14 +51,21 @@ function RawEntry({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors
 
 function Message({ entry, colors, copy, onError }: { entry: HistoryEntry; colors: Colors; copy(text: string): void; onError(message: string): void }) {
   const [raw, setRaw] = useState(false);
+  const notification = entry.notification;
+  const subject = notification?.summary.startsWith("Agent ") ? "Agent" : "Task";
+  const label = notification ? `${subject} ${notification.status === "completed" ? "finished" : notification.status}`
+    : entry.role === "user" ? "You" : "Assistant";
+  const icon = notification ? notification.status === "completed" ? "Check" : notification.status === "failed" ? "CircleAlert" : "Activity"
+    : entry.role === "user" ? "User" : "Sparkles";
   return <View style={{ gap: 6, paddingVertical: 10 }}>
     <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-      <Icon name={entry.role === "user" ? "User" : "Sparkles"} size={14} color={colors.foregroundMuted} />
-      <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", flex: 1 }}>{entry.role === "user" ? "You" : "Assistant"}</Text>
+      <Icon name={icon} size={14} color={colors.foregroundMuted} />
+      <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", flex: 1 }}>{label}</Text>
       <Action colors={colors} label="Copy message" icon="Copy" onPress={() => copy(entry.preview)} />
       <Action colors={colors} label="Show raw message" icon="Braces" active={raw} onPress={() => setRaw(!raw)} />
     </View>
-    <MarkdownMessage text={entry.preview} colors={colors} copy={copy} onError={onError} />
+    {notification ? <TaskNotificationBody notification={notification} colors={colors} copy={copy} onError={onError} />
+      : <MarkdownMessage text={entry.preview} colors={colors} copy={copy} onError={onError} />}
     {raw ? <RawEntry entry={entry} colors={colors} copy={copy} /> : null}
   </View>;
 }
