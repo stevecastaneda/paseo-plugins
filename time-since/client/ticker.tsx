@@ -1,3 +1,5 @@
+import type { PaseoAgentUpdate } from "@getpaseo/client";
+import { observeDirectory } from "./directory";
 import {
   type PluginButtonContentProps,
   type PluginButtonIconProps,
@@ -13,7 +15,7 @@ import {
   lastThreadMessageAtFromStream,
 } from "../shared/elapsed";
 import { getLastThreadMessage } from "../shared/last-message";
-import { useSettings } from "./settings";
+import { subscribeSettings, useSettings } from "./settings";
 import { defaultSettings, getSettings, type TimeSinceSettings } from "../shared/settings";
 
 const lastMessageAt = new Map<string, string>();
@@ -101,7 +103,7 @@ type AgentSnap = {
 };
 
 export function contributeClient(client: PluginClientContext) {
-  const pills = new Map<string, { workspaceId: string; pill: PluginButtonRegistration }>();
+  const pills = new Map<string, { workspaceId: string; label: string; visible: boolean; pill: PluginButtonRegistration }>();
   const watches = new Map<string, () => void>();
   const tracked = new Map<string, AgentSnap>();
   let settings: TimeSinceSettings = defaultSettings;
@@ -170,10 +172,13 @@ export function contributeClient(client: PluginClientContext) {
           },
         },
       });
-      pills.set(agent.id, { workspaceId: agent.workspaceId, pill });
+      pills.set(agent.id, { workspaceId: agent.workspaceId, label, visible, pill });
       return;
     }
+    if (current.label === label && current.visible === visible) return;
     current.pill.update({ label, visible });
+    current.label = label;
+    current.visible = visible;
   };
 
   const publishAll = () => {
@@ -181,20 +186,25 @@ export function contributeClient(client: PluginClientContext) {
     for (const agent of tracked.values()) publishAgent(agent);
   };
 
-  const refreshSettings = async () => {
-    try {
-      settings = await client.rpc(getSettings, {});
-    } catch {
-      // Keep the last known settings until the next tick.
-    }
-  };
+  let settingsChanged = false;
+  const stopSettings = subscribeSettings((next) => {
+    settingsChanged = true;
+    settings = next;
+    publishAll();
+  });
+  void client.rpc(getSettings, {}).then((next) => {
+    if (stopped || settingsChanged) return;
+    settings = next;
+    publishAll();
+  }).catch(() => undefined);
 
   const register = (agent: {
     id: string;
     workspaceId?: string | null;
     status?: "initializing" | "idle" | "running" | "error" | "closed" | null;
   }) => {
-    if (stopped || !agent.workspaceId) return;
+    if (stopped) return;
+    if (!agent.workspaceId) { remove(agent.id); return; }
     tracked.set(agent.id, {
       id: agent.id,
       workspaceId: agent.workspaceId,
@@ -203,27 +213,27 @@ export function contributeClient(client: PluginClientContext) {
     publishAgent(tracked.get(agent.id)!);
   };
 
-  const unsubscribe = client.paseo.agents.subscribe((update) => {
-    if (update.kind === "remove") remove(update.agentId);
-    else register(update.agent);
+  const unsubscribe = observeDirectory({
+    list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
+    subscribe: (listener) => client.paseo.agents.subscribe(listener),
+    snapshot: (entries) => {
+      const ids = new Set(entries.map(({ agent }) => agent.id));
+      for (const id of tracked.keys()) if (!ids.has(id)) remove(id);
+      for (const { agent } of entries) register(agent);
+    },
+    update: (update: PaseoAgentUpdate) => {
+      if (update.kind === "remove") remove(update.agentId);
+      else register(update.agent);
+    },
   });
 
-  void client.paseo.agents
-    .list()
-    .then(({ entries }) => {
-      for (const { agent } of entries) register(agent);
-      return undefined;
-    })
-    .catch(() => undefined);
-
-  void refreshSettings();
-  timer = setInterval(() => {
-    void refreshSettings().then(publishAll);
-  }, 1000);
+  // Elapsed labels need a clock, not a daemon request.
+  timer = setInterval(publishAll, 1000);
 
   return () => {
     stopped = true;
     unsubscribe();
+    stopSettings();
     if (timer) clearInterval(timer);
     for (const { pill } of pills.values()) pill.remove();
     pills.clear();

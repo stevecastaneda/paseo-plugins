@@ -26,3 +26,10 @@ npm test
 paseo plugin install "$PWD"
 paseo plugin reload setup-monitor
 ```
+
+## Updates
+
+Workspace and agent changes arrive through subscriptions rather than repeated
+list requests. Setup status refreshes every two seconds while the plugin is
+active. Each workspace has at most one pending status request, and its pill
+icon shares that result instead of making separate requests.

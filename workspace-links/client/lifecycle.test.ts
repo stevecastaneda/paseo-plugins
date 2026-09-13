@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { clientHarness } from '../../test-support/client-harness.mjs';
+const directory = fileURLToPath(new URL('..', import.meta.url));
+const agent = { id: 'a', workspaceId: 'w' };
+const workspace = { id: 'w', workspaceDirectory: '/w', projectRootPath: '/w' };
+
+test('links placement changes immediately, directory events reconcile targets without polling', async () => {
+  const h = clientHarness(directory);
+  const pills = h.load('client/pills.tsx');
+  const stop = pills.contributeClient(h.client);
+  h.agents.bootstrap([{ agent }]);
+  h.workspaces.bootstrap([workspace]);
+  await h.flush();
+  assert.equal(h.registrations.filter((r) => !r.removed).length, 1);
+  pills.setShortcut({ placement: 'header' });
+  assert.equal(h.registrations.find((r) => !r.removed)?.placement, 'header');
+  assert.equal(h.timers.size, 0, 'unmounted workspaces must not poll');
+  assert.equal(h.requests.length, 1, 'only the initial settings read');
+  const links = h.load('client/links-state.ts');
+  links.publishLinks('w', '/w', [{ label: 'App', url: 'https://example.com' }]);
+  const header = h.registrations.find((r) => !r.removed);
+  assert.ok(header);
+  assert.equal(header.button.behavior.items[0].title, 'App');
+  links.publishLinks('w', '/w', [{ label: 'App', url: 'https://example.com' }]);
+  assert.equal(header.updates, 1, 'identical menus must stay open');
+  h.agents.update({ kind: 'remove', agentId: 'a' });
+  h.workspaces.update({ kind: 'remove', id: 'w' });
+  assert.equal(h.registrations.filter((r) => !r.removed).length, 0);
+  assert.equal(h.agents.calls, 1);
+  assert.equal(h.workspaces.calls, 1);
+  stop();
+  assert.equal(h.agents.listenerCount, 0);
+  assert.equal(h.workspaces.listenerCount, 0);
+});
+
+test('late bootstrap after cleanup detaches listeners without registering controls', async () => {
+  const h = clientHarness(directory);
+  const stop = h.load('client/pills.tsx').contributeClient(h.client);
+  stop();
+  h.agents.bootstrap([{ agent }]);
+  h.workspaces.bootstrap([workspace]);
+  await h.flush();
+  assert.equal(h.registrations.length, 0);
+  assert.equal(h.agents.listenerCount, 0);
+  assert.equal(h.workspaces.listenerCount, 0);
+});
+
+test('changes received during pagination take precedence over initial directory rows', async () => {
+  const h = clientHarness(directory);
+  const pills = h.load('client/pills.tsx');
+  const stop = pills.contributeClient(h.client);
+  h.agents.bootstrap([{ agent }], { hasMore: true, nextCursor: 'page-2' });
+  h.workspaces.bootstrap([workspace]);
+  await h.flush();
+  h.agents.update({ kind: 'remove', agentId: 'a' });
+  h.agents.bootstrap([{ agent: { id: 'b', workspaceId: 'w' } }]);
+  await h.flush();
+  pills.setShortcut({ placement: 'composer' });
+  const active = h.registrations.filter((r) => !r.removed);
+  assert.equal(active.length, 1);
+  assert.equal(h.agents.calls, 2);
+  assert.equal(h.workspaces.calls, 1);
+  stop();
+  assert.equal(h.agents.listenerCount, 0);
+});
+
+test('a failed directory load retries without duplicating listeners or polling after success', async () => {
+  const h = clientHarness(directory);
+  const stop = h.load('client/pills.tsx').contributeClient(h.client);
+  h.agents.fail();
+  h.workspaces.bootstrap([workspace]);
+  await h.flush();
+  assert.equal(h.agents.listenerCount, 1);
+  await h.tick(2000);
+  h.agents.bootstrap([{ agent }]);
+  await h.flush();
+  assert.equal(h.registrations.filter((r) => !r.removed).length, 1);
+  assert.equal(h.agents.calls, 2);
+  assert.equal(h.workspaces.calls, 1);
+  assert.equal(h.timers.size, 0);
+  stop();
+});
+
+test('Links controls share in-flight requests and cached results through the provided query cache', async () => {
+  const { QueryClient, QueryObserver } = await import('@tanstack/react-query');
+  const h = clientHarness(directory);
+  const { linksQueryOptions } = h.load('client/links-query.ts');
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let calls = 0;
+  let finish: (data: unknown) => void = () => {};
+  const fetchLinks = () => { calls++; return new Promise((resolve) => { finish = resolve; }); };
+  const options = linksQueryOptions(fetchLinks, 'host', 'w', '/w');
+  const first = new QueryObserver(cache, options);
+  const second = new QueryObserver(cache, options);
+  const stopFirst = first.subscribe(() => {});
+  const stopSecond = second.subscribe(() => {});
+  assert.equal(calls, 1);
+  const result = { configured: true, links: [{ label: 'App', url: 'https://example.com' }] };
+  finish(result);
+  await h.flush();
+  assert.deepEqual(first.getCurrentResult().data, result);
+  assert.deepEqual(second.getCurrentResult().data, result);
+  const otherHost = linksQueryOptions(fetchLinks, 'other-host', 'w', '/w');
+  assert.notDeepEqual(options.queryKey, otherHost.queryKey);
+  stopFirst();
+  stopSecond();
+  cache.clear();
+});

@@ -1,12 +1,12 @@
+import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
+import { observeDirectory } from "./directory";
 import {
   type PluginButtonIconProps,
   type PluginButtonRegistration,
   type PluginClientContext,
-  useRpc,
 } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { useQuery } from "@tanstack/react-query";
-import React from "react";
+import React, { useSyncExternalStore } from "react";
 import { ActivityIndicator } from "react-native";
 import type { SetupSnapshot } from "../shared/setup";
 import { getSetupStatus } from "../shared/setup";
@@ -15,38 +15,45 @@ import { pillLabel, shouldShowPill, statusIconName } from "../shared/snapshot";
 const EXPLORER = { location: "explorer" as const };
 const CHAT_SEED_MS = 1_200;
 
-function SetupIcon(props: PluginButtonIconProps) {
-  if (props.context !== "agent") return null;
-  const { theme, workspaceId, size, color } = props;
-  const fetchStatus = useRpc(getSetupStatus);
-  const query = useQuery({
-    queryKey: ["setup-monitor", "status", workspaceId],
-    queryFn: () => fetchStatus({ workspaceId }),
-    refetchInterval: (current) =>
-      current.state.data?.snapshot?.status === "running" ? 750 : 4_000,
-  });
-  const snapshot = query.data?.snapshot ?? null;
-  if (snapshot?.status === "running") {
-    return <ActivityIndicator size="small" color={theme.colors.accent} />;
-  }
-  return (
-    <Icon
-      name={snapshot ? statusIconName(snapshot.status) : "Package"}
-      size={size}
-      color={snapshot?.status === "failed" ? theme.colors.statusDanger : color}
-    />
-  );
-}
-
 export function contributeClient(client: PluginClientContext) {
-  const pills = new Map<string, { workspaceId: string; pill: PluginButtonRegistration }>();
+  const pills = new Map<string, { workspaceId: string; label: string; pill: PluginButtonRegistration }>();
   const snapshots = new Map<string, SetupSnapshot | null>();
+  const snapshotListeners = new Map<string, Set<() => void>>();
+  function SetupIcon(props: PluginButtonIconProps) {
+    if (props.context !== "agent") return null;
+    const { theme, workspaceId, size, color } = props;
+    const snapshot = useSyncExternalStore(
+      (listener) => {
+        const listeners = snapshotListeners.get(workspaceId) ?? new Set<() => void>();
+        listeners.add(listener);
+        snapshotListeners.set(workspaceId, listeners);
+        return () => {
+          listeners.delete(listener);
+          if (!listeners.size) snapshotListeners.delete(workspaceId);
+        };
+      },
+      () => snapshots.get(workspaceId) ?? null,
+    );
+    if (snapshot?.status === "running") {
+      return <ActivityIndicator size="small" color={theme.colors.accent} />;
+    }
+    return (
+      <Icon
+        name={snapshot ? statusIconName(snapshot.status) : "Package"}
+        size={size}
+        color={snapshot?.status === "failed" ? theme.colors.statusDanger : color}
+      />
+    );
+  }
+
   const runningSince = new Map<string, number>();
   const autoOpened = new Set<string>();
   const scheduled = new Map<string, ReturnType<typeof setTimeout>>();
   let lastAgents: Array<{ id: string; workspaceId?: string | null }> = [];
   let stopped = false;
-  let dataTimer: ReturnType<typeof setInterval> | undefined;
+  let dataTimer: ReturnType<typeof setTimeout> | undefined;
+  const worktreeIds = new Set<string>();
+  const pending = new Map<string, object>();
   let labelTimer: ReturnType<typeof setInterval> | undefined;
 
   const remove = (agentId: string) => {
@@ -55,8 +62,10 @@ export function contributeClient(client: PluginClientContext) {
   };
 
   const forgetWorkspace = (workspaceId: string) => {
+    pending.delete(workspaceId);
     autoOpened.delete(workspaceId);
     snapshots.delete(workspaceId);
+    for (const listener of snapshotListeners.get(workspaceId) ?? []) listener();
     runningSince.delete(workspaceId);
     const scheduledId = scheduled.get(workspaceId);
     if (scheduledId) {
@@ -86,7 +95,10 @@ export function contributeClient(client: PluginClientContext) {
   };
 
   const rememberSnapshot = (workspaceId: string, snapshot: SetupSnapshot | null) => {
-    snapshots.set(workspaceId, snapshot);
+    if (JSON.stringify(snapshots.get(workspaceId)) !== JSON.stringify(snapshot)) {
+      snapshots.set(workspaceId, snapshot);
+      for (const listener of snapshotListeners.get(workspaceId) ?? []) listener();
+    }
     if (snapshot?.status === "running") {
       if (!runningSince.has(workspaceId)) runningSince.set(workspaceId, Date.now());
     } else {
@@ -131,9 +143,10 @@ export function contributeClient(client: PluginClientContext) {
             },
           },
         });
-        pills.set(agent.id, { workspaceId, pill });
-      } else {
+        pills.set(agent.id, { workspaceId, label, pill });
+      } else if (current.label !== label) {
         current.pill.update({ label });
+        current.label = label;
       }
     }
     for (const agentId of pills.keys()) {
@@ -141,71 +154,62 @@ export function contributeClient(client: PluginClientContext) {
     }
   };
 
-  const sync = async () => {
-    if (stopped) return;
-    let agentEntries: Array<{ agent: { id: string; workspaceId?: string | null } }>;
-    let workspaceEntries: Array<{ id: string; workspaceKind?: string }>;
+  const refreshWorkspace = async (workspaceId: string) => {
+    if (stopped || pending.has(workspaceId) || !worktreeIds.has(workspaceId)) return;
+    const request = {};
+    pending.set(workspaceId, request);
     try {
-      const [agents, workspaces] = await Promise.all([
-        client.paseo.agents.list(),
-        client.paseo.workspaces.list(),
-      ]);
-      agentEntries = agents.entries;
-      workspaceEntries = workspaces.entries;
-    } catch {
-      return;
-    }
-
-    const worktreeIds = new Set(
-      workspaceEntries
-        .filter((workspace) => workspace.workspaceKind === "worktree")
-        .map((workspace) => workspace.id),
-    );
-    await Promise.all(
-      [...worktreeIds].map(async (workspaceId) => {
-        try {
-          const { snapshot } = await client.rpc(getSetupStatus, { workspaceId });
-          rememberSnapshot(workspaceId, snapshot);
-          scheduleSetupTab(workspaceId, snapshot);
-        } catch {
-          // Leave the workspace out of the pill set.
-        }
-      }),
-    );
-    for (const workspaceId of snapshots.keys()) {
-      if (!worktreeIds.has(workspaceId)) forgetWorkspace(workspaceId);
-    }
-
-    lastAgents = agentEntries.map(({ agent }) => agent);
-    publishPills();
-  };
-
-  void client.paseo.workspaces.list({ subscribe: {} }).catch(() => undefined);
-  void client.paseo.agents.list({ subscribe: {} }).catch(() => undefined);
-
-  const unsubscribeWorkspaces = client.paseo.workspaces.subscribe((update) => {
-    if (update.kind === "remove") {
-      forgetWorkspace(update.id);
+      const { snapshot } = await client.rpc(getSetupStatus, { workspaceId });
+      if (stopped || !worktreeIds.has(workspaceId) || pending.get(workspaceId) !== request) return;
+      rememberSnapshot(workspaceId, snapshot);
+      scheduleSetupTab(workspaceId, snapshot);
       publishPills();
-      return;
-    }
-    if (update.workspace.workspaceKind !== "worktree") {
-      void sync();
-      return;
-    }
-    void client.rpc(getSetupStatus, { workspaceId: update.workspace.id }).then(({ snapshot }) => {
-      rememberSnapshot(update.workspace.id, snapshot);
-      scheduleSetupTab(update.workspace.id, snapshot);
-      void sync();
-    });
+    } catch { /* Retry on the next status refresh. */ }
+    finally { if (pending.get(workspaceId) === request) pending.delete(workspaceId); }
+  };
+  const sync = async () => {
+    await Promise.all([...worktreeIds].map(refreshWorkspace));
+    if (!stopped) dataTimer = setTimeout(() => void sync(), 2_000);
+  };
+  const unsubscribeWorkspaces = observeDirectory({
+    list: (options) => client.paseo.workspaces.list(options),
+    subscribe: (listener) => client.paseo.workspaces.subscribe(listener),
+    snapshot: (entries) => {
+      const next = new Set(entries.filter((workspace) => workspace.workspaceKind === "worktree").map((workspace) => workspace.id));
+      for (const id of worktreeIds) if (!next.has(id)) { worktreeIds.delete(id); forgetWorkspace(id); }
+      for (const id of next) {
+        worktreeIds.add(id);
+        void refreshWorkspace(id);
+      }
+      publishPills();
+    },
+    update: (update: PaseoWorkspaceUpdate) => {
+      const id = update.kind === "remove" ? update.id : update.workspace.id;
+      if (update.kind === "remove" || update.workspace.workspaceKind !== "worktree") {
+        worktreeIds.delete(id);
+        forgetWorkspace(id);
+      } else if (!worktreeIds.has(id)) {
+        worktreeIds.add(id);
+        void refreshWorkspace(id);
+      }
+      publishPills();
+    },
   });
-  const unsubscribeAgents = client.paseo.agents.subscribe(() => {
-    void sync();
+  const unsubscribeAgents = observeDirectory({
+    list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
+    subscribe: (listener) => client.paseo.agents.subscribe(listener),
+    snapshot: (entries) => {
+      lastAgents = entries.map(({ agent }) => agent);
+      publishPills();
+    },
+    update: (update: PaseoAgentUpdate) => {
+      const id = update.kind === "remove" ? update.agentId : update.agent.id;
+      lastAgents = lastAgents.filter((agent) => agent.id !== id);
+      if (update.kind !== "remove") lastAgents.push(update.agent);
+      publishPills();
+    },
   });
 
-  dataTimer = setInterval(() => {
-    void sync();
-  }, 2_000);
   labelTimer = setInterval(() => {
     publishPills();
   }, 1_000);
@@ -215,7 +219,7 @@ export function contributeClient(client: PluginClientContext) {
     stopped = true;
     unsubscribeWorkspaces();
     unsubscribeAgents();
-    if (dataTimer) clearInterval(dataTimer);
+    if (dataTimer) clearTimeout(dataTimer);
     if (labelTimer) clearInterval(labelTimer);
     for (const id of scheduled.values()) clearTimeout(id);
     scheduled.clear();

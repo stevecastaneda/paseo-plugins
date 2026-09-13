@@ -2,7 +2,8 @@ import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
-import { getLinks, openLink } from "../shared/links";
+import { useLinks } from "./links-query";
+import { openLink } from "../shared/links";
 import { getShortcutSettings, PLACEMENT_OPTIONS, updateShortcutSettings, type ShortcutSettings } from "../shared/shortcut";
 import { getShortcut, setShortcut, subscribeShortcut } from "./pills";
 
@@ -101,7 +102,7 @@ export function LinksPanel(props: PluginWorkspacePanelProps) {
 
 function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps) {
   const workspaceDirectory = useWorkspace(workspaceId, (workspace) => workspace.directory);
-  const fetchLinks = useRpc(getLinks);
+  const linksQuery = useLinks(host.id, workspaceId, workspaceDirectory);
   const launch = useRpc(openLink);
   const fetchShortcut = useRpc(getShortcutSettings);
   const saveShortcut = useRpc(updateShortcutSettings);
@@ -115,32 +116,14 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
   const [exampleExpanded, setExampleExpanded] = useState(false);
   const [guideExpanded, setGuideExpanded] = useState(false);
   const [hoveredLink, setHoveredLink] = useState<number | null>(null);
-  const [revision, setRevision] = useState(0);
-  const [result, setResult] = useState<{ configured: boolean; links: { label: string; url: string }[] } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const result = linksQuery.data ?? null;
+  const loading = linksQuery.isPending;
+  const [openError, setError] = useState<string | null>(null);
+  const error = openError ?? (linksQuery.error ? linksQuery.error.message : null);
   const colors = theme.colors;
   const isEmpty = result !== null && result.links.length === 0;
 
   useEffect(() => subscribeShortcut(() => setLocalShortcut(getShortcut())), []);
-
-  useEffect(() => {
-    if (!workspaceDirectory) {
-      setLoading(true);
-      setError(null);
-      setResult(null);
-      return;
-    }
-    let active = true;
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    fetchLinks({ workspaceId, workspaceDirectory }).then(
-      (data) => { if (active) setResult(data); },
-      (reason) => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); },
-    ).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [fetchLinks, workspaceDirectory, workspaceId, revision]);
 
   useEffect(() => {
     let active = true;
@@ -243,7 +226,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
         </Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh links"
           accessibilityState={{ disabled: loading }} disabled={loading}
-          hitSlop={8} onPress={() => setRevision((value) => value + 1)}
+          hitSlop={8} onPress={() => { setError(null); void linksQuery.refetch(); }}
           style={({ pressed }) => ({ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 4, backgroundColor: pressed ? colors.surface1 : colors.surface0, opacity: loading ? 0.5 : 1 })}>
           <Icon name="RefreshCw" size={14} color={colors.foregroundMuted} />
         </Pressable>

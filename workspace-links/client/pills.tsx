@@ -1,3 +1,4 @@
+import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import type {
   PluginButton,
   PluginButtonIconProps,
@@ -5,8 +6,12 @@ import type {
   PluginButtonRegistration,
   PluginClientContext,
 } from "@getpaseo/plugin/client";
+import { useWorkspace } from "@getpaseo/plugin/client";
+import { subscribeLinks } from "./links-state";
+import { observeDirectory } from "./directory";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { getLinks, openLink } from "../shared/links";
+import { useLinks } from "./links-query";
+import { openLink } from "../shared/links";
 import { linksMenuEntries, linksMenuKey, type WorkspaceLink } from "../shared/menu";
 import {
   defaultShortcut,
@@ -16,6 +21,8 @@ import {
 } from "../shared/shortcut";
 
 function LinksIcon(props: PluginButtonIconProps) {
+  const directory = useWorkspace(props.workspaceId, (workspace) => workspace.directory);
+  useLinks(props.host.id, props.workspaceId, directory);
   const size = props.context === "workspace" ? 14 : props.size;
   return <Icon name="Link" size={size} color={props.color} />;
 }
@@ -115,12 +122,12 @@ function workspaceDirectory(workspace: { workspaceDirectory?: string; projectRoo
 
 export function contributeClient(client: PluginClientContext) {
   let agents = new Map<string, string>();
-  let workspaces = new Map<string, string>();
+  const workspaces = new Map<string, string>();
+  const agentsByWorkspace = new Map<string, string[]>();
   const linksByWorkspace = new Map<string, WorkspaceLinksState>();
   const pills = new Map<string, { workspaceId: string; menuKey: string; pill: PluginButtonRegistration }>();
   const headers = new Map<string, { showLabel: boolean; menuKey: string; button: PluginButtonRegistration }>();
   let stopped = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
 
   const stateFor = (workspaceId: string): WorkspaceLinksState | undefined => {
     const cached = linksByWorkspace.get(workspaceId);
@@ -134,8 +141,7 @@ export function contributeClient(client: PluginClientContext) {
     const state = stateFor(workspaceId);
     const menuKey = linksMenuKey(state?.directory, state?.links ?? []);
 
-    for (const [agentId, agentWorkspaceId] of agents) {
-      if (agentWorkspaceId !== workspaceId) continue;
+    for (const agentId of agentsByWorkspace.get(workspaceId) ?? []) {
       const existing = pills.get(agentId);
       if (shortcut.placement !== "composer") {
         if (existing) {
@@ -188,6 +194,12 @@ export function contributeClient(client: PluginClientContext) {
 
   const sync = () => {
     if (stopped) return;
+    agentsByWorkspace.clear();
+    for (const [agentId, workspaceId] of agents) {
+      const ids = agentsByWorkspace.get(workspaceId) ?? [];
+      ids.push(agentId);
+      agentsByWorkspace.set(workspaceId, ids);
+    }
     const knownWorkspaces = new Set(workspaces.keys());
     for (const workspaceId of agents.values()) knownWorkspaces.add(workspaceId);
 
@@ -209,65 +221,59 @@ export function contributeClient(client: PluginClientContext) {
   };
   listeners.add(sync);
 
-  async function loadLinks(workspaceId: string, directory: string) {
-    try {
-      const data = await client.rpc(getLinks, { workspaceId, workspaceDirectory: directory });
-      if (stopped) return;
-      const previous = linksByWorkspace.get(workspaceId);
-      linksByWorkspace.set(workspaceId, { directory, links: data.links });
-      if (linksMenuKey(previous?.directory, previous?.links ?? []) === linksMenuKey(directory, data.links)) return;
-      publishWorkspace(workspaceId);
-    } catch {
-      const previous = linksByWorkspace.get(workspaceId);
-      if (previous?.directory === directory) return;
-      linksByWorkspace.set(workspaceId, { directory, links: previous?.links ?? [] });
-      if (!stopped) publishWorkspace(workspaceId);
-    }
-  }
-
-  async function syncTargets() {
-    try {
-      try {
-        const nextShortcut = await client.rpc(getShortcutSettings, {});
-        if (stopped) return;
-        setShortcut(nextShortcut);
-      } catch { /* Keep the last known placement until the next tick. */ }
-      const nextAgents = new Map<string, string>();
-      const nextWorkspaces = new Map<string, string>();
-      let agentCursor: string | undefined;
-      do {
-        const page = await client.paseo.agents.list({ filter: { includeArchived: false }, page: { limit: 100, cursor: agentCursor } });
-        if (stopped) return;
-        for (const { agent } of page.entries) if (agent.workspaceId) nextAgents.set(agent.id, agent.workspaceId);
-        agentCursor = page.pageInfo.hasMore ? page.pageInfo.nextCursor ?? undefined : undefined;
-      } while (agentCursor);
-      let workspaceCursor: string | undefined;
-      do {
-        const page = await client.paseo.workspaces.list({ page: { limit: 100, cursor: workspaceCursor } });
-        if (stopped) return;
-        for (const workspace of page.entries) nextWorkspaces.set(workspace.id, workspaceDirectory(workspace));
-        workspaceCursor = page.pageInfo.hasMore ? page.pageInfo.nextCursor ?? undefined : undefined;
-      } while (workspaceCursor);
-      if (stopped) return;
-      agents = nextAgents;
-      workspaces = nextWorkspaces;
-      const agentWorkspaces = new Set(nextAgents.values());
-      for (const workspaceId of linksByWorkspace.keys()) {
-        if (!nextWorkspaces.has(workspaceId) && !agentWorkspaces.has(workspaceId)) {
-          linksByWorkspace.delete(workspaceId);
-        }
-      }
+  const stopAgents = observeDirectory({
+    list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
+    subscribe: (listener) => client.paseo.agents.subscribe(listener),
+    snapshot: (entries) => {
+      agents = new Map(entries.flatMap(({ agent }) => agent.workspaceId ? [[agent.id, agent.workspaceId]] : []));
       sync();
-      await Promise.all(
-        [...nextWorkspaces].map(([workspaceId, directory]) => loadLinks(workspaceId, directory)),
-      );
-    } catch { /* Retry after a temporary connection error. */ }
-    finally { if (!stopped) timer = setTimeout(() => void syncTargets(), 2_000); }
-  }
-  void syncTargets();
+    },
+    update: (update: PaseoAgentUpdate) => {
+      if (update.kind === "remove") agents.delete(update.agentId);
+      else if (update.agent.workspaceId) agents.set(update.agent.id, update.agent.workspaceId);
+      else agents.delete(update.agent.id);
+      sync();
+    },
+  });
+  const refreshWorkspace = (workspaceId: string, directory: string) => {
+    if (workspaces.get(workspaceId) === directory) return;
+    workspaces.set(workspaceId, directory);
+    linksByWorkspace.delete(workspaceId);
+  };
+  const stopWorkspaces = observeDirectory({
+    list: (options) => client.paseo.workspaces.list(options),
+    subscribe: (listener) => client.paseo.workspaces.subscribe(listener),
+    snapshot: (entries) => {
+      const ids = new Set(entries.map((workspace) => workspace.id));
+      for (const id of workspaces.keys()) if (!ids.has(id)) {
+        workspaces.delete(id);
+        linksByWorkspace.delete(id);
+      }
+      for (const workspace of entries) refreshWorkspace(workspace.id, workspaceDirectory(workspace));
+      sync();
+    },
+    update: (update: PaseoWorkspaceUpdate) => {
+      if (update.kind === "remove") {
+        workspaces.delete(update.id);
+        linksByWorkspace.delete(update.id);
+      } else refreshWorkspace(update.workspace.id, workspaceDirectory(update.workspace));
+      sync();
+    },
+  });
+  const stopLinks = subscribeLinks((workspaceId, directory, links) => {
+    if (stopped || workspaces.get(workspaceId) !== directory) return;
+    linksByWorkspace.set(workspaceId, { directory, links });
+    publishWorkspace(workspaceId);
+  });
+  const initialSettings = settings;
+  void client.rpc(getShortcutSettings, {}).then((next) => {
+    if (!stopped && settings === initialSettings) setShortcut(next);
+  }).catch(() => undefined);
   return () => {
     stopped = true;
-    if (timer) clearTimeout(timer);
+    stopAgents();
+    stopWorkspaces();
+    stopLinks();
     listeners.delete(sync);
     for (const { pill } of pills.values()) pill.remove();
     pills.clear();

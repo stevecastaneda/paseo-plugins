@@ -3,7 +3,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { settingsQueryKey, useSettings } from "./settings";
+import { publishSettings, settingsQueryKey, useSettings } from "./settings";
 import { updateSettings, type TimeSinceSettings } from "../shared/settings";
 
 export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps) {
@@ -15,6 +15,7 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
     scope: { id: `time-since-settings-${host.id}` },
     mutationFn: (patch: Partial<TimeSinceSettings>) => saveSettings(patch),
     onSuccess: async (settings) => {
+      publishSettings(settings);
       await queryClient.cancelQueries({ queryKey: settingsQueryKey(host.id) });
       queryClient.setQueryData(settingsQueryKey(host.id), settings);
     },

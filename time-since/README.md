@@ -32,3 +32,12 @@ After source changes:
 npm run typecheck
 paseo plugin reload time-since
 ```
+
+## Updates
+
+Agent changes arrive through a subscription rather than repeated list requests.
+Elapsed time is calculated locally; the clock does not request settings from
+the daemon every second. Labels update only when their displayed value changes.
+
+Saved options apply immediately in the current client. Other connected clients
+pick them up when they next load the options or reload the plugin.

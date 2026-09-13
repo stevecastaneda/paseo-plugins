@@ -52,3 +52,13 @@ paseo plugin reload workspace-links
 Enable plugins in Paseo's settings. In PowerShell, use `(Get-Location).Path` in place of `"$PWD"` if needed.
 
 The package manifest is required for the Paseo plugin's SDK and development types. There are no additional runtime dependencies.
+
+## Updates
+
+Workspace and agent changes arrive through subscriptions rather than repeated
+list requests. Links controls refresh their menus every two seconds while
+displayed. **Refresh** in the panel also updates the menu immediately.
+
+Placement changes apply immediately in the current client. Other connected
+clients pick up saved options when they next load the options or reload the
+plugin.
