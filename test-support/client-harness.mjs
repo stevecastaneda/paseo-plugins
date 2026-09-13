@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import vm from 'node:vm';
 
 // Execute the real client contribution with only the host boundary mocked.
-export function clientHarness(pluginDirectory) {
+export function clientHarness(pluginDirectory, modules = {}) {
   const require = createRequire(resolve(pluginDirectory, 'package.json'));
   const ts = require('typescript');
   const cache = new Map();
@@ -25,6 +25,7 @@ export function clientHarness(pluginDirectory) {
     }).outputText;
     const localRequire = (name) => {
       if (name.startsWith('.')) return load(resolve(dirname(path), name));
+      if (Object.hasOwn(modules, name)) return modules[name];
       if (name === '@getpaseo/plugin') return { defineRpc: (contract) => contract };
       if (name === '@getpaseo/plugin/client') return {};
       if ( name === '@getpaseo/plugin/client/react-native' || name === 'react-native') return {};
