@@ -10,7 +10,9 @@ Recognized task notifications show their status, summary, and Markdown result im
 
 The dialog automatically reads past introductory context to show conversation messages. Use **More** to continue through the history. Related records merge into their turn as they load. **Refresh** rereads from the beginning. The last loaded turn may have more records until the file is fully loaded. Files are never rewritten.
 
-Supports **Codex** and **Claude Code**. Logs are read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected in an editor.
+Supports **Codex**, **Claude Code**, and **OpenCode**. History is read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected externally.
+
+OpenCode uses its [session export command](https://opencode.ai/docs/cli/#export), with external plugins disabled (`--pure`). It requires an OpenCode version supporting that flag on the daemon's `PATH` (verified with 1.18.18), and inherits the daemon's OpenCode/XDG environment. Raw source shows the export command and JSONL-formatted session metadata and complete message records, preserving their parts and metadata. Export requests are limited to 64 MiB and 30 seconds. Each page checks the exported content; if the session changes while paging, use **Refresh** to reread it. Text, file labels, tool inputs/results/errors, and reasoning are recognized; unknown parts remain in Raw.
 
 The viewer shows what the harness saved, which can differ from Paseo's displayed chat. Tool results and mirrored transport events stay behind tags rather than appearing as additional conversation messages.
 

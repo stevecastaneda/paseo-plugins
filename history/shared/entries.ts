@@ -38,6 +38,9 @@ export function parseEntries(text: string): HistoryEntry[] {
     try {
       const parsed: unknown = JSON.parse(raw);
       const data = record(parsed);
+      if (string(record(data.info).id).startsWith("ses_") || (data.info && Array.isArray(data.parts))) {
+        return parseOpenCodeEntry(data, raw);
+      }
       const payload = record(data.payload);
       const message = record(data.message);
       const body = Object.keys(payload).length ? payload : Object.keys(message).length ? message : data;
@@ -73,6 +76,34 @@ export function parseEntries(text: string): HistoryEntry[] {
         category: "events", role: "", startsTurn: false, hasTools: false, hasReasoning: false };
     }
   });
+}
+
+function parseOpenCodeEntry(data: RecordValue, raw: string): HistoryEntry {
+  const info = record(data.info);
+  const role = string(info.role);
+  const parts = Array.isArray(data.parts) ? data.parts.map(record) : [];
+  const text = parts.filter((part) => part.type === "text").map((part) => string(part.text)).filter(Boolean).join("\n\n");
+  const hasTools = parts.some((part) => part.type === "tool");
+  const hasReasoning = parts.some((part) => part.type === "reasoning");
+  const attachments = parts.filter((part) => part.type === "file").map((part) => `[File: ${string(part.filename) || string(part.mime) || "attachment"}]`).join("\n");
+  const category = !role || role === "system" || role === "developer" ? "context"
+    : text || attachments ? "message" : hasTools ? "tools" : hasReasoning ? "reasoning" : "events";
+  const preview = [text, attachments].filter(Boolean).join("\n\n") || parts.map((part) => {
+    if (part.type === "reasoning") return string(part.text);
+    if (part.type === "tool") {
+      const state = record(part.state);
+      return [string(part.tool), JSON.stringify(state.input, null, 2), string(state.output) || string(state.error)].filter(Boolean).join("\n");
+    }
+    return JSON.stringify(part);
+  }).join("\n\n") || string(info.title) || JSON.stringify(info);
+  const created = record(info.time).created;
+  const timestamp = typeof created === "number" && Number.isFinite(new Date(created).getTime()) ? new Date(created).toISOString() : "";
+  const notification = category === "message" ? parseTaskNotification(preview) ?? undefined : undefined;
+  return {
+    raw, title: role ? `${role[0]!.toUpperCase()}${role.slice(1)}` : "Session details",
+    kind: `opencode · ${role || "session"}`, timestamp, preview, valid: true,
+    category, role, startsTurn: role === "user" && !notification, hasTools, hasReasoning, notification,
+  };
 }
 
 export interface HistoryTurn { entries: HistoryEntry[]; title: string; }

@@ -2,6 +2,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { findLog, readPage } from "./files.ts";
+import { readOpenCodeHistory } from "./opencode.ts";
 
 export async function handleReadHistory(
   input: { agentId: string; offset: number; source?: string },
@@ -12,11 +13,12 @@ export async function handleReadHistory(
   const agent = handle.current();
   if (!agent) throw new Error("This chat is no longer available.");
   const provider = agent.provider;
-  if (provider !== "codex" && provider !== "claude") {
-    throw new Error(`Raw history is not supported for ${provider} yet. Codex and Claude are supported.`);
+  if (provider !== "codex" && provider !== "claude" && provider !== "opencode") {
+    throw new Error(`Raw history is not supported for ${provider} yet. Codex, Claude, and OpenCode are supported.`);
   }
   const sessionId = agent.persistence?.nativeHandle ?? agent.persistence?.sessionId ?? agent.runtimeInfo?.sessionId;
   if (!sessionId) throw new Error("This chat has no saved session yet. Send a message, then refresh.");
+  if (provider === "opencode") return { ...await readOpenCodeHistory(sessionId, input.offset, input.source), provider };
   const root = provider === "codex"
     ? process.env.CODEX_HOME ?? join(homedir(), ".codex")
     : process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");

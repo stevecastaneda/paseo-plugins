@@ -4,6 +4,27 @@ import { parseEntries, groupTurns } from "./entries.ts";
 
 const lines = (...entries: unknown[]) => entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
 
+test("OpenCode exports preserve raw records and group messages, tools, and reasoning", () => {
+  const entry = (role: string, parts: unknown[]) => ({ info: { id: "msg_one", role, time: { created: 1 } }, parts });
+  const user = entry("user", [{ type: "text", text: "Hello" }, { type: "file", filename: "photo.png" }]);
+  const entries = parseEntries(lines(
+    { info: { id: "ses_test", title: "Example" } }, user,
+    entry("assistant", [{ type: "reasoning", text: "Thinking" }]),
+    entry("assistant", [{ type: "tool", tool: "bash", state: { input: { command: "pwd" }, output: "/tmp" } }]),
+    entry("assistant", [{ type: "text", text: "**Done**" }, { type: "reasoning", text: "Internal" }]),
+    entry("assistant", [{ type: "step-finish", cost: 0 }]),
+    entry("user", [{ type: "text", text: "Next" }]),
+  ));
+  assert.deepEqual(entries.map((entry) => entry.category), ["context", "message", "reasoning", "tools", "message", "events", "message"]);
+  assert.equal(entries[1]!.raw, JSON.stringify(user));
+  assert.equal(entries[1]!.preview, "Hello\n\n[File: photo.png]");
+  assert.equal(entries[1]!.timestamp, new Date(1).toISOString());
+  assert.match(entries[3]!.preview, /bash[\s\S]*command[\s\S]*\/tmp/);
+  assert.equal(entries[4]!.preview, "**Done**");
+  assert.equal(entries[4]!.hasReasoning, true);
+  assert.deepEqual(groupTurns(entries).map((turn) => turn.title), ["Session details", "Turn 1", "Turn 2"]);
+});
+
 test("groups Codex turns, keeping mirrored events out of readable messages", () => {
   const text = lines(
     { type: "session_meta", payload: { cwd: "/tmp/example" } },
