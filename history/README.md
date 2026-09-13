@@ -8,7 +8,7 @@ Messages render Markdown, including headings, emphasis, lists, links, and tables
 
 Recognized task notifications show their status, summary, and Markdown result immediately, with token/tool/duration statistics when available. **Details** reveals task IDs, output paths, and notes; **Copy task result** copies just the result. Original notifications remain in Raw. Unknown or incomplete wrappers stay as ordinary message text.
 
-The dialog automatically reads past introductory context to show conversation messages. Use **Load more** to continue through the history. Related records merge into their turn as they load. **Refresh** rereads from the beginning. The last loaded turn may have more records until the file is fully loaded. Files are never rewritten.
+The dialog automatically reads past introductory context to show conversation messages. Use **More** to continue through the history. Related records merge into their turn as they load. **Refresh** rereads from the beginning. The last loaded turn may have more records until the file is fully loaded. Files are never rewritten.
 
 Supports **Codex** and **Claude Code**. Logs are read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected in an editor.
 

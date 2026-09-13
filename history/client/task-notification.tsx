@@ -1,5 +1,6 @@
+import { HoverButton } from "./hover-button";
 import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginButtonIconProps } from "@getpaseo/plugin/client";
 import { notificationUsage, type TaskNotification } from "../shared/task-notification";
@@ -19,15 +20,19 @@ export function TaskNotificationBody({ notification, colors, copy, onError }: {
     {notification.result ? <MarkdownMessage text={notification.result} colors={colors} copy={copy} onError={onError} /> : null}
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {usage ? <Text style={{ color: colors.foregroundMuted, fontSize: 11, flexShrink: 1 }}>{usage}</Text> : null}
-      {notification.result ? <Pressable accessibilityRole="button" accessibilityLabel="Copy task result"
+      {notification.result ? <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Copy task result"
         onPress={() => copy(notification.result!)} style={({ pressed }) => ({ minHeight: 32, minWidth: 32, justifyContent: "center", alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
-        <Icon name="Copy" size={13} color={colors.foregroundMuted} />
-      </Pressable> : null}
-      <Pressable accessibilityRole="button" accessibilityLabel="Task details" accessibilityState={{ expanded: details }}
+        {color => <>
+          <Icon name="Copy" size={13} color={color} />
+        </>}
+      </HoverButton> : null}
+      <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Task details" accessibilityState={{ expanded: details }}
         onPress={() => setDetails(!details)} style={({ pressed }) => ({ flexDirection: "row", gap: 5, alignItems: "center", minHeight: 32, paddingHorizontal: 6, opacity: pressed ? 0.6 : 1 })}>
-        <Icon name={details ? "ChevronDown" : "ChevronRight"} size={12} color={colors.foregroundMuted} />
-        <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>Details</Text>
-      </Pressable>
+        {color => <>
+          <Icon name={details ? "ChevronDown" : "ChevronRight"} size={12} color={color} />
+          <Text style={{ color, fontSize: 12 }}>Details</Text>
+        </>}
+      </HoverButton>
     </View>
     {details ? <View style={{ borderLeftWidth: 1, borderLeftColor: colors.border, paddingLeft: 12, gap: 8 }}>
       {([

@@ -58,7 +58,7 @@ paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
 Start from a checkout of this repository. Each plugin has its own dependencies and scripts; run these commands from the plugin directory. You need npm and a Node.js version that supports `--experimental-strip-types` to run the tests.
 
 ```bash
-cd time-since   # or setup-monitor or workspace-links
+cd time-since   # or setup-monitor, workspace-links, or history
 npm install
 npm run typecheck
 npm test

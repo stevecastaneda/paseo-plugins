@@ -43,5 +43,19 @@ test("footer arrows navigate turns without replacing the conversation", async ()
   assert.equal(renderer.root.findAllByType("Text").filter(node => /^Message \d$/.test(node.props.children)).length, 3);
   act(() => button("Raw source").props.onPress());
   assert.equal(button("Next turn"), undefined);
+  act(() => button("Conversation").props.onPress());
+  assert.equal(button("Previous turn").props.disabled, true);
+  const scroller = renderer.root.findByType("scroll");
+  act(() => {
+    scroller.props.onLayout({ nativeEvent: { layout: { height: 600 } } });
+    scroller.props.onContentSizeChange(400, 1300);
+  });
+  act(() => button("Next turn").props.onPress());
+  assert.equal(jumps.at(-1).y, 700); // Last short turn cannot reach the viewport top.
+  act(() => scroller.props.onScroll({ nativeEvent: { contentOffset: { y: 700 } } }));
+  assert.equal(button("Next turn").props.disabled, true);
+  assert.equal(button("Previous turn").props.disabled, false);
+  act(() => button("Previous turn").props.onPress());
+  assert.equal(jumps.at(-1).y, 0);
   await act(async () => renderer.unmount());
 });

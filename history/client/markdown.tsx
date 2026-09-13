@@ -1,5 +1,6 @@
+import { HoverButton } from "./hover-button";
 import React, { memo, useMemo, type ReactNode } from "react";
-import { Linking, Platform, Pressable, ScrollView, Text, View, type TextStyle } from "react-native";
+import { Linking, Platform, ScrollView, Text, View, type TextStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginButtonIconProps } from "@getpaseo/plugin/client";
 import type { Token, Tokens } from "marked";
@@ -54,11 +55,13 @@ export const MarkdownMessage = memo(function MarkdownMessage({ text, colors, cop
         <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 12, paddingRight: 4, backgroundColor: colors.surface1 }}>
           <Icon name="Code" size={13} color={colors.foregroundMuted} />
           <Text style={{ flex: 1, marginLeft: 7, color: colors.foregroundMuted, fontSize: 11 }}>{token.lang?.split(/\s/)[0] || "Code"}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Copy code" onPress={() => copy(token.text)}
+          <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Copy code" onPress={() => copy(token.text)}
             style={({ pressed }) => ({ minHeight: 32, paddingHorizontal: 8, flexDirection: "row", gap: 6, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
-            <Icon name="Copy" size={13} color={colors.foregroundMuted} />
-            <Text style={{ color: colors.foregroundMuted, fontSize: 11 }}>Copy</Text>
-          </Pressable>
+            {color => <>
+              <Icon name="Copy" size={13} color={color} />
+              <Text style={{ color, fontSize: 11 }}>Copy</Text>
+            </>}
+          </HoverButton>
         </View>
         <ScrollView horizontal style={{ backgroundColor: colors.surface0 }} contentContainerStyle={{ padding: 12 }}>
           <Text selectable style={{ color: colors.foreground, fontFamily: mono, fontSize: 12, lineHeight: 19 }}>{token.text}</Text>
