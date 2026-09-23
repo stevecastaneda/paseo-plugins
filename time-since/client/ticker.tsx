@@ -14,7 +14,6 @@ import {
   isWorkingStatus,
   lastThreadMessageAtFromStream,
 } from "../shared/elapsed";
-import { getLastThreadMessage } from "../shared/last-message";
 import { subscribeSettings, useSettings } from "./settings";
 import { defaultSettings, getSettings, type TimeSinceSettings } from "../shared/settings";
 
@@ -130,17 +129,7 @@ export function contributeClient(client: PluginClientContext) {
       const at = lastThreadMessageAtFromStream(payload);
       if (at) rememberLastMessageAt(agentId, at);
     });
-    let cancelled = false;
-    void client
-      .rpc(getLastThreadMessage, { agentId })
-      .then((result) => {
-        if (cancelled || stopped || !result.lastMessageAt) return;
-        rememberLastMessageAt(agentId, result.lastMessageAt);
-        return undefined;
-      })
-      .catch(() => undefined);
     watches.set(agentId, () => {
-      cancelled = true;
       unsubscribe();
     });
   };
@@ -202,9 +191,16 @@ export function contributeClient(client: PluginClientContext) {
     id: string;
     workspaceId?: string | null;
     status?: "initializing" | "idle" | "running" | "error" | "closed" | null;
+    lastUserMessageAt?: string | null;
+    createdAt?: string | null;
   }) => {
     if (stopped) return;
     if (!agent.workspaceId) { remove(agent.id); return; }
+    // Seed from the directory snapshot. `lastUserMessageAt` only moves when a
+    // user message arrives; `updatedAt` also moves on rename/label/attention
+    // updates and would reset the pill without a new message.
+    const seed = agent.lastUserMessageAt ?? agent.createdAt;
+    if (seed) rememberLastMessageAt(agent.id, seed);
     tracked.set(agent.id, {
       id: agent.id,
       workspaceId: agent.workspaceId,

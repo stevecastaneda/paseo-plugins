@@ -7,7 +7,16 @@ const directory = fileURLToPath(new URL('..', import.meta.url));
 test('clock ticks locally, settings publish immediately, removal events remove stale watches', async () => {
   const h = clientHarness(directory);
   const stop = h.load('client/ticker.tsx').contributeClient(h.client);
-  h.agents.bootstrap([{ agent: { id: 'a', workspaceId: 'w', status: 'idle' } }]);
+  h.agents.bootstrap([
+    {
+      agent: {
+        id: 'a',
+        workspaceId: 'w',
+        status: 'idle',
+        lastUserMessageAt: new Date(Date.now() - 600_000).toISOString(),
+      },
+    },
+  ]);
   await h.flush();
   await h.tick(1000);
   const pill = h.registrations.find((r) => !r.removed);
@@ -27,6 +36,67 @@ test('clock ticks locally, settings publish immediately, removal events remove s
   stop();
   assert.equal(h.timers.size, 0);
   assert.equal(h.agents.listenerCount, 0);
+});
+
+test('directory agents seed from the snapshot without a timeline read', async () => {
+  const h = clientHarness(directory);
+  const stop = h.load('client/ticker.tsx').contributeClient(h.client);
+  const lastUserMessageAt = new Date(Date.now() - 120_000).toISOString();
+  h.agents.bootstrap([
+    {
+      agent: {
+        id: 'a',
+        workspaceId: 'w',
+        status: 'idle',
+        lastUserMessageAt,
+        createdAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+      },
+    },
+    {
+      agent: {
+        id: 'b',
+        workspaceId: 'w',
+        status: 'idle',
+        lastUserMessageAt: null,
+        createdAt: new Date(Date.now() - 90_000).toISOString(),
+      },
+    },
+  ]);
+  await h.flush();
+  assert.equal(
+    h.requests.filter((r) => r.name === 'time-since.last-thread-message.get').length,
+    0,
+    'a directory snapshot must not trigger a per-agent timeline read',
+  );
+  const pillFor = (agentId) => h.registrations.find((r) => !r.removed && r.agentId === agentId);
+  assert.match(pillFor('a').button.label, /^2m/, 'seeds from lastUserMessageAt, not createdAt');
+  assert.match(pillFor('b').button.label, /^1m/, 'falls back to createdAt');
+  assert.deepEqual([...h.watches.keys()], ['a', 'b']);
+
+  // A rename/label/attention update moves updatedAt and carries an older
+  // createdAt, but lastUserMessageAt is unchanged; the seed must not move.
+  h.agents.update({
+    kind: 'upsert',
+    agent: {
+      id: 'a',
+      workspaceId: 'w',
+      status: 'idle',
+      lastUserMessageAt,
+      createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+      updatedAt: new Date().toISOString(),
+      title: 'renamed',
+    },
+  });
+  assert.match(pillFor('a').button.label, /^2m/);
+
+  // The live timeline subscription still advances the pill.
+  h.watches.get('a')({
+    timestamp: new Date(Date.now() - 30_000).toISOString(),
+    event: { type: 'timeline', item: { type: 'assistant_message' } },
+  });
+  await h.tick(1000);
+  assert.match(pillFor('a').button.label, /^3[0-9]s/);
+  stop();
 });
 
 test('stopping during bootstrap does not leak a timeline or pill', async () => {
