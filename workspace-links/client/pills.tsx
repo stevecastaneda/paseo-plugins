@@ -1,3 +1,4 @@
+import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import type {
   PluginButton,
   PluginButtonIconProps,
@@ -7,7 +8,7 @@ import type {
 } from "@getpaseo/plugin/client";
 import { openExternalUrl, useWorkspace } from "@getpaseo/plugin/client";
 import { subscribeLinks } from "./links-state";
-import { observeDirectory, type PaseoAgentUpdate, type PaseoWorkspaceUpdate } from "./directory";
+import { observeDirectory } from "./directory";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useLinks } from "./links-query";
 import { linksMenuEntries, linksMenuKey, type WorkspaceLink } from "../shared/menu";
