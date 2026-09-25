@@ -55,7 +55,7 @@ paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
 
 ## Local development
 
-Start from a checkout of this repository. Each plugin has its own dependencies and scripts; run these commands from the plugin directory. You need npm and a Node.js version that supports `--experimental-strip-types` to run the tests.
+Start from a checkout of this repository. Each plugin has its own dependencies and scripts; run these commands from the plugin directory. You need npm and Node.js 22.18 or later, which runs the TypeScript tests directly.
 
 ```bash
 cd time-since   # or setup-monitor, workspace-links, or history
