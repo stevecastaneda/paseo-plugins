@@ -6,12 +6,11 @@ import type {
   PluginButtonRegistration,
   PluginClientContext,
 } from "@getpaseo/plugin/client";
-import { useWorkspace } from "@getpaseo/plugin/client";
+import { openExternalUrl, useWorkspace } from "@getpaseo/plugin/client";
 import { subscribeLinks } from "./links-state";
 import { observeDirectory } from "./directory";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useLinks } from "./links-query";
-import { openLink } from "../shared/links";
 import { linksMenuEntries, linksMenuKey, type WorkspaceLink } from "../shared/menu";
 import {
   defaultShortcut,
@@ -91,7 +90,7 @@ function toPluginMenuItems(
         kind: "action",
         async onPress() {
           if (!directory) return;
-          await client.rpc(openLink, { workspaceId, workspaceDirectory: directory, url: entry.url });
+          await openExternalUrl(entry.url);
         },
       },
     };
@@ -223,7 +222,7 @@ export function contributeClient(client: PluginClientContext) {
 
   const stopAgents = observeDirectory({
     list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
-    subscribe: (listener) => client.paseo.agents.subscribe(listener),
+    select: (message) => message.type === "agent_update" ? message.payload : undefined,
     snapshot: (entries) => {
       agents = new Map(entries.flatMap(({ agent }) => agent.workspaceId ? [[agent.id, agent.workspaceId]] : []));
       sync();
@@ -242,7 +241,7 @@ export function contributeClient(client: PluginClientContext) {
   };
   const stopWorkspaces = observeDirectory({
     list: (options) => client.paseo.workspaces.list(options),
-    subscribe: (listener) => client.paseo.workspaces.subscribe(listener),
+    select: (message) => message.type === "workspace_update" ? message.payload : undefined,
     snapshot: (entries) => {
       const ids = new Set(entries.map((workspace) => workspace.id));
       for (const id of workspaces.keys()) if (!ids.has(id)) {

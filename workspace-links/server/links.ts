@@ -2,7 +2,6 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { linksSchema } from "../shared/links.ts";
-import { launchUrl } from "./browser.ts";
 
 export async function readLinks(directory: string) {
   let contents: string;
@@ -26,16 +25,4 @@ export async function handleGetLinks(
   _context: PluginHandlerContext,
 ) {
   return readLinks(input.workspaceDirectory);
-}
-
-export async function handleOpenLink(
-  input: { workspaceId: string; workspaceDirectory: string; url: string },
-  _context: PluginHandlerContext,
-) {
-  const { links } = await readLinks(input.workspaceDirectory);
-  if (!links.some((link) => link.url === input.url)) {
-    throw new Error("This link has changed or was removed. Refresh the list.");
-  }
-  await launchUrl(input.url);
-  return { launched: true };
 }

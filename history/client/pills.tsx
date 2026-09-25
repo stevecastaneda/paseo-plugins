@@ -49,7 +49,7 @@ export function contributePills(client: PluginClientContext) {
   };
   const stop = observeDirectory({
     list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
-    subscribe: (listener) => client.paseo.agents.subscribe(listener),
+    select: (message) => message.type === "agent_update" ? message.payload : undefined,
     snapshot: (entries) => {
       const ids = new Set(entries.map(({ agent }) => agent.id));
       for (const id of pills.keys()) if (!ids.has(id)) remove(id);

@@ -148,4 +148,19 @@ test('stopping during bootstrap does not leak a timeline or pill', async () => {
   assert.equal(h.watches.size, 0);
   assert.equal(h.registrations.length, 0);
   assert.equal(h.agents.listenerCount, 0);
+  assert.equal(h.agents.released, 1);
+});
+
+test('a reconnect snapshot removes pills and watches for agents that are gone', async () => {
+  const h = clientHarness(directory);
+  const stop = h.load('client/ticker.tsx').contributeClient(h.client);
+  h.agents.bootstrap([{ agent: { id: 'a', workspaceId: 'w', status: 'idle' } }, { agent: { id: 'b', workspaceId: 'w', status: 'idle' } }]);
+  await h.flush();
+  assert.deepEqual([...h.watches.keys()], ['a', 'b']);
+  h.agents.reconnect([{ agent: { id: 'b', workspaceId: 'w', status: 'idle' } }]);
+  await h.flush();
+  assert.deepEqual([...h.watches.keys()], ['b']);
+  assert.deepEqual(h.registrations.filter((r) => !r.removed).map((r) => r.agentId), ['b']);
+  stop();
+  assert.equal(h.agents.released, 1);
 });

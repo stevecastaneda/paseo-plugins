@@ -1,6 +1,6 @@
 # Workspace Links
 
-A small Paseo 0.8 plugin that reads `workspace-links.json` from the active workspace and puts those URLs on the Links trigger. Press the composer pill or header button and choose a URL to open it in the host browser. **Manage links** (or **Add links** when the file is empty or missing) opens the setup panel in Explorer. The Command Center item **Workspace Links** opens that panel too.
+A small Paseo 0.9 plugin that reads `workspace-links.json` from the active workspace and puts those URLs on the Links trigger. Press the composer pill or header button and choose a URL to open it in your browser. **Manage links** (or **Add links** when the file is empty or missing) opens the setup panel in Explorer. The Command Center item **Workspace Links** opens that panel too.
 
 The trigger stays available when the workspace has no links yet, so the setup guide is always one menu item away. The panel never opens automatically.
 
@@ -30,11 +30,9 @@ Put this file at the workspace root:
 
 Use fixed URLs or have your existing setup/dev script generate this same file with the workspace's current URLs. Gitignore it if it contains workspace-specific values. The Links menu rereads the file on its own. Click **Refresh** in the panel if that list still looks stale. The plugin does not execute scripts.
 
-Links open in the **default browser on the machine running the Paseo daemon**. Set Chrome as that machine's default browser if you prefer Chrome. No terminal tab, browser selector, or extra runtime dependency is needed.
+Links open on the **device you're using**, the same way Paseo opens its own links: your default browser in the desktop app, a new tab in the web app, or the phone's browser in the mobile app.
 
-The plugin uses macOS's `open`, Windows PowerShell's `Start-Process`, or Linux's `xdg-open`. The host needs a graphical desktop and a configured default browser; Linux also needs `xdg-open`. No special WSL or headless-server integration is included.
-
-For remote workspaces, the browser opens on the remote host. `localhost` therefore refers to that host, not the device viewing Paseo. A successful launcher exit confirms the request, not that the page loaded.
+`localhost` therefore refers to that device. When the daemon runs on another machine, or you use Paseo from your phone, `localhost` links reach the daemon's dev server only if that port is forwarded to your device.
 
 Only HTTP(S) URLs are supported, with up to 100 links. Missing configuration, empty lists, and invalid files have visible panel states.
 

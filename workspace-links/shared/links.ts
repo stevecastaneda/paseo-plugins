@@ -18,9 +18,3 @@ export const getLinks = defineRpc({
   input: workspaceInput,
   output: z.object({ links: linksSchema, configured: z.boolean() }),
 });
-
-export const openLink = defineRpc({
-  name: "workspace-links.open",
-  input: workspaceInput.extend({ url: webUrlSchema }),
-  output: z.object({ launched: z.boolean() }),
-});

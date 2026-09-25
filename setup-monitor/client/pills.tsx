@@ -173,7 +173,7 @@ export function contributeClient(client: PluginClientContext) {
   };
   const unsubscribeWorkspaces = observeDirectory({
     list: (options) => client.paseo.workspaces.list(options),
-    subscribe: (listener) => client.paseo.workspaces.subscribe(listener),
+    select: (message) => message.type === "workspace_update" ? message.payload : undefined,
     snapshot: (entries) => {
       const next = new Set(entries.filter((workspace) => workspace.workspaceKind === "worktree").map((workspace) => workspace.id));
       for (const id of worktreeIds) if (!next.has(id)) { worktreeIds.delete(id); forgetWorkspace(id); }
@@ -197,7 +197,7 @@ export function contributeClient(client: PluginClientContext) {
   });
   const unsubscribeAgents = observeDirectory({
     list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
-    subscribe: (listener) => client.paseo.agents.subscribe(listener),
+    select: (message) => message.type === "agent_update" ? message.payload : undefined,
     snapshot: (entries) => {
       lastAgents = entries.map(({ agent }) => agent);
       publishPills();

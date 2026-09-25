@@ -1,8 +1,8 @@
 import { HoverButton } from "./hover-button";
 import React, { memo, useMemo, type ReactNode } from "react";
-import { Linking, Platform, ScrollView, Text, View, type TextStyle } from "react-native";
+import { Platform, ScrollView, Text, View, type TextStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import type { PluginButtonIconProps } from "@getpaseo/plugin/client";
+import { openExternalUrl, type PluginButtonIconProps } from "@getpaseo/plugin/client";
 import type { Token, Tokens } from "marked";
 import { linkAction, markdownTokens } from "../shared/markdown";
 
@@ -34,7 +34,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ text, colors, cop
         return <Text key={index} accessibilityRole={open ? "link" : "button"}
           accessibilityLabel={`${open ? "Open" : "Copy destination:"} ${token.text}`}
           style={{ color: colors.accent, textDecorationLine: "underline" }} onPress={() => {
-            if (open) void Linking.openURL(href).catch(() => onError("Could not open this link."));
+            if (open) void openExternalUrl(href).catch(() => onError("Could not open this link."));
             else copy(href);
           }}>{token.type === "image" ? `[Image: ${token.text || "image"}]` : inline(token.tokens)}</Text>;
       }
