@@ -21,10 +21,9 @@ test("preserves literal citation markup in fenced and inline code", () => {
   assert.equal(tokens[2]!.tokens[0].text, text);
 });
 
-test("only opens ordinary web/mail links; local paths and executable schemes are copy-only", () => {
+test("only opens web links; mail, local paths, and executable schemes are copy-only", () => {
   assert.equal(linkAction("https://paseo.sh/docs"), "open");
-  assert.equal(linkAction("mailto:hello@example.com"), "open");
-  for (const href of ["javascript:alert(1)", "data:text/html,hello", "/tmp/report.md", "paseo://app", "https://x\nunsafe"]) {
+  for (const href of ["mailto:hello@example.com", "javascript:alert(1)", "data:text/html,hello", "/tmp/report.md", "paseo://app", "https://x\nunsafe"]) {
     assert.equal(linkAction(href), "copy");
   }
 });

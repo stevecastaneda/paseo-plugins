@@ -12,7 +12,8 @@ test("renders messages and safe HTML, copies code, and keeps metadata out of the
   const opened: string[] = [];
   const h = clientHarness(fileURLToPath(new URL("..", import.meta.url)), {
     "react-native": { Text: "Text", View: "View", Pressable: "Pressable", ScrollView: "ScrollView",
-      Platform: { OS: "web" }, Linking: { openURL: async (href) => { opened.push(href); } } },
+      Platform: { OS: "web" } },
+    "@getpaseo/plugin/client": { openExternalUrl: async (href) => { opened.push(href); } },
     "@getpaseo/plugin/client/react-native": { Icon: "Icon" },
   });
   const Markdown = h.load("client/markdown.tsx").MarkdownMessage;

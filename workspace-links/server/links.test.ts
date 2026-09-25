@@ -36,32 +36,6 @@ test("malformed files and non-web URLs produce a useful error", async (t) => {
   }
 });
 
-test("OS launch commands keep URL punctuation out of executable code", async () => {
-  const { browserCommand } = await import("./browser.ts");
-  const url = "https://example.com/?q=$('test')&other=%22quoted%22";
-  assert.deepEqual(browserCommand(url, "darwin"), { file: "/usr/bin/open", args: [url] });
-  assert.deepEqual(browserCommand(url, "linux"), { file: "xdg-open", args: [url] });
-  const windows = browserCommand(url, "win32");
-  assert.match(windows.file, /powershell\.exe$/);
-  assert.equal(windows.args.join(" ").includes(url), false);
-  assert.match(windows.args.at(-1)!, /\$env:PASEO_WORKSPACE_LINK_URL/);
-  assert.throws(() => browserCommand("javascript:alert(1)", "win32"));
-});
-
-test("launcher hides the console, passes the URL as data, and surfaces failures", async () => {
-  const { launchUrl } = await import("./browser.ts");
-  const url = "https://example.com/?a=1&b=2";
-  const run = (async (_file: string, _args: string[], options: Record<string, unknown>) => {
-    assert.equal(options.shell, false);
-    assert.equal(options.windowsHide, true);
-    assert.equal((options.env as Record<string, string>).PASEO_WORKSPACE_LINK_URL, url);
-    return { stdout: "", stderr: "" };
-  }) as Parameters<typeof launchUrl>[1];
-  await launchUrl(url, run);
-  const failing = (async () => { throw new Error("unavailable"); }) as Parameters<typeof launchUrl>[1];
-  await assert.rejects(launchUrl(url, failing), /default browser/);
-});
-
 test("loads links from workspace-links.json without calling paseo", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "workspace-links-rpc-"));
   t.after(() => rm(directory, { recursive: true, force: true }));

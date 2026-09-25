@@ -1,9 +1,8 @@
-import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
+import { openExternalUrl, type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { useLinks } from "./links-query";
-import { openLink } from "../shared/links";
 import { getShortcutSettings, PLACEMENT_OPTIONS, updateShortcutSettings, type ShortcutSettings } from "../shared/shortcut";
 import { getShortcut, setShortcut, subscribeShortcut } from "./pills";
 
@@ -103,7 +102,6 @@ export function LinksPanel(props: PluginWorkspacePanelProps) {
 function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps) {
   const workspaceDirectory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const linksQuery = useLinks(host.id, workspaceId, workspaceDirectory);
-  const launch = useRpc(openLink);
   const fetchShortcut = useRpc(getShortcutSettings);
   const saveShortcut = useRpc(updateShortcutSettings);
   const [shortcut, setLocalShortcut] = useState(getShortcut);
@@ -111,8 +109,6 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
   const [shortcutSaving, setShortcutSaving] = useState(false);
   const [shortcutLoadError, setShortcutLoadError] = useState<string | null>(null);
   const [shortcutSaveError, setShortcutSaveError] = useState<string | null>(null);
-  const openingRef = useRef(false);
-  const [opening, setOpening] = useState(false);
   const [exampleExpanded, setExampleExpanded] = useState(false);
   const [guideExpanded, setGuideExpanded] = useState(false);
   const [hoveredLink, setHoveredLink] = useState<number | null>(null);
@@ -161,19 +157,10 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
     }
   }
 
-  async function openUrl(url: string) {
-    if (openingRef.current || !workspaceDirectory) return;
-    openingRef.current = true;
-    setOpening(true);
+  // Open synchronously from the press so web browsers allow the new tab.
+  function openUrl(url: string) {
     setError(null);
-    try {
-      await launch({ workspaceId, workspaceDirectory, url });
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not open the host’s browser.");
-    } finally {
-      openingRef.current = false;
-      setOpening(false);
-    }
+    openExternalUrl(url).catch(() => setError("Could not open this link."));
   }
 
   const setupGuide = (
@@ -236,15 +223,14 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>{error}</Text>
       ) : null}
       {result?.links.map((link, index) => (
-        <Pressable key={index} accessibilityRole="link" accessibilityLabel={`Open ${link.label} on ${host.label}`}
-          disabled={opening} accessibilityState={{ disabled: opening }}
+        <Pressable key={index} accessibilityRole="link" accessibilityLabel={`Open ${link.label}`}
           onHoverIn={() => setHoveredLink(index)} onHoverOut={() => setHoveredLink(null)}
-          onPress={() => void openUrl(link.url)}
+          onPress={() => openUrl(link.url)}
           style={({ pressed }) => ({
             flexDirection: "row", alignItems: "center", gap: 12, minHeight: 40,
             paddingHorizontal: 12, paddingVertical: 10,
             borderBottomWidth: 1, borderBottomColor: colors.border,
-            backgroundColor: pressed || hoveredLink === index ? colors.surface1 : colors.surface0, opacity: opening ? 0.6 : 1,
+            backgroundColor: pressed || hoveredLink === index ? colors.surface1 : colors.surface0,
           })}>
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
             <Text numberOfLines={2} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{link.label}</Text>
@@ -253,11 +239,6 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
           <Icon name="ExternalLink" size={14} color={colors.foregroundMuted} />
         </Pressable>
       ))}
-      {opening ? (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, padding: 12 }}>
-          Opening browser on {host.label}…
-        </Text>
-      ) : null}
       {isEmpty ? setupGuide : null}
       <View style={{ zIndex: 1, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 }}>
         <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2 }}>

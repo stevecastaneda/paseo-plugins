@@ -20,5 +20,6 @@ export function markdownTokens(source: string): Token[] {
 }
 
 export function linkAction(href: string): "open" | "copy" {
-  return /^(?:https?:\/\/|mailto:)[^\s\u0000-\u001f]+$/i.test(href) ? "open" : "copy";
+  // Paseo's external opener accepts only HTTP(S); anything else is copied.
+  return /^https?:\/\/[^\s\u0000-\u001f]+$/i.test(href) ? "open" : "copy";
 }

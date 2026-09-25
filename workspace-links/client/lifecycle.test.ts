@@ -23,6 +23,9 @@ test('links placement changes immediately, directory events reconcile targets wi
   const header = h.registrations.find((r) => !r.removed);
   assert.ok(header);
   assert.equal(header.button.behavior.items[0].title, 'App');
+  await header.button.behavior.items[0].behavior.onPress();
+  assert.deepEqual(h.opened, ['https://example.com'], 'links open on the viewing device');
+  assert.equal(h.requests.length, 1, 'opening a link needs no daemon request');
   links.publishLinks('w', '/w', [{ label: 'App', url: 'https://example.com' }]);
   assert.equal(header.updates, 1, 'identical menus must stay open');
   h.agents.update({ kind: 'remove', agentId: 'a' });
@@ -33,6 +36,8 @@ test('links placement changes immediately, directory events reconcile targets wi
   stop();
   assert.equal(h.agents.listenerCount, 0);
   assert.equal(h.workspaces.listenerCount, 0);
+  assert.equal(h.agents.released, 1, 'cleanup ends the daemon observation');
+  assert.equal(h.workspaces.released, 1);
 });
 
 test('late bootstrap after cleanup detaches listeners without registering controls', async () => {
@@ -45,6 +50,8 @@ test('late bootstrap after cleanup detaches listeners without registering contro
   assert.equal(h.registrations.length, 0);
   assert.equal(h.agents.listenerCount, 0);
   assert.equal(h.workspaces.listenerCount, 0);
+  assert.equal(h.agents.released, 1, 'a late subscription is released, not kept');
+  assert.equal(h.workspaces.released, 1);
 });
 
 test('changes received during pagination take precedence over initial directory rows', async () => {
@@ -72,7 +79,7 @@ test('a failed directory load retries without duplicating listeners or polling a
   h.agents.fail();
   h.workspaces.bootstrap([workspace]);
   await h.flush();
-  assert.equal(h.agents.listenerCount, 1);
+  assert.equal(h.agents.listenerCount, 0);
   await h.tick(2000);
   h.agents.bootstrap([{ agent }]);
   await h.flush();
@@ -80,6 +87,23 @@ test('a failed directory load retries without duplicating listeners or polling a
   assert.equal(h.agents.calls, 2);
   assert.equal(h.workspaces.calls, 1);
   assert.equal(h.timers.size, 0);
+  stop();
+});
+
+test('a reconnect snapshot drops controls for agents removed while disconnected', async () => {
+  const h = clientHarness(directory);
+  const pills = h.load('client/pills.tsx');
+  const stop = pills.contributeClient(h.client);
+  h.agents.bootstrap([{ agent }, { agent: { id: 'b', workspaceId: 'w' } }]);
+  h.workspaces.bootstrap([workspace]);
+  await h.flush();
+  pills.setShortcut({ placement: 'composer' });
+  assert.equal(h.registrations.filter((r) => !r.removed).length, 2);
+  h.agents.reconnect([{ agent: { id: 'b', workspaceId: 'w' } }]);
+  await h.flush();
+  const active = h.registrations.filter((r) => !r.removed);
+  assert.equal(active.length, 1);
+  assert.equal(h.agents.calls, 1, 'Paseo restores the observation; no new list');
   stop();
 });
 
