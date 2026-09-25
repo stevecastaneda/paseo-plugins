@@ -8,6 +8,8 @@ export function clientHarness(pluginDirectory: string, modules?: Record<string, 
   requests: Array<{ name: string; input: any }>;
   watches: Map<string, unknown>;
   timers: Map<number, { callback(): void; delay: number }>;
+  /** RPC results by contract name; a value may be a promise the test settles later. */
+  responses: Record<string, unknown>;
   flush(): Promise<void>;
   tick(delay: number): Promise<void>;
 };

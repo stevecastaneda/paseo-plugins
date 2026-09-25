@@ -63,10 +63,10 @@ test('directory agents seed from the snapshot without a timeline read', async ()
     },
   ]);
   await h.flush();
-  assert.equal(
-    h.requests.filter((r) => r.name === 'time-since.last-thread-message.get').length,
-    0,
-    'a directory snapshot must not trigger a per-agent timeline read',
+  assert.deepEqual(
+    h.requests.map((r) => r.name).sort(),
+    ['time-since.last-reply.list', 'time-since.settings.get'],
+    'a directory snapshot must not trigger a per-agent read',
   );
   const pillFor = (agentId) => h.registrations.find((r) => !r.removed && r.agentId === agentId);
   assert.match(pillFor('a').button.label, /^2m/, 'seeds from lastUserMessageAt, not createdAt');
@@ -96,6 +96,46 @@ test('directory agents seed from the snapshot without a timeline read', async ()
   });
   await h.tick(1000);
   assert.match(pillFor('a').button.label, /^3[0-9]s/);
+  stop();
+});
+
+test('recorded turn ends seed the pill with the last reply, even when they arrive late', async () => {
+  const h = clientHarness(directory);
+  let settleReplies;
+  h.responses['time-since.last-reply.list'] = new Promise((resolve) => { settleReplies = resolve; });
+  const stop = h.load('client/ticker.tsx').contributeClient(h.client);
+  const agent = (id) => ({
+    id,
+    workspaceId: 'w',
+    status: 'idle',
+    lastUserMessageAt: new Date(Date.now() - 20 * 60_000).toISOString(),
+  });
+  h.agents.bootstrap([{ agent: agent('a') }, { agent: agent('b') }, { agent: agent('c') }]);
+  await h.flush();
+  const pillFor = (agentId) => h.registrations.find((r) => !r.removed && r.agentId === agentId);
+  assert.match(pillFor('a').button.label, /^20m/, 'falls back to lastUserMessageAt until the ledger loads');
+
+  settleReplies({
+    lastReplyAt: {
+      a: new Date(Date.now() - 2 * 60_000).toISOString(),
+      // A recorded turn older than a newer user message must not win.
+      b: new Date(Date.now() - 45 * 60_000).toISOString(),
+      gone: new Date().toISOString(),
+    },
+  });
+  await h.flush();
+  assert.match(pillFor('a').button.label, /^2m/, 'seeds from the recorded turn end');
+  assert.match(pillFor('b').button.label, /^20m/);
+  assert.match(pillFor('c').button.label, /^20m/, 'agents without a recorded turn keep the fallback');
+  assert.equal(
+    h.requests.filter((r) => r.name === 'time-since.last-reply.list').length,
+    1,
+    'one ledger read serves every agent',
+  );
+
+  // Agents registered after the ledger loads seed from it too.
+  h.agents.update({ kind: 'upsert', agent: { ...agent('gone'), lastUserMessageAt: null } });
+  assert.match(pillFor('gone').button.label, /^0s/);
   stop();
 });
 

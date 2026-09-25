@@ -3,8 +3,7 @@ import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { defaultSettings, settingsSchema, type TimeSinceSettings } from "../shared/settings.ts";
-
-const writes = new Map<string, Promise<void>>();
+import { withWriteLock } from "./write-lock.ts";
 
 export function settingsRootFromEnvironment(env: NodeJS.ProcessEnv = process.env): string {
   return env.PASEO_HOME ?? join(homedir(), ".paseo");
@@ -12,19 +11,6 @@ export function settingsRootFromEnvironment(env: NodeJS.ProcessEnv = process.env
 
 export function settingsFilePath(root: string): string {
   return join(root, "plugin-data", "time-since", "settings.json");
-}
-
-function withWriteLock<T>(filePath: string, operation: () => Promise<T>): Promise<T> {
-  const previous = writes.get(filePath) ?? Promise.resolve();
-  const current = previous.then(operation, operation);
-  const finished = current.then(
-    () => undefined,
-    () => undefined,
-  );
-  writes.set(filePath, finished);
-  return current.finally(() => {
-    if (writes.get(filePath) === finished) writes.delete(filePath);
-  });
 }
 
 async function readFileSettings(filePath: string): Promise<TimeSinceSettings> {

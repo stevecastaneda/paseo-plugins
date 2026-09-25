@@ -2,7 +2,7 @@
 
 Paseo 0.8 composer pill that ticks elapsed time since the last `user_message` or `assistant_message` in the agent thread.
 
-It sits in the track above the composer. The clock seeds from the agent's last user message, falling back to its creation time, then advances with live thread messages, so it survives closing Paseo and reopening the workspace. It does not replace Paseo's message renderer.
+It sits in the track above the composer. The plugin's server records when each agent turn ends, so after closing and reopening Paseo the clock still counts from the agent's last reply. Turns that ended before this plugin was installed fall back to the last user message, then the agent's creation time; those read older than the true reply, never newer. Live thread messages advance the clock while Paseo is open. It does not replace Paseo's message renderer.
 
 Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds. Hidden while a turn is running. Press the pill to open a popover with the absolute timestamp.
 
@@ -37,8 +37,10 @@ paseo plugin reload time-since
 
 Agent changes arrive through a subscription rather than repeated list requests.
 Elapsed time is calculated locally; the clock does not request settings from
-the daemon every second, and it never reads an agent timeline. Labels update
-only when their displayed value changes.
+the daemon every second, and it never reads an agent timeline, which would
+start that agent's provider process. At launch it makes one request for the
+recorded turn ends of every agent. Labels update only when their displayed
+value changes.
 
 Saved options apply immediately in the current client. Other connected clients
 pick them up when they next load the options or reload the plugin.

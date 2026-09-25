@@ -12,6 +12,7 @@ export function clientHarness(pluginDirectory, modules = {}) {
   const registrations = [];
   const requests = [];
   const watches = new Map();
+  const responses = { 'time-since.last-reply.list': { lastReplyAt: {} } };
   let nextTimer = 0;
   function timer(callback, delay, repeat = false) { const id = ++nextTimer; timers.set(id, { callback, delay, repeat }); return id; }
   function load(path) {
@@ -77,13 +78,13 @@ export function clientHarness(pluginDirectory, modules = {}) {
     async rpc(contract, input) {
       requests.push({ name: contract.name, input });
       if (contract.name === 'time-since.settings.get') return { showIcon: true, showAgo: false };
-      if (contract.name === 'time-since.last-thread-message.get') return { lastMessageAt: new Date(Date.now() - 600_000).toISOString() };
+      if (Object.hasOwn(responses, contract.name)) return responses[contract.name];
       if (contract.name === 'workspace-links.shortcut.get') return { placement: 'composer', headerShowsLabel: false };
       if (contract.name === 'setup-monitor.status.get') return { snapshot: null };
       throw new Error(`Unexpected RPC ${contract.name}`);
     },
   };
-  return { client, load, agents, workspaces, registrations, requests, watches, timers,
+  return { client, load, agents, workspaces, registrations, requests, watches, timers, responses,
     async flush() { for (let i = 0; i < 10; i++) await Promise.resolve(); },
     async tick(delay) { for (const [id, timer] of [...timers]) if (timer.delay === delay) { if (!timer.repeat) timers.delete(id); await timer.callback(); } },
   };
