@@ -55,19 +55,36 @@ paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
 
 ## Local development
 
-Start from a checkout of this repository. Each plugin has its own dependencies and scripts; run these commands from the plugin directory. You need npm and Node.js 22.18 or later, which runs the TypeScript tests directly.
+Paseo runs each plugin from one folder on your machine. `npm run dev` makes Paseo run the plugin from the folder you're in. You need Node.js 22.18 or later.
+
+**1. Point Paseo at your copy.** From the plugin's folder in your checkout or worktree:
 
 ```bash
 cd time-since   # or setup-monitor, workspace-links, or history
+npm install     # first time in this copy, and after pulling dependency changes
+npm run dev
+```
+
+It ends with `time-since: running from <this folder>`. The change is live in the open Paseo app. You don't need to restart anything.
+
+**2. Edit, then run `npm run dev` again.** Each run type-checks and tests the plugin first. If either fails, Paseo keeps running the last version that passed.
+
+**3. Point Paseo back at your main copy when you're done.** Do this before you archive a worktree. If the folder is deleted while Paseo still uses it, the plugin stops loading.
+
+```bash
+cd path/to/main/paseo-plugins/time-since
 npm install
 npm run dev
 ```
 
-`npm run dev` runs the typecheck and tests and stops if either fails. Then it loads this directory into Paseo. If the plugin is already installed from this directory, it reloads it. If it is installed from somewhere else (another checkout, a worktree, or `paseo plugin add`), it removes that install and installs this directory in its place. Either way it takes effect right away, without restarting the Paseo daemon. Run it again after each edit.
+To see which copy Paseo is using, run `paseo plugin ls`. If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. `npm run dev` finds it either way.
 
-The script looks for `paseo` on your `PATH`, then in the macOS app bundle. Switching installs keeps the data a plugin writes to `~/.paseo/plugin-data/`. It clears settings Paseo stores for the plugin in `~/.paseo/plugin-settings/`, which none of the plugins here use.
+| Problem | Fix |
+| --- | --- |
+| `npm run typecheck failed` in a copy you didn't edit | Its dependencies are out of date. Run `npm install`, then `npm run dev` again. |
+| Checks pass but the plugin isn't `running` | Run `paseo plugin logs <plugin>` to see why it didn't start. |
 
-To go back to your main copy after trying a branch or worktree, run `npm run dev` in the main copy's plugin directory.
+Switching copies keeps what a plugin saved in `~/.paseo/plugin-data/`.
 
 ## Versioning
 
