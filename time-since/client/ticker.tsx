@@ -14,7 +14,7 @@ import {
   isWorkingStatus,
   lastThreadMessageAtFromStream,
 } from "../shared/elapsed";
-import { getLastThreadMessage } from "../shared/last-message";
+import { listLastReplies, type LastReplies } from "../shared/last-reply";
 import { subscribeSettings, useSettings } from "./settings";
 import { defaultSettings, getSettings, type TimeSinceSettings } from "../shared/settings";
 
@@ -107,6 +107,7 @@ export function contributeClient(client: PluginClientContext) {
   const watches = new Map<string, () => void>();
   const tracked = new Map<string, AgentSnap>();
   let settings: TimeSinceSettings = defaultSettings;
+  let lastReplies: LastReplies = {};
   let stopped = false;
   let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -130,17 +131,7 @@ export function contributeClient(client: PluginClientContext) {
       const at = lastThreadMessageAtFromStream(payload);
       if (at) rememberLastMessageAt(agentId, at);
     });
-    let cancelled = false;
-    void client
-      .rpc(getLastThreadMessage, { agentId })
-      .then((result) => {
-        if (cancelled || stopped || !result.lastMessageAt) return;
-        rememberLastMessageAt(agentId, result.lastMessageAt);
-        return undefined;
-      })
-      .catch(() => undefined);
     watches.set(agentId, () => {
-      cancelled = true;
       unsubscribe();
     });
   };
@@ -198,13 +189,35 @@ export function contributeClient(client: PluginClientContext) {
     publishAll();
   }).catch(() => undefined);
 
+  // One read of the server's turn-end ledger seeds every pill; it never opens
+  // an agent, unlike a per-agent timeline read.
+  void client.rpc(listLastReplies, {}).then(({ lastReplyAt }) => {
+    if (stopped) return;
+    lastReplies = lastReplyAt;
+    for (const agentId of tracked.keys()) {
+      const at = lastReplies[agentId];
+      if (at) rememberLastMessageAt(agentId, at);
+    }
+    publishAll();
+  }).catch(() => undefined);
+
   const register = (agent: {
     id: string;
     workspaceId?: string | null;
     status?: "initializing" | "idle" | "running" | "error" | "closed" | null;
+    lastUserMessageAt?: string | null;
+    createdAt?: string | null;
   }) => {
     if (stopped) return;
     if (!agent.workspaceId) { remove(agent.id); return; }
+    // The newest of the recorded turn end and the snapshot's last user message
+    // wins. Agents with no recorded turn fall back to `lastUserMessageAt`, then
+    // `createdAt`; both read older than the true reply, never newer. `updatedAt`
+    // also moves on rename/label/attention updates, so it is not a seed.
+    const reply = lastReplies[agent.id];
+    if (reply) rememberLastMessageAt(agent.id, reply);
+    const seed = agent.lastUserMessageAt ?? agent.createdAt;
+    if (seed) rememberLastMessageAt(agent.id, seed);
     tracked.set(agent.id, {
       id: agent.id,
       workspaceId: agent.workspaceId,
