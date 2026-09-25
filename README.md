@@ -60,20 +60,14 @@ Start from a checkout of this repository. Each plugin has its own dependencies a
 ```bash
 cd time-since   # or setup-monitor, workspace-links, or history
 npm install
-npm run typecheck
-npm test
-paseo plugin install "$PWD"
+npm run dev
 ```
 
-After editing the source, rerun the checks and reload the installed plugin:
+`npm run dev` runs the typecheck and tests and stops if either fails. Then it loads this directory into Paseo. If the plugin is already installed from this directory, it reloads it. If it is installed from somewhere else (another checkout, a worktree, or `paseo plugin add`), it removes that install and installs this directory in its place. Either way it takes effect right away, without restarting the Paseo daemon. Run it again after each edit.
 
-```bash
-npm run typecheck
-npm test
-paseo plugin reload time-since
-```
+The script looks for `paseo` on your `PATH`, then in the macOS app bundle. Switching installs keeps the data a plugin writes to `~/.paseo/plugin-data/`. It clears settings Paseo stores for the plugin in `~/.paseo/plugin-settings/`, which none of the plugins here use.
 
-Replace `time-since` in the reload command with the plugin you are working on. In PowerShell, use `(Get-Location).Path` instead of `"$PWD"` in the install command.
+To go back to your main copy after trying a branch or worktree, run `npm run dev` in the main copy's plugin directory.
 
 ## Versioning
 

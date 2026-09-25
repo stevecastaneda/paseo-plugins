@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test \"*/*.test.ts\""
+    "test": "node --experimental-strip-types --test \"*/*.test.ts\"",
+    "dev": "node ../scripts/dev.mjs"
   },
   "devDependencies": {
     "@getpaseo/client": "0.8.0",
