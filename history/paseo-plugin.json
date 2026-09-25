@@ -1,4 +1,5 @@
 {
   "id": "history",
-  "requirements": { "paseo": ">=0.9.0" }
+  "requirements": { "paseo": ">=0.9.0" },
+  "build": [["npm", "ci", "--omit=dev"]]
 }

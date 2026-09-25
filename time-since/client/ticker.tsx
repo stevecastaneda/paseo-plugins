@@ -1,5 +1,4 @@
-import type { PaseoAgentUpdate } from "@getpaseo/client";
-import { observeDirectory } from "./directory";
+import { observeDirectory, type PaseoAgentUpdate } from "./directory";
 import {
   type PluginButtonContentProps,
   type PluginButtonIconProps,
