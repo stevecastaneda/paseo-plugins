@@ -1,5 +1,5 @@
 import { type PluginButtonContentProps, useWorkspace } from "@getpaseo/plugin/client";
-import { ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import type { Dashboard } from "../shared/dashboard";
@@ -51,8 +51,9 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
         onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)} />
       <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}
-          style={({ pressed }) => ({ alignItems: "center", paddingVertical: 6, borderRadius: 4, ...raised(colors),
+          style={({ pressed }) => ({ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 6, borderRadius: 4, ...raised(colors),
             backgroundColor: onSurface1 ? (pressed ? colors.surface1 : colors.surface2) : pressed ? colors.surface2 : colors.surface1 })}>
+          <Icon name="PanelRight" size={12} color={colors.foreground} />
           <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Open Progress</Text>
         </PressScale>
       </View>
@@ -86,7 +87,10 @@ export function AttentionList({ colors, dashboard, onSurface1, onCopy, onOpenAtt
       ))}
       {dashboard.stuck.length ? (
         <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, fontWeight: "600" }}>Stuck</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Icon name="OctagonAlert" size={12} color={colors.statusDanger} />
+            <Text style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, fontWeight: "600" }}>Stuck</Text>
+          </View>
           {dashboard.stuck.map((item) => (
             <Text key={item.key} style={{ color: colors.foreground, fontSize: 12, lineHeight: 17 }}>
               {item.title}

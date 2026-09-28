@@ -3,15 +3,24 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
-import { type Attachment, deliverableAttachment, useAttachmentOpener } from "./attachments";
+import { type Attachment, attachmentIcon, deliverableAttachment, useAttachmentOpener } from "./attachments";
 import { PressScale } from "./motion";
 import { PreviewDialog } from "./preview";
+import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
 
 export { absolutePath } from "./attachments";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type Navigation = PluginWorkspacePanelProps["navigation"];
+
+const KIND_ICON: Record<NonNullable<Deliverable["kind"]>, string> = {
+  file: "File",
+  folder: "Folder",
+  report: "FileChartColumn",
+  screenshot: "Image",
+  link: "Globe",
+};
 
 export function DeliverablesSection({ colors, deliverables, workspaceId, workspaceDirectory, navigation }: {
   colors: Colors;
@@ -25,14 +34,14 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
   const { open, openOnHost, copyPath } = useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview: setPreviewing });
   return (
     <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", paddingHorizontal: 10, paddingVertical: 8 }}>
-        Latest deliverables
-      </Text>
+      <SectionTitle colors={colors} icon="Package" title="Latest deliverables" />
       {deliverables.map((deliverable) => (
         <Pressable key={deliverable.id} accessibilityRole={deliverable.url ? "link" : "button"}
           accessibilityLabel={`Open ${deliverable.title}`}
           onPress={() => void open(deliverableAttachment(deliverable))}
           style={({ pressed }) => ({ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: pressed ? colors.surface1 : "transparent" })}>
+          {/* Optical: centers the 14px icon on the 18px title line. */}
+          <View style={{ paddingTop: 2 }}><Icon name={deliverable.kind && deliverable.kind !== "file" ? KIND_ICON[deliverable.kind] : attachmentIcon(deliverableAttachment(deliverable))} size={14} color={colors.foregroundMuted} /></View>
           <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
             <Text style={{ color: colors.accent, fontSize: 13, lineHeight: 18, textDecorationLine: "underline" }}>{deliverable.title}</Text>
             <Text selectable numberOfLines={1} ellipsizeMode="head" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>

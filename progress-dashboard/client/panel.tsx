@@ -5,6 +5,7 @@ import { LauncherBanner, SkillBanner } from "./launcher";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
 import { Spinner, StalledPulse } from "./spinner";
 import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
+import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
 import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
@@ -125,9 +126,12 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
           </View>
         ) : null}
         {dashboard.updatedAt ? (
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-            Last updated <When colors={colors} iso={dashboard.updatedAt} now={now} />
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Icon name="Clock" size={12} color={colors.foregroundMuted} />
+            <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+              Last updated <When colors={colors} iso={dashboard.updatedAt} now={now} />
+            </Text>
+          </View>
         ) : null}
       </View>
       </Presence>
@@ -150,7 +154,7 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
           ) : null}</Presence>
           <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
           <Presence show order={4}>
-          <Card colors={colors} title={`${dashboard.run?.itemLabel ?? "Ticket"}s`}>
+          <Card colors={colors} icon="ListChecks" title={`${dashboard.run?.itemLabel ?? "Ticket"}s`}>
             {dashboard.tickets.length === 0 ? (
               <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
                 No {(dashboard.run?.itemLabel ?? "ticket").toLowerCase()}s yet.
@@ -201,16 +205,16 @@ function HistoryCard({ colors, workspaceId, activity, activityCount, answered, a
     historyTabs.set(workspaceId, next);
     setTab(next);
   };
-  const tabs: Array<{ id: HistoryTab; label: string; count: number }> = [
-    { id: "activity", label: "Activity", count: activityCount },
-    { id: "answered", label: "Answered questions", count: answeredCount },
+  const tabs: Array<{ id: HistoryTab; label: string; icon: string; count: number }> = [
+    { id: "activity", label: "Activity", icon: "Activity", count: activityCount },
+    { id: "answered", label: "Answered", icon: "CircleCheck", count: answeredCount },
   ];
   const empty = tab === "activity" ? activityCount === 0 : answeredCount === 0;
   return (
     <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
       <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         {tabs.map((entry) => {
-          return <Tab key={entry.id} colors={colors} label={entry.label} count={entry.count} selected={entry.id === tab} onPress={() => choose(entry.id)} />;
+          return <Tab key={entry.id} colors={colors} label={entry.label} icon={entry.icon} count={entry.count} selected={entry.id === tab} onPress={() => choose(entry.id)} />;
         })}
       </View>
       {empty ? (
@@ -223,7 +227,7 @@ function HistoryCard({ colors, workspaceId, activity, activityCount, answered, a
 }
 
 // Instant feedback: tabs switch often, so hover and press change color only.
-function Tab({ colors, label, count, selected, onPress }: { colors: Colors; label: string; count: number; selected: boolean; onPress(): void }) {
+function Tab({ colors, label, icon, count, selected, onPress }: { colors: Colors; label: string; icon: string; count: number; selected: boolean; onPress(): void }) {
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress}
@@ -233,6 +237,7 @@ function Tab({ colors, label, count, selected, onPress }: { colors: Colors; labe
         borderBottomWidth: 2,
         borderBottomColor: selected ? colors.accent : pressed || hovered ? colors.border : "transparent",
       })}>
+      <Icon name={icon} size={14} color={selected ? colors.accent : colors.foregroundMuted} />
       <Text style={{ color: selected || hovered ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{label}</Text>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{count}</Text>
     </Pressable>
@@ -269,12 +274,10 @@ function IssuesNotice({ colors, issues }: { colors: Colors; issues: FileIssue[] 
   );
 }
 
-function Card({ colors, title, children }: { colors: Colors; title: string; children: React.ReactNode }) {
+function Card({ colors, icon, title, children }: { colors: Colors; icon: string; title: string; children: React.ReactNode }) {
   return (
     <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", paddingHorizontal: 10, paddingVertical: 8 }}>
-        {title}
-      </Text>
+      <SectionTitle colors={colors} icon={icon} title={title} />
       {children}
     </View>
   );
@@ -330,14 +333,17 @@ function Shimmer() {
 }
 
 
+const STUCK_ICON: Record<StuckItem["kind"], string> = { blocked: "Ban", overdue: "Hourglass", manual: "Flag" };
+
 function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem[]; now: number }) {
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.statusDanger, borderRadius: 6, overflow: "hidden" }}>
-      <Text accessibilityRole="header" style={{ color: colors.statusDanger, fontSize: 13, lineHeight: 18, fontWeight: "600", paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        Stuck
-      </Text>
+      <SectionTitle colors={colors} icon="OctagonAlert" title="Stuck" color={colors.statusDanger} style={{ borderBottomWidth: 1, borderBottomColor: colors.border }} />
       {items.map((item, index) => (
-        <View key={item.key} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 2, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
+        <View key={item.key} style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
+          {/* Optical: centers the 14px icon on the 18px title line. */}
+          <View style={{ paddingTop: 2 }}><Icon name={STUCK_ICON[item.kind]} size={14} color={colors.statusDanger} /></View>
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{item.title}</Text>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             {item.kind === "overdue" ? `Running ${formatMinutes(item.overMin)} past its ${formatMinutes(item.estimateMin)} estimate. Timed from ` : null}
@@ -345,6 +351,7 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
             {item.kind === "manual" ? `${item.ticketId ? `${item.reason}. ` : ""}Flagged ` : null}
             <When colors={colors} iso={item.since} now={now} />
           </Text>
+          </View>
         </View>
       ))}
     </View>
@@ -397,7 +404,7 @@ function StatusIcon({ colors, status, live }: { colors: Colors; status: TicketSt
     case "working":
       return live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />;
     case "blocked":
-      return <Icon name="CircleAlert" size={14} color={colors.statusDanger} />;
+      return <Icon name="Ban" size={14} color={colors.statusDanger} />;
     case "skipped":
       return <Icon name="CircleSlash" size={14} color={colors.foregroundMuted} />;
     default:

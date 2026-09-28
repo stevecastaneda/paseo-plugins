@@ -3,7 +3,7 @@ import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { ActivityIndicator, Image, Platform, Text, View } from "react-native";
-import { type Attachment, isImage } from "./attachments";
+import { type Attachment, attachmentIcon } from "./attachments";
 import { previewDeliverable } from "../shared/rpc";
 import { PressScale, useLastPresent } from "./motion";
 import { imageOutline, raised } from "./surfaces";
@@ -25,7 +25,7 @@ export function PreviewDialog({ colors, attachment, workspaceId, workspaceDirect
   const open = Boolean(attachment);
   attachment = useLastPresent(attachment);
   return (
-    <Modal title={attachment?.title ?? "Preview"} icon={<Icon name={attachment && isImage(attachment) ? "Image" : "FileText"} size={16} color={colors.foregroundMuted} />}
+    <Modal title={attachment?.title ?? "Preview"} icon={<Icon name={attachment ? attachmentIcon(attachment) : "FileText"} size={16} color={colors.foregroundMuted} />}
       open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <Modal.Content>
         {attachment ? (

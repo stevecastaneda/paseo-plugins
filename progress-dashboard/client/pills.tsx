@@ -35,7 +35,7 @@ export function contributePills(client: PluginClientContext) {
       () => attention.get(props.workspaceId)?.stuck ?? 0,
     );
     return stuck
-      ? <Icon name="CircleAlert" size={props.size} color={props.theme.colors.statusDanger} />
+      ? <Icon name="OctagonAlert" size={props.size} color={props.theme.colors.statusDanger} />
       : <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />;
   }
 

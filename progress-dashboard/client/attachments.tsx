@@ -34,6 +34,14 @@ export function isImage(attachment: Attachment): boolean {
   return Boolean(attachment.path && imageMimeType(attachment.path));
 }
 
+// One icon per kind of thing, shared with deliverables and the preview dialog.
+export function attachmentIcon(attachment: Attachment): string {
+  if (attachment.url) return "Globe";
+  if (!attachment.path) return "File";
+  const kind = previewKind(attachment.path);
+  return kind === "image" ? "Image" : kind === "text" ? "FileText" : /[\/]$/.test(attachment.path) ? "Folder" : "File";
+}
+
 // Shown in Paseo's preview dialog rather than handed to another app.
 export function isPreviewable(attachment: Attachment): boolean {
   return Boolean(attachment.path && previewKind(attachment.path));
@@ -102,7 +110,7 @@ export function AttachmentList({ colors, attachments, onOpen }: { colors: Colors
         <Pressable key={attachment.ref} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={`Open ${attachment.title}`}
           onPress={() => onOpen(attachment)}
           style={({ pressed }) => ({ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
-          <Icon name={attachment.url ? "Link" : isImage(attachment) ? "Image" : "File"} size={12} color={colors.foregroundMuted} />
+          <Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} />
           <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.accent, fontSize: 12, lineHeight: 17, textDecorationLine: "underline" }}>{attachment.title}</Text>
           <Text numberOfLines={1} ellipsizeMode="head" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
             {attachment.url ?? attachment.path}

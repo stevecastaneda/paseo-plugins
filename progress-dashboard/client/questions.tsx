@@ -82,6 +82,7 @@ export function QuestionsSection({ colors, questions, now, compact, context }: {
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.accent, borderRadius: 6, overflow: "hidden" }}>
       <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <Icon name="MessageCircleQuestion" size={14} color={colors.accent} />
         <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>Questions</Text>
         <View style={{ backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 8 }}>
           <Text style={{ color: colors.accentForeground, fontSize: 11, lineHeight: 18 }}>{questions.length} waiting</Text>
