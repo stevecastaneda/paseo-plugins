@@ -82,7 +82,9 @@ test("an agent's composer shows a pill while its workspace has questions waiting
   const pill = active().find((entry) => entry.agentId === "a");
   assert.equal(pill?.placement, "composer");
   assert.equal(pill?.button.label, "2 questions · 1 stuck");
-  pill?.button.behavior.onPress();
+  assert.equal(pill?.button.behavior.kind, "popover", "the pill opens a popover with the questions");
+  // The popover's Open Progress button opens the panel in Explorer.
+  pill?.button.behavior.Content({ workspaceId: "w", close() {} }).props.openPanel();
   assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }]);
 
   h.responses["progress-dashboard.get"] = dashboardWith(1, 0);

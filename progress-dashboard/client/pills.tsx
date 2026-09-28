@@ -1,10 +1,11 @@
 import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
-import type { PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
+import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useSyncExternalStore } from "react";
 import { attentionOf, pillLabel, type Attention } from "../shared/attention";
 import { getDashboard } from "../shared/rpc";
 import { observeDirectory } from "./directory";
+import { AttentionPopover } from "./pill-popover";
 
 export const PILL_POLL_MS = 5_000;
 const EXPLORER = { location: "explorer" as const };
@@ -16,7 +17,8 @@ function directoryOf(workspace: Workspace): string {
 }
 
 // A pill above the message box for every agent in a workspace whose dashboard
-// has questions waiting or something stuck. Pressing it opens the panel.
+// has questions waiting or something stuck. Pressing it opens a popover with
+// the questions and their Copy buttons, and a way into the panel.
 export function contributePills(client: PluginClientContext) {
   const workspaces = new Map<string, string>();
   const attention = new Map<string, Attention>();
@@ -35,6 +37,10 @@ export function contributePills(client: PluginClientContext) {
     return stuck
       ? <Icon name="CircleAlert" size={props.size} color={props.theme.colors.statusDanger} />
       : <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />;
+  }
+
+  function PillContent(props: PluginButtonContentProps) {
+    return <AttentionPopover {...props} openPanel={() => client.openPanel("progress", { workspaceId: props.workspaceId, ...EXPLORER })} />;
   }
 
   const publish = () => {
@@ -62,7 +68,7 @@ export function contributePills(client: PluginClientContext) {
             title: "Progress needs you",
             icon: PillIcon,
             label,
-            behavior: { kind: "action", onPress() { client.openPanel("progress", { workspaceId, ...EXPLORER }); } },
+            behavior: { kind: "popover", Content: PillContent },
           },
         });
         pills.set(agent.id, { workspaceId, label, pill });

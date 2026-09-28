@@ -34,7 +34,7 @@ export function replyWithChoice(question: Pick<Question, "id" | "title">, letter
   return `${replyPrefix(question)}${letter}`;
 }
 
-function useCopy() {
+export function useCopy() {
   const toast = useToast();
   return async function copy(question: Question, letter?: string) {
     try {
@@ -176,7 +176,7 @@ function QuestionRow({ colors, question, now, first, expanded, onToggle, onCopy 
 }
 
 // A question that waits shows its default in amber: the agent is not acting on it.
-function DefaultBadge({ colors, value, waits }: { colors: Colors; value: string; waits: boolean }) {
+export function DefaultBadge({ colors, value, waits }: { colors: Colors; value: string; waits: boolean }) {
   return (
     <View style={{ flexDirection: "row", borderWidth: 1, borderColor: waits ? colors.statusWarning : colors.accent, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
       <Text style={{ color: waits ? colors.statusWarning : colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
@@ -186,7 +186,7 @@ function DefaultBadge({ colors, value, waits }: { colors: Colors; value: string;
   );
 }
 
-function QuestionDetail({ colors, question, now, onCopy }: { colors: Colors; question: Question; now: number; onCopy(letter: string): void }) {
+export function QuestionDetail({ colors, question, now, onCopy }: { colors: Colors; question: Question; now: number; onCopy(letter: string): void }) {
   return (
     <View style={{ gap: 8, paddingTop: 2 }}>
       {question.options.map((option) => {
