@@ -114,6 +114,39 @@ test("a workspace without a progress file never shows a pill", async () => {
   stop();
 });
 
+test("a run shows a Progress pill until the panel is opened, then never again", async () => {
+  const h = clientHarness(directory);
+  const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
+  const { notePanelOpened } = h.load("client/panel-opened.ts");
+  const run = (panelOpened: boolean, questions = 0) => ({ ...dashboardWith(questions, 0), panelOpened, dashboard: { ...dashboardWith(questions, 0).dashboard, run: { title: "Export" } } });
+  h.responses["progress-dashboard.get"] = run(false);
+  const stop = contributePills(h.client);
+  h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
+  h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
+  await h.flush();
+  const active = () => h.registrations.filter((entry) => !entry.removed) as unknown as Array<{ button: any }>;
+  assert.equal(active()[0]?.button.label, "Progress");
+  active()[0].button.behavior.onPress();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }], "pressing it opens the panel in Explorer");
+
+  h.responses["progress-dashboard.get"] = run(false, 2);
+  await h.tick(PILL_POLL_MS);
+  await h.flush();
+  assert.equal(active()[0]?.button.label, "2 questions", "questions take the pill over");
+  h.responses["progress-dashboard.get"] = run(false);
+  await h.tick(PILL_POLL_MS);
+  await h.flush();
+  assert.equal(active()[0]?.button.label, "Progress", "and hand it back while the panel hasn't been opened");
+
+  notePanelOpened("w");
+  assert.equal(active().length, 0, "opening the panel removes it at once");
+  h.responses["progress-dashboard.get"] = run(true);
+  await h.tick(PILL_POLL_MS);
+  await h.flush();
+  assert.equal(active().length, 0);
+  stop();
+});
+
 test("local deliverable paths resolve against the workspace directory", () => {
   const h = clientHarness(directory, { "@getpaseo/plugin/client/react-native": {} });
   const { absolutePath } = h.load("client/deliverables.tsx");

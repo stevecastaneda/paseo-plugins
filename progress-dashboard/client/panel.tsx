@@ -1,4 +1,4 @@
-import { type PluginWorkspacePanelProps, useWorkspace } from "@getpaseo/plugin/client";
+import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DeliverablesSection } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
@@ -13,7 +13,9 @@ import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, Vie
 import type { Activity, Dashboard, FileIssue, ProgressSegment, StuckItem, Ticket } from "../shared/dashboard";
 import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
 import { formatHours, formatMinutes, minutesSince } from "../shared/format";
+import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
+import { notePanelOpened } from "./panel-opened";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -36,6 +38,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const query = useDashboard(host.id, workspaceId, directory);
   const result = query.data ?? null;
+  useMarkPanelOpened(workspaceId, directory, Boolean(result?.configured && !result.panelOpened));
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ paddingBottom: 16 }}>
@@ -52,6 +55,21 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
         workspaceId={workspaceId} workspaceDirectory={directory ?? ""} navigation={navigation} /> : null}
     </ScrollView>
   );
+}
+
+// Once a run exists, opening the panel retires the "Progress" pill for
+// this worktree, now and after restarts.
+function useMarkPanelOpened(workspaceId: string, directory: string | null, needed: boolean) {
+  const mark = useRpc(markPanelOpened);
+  const sent = useRef(false);
+  useEffect(() => {
+    if (!needed || !directory || sent.current) return;
+    sent.current = true;
+    // Tell the pill only once the file exists, so its next poll agrees.
+    mark({ workspaceId, workspaceDirectory: directory })
+      .then(() => notePanelOpened(workspaceId))
+      .catch(() => { sent.current = false; });
+  }, [needed, directory, workspaceId, mark]);
 }
 
 function EmptyState({ colors }: { colors: Colors }) {

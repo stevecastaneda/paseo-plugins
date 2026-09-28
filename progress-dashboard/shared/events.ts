@@ -4,6 +4,8 @@ import { z } from "zod";
 // the dashboard reducer reads them. `v` lets later versions change a shape
 // without misreading old files.
 export const PROGRESS_FILE = ".scratch/progress.jsonl";
+// Present once someone has opened the Progress panel for this worktree.
+export const PANEL_OPENED_FILE = ".scratch/progress-panel-opened";
 export const EVENT_VERSION = 1;
 
 export const TICKET_STATUSES = ["not_started", "working", "blocked", "done", "skipped"] as const;

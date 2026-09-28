@@ -8,7 +8,18 @@ export const getDashboard = defineRpc({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
   }),
-  output: z.custom<{ configured: boolean; dashboard: Dashboard }>(),
+  // `panelOpened`: the Progress panel has been opened for this worktree before.
+  output: z.custom<{ configured: boolean; dashboard: Dashboard; panelOpened: boolean }>(),
+});
+
+// Records that the Progress panel was opened, so the "Progress" pill goes away for good.
+export const markPanelOpened = defineRpc({
+  name: "progress-dashboard.panel.opened",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+  }),
+  output: z.object({}),
 });
 
 // The `paseo-progress` launcher on the daemon host. "foreign" means another

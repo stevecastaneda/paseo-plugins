@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { handleGetDashboard, readDashboard } from "./dashboard.ts";
+import { handleGetDashboard, markPanelOpened, readDashboard } from "./dashboard.ts";
 import { formatHours, formatMinutes } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
@@ -40,6 +40,16 @@ async function worktree(t: TestContext) {
     dashboard: (minute = clock) => readDashboard(directory, minutes(minute)),
   };
 }
+
+test("opening the panel is remembered in the worktree", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Export");
+  assert.equal((await w.dashboard()).panelOpened, false);
+  await markPanelOpened(w.directory);
+  assert.equal((await w.dashboard()).panelOpened, true);
+  await w.run("start", "Another run");
+  assert.equal((await w.dashboard()).panelOpened, true, "a new run doesn't bring the pill back");
+});
 
 test("a worktree without a progress file reads as not configured", async (t) => {
   const w = await worktree(t);
