@@ -75,13 +75,21 @@ function parseOption(raw: string) {
   return { letter: match[1].toUpperCase(), label, consequence: rest.join(" | ") || undefined };
 }
 
-// "path/to/file.png=Before and after" → path and optional label.
-function parseFile(raw: string) {
-  const index = raw.indexOf("=");
-  const path = (index === -1 ? raw : raw.slice(0, index)).trim();
+const URL_PATTERN = /^[a-z][a-z\d+.-]*:\/\//i;
+
+// "path/to/file.png=Before and after" → root-relative path and optional label.
+// "https://example.com/?q=1=Preview" → URL and label: an "=" right after a
+// query key belongs to the URL.
+function parseFile(raw: string, cwd: string, root: string) {
+  const isUrl = URL_PATTERN.test(raw);
+  let index = isUrl ? raw.lastIndexOf("=") : raw.indexOf("=");
+  while (isUrl && index !== -1 && /[?&][^=&#]*$/.test(raw.slice(0, index))) index = raw.lastIndexOf("=", index - 1);
+  const target = (index === -1 ? raw : raw.slice(0, index)).trim();
   const label = index === -1 ? undefined : raw.slice(index + 1).trim() || undefined;
-  if (!path) throw new UsageError(`--file needs a path, got "${raw}".`);
-  return { path, label };
+  if (!target) throw new UsageError(`--file needs a path or URL, got "${raw}".`);
+  if (!isUrl) return { path: rootRelative(target, cwd, root), label };
+  if (!/^https?:\/\//i.test(target)) throw new UsageError("Only http(s) URLs are supported; give local files as a path.");
+  return { url: target, label };
 }
 
 function existingActivity(state: State, id: string | undefined) {
@@ -178,7 +186,7 @@ const commands: Record<string, Command> = {
     },
   },
   "question ask": {
-    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --default <letter or word> [--waits] [--background <text>] [--file <path>[=<label>] ...] [--raised-by <text>]`,
+    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --default <letter or word> [--waits] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>]`,
     summary: "Ask the user a question. Prints its reference (Q1, Q2, ...). Keep working on the default until it is answered, unless --waits: then the default is only a suggestion and you wait.",
     options: {
       option: { type: "string", multiple: true },
@@ -188,7 +196,7 @@ const commands: Record<string, Command> = {
       file: { type: "string", multiple: true },
       "raised-by": { type: "string" },
     },
-    run({ positionals, values, state }) {
+    run({ positionals, values, state, cwd, root }) {
       const title = required(positionals[0], "short title");
       const question = required(positionals[1], "question");
       const options = listOption(values.option).map(parseOption);
@@ -214,7 +222,7 @@ const commands: Record<string, Command> = {
           default: fallback,
           waits: values.waits === true ? true : undefined,
           background: stringOption(values.background),
-          files: listOption(values.file).length ? listOption(values.file).map(parseFile) : undefined,
+          files: listOption(values.file).length ? listOption(values.file).map((raw) => parseFile(raw, cwd, root)) : undefined,
           raisedBy: stringOption(values["raised-by"]),
         },
         message: `Asked ${id} (${title}). Default: ${fallback}${values.waits === true ? " (waiting for the answer)" : ""}`,
@@ -241,12 +249,12 @@ const commands: Record<string, Command> = {
     },
   },
   "question update": {
-    usage: `question update <id> [--background <text>] [--question <text>] [--file <path>[=<label>] ...]`,
+    usage: `question update <id> [--background <text>] [--question <text>] [--file <path or http(s) URL>[=<label>] ...]`,
     summary: "Add detail to a question: replace its background or wording, or add files. Its reference and default stay.",
     options: { background: { type: "string" }, question: { type: "string" }, file: { type: "string", multiple: true } },
-    run({ positionals, values, state }) {
+    run({ positionals, values, state, cwd, root }) {
       const question = existingQuestion(state, positionals[0]);
-      const files = listOption(values.file).map(parseFile);
+      const files = listOption(values.file).map((raw) => parseFile(raw, cwd, root));
       const event = {
         type: "question.update" as const,
         id: question.id,
@@ -278,7 +286,7 @@ const commands: Record<string, Command> = {
       if (kind !== undefined && !(DELIVERABLE_KINDS as readonly string[]).includes(kind)) {
         throw new UsageError(`--kind must be one of: ${DELIVERABLE_KINDS.join(", ")}.`);
       }
-      const isUrl = /^[a-z][a-z\d+.-]*:\/\//i.test(target);
+      const isUrl = URL_PATTERN.test(target);
       if (isUrl && !/^https?:\/\//i.test(target)) throw new UsageError("Only http(s) URLs are supported; give local files as a path.");
       const used = eventsInRun(state.events).flatMap((event) => (event.type === "deliverable.add" ? [event.id] : []));
       const id = nextId("D", used, 1);

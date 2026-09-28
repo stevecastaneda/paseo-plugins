@@ -4,7 +4,8 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { imageMimeType } from "../shared/preview.ts";
+import { imageMimeType, previewKind } from "../shared/preview.ts";
+import type { Dashboard } from "../shared/dashboard.ts";
 import { readDashboard } from "./dashboard.ts";
 
 export type Opener = (path: string) => Promise<void>;
@@ -41,22 +42,34 @@ export const systemOpener: Opener = async (path) => {
   await promisify(execFile)(command, args);
 };
 
-// A deliverable the agent recorded, found by id, so the panel can never reach
-// an arbitrary path. Only files inside the worktree resolve.
-async function resolveDeliverable(directory: string, id: string, verb: string): Promise<{ path: string; target: string }> {
+// What an attachment reference names: a deliverable ("D3") or the nth file on
+// a question ("Q7.2", counting from 1). Null when it names nothing local.
+export function attachmentPath(dashboard: Dashboard, ref: string): string | null {
+  const question = ref.match(/^(Q\d+)\.(\d+)$/);
+  if (question) {
+    const all = [...dashboard.questions.open, ...dashboard.questions.answered];
+    return all.find((candidate) => candidate.id === question[1])?.files[Number(question[2]) - 1]?.path ?? null;
+  }
+  return dashboard.deliverables.find((candidate) => candidate.id === ref)?.path ?? null;
+}
+
+// A deliverable or question attachment the agent recorded, found by reference,
+// so the panel can never reach an arbitrary path. Only files inside the
+// worktree resolve.
+async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
   const { dashboard } = await readDashboard(directory);
-  const deliverable = dashboard.deliverables.find((candidate) => candidate.id === id);
-  if (!deliverable?.path) throw new Error(`No local deliverable ${id} in this worktree.`);
+  const path = attachmentPath(dashboard, ref);
+  if (!path) throw new Error(`No local ${ref.startsWith("Q") ? "attachment" : "deliverable"} ${ref} in this worktree.`);
   const root = await realpath(directory);
-  const target = await realpath(resolve(root, deliverable.path)).catch(() => null);
-  if (!target) throw new Error(`${deliverable.path} no longer exists.`);
+  const target = await realpath(resolve(root, path)).catch(() => null);
+  if (!target) throw new Error(`${path} no longer exists.`);
   const inside = relative(root, target);
-  if (inside.startsWith("..") || isAbsolute(inside)) throw new Error(`${deliverable.path} is outside this worktree, so it was not ${verb}.`);
-  return { path: deliverable.path, target };
+  if (inside.startsWith("..") || isAbsolute(inside)) throw new Error(`${path} is outside this worktree, so it was not ${verb}.`);
+  return { path, target };
 }
 
 export async function openDeliverable(directory: string, id: string, opener: Opener): Promise<{ opened: string }> {
-  const { target } = await resolveDeliverable(directory, id, "opened");
+  const { target } = await resolveAttachment(directory, id, "opened");
   await opener(target);
   return { opened: target };
 }
@@ -64,28 +77,40 @@ export async function openDeliverable(directory: string, id: string, opener: Ope
 // Large enough for full-page screenshots; the image travels over the socket.
 export const MAX_PREVIEW_BYTES = 10 * 1024 * 1024;
 
-// An image deliverable as a data URI, so any client (desktop or phone) can show
-// it without reaching the daemon host's disk.
-export async function previewDeliverable(directory: string, id: string): Promise<{ dataUri: string; bytes: number }> {
-  const { path, target } = await resolveDeliverable(directory, id, "previewed");
-  const mime = imageMimeType(target);
-  if (!mime) throw new Error(`${path} isn't an image, so it can't be previewed.`);
+// Text past this is cut off in the preview; the full file is a click away.
+export const MAX_PREVIEW_TEXT_BYTES = 256 * 1024;
+
+export type Preview =
+  | { kind: "image"; dataUri: string; bytes: number }
+  | { kind: "text"; text: string; bytes: number; truncated: boolean };
+
+// An image (as a data URI) or a text file's contents, so any client (desktop
+// or phone) can show it without reaching the daemon host's disk.
+export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
+  const { path, target } = await resolveAttachment(directory, id, "previewed");
+  const kind = previewKind(target);
+  if (!kind) throw new Error(`${path} isn't an image or text file, so it can't be previewed.`);
   const { size } = await stat(target);
+  if (kind === "text") {
+    const data = await readFile(target);
+    const truncated = data.length > MAX_PREVIEW_TEXT_BYTES;
+    return { kind, text: data.subarray(0, MAX_PREVIEW_TEXT_BYTES).toString("utf8"), bytes: size, truncated };
+  }
   if (size > MAX_PREVIEW_BYTES) throw new Error(`${path} is ${Math.round(size / 1024 / 1024)} MB, too large to preview.`);
   const data = await readFile(target);
-  return { dataUri: `data:${mime};base64,${data.toString("base64")}`, bytes: size };
+  return { kind, dataUri: `data:${imageMimeType(target)};base64,${data.toString("base64")}`, bytes: size };
 }
 
 export async function handlePreviewDeliverable(
-  input: { workspaceId: string; workspaceDirectory: string; deliverableId: string },
+  input: { workspaceId: string; workspaceDirectory: string; ref: string },
   _context: PluginHandlerContext,
 ) {
-  return previewDeliverable(input.workspaceDirectory, input.deliverableId);
+  return previewDeliverable(input.workspaceDirectory, input.ref);
 }
 
 export async function handleOpenDeliverable(
-  input: { workspaceId: string; workspaceDirectory: string; deliverableId: string },
+  input: { workspaceId: string; workspaceDirectory: string; ref: string },
   _context: PluginHandlerContext,
 ) {
-  return openDeliverable(input.workspaceDirectory, input.deliverableId, systemOpener);
+  return openDeliverable(input.workspaceDirectory, input.ref, systemOpener);
 }

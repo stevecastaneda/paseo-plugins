@@ -58,18 +58,23 @@ export const openDeliverable = defineRpc({
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
-    deliverableId: z.string().min(1),
+    // A deliverable ("D3") or a question attachment ("Q7.2").
+    ref: z.string().min(1),
   }),
   output: z.object({ opened: z.string() }),
 });
 
-// An image deliverable's bytes, for the preview dialog.
+// An image or text file's contents, for the preview dialog.
 export const previewDeliverable = defineRpc({
   name: "progress-dashboard.deliverable.preview",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
-    deliverableId: z.string().min(1),
+    // A deliverable ("D3") or a question attachment ("Q7.2").
+    ref: z.string().min(1),
   }),
-  output: z.object({ dataUri: z.string(), bytes: z.number() }),
+  output: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("image"), dataUri: z.string(), bytes: z.number() }),
+    z.object({ kind: z.literal("text"), text: z.string(), bytes: z.number(), truncated: z.boolean() }),
+  ]),
 });

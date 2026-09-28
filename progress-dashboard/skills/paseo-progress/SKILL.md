@@ -45,12 +45,13 @@ paseo-progress question ask "<short title>" "<the question, in one or two senten
   --option "B=<choice> | <what happens if they pick it>" \
   --default <letter> --raised-by "Ticket 03 design review" \
   [--background "<what they need to decide without opening the worktree>"] \
-  [--file <path>=<what it shows>]
+  [--file <path or http(s) URL>=<what it shows>]
 ```
 
 - The default is the safest choice. Carry on with it straight away.
 - Add `--waits` when acting on any choice needs the user's yes: purchases, production, live vendor calls, commits. Then work on something else until they answer.
 - When the user replies ("Q7 A", or in their own words), run `question answer Q7 A --words "<their words>"`. The command reports whether the answer differs from the default; when it does, change course before anything else.
+- When a question is about how something looks, attach the screenshot, mockup or preview link with `--file`. The user opens it from the question: images preview in Paseo, links open in its browser. Add more later with `question update Q7 --file <path>=<what it shows>`.
 - When the user asks about a question, answer in chat and also put the explanation on the question with `question update Q7 --background "<text>"`, so the dashboard carries it too.
 - `question remove Q7` withdraws a question that no longer applies.
 

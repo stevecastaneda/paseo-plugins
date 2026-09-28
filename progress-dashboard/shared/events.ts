@@ -21,7 +21,12 @@ export const questionOptionSchema = z.object({
 });
 export type QuestionOption = z.infer<typeof questionOptionSchema>;
 
-export const fileLinkSchema = z.object({ path: text, label: text.optional() });
+const httpUrl = z.url().refine((value) => /^https?:\/\//i.test(value), "Use an HTTP or HTTPS URL");
+
+// Something attached to a question: a local path or a web link.
+export const fileLinkSchema = z
+  .object({ path: text.optional(), url: httpUrl.optional(), label: text.optional() })
+  .refine((file) => Boolean(file.path) !== Boolean(file.url), "Give a path or a URL");
 export type FileLink = z.infer<typeof fileLinkSchema>;
 
 export const DELIVERABLE_KINDS = ["file", "folder", "report", "screenshot", "link"] as const;
@@ -99,7 +104,7 @@ export const eventSchema = z.discriminatedUnion("type", [
     id: text,
     title: text,
     path: text.optional(),
-    url: z.url().refine((value) => /^https?:\/\//i.test(value), "Use an HTTP or HTTPS URL").optional(),
+    url: httpUrl.optional(),
     ticket: text.optional(),
     kind: z.enum(DELIVERABLE_KINDS).optional(),
   }).refine((event) => Boolean(event.path) !== Boolean(event.url), "A deliverable has a path or a URL"),

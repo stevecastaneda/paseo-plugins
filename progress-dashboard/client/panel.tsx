@@ -2,13 +2,13 @@ import { type PluginWorkspacePanelProps, useWorkspace } from "@getpaseo/plugin/c
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DeliverablesSection } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
-import { AnsweredQuestionsSection, QuestionsSection } from "./questions";
+import { AnsweredQuestionsList, QuestionsSection } from "./questions";
 import { Spinner, StalledPulse } from "./spinner";
 import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { raised } from "./surfaces";
 import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Platform, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import type { Activity, Dashboard, FileIssue, ProgressSegment, StuckItem, Ticket } from "../shared/dashboard";
 import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
 import { formatHours, formatMinutes, minutesSince } from "../shared/format";
@@ -98,6 +98,7 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
   const live = !dashboard.stale;
   // Two columns when opened as a wide tab; one in the narrow Explorer pane.
   const [wide, setWide] = useState(false);
+  const attachmentContext = { workspaceId, workspaceDirectory, navigation };
   return (
     <StaggerRoot>
       <Presence show order={0}>
@@ -145,7 +146,7 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
         style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}>
         <View style={{ flex: wide ? 3 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={dashboard.questions.open.length > 0} order={3}>{dashboard.questions.open.length ? (
-            <QuestionsSection colors={colors} questions={dashboard.questions.open} now={now} compact={compact || !wide} />
+            <QuestionsSection colors={colors} questions={dashboard.questions.open} now={now} compact={compact || !wide} context={attachmentContext} />
           ) : null}</Presence>
           <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
           <Presence show order={4}>
@@ -159,30 +160,90 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
             )}
           </Card>
           </Presence>
-          <Presence show={dashboard.questions.answered.length > 0} order={5}>{dashboard.questions.answered.length ? (
-            <AnsweredQuestionsSection colors={colors} questions={dashboard.questions.answered} now={now} />
-          ) : null}</Presence>
         </View>
         <View style={{ flex: wide ? 2 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={dashboard.deliverables.length > 0} order={5}>{dashboard.deliverables.length ? (
             <DeliverablesSection colors={colors} deliverables={dashboard.deliverables} workspaceId={workspaceId}
               workspaceDirectory={workspaceDirectory} navigation={navigation} />
           ) : null}</Presence>
-          <Presence show={Boolean(dashboard.activity.length)} order={6}>{dashboard.activity.length ? <ActivitySection colors={colors} activity={dashboard.activity} now={now} /> : null}</Presence>
+          <Presence show={dashboard.activity.length + dashboard.questions.answered.length > 0} order={6}>
+            {dashboard.activity.length + dashboard.questions.answered.length > 0 ? (
+              <HistoryCard colors={colors} workspaceId={workspaceId}
+                answered={<AnsweredQuestionsList colors={colors} questions={dashboard.questions.answered} now={now} context={attachmentContext} />}
+                answeredCount={dashboard.questions.answered.length}
+                activity={<ActivityList colors={colors} activity={dashboard.activity} now={now} />}
+                activityCount={dashboard.activity.length} />
+            ) : null}
+          </Presence>
         </View>
       </View>
     </StaggerRoot>
   );
 }
 
-function ActivitySection({ colors, activity, now }: { colors: Colors; activity: Activity[]; now: number }) {
+type HistoryTab = "activity" | "answered";
+
+// The tab chosen per workspace, kept for the app session so reopening the
+// panel shows the same one.
+const historyTabs = new Map<string, HistoryTab>();
+
+// Activity and answered questions share one card: they're rarely wanted at once.
+function HistoryCard({ colors, workspaceId, activity, activityCount, answered, answeredCount }: {
+  colors: Colors;
+  workspaceId: string;
+  activity: React.ReactNode;
+  activityCount: number;
+  answered: React.ReactNode;
+  answeredCount: number;
+}) {
+  const [tab, setTab] = useState<HistoryTab>(() => historyTabs.get(workspaceId) ?? "activity");
+  const choose = (next: HistoryTab) => {
+    historyTabs.set(workspaceId, next);
+    setTab(next);
+  };
+  const tabs: Array<{ id: HistoryTab; label: string; count: number }> = [
+    { id: "activity", label: "Activity", count: activityCount },
+    { id: "answered", label: "Answered questions", count: answeredCount },
+  ];
+  const empty = tab === "activity" ? activityCount === 0 : answeredCount === 0;
   return (
     <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", paddingHorizontal: 10, paddingVertical: 8 }}>
-        Activity
-      </Text>
-      {activity.map((entry) => (
-        <View key={entry.id} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 1, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        {tabs.map((entry) => {
+          return <Tab key={entry.id} colors={colors} label={entry.label} count={entry.count} selected={entry.id === tab} onPress={() => choose(entry.id)} />;
+        })}
+      </View>
+      {empty ? (
+        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8 }}>
+          {tab === "activity" ? "No activity yet." : "No answered questions yet."}
+        </Text>
+      ) : tab === "activity" ? activity : answered}
+    </View>
+  );
+}
+
+// Instant feedback: tabs switch often, so hover and press change color only.
+function Tab({ colors, label, count, selected, onPress }: { colors: Colors; label: string; count: number; selected: boolean; onPress(): void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress}
+      onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
+      style={({ pressed }) => ({
+        flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 8, paddingBottom: 6, marginBottom: -1,
+        borderBottomWidth: 2,
+        borderBottomColor: selected ? colors.accent : pressed || hovered ? colors.border : "transparent",
+      })}>
+      <Text style={{ color: selected || hovered ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{count}</Text>
+    </Pressable>
+  );
+}
+
+function ActivityList({ colors, activity, now }: { colors: Colors; activity: Activity[]; now: number }) {
+  return (
+    <View>
+      {activity.map((entry, index) => (
+        <View key={entry.id} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 1, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
           <Text selectable style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{entry.text}</Text>
           <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
             <When colors={colors} iso={entry.at} now={now} />

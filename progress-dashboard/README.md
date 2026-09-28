@@ -9,8 +9,9 @@ The dashboard shows:
 - percent of estimated work done, hours done of hours estimated, and a bar with one segment per ticket
 - **Stuck:** blocked tickets, tickets running past their estimate, and blockers the agent flags
 - **Tickets:** estimate, status, and the working ticket's stage
-- **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the default the agent is using. Press a question to open it in a dialog, then press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Answers stay listed under the same reference.
-- **Latest deliverables** (press one to open it) and **Activity**, newest first
+- **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the default the agent is using. Press a question to open it in a dialog, then press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Files and links the agent attached (`--file`) open like deliverables: images and text files preview in Paseo (with **Back** to the question), links open in Paseo's browser, and other files open in their default app. From the pill's popover, the preview opens over the popover, which stays open so you can go back to it. Answers stay listed under the same reference.
+- **Latest deliverables** (press one to open it), newest first
+- **Activity** and **Answered questions**, sharing one card with a tab for each; the panel remembers the tab you picked
 
 The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. When questions are waiting or something is stuck, a pill above the message box shows it (`3 questions · 1 stuck`). Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
 
@@ -70,7 +71,7 @@ paseo-progress show
 - Statuses are `not_started`, `working`, `blocked`, `done`, and `skipped`. Skipped tickets leave the totals.
 - A working ticket is stuck once it runs past its estimate, timed from when it started working.
 - `question ask --waits` marks a question the agent won't act on until you answer. Its default shows in amber.
-- Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image deliverable (PNG, JPEG, GIF, WebP, up to 10 MB) previews it in a dialog inside Paseo, which also works from a phone; **Open in default app** there opens the file itself. Pressing any other local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, Markdown, text, JSON, and CSV files open in your default browser as plain text. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
+- Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image (PNG, JPEG, GIF, WebP, up to 10 MB) or text deliverable (Markdown, text, logs, JSON, YAML, CSV; the first 256 KB) previews it in a dialog inside Paseo, which also works from a phone; **Open in default app** there opens the file itself. Pressing any other local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, **Open in default app** sends text files to your default browser. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
 - `start` begins a fresh dashboard. Earlier runs stay in the file. Question references stay unique across runs.
 
 ## The progress file

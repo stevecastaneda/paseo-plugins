@@ -15,7 +15,7 @@ import { formatHours, formatMinutes } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
-import { MAX_PREVIEW_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
+import { attachmentPath, MAX_PREVIEW_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
 import { imageMimeType } from "../shared/preview.ts";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
@@ -492,7 +492,7 @@ test("a local deliverable opens on the daemon host by id, only inside the worktr
   assert.equal(opened.length, 1);
 });
 
-test("an image deliverable previews as a data URI, only for images inside the worktree", async (t) => {
+test("image and text deliverables preview, only inside the worktree", async (t) => {
   const w = await screenshotRun(t);
   await mkdir(join(w.directory, "shots"), { recursive: true });
   const png = Buffer.from("89504e470d0a1a0a", "hex");
@@ -503,12 +503,40 @@ test("an image deliverable previews as a data URI, only for images inside the wo
   await w.run("deliverable", "add", "Notes", "shots/notes.md");
   await w.run("deliverable", "add", "Huge", "shots/huge.jpg");
   await w.run("deliverable", "add", "Outside", join(tmpdir(), "elsewhere.png"));
-  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
-  await assert.rejects(previewDeliverable(w.directory, "D2"), /isn't an image/);
+  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "image", dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
+  assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "text", text: "# Notes", bytes: 7, truncated: false });
+  await writeFile(join(w.directory, "shots", "page.html"), "<h1>Hi</h1>");
+  await w.run("deliverable", "add", "Page", "shots/page.html");
+  await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image or text file/, "HTML is left to the browser");
   await assert.rejects(previewDeliverable(w.directory, "D3"), /too large to preview/);
   await assert.rejects(previewDeliverable(w.directory, "D4"), /no longer exists|outside this worktree/);
   assert.equal(imageMimeType("a/b.jpeg"), "image/jpeg");
   assert.equal(imageMimeType("report.html"), null);
+});
+
+test("question attachments take paths or links, and open and preview like deliverables", async (t) => {
+  const w = await screenshotRun(t);
+  await mkdir(join(w.directory, "shots"), { recursive: true });
+  const png = Buffer.from("89504e470d0a1a0a", "hex");
+  await writeFile(join(w.directory, "shots", "before.png"), png);
+  await w.run("question", "ask", "Header", "Which header?", "--option", "A=Old", "--option", "B=New", "--default", "A",
+    "--file", "shots/before.png=Before", "--file", "https://example.com/preview?id=7&tab=2=Live preview", "--file", "https://example.com/?q=1");
+  const { dashboard } = await readDashboard(w.directory);
+  assert.deepEqual(dashboard.questions.open[0].files, [
+    { path: "shots/before.png", label: "Before" },
+    { url: "https://example.com/preview?id=7&tab=2", label: "Live preview" },
+    { url: "https://example.com/?q=1" },
+  ], "an = after a query key stays in the URL");
+  assert.equal(attachmentPath(dashboard, "Q1.1"), "shots/before.png");
+  assert.equal(attachmentPath(dashboard, "Q1.2"), null, "links are not opened on the host");
+  assert.deepEqual(await previewDeliverable(w.directory, "Q1.1"), { kind: "image", dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
+  const opened: string[] = [];
+  await openDeliverable(w.directory, "Q1.1", async (path) => { opened.push(path); });
+  assert.deepEqual(opened, [join(await realpath(w.directory), "shots", "before.png")]);
+  await assert.rejects(openDeliverable(w.directory, "Q1.9", async () => {}), /No local attachment Q1\.9/);
+  const ftp = await w.run("question", "update", "Q1", "--file", "ftp://example.com/x");
+  assert.equal(ftp.code, 1);
+  assert.match(ftp.text, /Only http\(s\) URLs/);
 });
 
 test("plain-text deliverables open in the default browser; everything else in its usual app", () => {
