@@ -252,8 +252,9 @@ function ActivityList({ colors, activity, now }: { colors: Colors; activity: Act
     <View>
       {activity.map((entry, index) => (
         <View key={entry.id} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 1, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
-          <Text selectable style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{entry.text}</Text>
-          <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
+          {/* Muted: a log to glance at, not something to act on. */}
+          <Text selectable style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>{entry.text}</Text>
+          <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, opacity: 0.8 }}>
             <When colors={colors} iso={entry.at} now={now} />
           </Text>
         </View>
