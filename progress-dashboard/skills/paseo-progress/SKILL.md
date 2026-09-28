@@ -28,10 +28,12 @@ Record each change as it happens, on the ticket's id from `show` (T01, T02, ...)
 | You start a ticket | `ticket update T03 --status working --stage Build` |
 | You move to the next stage | `ticket update T03 --stage Review`, then `Fixes`, then `Verify` |
 | Something reviewable lands (a screenshot folder, a report, a preview URL) | `deliverable add "<what it shows>" <path or URL> --ticket T03` |
-| A milestone the user would want in the story | `activity add "<one line>"` |
+| A milestone the user would want in the story | `activity add "<one line>" --ticket T03` |
 | Between bigger events | `ticker set "<what you are doing right now>"` |
 | The ticket is finished | `ticket update T03 --status done`, then start the next one |
 | The plan drops it | `ticket update T03 --status skipped --note "<why>"` |
+
+Pass `--ticket` on every activity, deliverable and question that belongs to a ticket. The user presses a ticket to see its story: each stage and how long it took, with the activity, deliverables and questions tagged to it. Leave it off only for run-wide notes. Stage changes and notes are timed from your `ticket update` calls, so make them when the change happens.
 
 A working ticket turns stuck on its own once it runs past its estimate. When the new estimate is known, raise it with `--estimate`.
 
@@ -43,7 +45,7 @@ When a decision belongs to the user, ask it and keep working:
 paseo-progress question ask "<short title>" "<the question, in one or two sentences>" \
   --option "A=<choice> | <what happens if they pick it>" \
   --option "B=<choice> | <what happens if they pick it>" \
-  --default <letter> --raised-by "Ticket 03 design review" \
+  --default <letter> --ticket T03 --raised-by "Ticket 03 design review" \
   [--background "<what they need to decide without opening the worktree>"] \
   [--file <path or http(s) URL>=<what it shows>]
 ```

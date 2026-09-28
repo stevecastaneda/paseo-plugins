@@ -1,11 +1,12 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, deliverableAttachment, useAttachmentOpener } from "./attachments";
 import { PressScale } from "./motion";
 import { PreviewDialog } from "./preview";
+import { PressableRow } from "./row";
 import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
 
@@ -36,10 +37,10 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
     <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
       <SectionTitle colors={colors} icon="Package" title="Latest deliverables" />
       {deliverables.map((deliverable) => (
-        <Pressable key={deliverable.id} accessibilityRole={deliverable.url ? "link" : "button"}
+        <PressableRow key={deliverable.id} colors={colors} accessibilityRole={deliverable.url ? "link" : "button"}
           accessibilityLabel={`Open ${deliverable.title}`}
           onPress={() => void open(deliverableAttachment(deliverable))}
-          style={({ pressed }) => ({ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: pressed ? colors.surface1 : "transparent" })}>
+          style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
           {/* Optical: centers the 14px icon on the 18px title line. */}
           <View style={{ paddingTop: 2 }}><Icon name={deliverable.kind && deliverable.kind !== "file" ? KIND_ICON[deliverable.kind] : attachmentIcon(deliverableAttachment(deliverable))} size={14} color={colors.foregroundMuted} /></View>
           <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
@@ -54,15 +55,16 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
             ) : null}
           </View>
           {deliverable.path ? (
-            <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${deliverable.title}`} hitSlop={6}
+            // Optical: the 22px button centers on the 18px title line.
+            <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${deliverable.title}`} hitSlop={6} outerStyle={{ marginTop: -2 }}
               onPress={() => void copyPath(deliverableAttachment(deliverable))}
               style={({ pressed }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
               <Icon name="Copy" size={14} color={colors.foregroundMuted} />
             </PressScale>
           ) : (
-            <Icon name="ExternalLink" size={14} color={colors.foregroundMuted} />
+            <View style={{ paddingTop: 2 }}><Icon name="ExternalLink" size={14} color={colors.foregroundMuted} /></View>
           )}
-        </Pressable>
+        </PressableRow>
       ))}
       <PreviewDialog colors={colors} attachment={previewing} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
         onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void openOnHost(attachment)} />

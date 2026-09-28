@@ -15,17 +15,13 @@ import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
 import { formatHours, formatMinutes, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
+import { StatusBadge } from "./status-badge";
+import { TicketDialogs } from "./ticket-dialog";
+import { PressableRow } from "./row";
 import { notePanelOpened } from "./panel-opened";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
-const STATUS_LABEL: Record<TicketStatus, string> = {
-  not_started: "Not started",
-  working: "Working",
-  blocked: "Blocked",
-  done: "Done",
-  skipped: "Skipped",
-};
 
 const mono = () => (Platform.OS === "ios" ? "Menlo" : "monospace");
 
@@ -135,6 +131,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
   // Two columns when opened as a wide tab; one in the narrow Explorer pane.
   const [wide, setWide] = useState(false);
   const attachmentContext = { workspaceId, workspaceDirectory, navigation };
+  const [openTicket, setOpenTicket] = useState<string | null>(null);
   return (
     <StaggerRoot>
       <Presence show order={0}>
@@ -209,8 +206,9 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
                 No {(dashboard.run?.itemLabel ?? "ticket").toLowerCase()}s yet.
               </Text>
             ) : (
-              dashboard.tickets.map((ticket) => <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} />)
+              dashboard.tickets.map((ticket) => <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} onOpen={() => setOpenTicket(ticket.id)} />)
             )}
+            <TicketDialogs colors={colors} dashboard={dashboard} openId={openTicket} setOpenId={setOpenTicket} now={now} live={live} context={attachmentContext} />
           </Card>
           </Presence>
         </View>
@@ -411,19 +409,14 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
   );
 }
 
-function TicketRow({ colors, ticket, live, now }: { colors: Colors; ticket: Ticket; live: boolean; now: number }) {
+// Press for the ticket's story. Hover and press only tint the row: it's a list, pressed often.
+function TicketRow({ colors, ticket, live, now, onOpen }: { colors: Colors; ticket: Ticket; live: boolean; now: number; onOpen(): void }) {
   const muted = ticket.status === "skipped";
+  const working = ticket.status === "working";
   return (
-    <View style={{
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 10,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      backgroundColor: ticket.status === "working" ? colors.surface1 : "transparent",
-    }}>
+    <PressableRow colors={colors} onSurface1={working} transparentAtRest={!working}
+      accessibilityRole="button" accessibilityLabel={`${ticket.id} details`} onPress={onOpen}
+      style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
         <IconSwap swapKey={ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} /></IconSwap>
       </View>
@@ -445,8 +438,10 @@ function TicketRow({ colors, ticket, live, now }: { colors: Colors; ticket: Tick
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{ticket.estimateMin} min</Text>
       {/* The check mark already says done. */}
-      {ticket.status === "done" ? null : <StatusBadge colors={colors} status={ticket.status} />}
-    </View>
+      {/* Optical: the 20px badge centers on the 18px line. */}
+      {ticket.status === "done" ? null : <View style={{ marginTop: -1 }}><StatusBadge colors={colors} status={ticket.status} /></View>}
+      <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
+    </PressableRow>
   );
 }
 
@@ -465,17 +460,3 @@ function StatusIcon({ colors, status, live }: { colors: Colors; status: TicketSt
   }
 }
 
-function StatusBadge({ colors, status }: { colors: Colors; status: TicketStatus }) {
-  const tone = {
-    done: { fg: colors.statusSuccess, bg: "transparent", border: colors.statusSuccess },
-    working: { fg: colors.accentForeground, bg: colors.accent, border: colors.accent },
-    blocked: { fg: colors.statusDanger, bg: "transparent", border: colors.statusDanger },
-    skipped: { fg: colors.foregroundMuted, bg: "transparent", border: colors.border },
-    not_started: { fg: colors.foregroundMuted, bg: "transparent", border: colors.border },
-  }[status];
-  return (
-    <View style={{ borderWidth: 1, borderColor: tone.border, backgroundColor: tone.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
-      <Text style={{ color: tone.fg, fontSize: 11, lineHeight: 16 }}>{STATUS_LABEL[status]}</Text>
-    </View>
-  );
-}

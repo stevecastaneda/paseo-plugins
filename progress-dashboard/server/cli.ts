@@ -211,7 +211,7 @@ const commands: Record<string, Command> = {
     },
   },
   "question ask": {
-    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --default <letter or word> [--waits] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>]`,
+    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --default <letter or word> [--waits] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
     summary: "Ask the user a question. Prints its reference (Q1, Q2, ...). Keep working on the default until it is answered, unless --waits: then the default is only a suggestion and you wait.",
     options: {
       option: { type: "string", multiple: true },
@@ -220,9 +220,11 @@ const commands: Record<string, Command> = {
       background: { type: "string" },
       file: { type: "string", multiple: true },
       "raised-by": { type: "string" },
+      ticket: { type: "string" },
     },
     run({ positionals, values, state, cwd, root }) {
       const title = required(positionals[0], "short title");
+      const ticket = values.ticket === undefined ? undefined : existingTicket(state, stringOption(values.ticket));
       const question = required(positionals[1], "question");
       const options = listOption(values.option).map(parseOption);
       const letters = options.map((option) => option.letter);
@@ -249,6 +251,7 @@ const commands: Record<string, Command> = {
           background: stringOption(values.background),
           files: listOption(values.file).length ? listOption(values.file).map((raw) => parseFile(raw, cwd, root)) : undefined,
           raisedBy: stringOption(values["raised-by"]),
+          ticket: ticket?.id,
         },
         message: `Asked ${id} (${title}). Default: ${fallback}${values.waits === true ? " (waiting for the answer)" : ""}`,
       };
@@ -342,13 +345,15 @@ const commands: Record<string, Command> = {
     },
   },
   "activity add": {
-    usage: `activity add "<text>"`,
-    summary: "Log a short note in the Activity feed. Prints its id (A1, A2, ...).",
-    run({ positionals, state }) {
+    usage: `activity add "<text>" [--ticket <id>]`,
+    summary: "Log a short note in the Activity feed, on the ticket it is about. Prints its id (A1, A2, ...).",
+    options: { ticket: { type: "string" } },
+    run({ positionals, values, state }) {
       const text = required(positionals[0], "activity text");
+      const ticket = values.ticket === undefined ? undefined : existingTicket(state, stringOption(values.ticket));
       const used = eventsInRun(state.events).flatMap((event) => (event.type === "activity.add" ? [event.id] : []));
       const id = nextId("A", used, 1);
-      return { event: { type: "activity.add", id, text }, message: `Logged ${id}: ${text}` };
+      return { event: { type: "activity.add", id, text, ticket: ticket?.id }, message: `Logged ${id}${ticket ? ` on ${ticket.id}` : ""}: ${text}` };
     },
   },
   "activity update": {

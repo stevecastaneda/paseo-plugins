@@ -17,6 +17,7 @@ import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
 import { attachmentPath, MAX_PREVIEW_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
 import { imageMimeType } from "../shared/preview.ts";
+import { ticketStory } from "../shared/ticket-story.ts";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const minutes = (count: number) => new Date(T0 + count * 60_000);
@@ -71,6 +72,54 @@ test("finish closes the run only once everything is settled, and keeps it on the
   assert.match(after.text, /The run "Export" is finished\. Start new work with: paseo-progress start/);
   assert.equal((await w.run("start", "Next job")).code, 0);
   assert.equal((await w.dashboard()).dashboard.run?.finished, undefined, "a new run starts open");
+});
+
+test("a ticket's story: its stages with durations, and what belongs to it exactly or by time", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Export");
+  await w.run("ticket", "add", "Ticket 01: CSV", "--estimate", "30");
+  await w.run("ticket", "add", "Ticket 02: JSON", "--estimate", "30");
+  await w.run("activity", "add", "Run-wide kickoff");
+  w.at(10);
+  await w.run("ticket", "update", "T01", "--status", "working", "--stage", "Build");
+  w.at(15);
+  await w.run("activity", "add", "Untagged, while T01 worked");
+  assert.match((await w.run("activity", "add", "Tagged to T01", "--ticket", "t01")).text, /^Logged A3 on T01: /);
+  await w.run("question", "ask", "Delimiter", "Comma or tab?", "--default", "Comma", "--ticket", "T01");
+  await w.run("deliverable", "add", "Sample", "https://example.com/sample.csv", "--ticket", "T01");
+  assert.equal((await w.run("activity", "add", "Bad tag", "--ticket", "T09")).code, 1, "an unknown ticket is refused");
+  w.at(25);
+  await w.run("ticket", "update", "T01", "--stage", "Review", "--note", "Build went fast");
+  w.at(40);
+  await w.run("ticket", "update", "T01", "--status", "done");
+  await w.run("ticket", "update", "T02", "--status", "working");
+  await w.run("activity", "add", "Tagged to T01 later", "--ticket", "T01");
+  await w.run("activity", "add", "Untagged, while T02 worked");
+
+  const { dashboard } = await w.dashboard(50);
+  const t01 = dashboard.tickets.find((ticket) => ticket.id === "T01")!;
+  const story = ticketStory(t01, {
+    deliverables: dashboard.deliverables,
+    questions: [...dashboard.questions.open, ...dashboard.questions.answered],
+    activity: [...dashboard.activity].reverse(),
+  }, minutes(50).getTime());
+  assert.deepEqual(story.timeline.map((step) => [step.label, step.minutes === null ? null : Math.round(step.minutes)]), [
+    ["Added", 10], ["Build stage", 15], ["Review stage", 15], ["Done", null],
+  ]);
+  assert.deepEqual(story.timeline[2].notes, ["Build went fast"]);
+  assert.equal(Math.round(story.workedMin), 30);
+  assert.deepEqual(story.activity.map((entry) => [entry.text, entry.link]), [
+    ["Untagged, while T01 worked", "by-time"],
+    ["Tagged to T01", "tagged"],
+    ["Tagged to T01 later", "tagged"],
+  ]);
+  assert.deepEqual(story.questions.map((question) => [question.id, question.link]), [["Q1", "tagged"]]);
+  assert.deepEqual(story.deliverables.map((deliverable) => deliverable.id), ["D1"]);
+
+  const t02 = dashboard.tickets.find((ticket) => ticket.id === "T02")!;
+  const current = ticketStory(t02, { deliverables: [], questions: [], activity: [...dashboard.activity].reverse() }, minutes(50).getTime());
+  assert.deepEqual(current.timeline.map((step) => [step.label, Math.round(step.minutes!)]), [["Added", 40], ["Working", 10]], "the step still going runs to now");
+  assert.deepEqual(current.activity.map((entry) => entry.text), ["Untagged, while T02 worked"], "tags to another ticket never match by time");
 });
 
 test("opening the panel is remembered in the worktree", async (t) => {

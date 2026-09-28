@@ -6,6 +6,7 @@ import { attentionOf, pillLabel, type Attention } from "../shared/attention";
 import { getDashboard } from "../shared/rpc";
 import { observeDirectory } from "./directory";
 import { onPanelOpened } from "./panel-opened";
+import { IconSwap } from "./motion";
 import { Spinner } from "./spinner";
 import { AttentionPopover } from "./pill-popover";
 
@@ -49,9 +50,13 @@ export function contributePills(client: PluginClientContext) {
         return current?.stuck ? "stuck" : current?.questions ? "questions" : "started";
       },
     );
-    if (icon === "stuck") return <Icon name="OctagonAlert" size={props.size} color={props.theme.colors.statusDanger} />;
-    if (icon === "questions") return <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />;
-    return <Spinner color={props.color} size={props.size} />;
+    return (
+      <IconSwap swapKey={icon} size={props.size}>
+        {icon === "stuck" ? <Icon name="OctagonAlert" size={props.size} color={props.theme.colors.statusDanger} />
+          : icon === "questions" ? <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />
+          : <Spinner color={props.color} size={props.size} />}
+      </IconSwap>
+    );
   }
 
   const openPanel = (workspaceId: string) => client.openPanel("progress", { workspaceId, ...EXPLORER });

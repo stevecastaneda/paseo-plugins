@@ -81,6 +81,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     background: text.optional(),
     files: z.array(fileLinkSchema).optional(),
     raisedBy: text.optional(),
+    // The ticket this question came up on.
+    ticket: text.optional(),
   }),
   z.object({
     ...base,
@@ -113,7 +115,7 @@ export const eventSchema = z.discriminatedUnion("type", [
     kind: z.enum(DELIVERABLE_KINDS).optional(),
   }).refine((event) => Boolean(event.path) !== Boolean(event.url), "A deliverable has a path or a URL"),
   z.object({ ...base, type: z.literal("deliverable.remove"), id: text }),
-  z.object({ ...base, type: z.literal("activity.add"), id: text, text }),
+  z.object({ ...base, type: z.literal("activity.add"), id: text, text, ticket: text.optional() }),
   z.object({ ...base, type: z.literal("activity.update"), id: text, text }),
   z.object({ ...base, type: z.literal("activity.remove"), id: text }),
   // One line at the top saying what the agent is doing right now.

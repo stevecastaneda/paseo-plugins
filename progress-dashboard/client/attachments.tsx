@@ -1,9 +1,10 @@
 import { openExternalUrl, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { Deliverable, Question } from "../shared/dashboard";
 import { imageMimeType, previewKind } from "../shared/preview";
+import { PressableRow } from "./row";
 import { openDeliverable } from "../shared/rpc";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -102,20 +103,21 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
 }
 
 // A question's attachments as pressable rows.
-export function AttachmentList({ colors, attachments, onOpen }: { colors: Colors; attachments: Attachment[]; onOpen(attachment: Attachment): void }) {
+// Drawn in dialogs and the popover (surface1) unless `onSurface1` is false.
+export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true }: { colors: Colors; attachments: Attachment[]; onOpen(attachment: Attachment): void; onSurface1?: boolean }) {
   if (!attachments.length) return null;
   return (
     <View style={{ gap: 2 }}>
       {attachments.map((attachment) => (
-        <Pressable key={attachment.ref} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={`Open ${attachment.title}`}
+        <PressableRow key={attachment.ref} colors={colors} onSurface1={onSurface1} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={`Open ${attachment.title}`}
           onPress={() => onOpen(attachment)}
-          style={({ pressed }) => ({ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
+          style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
           <Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} />
           <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.accent, fontSize: 12, lineHeight: 17, textDecorationLine: "underline" }}>{attachment.title}</Text>
           <Text numberOfLines={1} ellipsizeMode="head" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
             {attachment.url ?? attachment.path}
           </Text>
-        </Pressable>
+        </PressableRow>
       ))}
     </View>
   );

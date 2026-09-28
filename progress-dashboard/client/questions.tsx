@@ -1,9 +1,10 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
 import { copyText, Icon, Modal, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { Question } from "../shared/dashboard";
 import { AttachmentList, type Attachment, questionAttachments, useAttachmentOpener } from "./attachments";
+import { PressableRow } from "./row";
 import { PressScale, useLastPresent } from "./motion";
 import { PreviewDialog } from "./preview";
 import { raised } from "./surfaces";
@@ -84,8 +85,8 @@ export function QuestionsSection({ colors, questions, now, compact, context }: {
       <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <Icon name="MessageCircleQuestion" size={14} color={colors.accent} />
         <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>Questions</Text>
-        <View style={{ backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 8 }}>
-          <Text style={{ color: colors.accentForeground, fontSize: 11, lineHeight: 18 }}>{questions.length} waiting</Text>
+        <View style={{ borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
+          <Text style={{ color: colors.accentForeground, fontSize: 11, lineHeight: 16 }}>{questions.length} waiting</Text>
         </View>
         <Text style={{ flexBasis: compact ? "100%" : undefined, flex: compact ? undefined : 1, textAlign: compact ? "left" : "right", color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
           Work continues on each default until you answer, except where it waits. Press a question to see its choices and copy an answer.
@@ -120,7 +121,7 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
         const chosen = question.options.find((option) => option.letter === answer.choice);
         return (
           <View key={question.id} style={{ borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${question.id} details`} onPress={() => setOpenId(question.id)}
+            <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={`${question.id} details`} onPress={() => setOpenId(question.id)}
               style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
               {/* Room for two-digit ids so titles line up; longer ones widen instead of wrapping. */}
               <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontWeight: "600", fontVariant: ["tabular-nums"], minWidth: 30, flexShrink: 0 }}>{question.id}</Text>
@@ -130,7 +131,7 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
                 {chosen ? <Text style={{ color: colors.foreground }}> {chosen.label}</Text> : null}
               </Text>
               <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
-            </Pressable>
+            </PressableRow>
           </View>
         );
       })}
@@ -171,7 +172,7 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
   return (
     <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
       <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={onCopy} hitSlop={6}
-        outerStyle={{ alignSelf: "flex-start" }}
+        outerStyle={{ alignSelf: "flex-start", marginTop: 1 }}
         style={({ pressed }) => ({
           paddingHorizontal: 6,
           borderRadius: 999,
@@ -180,12 +181,13 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
         })}>
         <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 17, fontWeight: "600" }}>{question.id}</Text>
       </PressScale>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${question.id} choices`} onPress={onOpen}
-        style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+      <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={`${question.id} choices`} onPress={onOpen}
+        style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 4, margin: -4, padding: 4 }}>
         <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
         <DefaultBadge colors={colors} value={question.default} waits={question.waits} />
-        <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
-      </Pressable>
+        {/* Optical: centers the 14px chevron on the 19px first line. */}
+        <View style={{ paddingTop: 2.5 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
+      </PressableRow>
     </View>
   );
 }
@@ -207,18 +209,31 @@ function QuestionDialog({ colors, question, now, onClose, onCopy, onOpenAttachme
       icon={<Icon name="MessageCircleQuestion" size={16} color={colors.foregroundMuted} />}
       open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <Modal.Content>
-        {question ? (
-          <View style={{ gap: 10 }}>
-            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-              <Text style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 20 }}>{question.question}</Text>
-              {!question.answer ? <DefaultBadge colors={colors} value={question.default} waits={question.waits} /> : null}
-            </View>
-            {question.answer ? <AnswerSummary colors={colors} question={question} now={now} /> : null}
-            <QuestionDetail colors={colors} question={question} now={now} onSurface1 onCopy={(letter) => onCopy(question, letter)} onOpenAttachment={onOpenAttachment} />
-          </View>
-        ) : null}
+        {question ? <QuestionView colors={colors} question={question} now={now} onCopy={(letter) => onCopy(question, letter)} onOpenAttachment={onOpenAttachment} /> : null}
       </Modal.Content>
     </Modal>
+  );
+}
+
+// A question dialog's body, also shown inside a ticket's dialog. `children` go at the end.
+export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, children }: {
+  colors: Colors;
+  question: Question;
+  now: number;
+  onCopy(letter: string): void;
+  onOpenAttachment(attachment: Attachment): void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <View style={{ gap: 10 }}>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+        <Text style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 20 }}>{question.question}</Text>
+        {!question.answer ? <DefaultBadge colors={colors} value={question.default} waits={question.waits} /> : null}
+      </View>
+      {question.answer ? <AnswerSummary colors={colors} question={question} now={now} /> : null}
+      <QuestionDetail colors={colors} question={question} now={now} onSurface1 onCopy={onCopy} onOpenAttachment={onOpenAttachment} />
+      {children}
+    </View>
   );
 }
 

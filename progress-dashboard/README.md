@@ -8,7 +8,7 @@ The dashboard shows:
 - a "possibly stale" warning after 15 minutes with no update while tickets remain, unless Paseo shows an agent in the workspace still running (for example one waiting on its subagents), and never once every ticket is done or skipped or the run is finished; working items swap their spinner for a pulsing amber warning
 - percent of estimated work done, hours done of hours estimated, and a bar with one segment per ticket
 - **Stuck:** blocked tickets, tickets running past their estimate, and blockers the agent flags
-- **Tickets:** estimate, status, and the working ticket's stage
+- **Tickets:** estimate, status, and the working ticket's stage. Press a ticket for its story in a dialog: a timeline of its stages and statuses with how long each took, notes, time worked against the estimate, and the deliverables, questions and activity that belong to it. Items tagged with `--ticket` belong exactly; older, untagged ones are matched by when they happened and marked "by time"
 - **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the default the agent is using. Press a question to open it in a dialog, then press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Files and links the agent attached (`--file`) open like deliverables: images and text files preview in Paseo (with **Back** to the question), links open in Paseo's browser, and other files open in their default app. From the pill's popover, the preview opens over the popover, which stays open so you can go back to it. Answers stay listed under the same reference.
 - **Latest deliverables** (press one to open it), newest first
 - **Activity** and **Answered questions**, sharing one card with a tab for each; the panel remembers the tab you picked
@@ -64,7 +64,7 @@ paseo-progress question ask "Row spacing" "Even out the card spacing?" \
   --default B --raised-by "Ticket 01 design review"                     # Asked Q1
 paseo-progress question answer Q1 A --words "Even it out."
 paseo-progress deliverable add "Browser check screenshots" .scratch/shots/ --ticket T01
-paseo-progress activity add "Ticket 01 moved to its Fixes stage."
+paseo-progress activity add "Saved table matches the design now." --ticket T01
 paseo-progress ticker set "Running the browser check"
 paseo-progress stuck set "Staging is down" --ticket T01                 # Flagged S1
 paseo-progress show

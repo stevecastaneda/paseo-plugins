@@ -35,7 +35,8 @@ export function PreviewDialog({ colors, attachment, workspaceId, workspaceDirect
   );
 }
 
-function PreviewBody({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, backLabel, onBack }: {
+// The preview dialog's body as its own Modal.Content, so another dialog can show it in place.
+export function PreviewBody({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, backLabel, onBack }: {
   colors: Colors;
   attachment: Attachment;
   workspaceId: string;
@@ -88,13 +89,7 @@ function PreviewBody({ colors, attachment, workspaceId, workspaceDirectory, onOp
   );
   const actions = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-      {onBack ? (
-        <PressScale accessibilityRole="button" onPress={onBack}
-          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 4, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface1 : colors.surface2 })}>
-          <Icon name="ChevronLeft" size={12} color={colors.foreground} />
-          <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>{backLabel ?? "Back"}</Text>
-        </PressScale>
-      ) : null}
+      {onBack ? <BackButton colors={colors} label={backLabel ?? "Back"} onPress={onBack} /> : null}
       <Text selectable numberOfLines={1} ellipsizeMode="head" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
         {attachment.path}
       </Text>
@@ -137,4 +132,15 @@ function estimatedHeight(data: { kind: "image" } | { kind: "text"; text: string 
 // at 85% of the window (inside a 24px margin), less its header, padding and our actions.
 function roomForContent(windowHeight: number): number {
   return (windowHeight - 48) * 0.85 - 57 - 48 - 16 - 30;
+}
+
+// Returns to the dialog this one was opened from. For surface1 dialogs.
+export function BackButton({ colors, label, onPress }: { colors: Colors; label: string; onPress(): void }) {
+  return (
+    <PressScale accessibilityRole="button" onPress={onPress} outerStyle={{ alignSelf: "flex-start" }}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 4, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface1 : colors.surface2 })}>
+      <Icon name="ChevronLeft" size={12} color={colors.foreground} />
+      <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>{label}</Text>
+    </PressScale>
+  );
 }

@@ -1,5 +1,13 @@
 import { EVENT_VERSION, eventSchema, type DELIVERABLE_KINDS, type FileLink, type ProgressEvent, type QuestionOption, type TicketStatus } from "./events.ts";
 
+// One recorded change to a ticket, oldest first. `stage: ""` clears the stage.
+export interface TicketChange {
+  at: string;
+  status?: TicketStatus;
+  stage?: string;
+  note?: string;
+}
+
 export interface Ticket {
   id: string;
   title: string;
@@ -12,6 +20,8 @@ export interface Ticket {
   stage?: string;
   stageSince?: string;
   note?: string;
+  // Every status, stage and note change, starting with when it was added.
+  history: TicketChange[];
 }
 
 export type StuckItem =
@@ -29,6 +39,7 @@ export interface Question {
   background?: string;
   files: FileLink[];
   raisedBy?: string;
+  ticketId?: string;
   askedAt: string;
   answer?: { choice: string; words?: string; changedCourse: boolean; at: string };
 }
@@ -48,6 +59,7 @@ export interface Deliverable {
 export interface Activity {
   id: string;
   text: string;
+  ticketId?: string;
   at: string;
   editedAt?: string;
 }
@@ -172,6 +184,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           status: event.status ?? "not_started",
           statusSince: event.ts,
           workingSince: event.status === "working" ? event.ts : undefined,
+          history: [{ at: event.ts, status: event.status ?? "not_started" }],
         });
         break;
       case "ticket.update": {
@@ -182,6 +195,11 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         }
         if (event.title !== undefined) ticket.title = event.title;
         if (event.estimateMin !== undefined) ticket.estimateMin = event.estimateMin;
+        const change: TicketChange = { at: event.ts };
+        if (event.status !== undefined && event.status !== ticket.status) change.status = event.status;
+        if (event.stage !== undefined && event.stage !== (ticket.stage ?? "")) change.stage = event.stage;
+        if (event.note) change.note = event.note;
+        if (Object.keys(change).length > 1) ticket.history.push(change);
         if (event.status !== undefined && event.status !== ticket.status) {
           ticket.status = event.status;
           ticket.statusSince = event.ts;
@@ -208,6 +226,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           background: event.background,
           files: event.files ?? [],
           raisedBy: event.raisedBy,
+          ticketId: event.ticket,
           askedAt: event.ts,
         });
         break;
@@ -246,7 +265,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         if (!deliverables.delete(event.id)) issues.push({ line, reason: `unknown deliverable ${event.id}` });
         break;
       case "activity.add":
-        activity.set(event.id, { id: event.id, text: event.text, at: event.ts });
+        activity.set(event.id, { id: event.id, text: event.text, ticketId: event.ticket, at: event.ts });
         break;
       case "activity.update": {
         const entry = activity.get(event.id);

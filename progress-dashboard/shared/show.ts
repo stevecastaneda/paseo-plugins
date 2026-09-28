@@ -42,7 +42,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.questions.open.length) {
     lines.push("", "Questions waiting");
     for (const question of dashboard.questions.open) {
-      lines.push(`  ${question.id} (${question.title}): ${question.question} Default ${question.default}${question.waits ? ", waiting for the answer" : ""}`);
+      lines.push(`  ${question.id} ${question.ticketId ? `[${question.ticketId}] ` : ""}(${question.title}): ${question.question} Default ${question.default}${question.waits ? ", waiting for the answer" : ""}`);
       for (const option of question.options) lines.push(`      ${option.letter}) ${option.label}${option.consequence ? `: ${option.consequence}` : ""}`);
     }
   }
@@ -61,7 +61,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   }
   if (dashboard.activity.length) {
     lines.push("", "Activity");
-    for (const entry of dashboard.activity.slice(0, 5)) lines.push(`  ${entry.id}  ${entry.text} (${formatAgo(entry.at, nowMs)})`);
+    for (const entry of dashboard.activity.slice(0, 5)) lines.push(`  ${entry.id}  ${entry.ticketId ? `[${entry.ticketId}] ` : ""}${entry.text} (${formatAgo(entry.at, nowMs)})`);
   }
   return lines.join("\n");
 }
