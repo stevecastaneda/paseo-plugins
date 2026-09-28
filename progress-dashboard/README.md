@@ -9,7 +9,7 @@ The dashboard shows:
 - percent of estimated work done, hours done of hours estimated, and a bar with one segment per ticket
 - **Stuck:** blocked tickets, tickets running past their estimate, and blockers the agent flags
 - **Tickets:** estimate, status, and the working ticket's stage
-- **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the default the agent is using. Expand a question and press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Answers stay listed under the same reference.
+- **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the default the agent is using. Press a question to open it in a dialog, then press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Answers stay listed under the same reference.
 - **Latest deliverables** (press one to open it) and **Activity**, newest first
 
 The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. When questions are waiting or something is stuck, a pill above the message box shows it (`3 questions · 1 stuck`). Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.

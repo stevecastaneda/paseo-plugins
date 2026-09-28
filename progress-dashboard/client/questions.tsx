@@ -1,29 +1,13 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { copyText, Icon, Modal, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Question } from "../shared/dashboard";
-import { IconSwap, PressScale } from "./motion";
+import { PressScale, useLastPresent } from "./motion";
 import { raised } from "./surfaces";
 import { When } from "./when";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
-
-// Expanded questions per workspace, kept for the app session so polling and
-// reopening the panel don't collapse what the user is reading.
-const expandedByScope = new Map<string, Set<string>>();
-
-function useExpanded(scope: string) {
-  const [expanded, setExpanded] = useState(() => new Set(expandedByScope.get(scope)));
-  function toggle(id: string) {
-    const next = new Set(expanded);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    expandedByScope.set(scope, next);
-    setExpanded(next);
-  }
-  return { expanded, toggle };
-}
 
 export function replyPrefix(question: Pick<Question, "id" | "title">): string {
   return `${question.id} (${question.title}): `;
@@ -47,14 +31,13 @@ export function useCopy() {
 }
 
 // Questions waiting on the user. They sit at the top of the panel.
-export function QuestionsSection({ colors, questions, scope, now, compact }: {
+export function QuestionsSection({ colors, questions, now, compact }: {
   colors: Colors;
   questions: Question[];
-  scope: string;
   now: number;
   compact: boolean;
 }) {
-  const { expanded, toggle } = useExpanded(scope);
+  const [openId, setOpenId] = useState<string | null>(null);
   const copy = useCopy();
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.accent, borderRadius: 6, overflow: "hidden" }}>
@@ -64,26 +47,26 @@ export function QuestionsSection({ colors, questions, scope, now, compact }: {
           <Text style={{ color: colors.accentForeground, fontSize: 11, lineHeight: 18 }}>{questions.length} waiting</Text>
         </View>
         <Text style={{ flexBasis: compact ? "100%" : undefined, flex: compact ? undefined : 1, textAlign: compact ? "left" : "right", color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-          Work continues on each default until you answer, except where it waits. Expand a question to copy an answer.
+          Work continues on each default until you answer, except where it waits. Press a question to see its choices and copy an answer.
         </Text>
       </View>
       {questions.map((question, index) => (
-        <QuestionRow key={question.id} colors={colors} question={question} now={now} first={index === 0}
-          expanded={expanded.has(question.id)} onToggle={() => toggle(question.id)} onCopy={(letter) => void copy(question, letter)} />
+        <QuestionRow key={question.id} colors={colors} question={question} first={index === 0}
+          onOpen={() => setOpenId(question.id)} onCopy={() => void copy(question)} />
       ))}
+      <QuestionDialog colors={colors} question={questions.find((question) => question.id === openId) ?? null} now={now}
+        onClose={() => setOpenId(null)} onCopy={(question, letter) => { void copy(question, letter); setOpenId(null); }} />
     </View>
   );
 }
 
-// Settled questions, one line each (title and the choice). Expand a row for the rest.
-export function AnsweredQuestionsSection({ colors, questions, scope, now }: {
+// Settled questions, one line each (title and the choice). Press a row for the rest.
+export function AnsweredQuestionsSection({ colors, questions, now }: {
   colors: Colors;
   questions: Question[];
-  scope: string;
   now: number;
 }) {
-  const { expanded, toggle } = useExpanded(scope);
-  const copy = useCopy();
+  const [openId, setOpenId] = useState<string | null>(null);
   return (
     <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
@@ -93,29 +76,23 @@ export function AnsweredQuestionsSection({ colors, questions, scope, now }: {
       {questions.map((question) => {
         const answer = question.answer!;
         const chosen = question.options.find((option) => option.letter === answer.choice);
-        const open = expanded.has(question.id);
         return (
           <View key={question.id} style={{ borderTopWidth: 1, borderTopColor: colors.border }}>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => toggle(question.id)}
+            <Pressable accessibilityRole="button" accessibilityLabel={`${question.id} details`} onPress={() => setOpenId(question.id)}
               style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
               <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontWeight: "600", width: 22 }}>{question.id}</Text>
-              <Text numberOfLines={open ? undefined : 1} style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+              <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
                 {question.title}{"  "}
                 <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{answer.choice}</Text>
                 {chosen ? <Text style={{ color: colors.foreground }}> {chosen.label}</Text> : null}
               </Text>
-              <IconSwap swapKey={open ? "open" : "closed"} size={14}><Icon name={open ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} /></IconSwap>
+              <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
             </Pressable>
-            {open ? (
-              <View style={{ paddingLeft: 40, paddingRight: 10, paddingBottom: 10, gap: 6 }}>
-                <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
-                <AnswerSummary colors={colors} question={question} now={now} />
-                <QuestionDetail colors={colors} question={question} now={now} onCopy={(letter) => void copy(question, letter)} />
-              </View>
-            ) : null}
           </View>
         );
       })}
+      <QuestionDialog colors={colors} question={questions.find((question) => question.id === openId) ?? null} now={now}
+        onClose={() => setOpenId(null)} onCopy={() => {}} />
     </View>
   );
 }
@@ -140,19 +117,16 @@ function AnswerSummary({ colors, question, now }: { colors: Colors; question: Qu
   );
 }
 
-function QuestionRow({ colors, question, now, first, expanded, onToggle, onCopy }: {
+function QuestionRow({ colors, question, first, onOpen, onCopy }: {
   colors: Colors;
   question: Question;
-  now: number;
   first: boolean;
-  expanded: boolean;
-  onToggle(): void;
-  onCopy(letter?: string): void;
+  onOpen(): void;
+  onCopy(): void;
 }) {
-  const answer = question.answer;
   return (
     <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
-      <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={() => onCopy()} hitSlop={6}
+      <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={onCopy} hitSlop={6}
         outerStyle={{ alignSelf: "flex-start" }}
         style={({ pressed }) => ({
           paddingHorizontal: 6,
@@ -160,18 +134,46 @@ function QuestionRow({ colors, question, now, first, expanded, onToggle, onCopy 
           backgroundColor: pressed ? colors.surface2 : colors.surface1,
           ...raised(colors),
         })}>
-        <Text style={{ color: answer ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 17, fontWeight: "600" }}>{question.id}</Text>
+        <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 17, fontWeight: "600" }}>{question.id}</Text>
       </PressScale>
-      <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggle}
-          style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-          <Text style={{ flex: 1, color: answer ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
-          {!answer ? <DefaultBadge colors={colors} value={question.default} waits={question.waits} /> : null}
-          <IconSwap swapKey={expanded ? "open" : "closed"} size={14}><Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} /></IconSwap>
-        </Pressable>
-        {expanded ? <QuestionDetail colors={colors} question={question} now={now} onCopy={onCopy} /> : null}
-      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${question.id} choices`} onPress={onOpen}
+        style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+        <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
+        <DefaultBadge colors={colors} value={question.default} waits={question.waits} />
+        <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
+      </Pressable>
     </View>
+  );
+}
+
+// The whole question in a dialog: choices with Copy buttons (while open), the
+// answer (once settled), background and files.
+function QuestionDialog({ colors, question, now, onClose, onCopy }: {
+  colors: Colors;
+  question: Question | null;
+  now: number;
+  onClose(): void;
+  onCopy(question: Question, letter: string): void;
+}) {
+  const open = Boolean(question);
+  question = useLastPresent(question);
+  return (
+    <Modal title={question ? `${question.id} · ${question.title}` : "Question"}
+      icon={<Icon name="MessageCircleQuestion" size={16} color={colors.foregroundMuted} />}
+      open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <Modal.Content>
+        {question ? (
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <Text style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 20 }}>{question.question}</Text>
+              {!question.answer ? <DefaultBadge colors={colors} value={question.default} waits={question.waits} /> : null}
+            </View>
+            {question.answer ? <AnswerSummary colors={colors} question={question} now={now} /> : null}
+            <QuestionDetail colors={colors} question={question} now={now} onSurface1 onCopy={(letter) => onCopy(question, letter)} />
+          </View>
+        ) : null}
+      </Modal.Content>
+    </Modal>
   );
 }
 
@@ -186,24 +188,38 @@ export function DefaultBadge({ colors, value, waits }: { colors: Colors; value: 
   );
 }
 
-export function QuestionDetail({ colors, question, now, onCopy }: { colors: Colors; question: Question; now: number; onCopy(letter: string): void }) {
+// `onSurface1` when drawn on a surface1 background (Paseo's dialogs), so the
+// Copy buttons still stand off it.
+export function QuestionDetail({ colors, question, now, onCopy, onSurface1 = false }: {
+  colors: Colors;
+  question: Question;
+  now: number;
+  onCopy(letter: string): void;
+  onSurface1?: boolean;
+}) {
+  const button = onSurface1 ? { rest: colors.surface2, pressed: colors.surface1 } : { rest: colors.surface1, pressed: colors.surface2 };
   return (
     <View style={{ gap: 8, paddingTop: 2 }}>
       {question.options.map((option) => {
         const isDefault = option.letter === question.default;
+        // Once answered, the border marks the choice made; before that, the default.
+        const chosen = question.answer?.choice === option.letter;
+        const borderColor = question.answer ? (chosen ? colors.statusSuccess : colors.border) : isDefault ? colors.accent : colors.border;
         return (
-          <View key={option.letter} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 8, borderRadius: 12, borderWidth: 1, borderColor: isDefault ? colors.accent : colors.border }}>
+          <View key={option.letter} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 8, borderRadius: 12, borderWidth: 1, borderColor }}>
             <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", width: 14 }}>{option.letter}</Text>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
-                {option.label}{isDefault ? <Text style={{ color: colors.accent }}>  Default</Text> : null}
+                {option.label}
+                {chosen ? <Text style={{ color: colors.statusSuccess }}>  Your answer</Text> : null}
+                {isDefault ? <Text style={{ color: question.answer ? colors.foregroundMuted : colors.accent }}>  Default</Text> : null}
               </Text>
               {option.consequence ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{option.consequence}</Text> : null}
             </View>
             {!question.answer ? (
               <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} ${option.letter} for your agent`}
                 onPress={() => onCopy(option.letter)} hitSlop={4}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 3, borderRadius: 4, ...raised(colors), backgroundColor: pressed ? colors.surface2 : colors.surface1 })}>
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 3, borderRadius: 4, ...raised(colors), backgroundColor: pressed ? button.pressed : button.rest })}>
                 <Icon name="Copy" size={12} color={colors.foreground} />
                 <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>Copy {question.id} {option.letter}</Text>
               </PressScale>

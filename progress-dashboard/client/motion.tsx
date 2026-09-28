@@ -24,6 +24,14 @@ export function useReducedMotion(): boolean {
   return reduced;
 }
 
+// The last non-null value, so a dialog keeps its content while it animates
+// closed instead of collapsing mid-exit.
+export function useLastPresent<T>(value: T | null): T | null {
+  const last = useRef(value);
+  if (value !== null) last.current = value;
+  return value ?? last.current;
+}
+
 // A button that scales to 0.96 while pressed. `static` turns the scale off.
 export function PressScale({ static: isStatic, style, outerStyle, children, ...props }: Omit<PressableProps, "style" | "children"> & {
   static?: boolean;

@@ -5,7 +5,7 @@ import React, { useState } from "react";
 import { ActivityIndicator, Image, Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
 import { previewDeliverable } from "../shared/rpc";
-import { PressScale } from "./motion";
+import { PressScale, useLastPresent } from "./motion";
 import { imageOutline, raised } from "./surfaces";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -19,9 +19,11 @@ export function PreviewDialog({ colors, deliverable, workspaceId, workspaceDirec
   onClose(): void;
   onOpenOnHost(deliverable: Deliverable): void;
 }) {
+  const open = Boolean(deliverable);
+  deliverable = useLastPresent(deliverable);
   return (
     <Modal title={deliverable?.title ?? "Preview"} icon={<Icon name="Image" size={16} color={colors.foregroundMuted} />}
-      open={Boolean(deliverable)} onOpenChange={(open) => { if (!open) onClose(); }}>
+      open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <Modal.Content>
         {deliverable ? (
           <PreviewBody colors={colors} deliverable={deliverable} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}

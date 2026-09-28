@@ -47,7 +47,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
       <LauncherBanner colors={colors} host={host} />
       <SkillBanner colors={colors} host={host} />
       {result && !result.configured ? <EmptyState colors={colors} /> : null}
-      {result?.configured ? <DashboardView colors={colors} dashboard={result.dashboard} scope={`${host.id}:${workspaceId}`} compact={layout.compact}
+      {result?.configured ? <DashboardView colors={colors} dashboard={result.dashboard} compact={layout.compact}
         workspaceId={workspaceId} workspaceDirectory={directory ?? ""} navigation={navigation} /> : null}
     </ScrollView>
   );
@@ -86,10 +86,9 @@ function useNow(intervalMs: number): number {
 
 const WIDE_MIN = 760;
 
-function DashboardView({ colors, dashboard, scope, compact, workspaceId, workspaceDirectory, navigation }: {
+function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirectory, navigation }: {
   colors: Colors;
   dashboard: Dashboard;
-  scope: string;
   compact: boolean;
   workspaceId: string;
   workspaceDirectory: string;
@@ -146,7 +145,7 @@ function DashboardView({ colors, dashboard, scope, compact, workspaceId, workspa
         style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}>
         <View style={{ flex: wide ? 3 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={dashboard.questions.open.length > 0} order={3}>{dashboard.questions.open.length ? (
-            <QuestionsSection colors={colors} questions={dashboard.questions.open} scope={scope} now={now} compact={compact || !wide} />
+            <QuestionsSection colors={colors} questions={dashboard.questions.open} now={now} compact={compact || !wide} />
           ) : null}</Presence>
           <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
           <Presence show order={4}>
@@ -161,7 +160,7 @@ function DashboardView({ colors, dashboard, scope, compact, workspaceId, workspa
           </Card>
           </Presence>
           <Presence show={dashboard.questions.answered.length > 0} order={5}>{dashboard.questions.answered.length ? (
-            <AnsweredQuestionsSection colors={colors} questions={dashboard.questions.answered} scope={scope} now={now} />
+            <AnsweredQuestionsSection colors={colors} questions={dashboard.questions.answered} now={now} />
           ) : null}</Presence>
         </View>
         <View style={{ flex: wide ? 2 : undefined, alignSelf: "stretch", minWidth: 0 }}>
