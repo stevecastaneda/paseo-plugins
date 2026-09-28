@@ -1,0 +1,88 @@
+# Progress Dashboard
+
+A Paseo 0.9 plugin that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to `.scratch/progress.jsonl` in the worktree. The **Progress** panel draws the dashboard from that file and updates by itself.
+
+The dashboard shows:
+
+- the run's title, a headline ("2 of 4 tickets done, 5 questions waiting for you, 1 stuck"), a one-line "now" ticker, and when it was last updated
+- a "possibly stale" warning after 15 minutes with no update; working items swap their spinner for a pulsing amber warning
+- percent of estimated work done, hours done of hours estimated, and a bar with one segment per ticket
+- **Stuck:** blocked tickets, tickets running past their estimate, and blockers the agent flags
+- **Tickets:** estimate, status, and the working ticket's stage
+- **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the default the agent is using. Expand a question and press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Answers stay listed under the same reference.
+- **Latest deliverables** (press one to open it) and **Activity**, newest first
+
+The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. When questions are waiting or something is stuck, a pill above the message box shows it (`3 questions · 1 stuck`); pressing it opens the panel in Explorer.
+
+## Install
+
+```sh
+paseo plugin add stevecastaneda/paseo-plugins --path progress-dashboard
+```
+
+Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
+
+Then install the `paseo-progress` command agents run. Open **Progress** from Command Center and press **Install command** in the banner. It adds one file, `~/.local/bin/paseo-progress`, on the machine running the Paseo daemon, and the banner disappears once agents can run it. The plugin writes nothing until you press it, and it never replaces a file something else put at that path.
+
+To install from a terminal instead, or to put the command somewhere else:
+
+```sh
+node "$(paseo plugin ls progress-dashboard --json | node -pe 'JSON.parse(require("fs").readFileSync(0))[0].path')/server/cli.ts" install-launcher [path]
+```
+
+If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches.
+
+Add `.scratch/` to the repository's `.gitignore` so the progress file is never committed.
+
+## Agent skill
+
+The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions without stopping, flag stuck work, and finish. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. If Paseo later runs the plugin from somewhere else, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped.
+
+From a terminal instead:
+
+```sh
+skill="$(paseo plugin ls progress-dashboard --json | node -pe 'JSON.parse(require("fs").readFileSync(0))[0].path')/skills/paseo-progress"
+for dir in ~/.agents/skills ~/.claude/skills ~/.codex/skills; do mkdir -p "$dir" && ln -s "$skill" "$dir/paseo-progress"; done
+```
+
+## Recording progress
+
+Run `paseo-progress --help` for every command, and `paseo-progress <command> --help` for one. Commands find the worktree root from the current directory.
+
+```sh
+paseo-progress start "Loan Options snapshots" --subtitle "4 tickets"
+paseo-progress ticket add "Ticket 01: Saved table" --estimate 120      # Added T01
+paseo-progress ticket update T01 --status working --stage Build
+paseo-progress ticket update T01 --stage Fixes
+paseo-progress ticket update T01 --status done
+paseo-progress question ask "Row spacing" "Even out the card spacing?" \
+  --option "A=Even it out | Cards look balanced" \
+  --option "B=Leave it | No change" \
+  --default B --raised-by "Ticket 01 design review"                     # Asked Q1
+paseo-progress question answer Q1 A --words "Even it out."
+paseo-progress deliverable add "Browser check screenshots" .scratch/shots/ --ticket T01
+paseo-progress activity add "Ticket 01 moved to its Fixes stage."
+paseo-progress ticker set "Running the browser check"
+paseo-progress stuck set "Staging is down" --ticket T01                 # Flagged S1
+paseo-progress show
+```
+
+- Statuses are `not_started`, `working`, `blocked`, `done`, and `skipped`. Skipped tickets leave the totals.
+- A working ticket is stuck once it runs past its estimate, timed from when it started working.
+- `question ask --waits` marks a question the agent won't act on until you answer. Its default shows in amber.
+- Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing a local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, Markdown, text, JSON, and CSV files open in your default browser as plain text; Paseo 0.9 plugins can't show local files inside the app. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
+- `start` begins a fresh dashboard. Earlier runs stay in the file. Question references stay unique across runs.
+
+## The progress file
+
+`.scratch/progress.jsonl` holds one JSON event per line, each with a version (`v`), a UTC timestamp (`ts`) from the real clock, and a `type`. It is only ever appended to, so you can read or diff the history. A half-written last line is ignored. Other bad lines are skipped and listed in a small notice in the panel while the rest still renders. A lock keeps two commands from writing at once or handing out the same id.
+
+## Local development
+
+```sh
+cd progress-dashboard
+npm install
+npm run dev
+```
+
+`npm run dev` type-checks and tests the plugin, then points Paseo at this folder. The tests run the agent's commands in a throwaway worktree and read back the dashboard the panel would get.
