@@ -70,7 +70,7 @@ paseo-progress show
 - Statuses are `not_started`, `working`, `blocked`, `done`, and `skipped`. Skipped tickets leave the totals.
 - A working ticket is stuck once it runs past its estimate, timed from when it started working.
 - `question ask --waits` marks a question the agent won't act on until you answer. Its default shows in amber.
-- Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing a local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, Markdown, text, JSON, and CSV files open in your default browser as plain text; Paseo 0.9 plugins can't show local files inside the app. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
+- Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image deliverable (PNG, JPEG, GIF, WebP, up to 10 MB) previews it in a dialog inside Paseo, which also works from a phone; **Open in default app** there opens the file itself. Pressing any other local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, Markdown, text, JSON, and CSV files open in your default browser as plain text. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
 - `start` begins a fresh dashboard. Earlier runs stay in the file. Question references stay unique across runs.
 
 ## The progress file

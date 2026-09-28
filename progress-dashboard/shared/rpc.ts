@@ -62,3 +62,14 @@ export const openDeliverable = defineRpc({
   }),
   output: z.object({ opened: z.string() }),
 });
+
+// An image deliverable's bytes, for the preview dialog.
+export const previewDeliverable = defineRpc({
+  name: "progress-dashboard.deliverable.preview",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+    deliverableId: z.string().min(1),
+  }),
+  output: z.object({ dataUri: z.string(), bytes: z.number() }),
+});

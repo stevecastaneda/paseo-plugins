@@ -15,7 +15,8 @@ import { formatHours, formatMinutes } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
-import { openCommand, openDeliverable } from "./open.ts";
+import { MAX_PREVIEW_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
+import { imageMimeType } from "../shared/preview.ts";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const minutes = (count: number) => new Date(T0 + count * 60_000);
@@ -489,6 +490,25 @@ test("a local deliverable opens on the daemon host by id, only inside the worktr
   await assert.rejects(openDeliverable(w.directory, "D4", opener), /No local deliverable D4/, "web links are not opened on the host");
   await assert.rejects(openDeliverable(w.directory, "D9", opener), /No local deliverable D9/);
   assert.equal(opened.length, 1);
+});
+
+test("an image deliverable previews as a data URI, only for images inside the worktree", async (t) => {
+  const w = await screenshotRun(t);
+  await mkdir(join(w.directory, "shots"), { recursive: true });
+  const png = Buffer.from("89504e470d0a1a0a", "hex");
+  await writeFile(join(w.directory, "shots", "home.PNG"), png);
+  await writeFile(join(w.directory, "shots", "notes.md"), "# Notes");
+  await writeFile(join(w.directory, "shots", "huge.jpg"), Buffer.alloc(MAX_PREVIEW_BYTES + 1));
+  await w.run("deliverable", "add", "Home", "shots/home.PNG");
+  await w.run("deliverable", "add", "Notes", "shots/notes.md");
+  await w.run("deliverable", "add", "Huge", "shots/huge.jpg");
+  await w.run("deliverable", "add", "Outside", join(tmpdir(), "elsewhere.png"));
+  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
+  await assert.rejects(previewDeliverable(w.directory, "D2"), /isn't an image/);
+  await assert.rejects(previewDeliverable(w.directory, "D3"), /too large to preview/);
+  await assert.rejects(previewDeliverable(w.directory, "D4"), /no longer exists|outside this worktree/);
+  assert.equal(imageMimeType("a/b.jpeg"), "image/jpeg");
+  assert.equal(imageMimeType("report.html"), null);
 });
 
 test("plain-text deliverables open in the default browser; everything else in its usual app", () => {

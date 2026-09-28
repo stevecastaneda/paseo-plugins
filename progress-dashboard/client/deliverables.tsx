@@ -1,10 +1,12 @@
 import { openExternalUrl, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
 import { openDeliverable } from "../shared/rpc";
+import { imageMimeType } from "../shared/preview";
 import { PressScale } from "./motion";
+import { PreviewDialog } from "./preview";
 import { raised } from "./surfaces";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -25,7 +27,8 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
   navigation: Navigation;
 }) {
   const toast = useToast();
-  const openOnHost = useRpc(openDeliverable);
+  const openOnHostRpc = useRpc(openDeliverable);
+  const [previewing, setPreviewing] = useState<Deliverable | null>(null);
   async function copyPath(deliverable: Deliverable, prefix = "") {
     try {
       await copyText(absolutePath(deliverable.path!, workspaceDirectory));
@@ -46,8 +49,16 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
       }
       return;
     }
+    // Screenshots preview inside Paseo; everything else opens in its own app.
+    if (deliverable.path && imageMimeType(deliverable.path)) {
+      setPreviewing(deliverable);
+      return;
+    }
+    await openOnHost(deliverable);
+  }
+  async function openOnHost(deliverable: Deliverable) {
     try {
-      await openOnHost({ workspaceId, workspaceDirectory, deliverableId: deliverable.id });
+      await openOnHostRpc({ workspaceId, workspaceDirectory, deliverableId: deliverable.id });
       toast.show(`Opened ${deliverable.title}`, { variant: "success" });
     } catch (error) {
       await copyPath(deliverable, `${error instanceof Error ? error.message : "Could not open it"}. `);
@@ -85,6 +96,8 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
           )}
         </Pressable>
       ))}
+      <PreviewDialog colors={colors} deliverable={previewing} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
+        onClose={() => setPreviewing(null)} onOpenOnHost={(deliverable) => void openOnHost(deliverable)} />
     </View>
   );
 }

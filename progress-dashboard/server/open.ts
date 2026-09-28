@@ -1,9 +1,10 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
-import { realpath } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
+import { imageMimeType } from "../shared/preview.ts";
 import { readDashboard } from "./dashboard.ts";
 
 export type Opener = (path: string) => Promise<void>;
@@ -40,9 +41,9 @@ export const systemOpener: Opener = async (path) => {
   await promisify(execFile)(command, args);
 };
 
-// Opens a deliverable the agent recorded, by id, so the panel can never ask
-// the daemon to open an arbitrary path. Only files inside the worktree open.
-export async function openDeliverable(directory: string, id: string, opener: Opener): Promise<{ opened: string }> {
+// A deliverable the agent recorded, found by id, so the panel can never reach
+// an arbitrary path. Only files inside the worktree resolve.
+async function resolveDeliverable(directory: string, id: string, verb: string): Promise<{ path: string; target: string }> {
   const { dashboard } = await readDashboard(directory);
   const deliverable = dashboard.deliverables.find((candidate) => candidate.id === id);
   if (!deliverable?.path) throw new Error(`No local deliverable ${id} in this worktree.`);
@@ -50,9 +51,36 @@ export async function openDeliverable(directory: string, id: string, opener: Ope
   const target = await realpath(resolve(root, deliverable.path)).catch(() => null);
   if (!target) throw new Error(`${deliverable.path} no longer exists.`);
   const inside = relative(root, target);
-  if (inside.startsWith("..") || isAbsolute(inside)) throw new Error(`${deliverable.path} is outside this worktree, so it was not opened.`);
+  if (inside.startsWith("..") || isAbsolute(inside)) throw new Error(`${deliverable.path} is outside this worktree, so it was not ${verb}.`);
+  return { path: deliverable.path, target };
+}
+
+export async function openDeliverable(directory: string, id: string, opener: Opener): Promise<{ opened: string }> {
+  const { target } = await resolveDeliverable(directory, id, "opened");
   await opener(target);
   return { opened: target };
+}
+
+// Large enough for full-page screenshots; the image travels over the socket.
+export const MAX_PREVIEW_BYTES = 10 * 1024 * 1024;
+
+// An image deliverable as a data URI, so any client (desktop or phone) can show
+// it without reaching the daemon host's disk.
+export async function previewDeliverable(directory: string, id: string): Promise<{ dataUri: string; bytes: number }> {
+  const { path, target } = await resolveDeliverable(directory, id, "previewed");
+  const mime = imageMimeType(target);
+  if (!mime) throw new Error(`${path} isn't an image, so it can't be previewed.`);
+  const { size } = await stat(target);
+  if (size > MAX_PREVIEW_BYTES) throw new Error(`${path} is ${Math.round(size / 1024 / 1024)} MB, too large to preview.`);
+  const data = await readFile(target);
+  return { dataUri: `data:${mime};base64,${data.toString("base64")}`, bytes: size };
+}
+
+export async function handlePreviewDeliverable(
+  input: { workspaceId: string; workspaceDirectory: string; deliverableId: string },
+  _context: PluginHandlerContext,
+) {
+  return previewDeliverable(input.workspaceDirectory, input.deliverableId);
 }
 
 export async function handleOpenDeliverable(

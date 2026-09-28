@@ -22,13 +22,23 @@ function luminance(color: string): number | null {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+function isLight(colors: Colors): boolean | null {
+  const value = luminance(colors.surface0);
+  return value === null ? null : value > 0.4;
+}
+
+// A 1px ring just inside an image: pure black or white at 10%, never a tinted gray.
+export function imageOutline(colors: Colors): { borderWidth: number; borderColor: string } {
+  return { borderWidth: 1, borderColor: isLight(colors) === false ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)" };
+}
+
 // Depth for cards and bordered buttons: a transparent ring plus lift in light
 // themes, one white ring in dark ones. Dividers and state borders stay borders.
 export function raised(colors: Colors): ViewStyle {
-  const light = luminance(colors.surface0);
+  const light = isLight(colors);
   if (light === null) return { borderWidth: 1, borderColor: colors.border };
   return {
-    boxShadow: light > 0.4
+    boxShadow: light
       ? "0px 0px 0px 1px rgba(0, 0, 0, 0.06), 0px 1px 2px -1px rgba(0, 0, 0, 0.06), 0px 2px 4px 0px rgba(0, 0, 0, 0.04)"
       : "0px 0px 0px 1px rgba(255, 255, 255, 0.08)",
   };
