@@ -1,15 +1,14 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
-import React, { useState } from "react";
+import { Icon } from "@getpaseo/plugin/client/react-native";
+import React from "react";
 import { Text, View } from "react-native";
 import type { Dashboard, Ticket } from "../shared/dashboard";
 import type { TicketStatus } from "../shared/events";
 import { formatMinutes } from "../shared/format";
 import { type Link, ticketStory, type TimelineStep } from "../shared/ticket-story";
-import { type Attachment, attachmentIcon, AttachmentList, deliverableAttachment, useAttachmentOpener } from "./attachments";
-import { IconSwap, useLastPresent } from "./motion";
-import { BackButton, PreviewBody } from "./preview";
-import { QuestionView, useCopy } from "./questions";
+import { type Attachment, AttachmentList, deliverableAttachment } from "./attachments";
+import { StackedDialog } from "./dialog-stack";
+import { IconSwap } from "./motion";
 import { PressableRow } from "./row";
 import { Spinner, StalledPulse } from "./spinner";
 import { StatusBadge } from "./status-badge";
@@ -18,11 +17,8 @@ import { When } from "./when";
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type AttachmentContext = { workspaceId: string; workspaceDirectory: string; navigation: PluginWorkspacePanelProps["navigation"] };
 
-// A ticket's story in a dialog: where its time went, and what came out of it.
-// Its questions and previews open in the same dialog, stacked, with Back to
-// the one before, so the backdrop never flickers between dialogs.
-type Step = { kind: "ticket"; id: string } | { kind: "question"; id: string } | { kind: "preview"; attachment: Attachment };
-
+// A ticket's story, opened from its row: where its time went, and what came out
+// of it. Its questions and previews open in the same dialog (see StackedDialog).
 export function TicketDialogs({ colors, dashboard, openId, setOpenId, now, live, context }: {
   colors: Colors;
   dashboard: Dashboard;
@@ -32,68 +28,19 @@ export function TicketDialogs({ colors, dashboard, openId, setOpenId, now, live,
   live: boolean;
   context: AttachmentContext;
 }) {
-  // What was opened on top of the ticket, oldest first. Cleared when a ticket opens.
-  const [trail, setTrail] = useState<Step[]>([]);
-  const [trailFor, setTrailFor] = useState(openId);
-  if (trailFor !== openId) {
-    setTrailFor(openId);
-    if (openId) setTrail([]);
-  }
-  const push = (step: Step) => setTrail((current) => [...current, step]);
-  const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment }) });
-  const copy = useCopy();
-  const open = openId !== null;
-  const steps: Step[] = openId ? [{ kind: "ticket", id: openId }, ...trail] : [];
-  // Keep drawing the last step while the dialog fades out.
-  const shown = useLastPresent(steps.length ? { top: steps[steps.length - 1], previous: steps[steps.length - 2] } : null);
-  const close = () => setOpenId(null);
-  const back = shown?.previous ? { label: `Back to ${stepName(shown.previous)}`, onPress: () => setTrail((current) => current.slice(0, -1)) } : null;
-
-  const top = shown?.top;
-  const ticket = top?.kind === "ticket" ? dashboard.tickets.find((candidate) => candidate.id === top.id) : undefined;
-  const question = top?.kind === "question"
-    ? [...dashboard.questions.open, ...dashboard.questions.answered].find((candidate) => candidate.id === top.id)
-    : undefined;
-  const attachment = top?.kind === "preview" ? top.attachment : undefined;
-  const title = ticket ? `${ticket.id} · ${ticket.title}` : question ? `${question.id} · ${question.title}` : attachment ? attachment.title : "Ticket";
-  const icon = ticket ? "ListChecks" : question ? "MessageCircleQuestion" : attachment ? attachmentIcon(attachment) : "ListChecks";
-
   return (
-    <Modal title={title} icon={<Icon name={icon} size={16} color={colors.foregroundMuted} />}
-      open={open} onOpenChange={(next) => { if (!next) close(); }}>
-      {attachment ? (
-        <PreviewBody colors={colors} attachment={attachment} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
-          onOpenOnHost={() => { close(); void opener.openOnHost(attachment); }} backLabel={back?.label} onBack={back?.onPress} />
-      ) : (
-        <Modal.Content>
-          {ticket ? (
-            <TicketStoryView colors={colors} dashboard={dashboard} ticket={ticket} now={now} live={live}
-              onOpenAttachment={(target) => void opener.open(target)} onOpenQuestion={(id) => push({ kind: "question", id })} />
-          ) : null}
-          {question ? (
-            <QuestionView colors={colors} question={question} now={now}
-              onCopy={(letter) => { void copy(question, letter); close(); }}
-              onOpenAttachment={(target) => void opener.open(target)}>
-              {back ? <BackButton colors={colors} label={back.label} onPress={back.onPress} /> : null}
-            </QuestionView>
-          ) : null}
-        </Modal.Content>
-      )}
-    </Modal>
+    <StackedDialog colors={colors} root={openId ? { kind: "ticket", id: openId } : null} onClose={() => setOpenId(null)}
+      questions={[...dashboard.questions.open, ...dashboard.questions.answered]} dashboard={dashboard} now={now} live={live} context={context} />
   );
 }
 
-function stepName(step: Step): string {
-  return step.kind === "preview" ? step.attachment.title : step.id;
-}
-
-function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAttachment, onOpenQuestion }: {
+export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAttachment, onOpenQuestion }: {
   colors: Colors;
   dashboard: Dashboard;
   ticket: Ticket;
   now: number;
   live: boolean;
-  onOpenAttachment(attachment: Attachment): void;
+  onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   onOpenQuestion(id: string): void;
 }) {
   const story = ticketStory(ticket, {

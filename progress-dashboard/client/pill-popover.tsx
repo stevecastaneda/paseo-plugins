@@ -1,12 +1,12 @@
 import { type PluginButtonContentProps, useWorkspace } from "@getpaseo/plugin/client";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { Dashboard } from "../shared/dashboard";
 import { useDashboard } from "./dashboard-query";
 import { PressScale } from "./motion";
 import { type Attachment, isPreviewable, useAttachmentOpener } from "./attachments";
-import { PreviewDialog } from "./preview";
+import { PreviewDialog, previewable } from "./preview";
 import { DefaultBadge, QuestionDetail, useCopy } from "./questions";
 import { raised } from "./surfaces";
 
@@ -28,8 +28,9 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   const copy = useCopy();
   // Previews open in a dialog over the popover, which stays open to return to.
   // Links and other files leave Paseo, so the popover closes for those.
-  const [previewing, setPreviewing] = useState<Attachment | null>(null);
-  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: directory ?? "", onPreview: setPreviewing });
+  const [previewing, setPreviewing] = useState<{ attachment: Attachment; group: Attachment[] } | null>(null);
+  const group = useRef<Attachment[]>([]);
+  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: directory ?? "", onPreview: (attachment) => setPreviewing({ attachment, group: previewable(group.current) }) });
   return (
     <View style={{ width: 360, maxWidth: "100%", gap: 8 }}>
       {dashboard ? (
@@ -37,7 +38,8 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
           <AttentionList colors={colors} dashboard={dashboard} onSurface1={onSurface1} onCopy={async (question, letter) => {
             await copy(question, letter);
             close();
-          }} onOpenAttachment={(attachment) => {
+          }} onOpenAttachment={(attachment, from) => {
+            group.current = from;
             if (!isPreviewable(attachment)) close();
             void opener.open(attachment);
           }} />
@@ -47,8 +49,9 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
           {query.error ? `Could not read progress: ${query.error.message}` : "Loading…"}
         </Text>
       )}
-      <PreviewDialog colors={colors} attachment={previewing} workspaceId={workspaceId} workspaceDirectory={directory ?? ""}
-        onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)} />
+      <PreviewDialog colors={colors} attachment={previewing?.attachment ?? null} workspaceId={workspaceId} workspaceDirectory={directory ?? ""}
+        onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)}
+        gallery={previewing ? { items: previewing.group, onSelect: (attachment) => setPreviewing({ ...previewing, attachment }) } : undefined} />
       <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}
           style={({ pressed }) => ({ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 6, borderRadius: 4, ...raised(colors),
@@ -66,7 +69,7 @@ export function AttentionList({ colors, dashboard, onSurface1, onCopy, onOpenAtt
   dashboard: Dashboard;
   onSurface1: boolean;
   onCopy(question: Dashboard["questions"]["open"][number], letter: string): void;
-  onOpenAttachment(attachment: Attachment): void;
+  onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
 }) {
   const now = Date.now();
   // The last question can be answered while the popover is open.

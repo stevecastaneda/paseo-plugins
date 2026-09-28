@@ -5,7 +5,7 @@ import { Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, deliverableAttachment, useAttachmentOpener } from "./attachments";
 import { PressScale } from "./motion";
-import { PreviewDialog } from "./preview";
+import { PreviewDialog, previewable } from "./preview";
 import { PressableRow } from "./row";
 import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
@@ -67,7 +67,8 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
         </PressableRow>
       ))}
       <PreviewDialog colors={colors} attachment={previewing} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
-        onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void openOnHost(attachment)} />
+        onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void openOnHost(attachment)}
+        gallery={{ items: previewable(deliverables.map(deliverableAttachment)), onSelect: setPreviewing }} />
     </View>
   );
 }

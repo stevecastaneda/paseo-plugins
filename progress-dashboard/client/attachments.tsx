@@ -104,13 +104,14 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
 
 // A question's attachments as pressable rows.
 // Drawn in dialogs and the popover (surface1) unless `onSurface1` is false.
-export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true }: { colors: Colors; attachments: Attachment[]; onOpen(attachment: Attachment): void; onSurface1?: boolean }) {
+// `onOpen` also gets the whole list, so a preview can step through its siblings.
+export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true }: { colors: Colors; attachments: Attachment[]; onOpen(attachment: Attachment, group: Attachment[]): void; onSurface1?: boolean }) {
   if (!attachments.length) return null;
   return (
     <View style={{ gap: 2 }}>
       {attachments.map((attachment) => (
         <PressableRow key={attachment.ref} colors={colors} onSurface1={onSurface1} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={`Open ${attachment.title}`}
-          onPress={() => onOpen(attachment)}
+          onPress={() => onOpen(attachment, attachments)}
           style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
           <Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} />
           <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.accent, fontSize: 12, lineHeight: 17, textDecorationLine: "underline" }}>{attachment.title}</Text>

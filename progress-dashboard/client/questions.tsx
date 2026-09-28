@@ -1,12 +1,12 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import { copyText, Icon, Modal, useToast } from "@getpaseo/plugin/client/react-native";
+import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import type { Question } from "../shared/dashboard";
-import { AttachmentList, type Attachment, questionAttachments, useAttachmentOpener } from "./attachments";
+import { AttachmentList, type Attachment, questionAttachments } from "./attachments";
 import { PressableRow } from "./row";
-import { PressScale, useLastPresent } from "./motion";
-import { PreviewDialog } from "./preview";
+import { PressScale } from "./motion";
+import { StackedDialog } from "./dialog-stack";
 import { raised } from "./surfaces";
 import { When } from "./when";
 
@@ -41,35 +41,6 @@ export interface AttachmentContext {
   navigation?: PluginWorkspacePanelProps["navigation"];
 }
 
-// One question dialog at a time, and the image preview it can hand off to.
-// Paseo shows one dialog, so the preview replaces the question and Back returns.
-function useQuestionDialogs(context: AttachmentContext) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [previewing, setPreviewing] = useState<{ attachment: Attachment; from: string } | null>(null);
-  const opener = useAttachmentOpener({
-    ...context,
-    onPreview: (attachment) => {
-      setPreviewing({ attachment, from: openId! });
-      setOpenId(null);
-    },
-  });
-  return { openId, setOpenId, previewing, setPreviewing, opener };
-}
-
-function QuestionPreview({ colors, context, dialogs }: { colors: Colors; context: AttachmentContext; dialogs: ReturnType<typeof useQuestionDialogs> }) {
-  const { previewing, setPreviewing, setOpenId, opener } = dialogs;
-  return (
-    <PreviewDialog colors={colors} attachment={previewing?.attachment ?? null} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
-      onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)}
-      backLabel={previewing ? `Back to ${previewing.from}` : undefined}
-      onBack={() => {
-        const from = previewing?.from ?? null;
-        setPreviewing(null);
-        setOpenId(from);
-      }} />
-  );
-}
-
 export function QuestionsSection({ colors, questions, now, compact, context }: {
   colors: Colors;
   questions: Question[];
@@ -77,8 +48,7 @@ export function QuestionsSection({ colors, questions, now, compact, context }: {
   compact: boolean;
   context: AttachmentContext;
 }) {
-  const dialogs = useQuestionDialogs(context);
-  const { openId, setOpenId } = dialogs;
+  const [openId, setOpenId] = useState<string | null>(null);
   const copy = useCopy();
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.accent, borderRadius: 6, overflow: "hidden" }}>
@@ -96,10 +66,8 @@ export function QuestionsSection({ colors, questions, now, compact, context }: {
         <QuestionRow key={question.id} colors={colors} question={question} first={index === 0}
           onOpen={() => setOpenId(question.id)} onCopy={() => void copy(question)} />
       ))}
-      <QuestionDialog colors={colors} question={questions.find((question) => question.id === openId) ?? null} now={now}
-        onClose={() => setOpenId(null)} onCopy={(question, letter) => { void copy(question, letter); setOpenId(null); }}
-        onOpenAttachment={(attachment) => void dialogs.opener.open(attachment)} />
-      <QuestionPreview colors={colors} context={context} dialogs={dialogs} />
+      <StackedDialog colors={colors} root={openId ? { kind: "question", id: openId } : null} onClose={() => setOpenId(null)}
+        questions={questions} now={now} context={context} />
     </View>
   );
 }
@@ -112,8 +80,7 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
   now: number;
   context: AttachmentContext;
 }) {
-  const dialogs = useQuestionDialogs(context);
-  const { openId, setOpenId } = dialogs;
+  const [openId, setOpenId] = useState<string | null>(null);
   return (
     <View>
       {questions.map((question, index) => {
@@ -135,9 +102,8 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
           </View>
         );
       })}
-      <QuestionDialog colors={colors} question={questions.find((question) => question.id === openId) ?? null} now={now}
-        onClose={() => setOpenId(null)} onCopy={() => {}} onOpenAttachment={(attachment) => void dialogs.opener.open(attachment)} />
-      <QuestionPreview colors={colors} context={context} dialogs={dialogs} />
+      <StackedDialog colors={colors} root={openId ? { kind: "question", id: openId } : null} onClose={() => setOpenId(null)}
+        questions={questions} now={now} context={context} />
     </View>
   );
 }
@@ -192,36 +158,13 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
   );
 }
 
-// The whole question in a dialog: choices with Copy buttons (while open), the
-// answer (once settled), background and files.
-function QuestionDialog({ colors, question, now, onClose, onCopy, onOpenAttachment }: {
-  colors: Colors;
-  question: Question | null;
-  now: number;
-  onClose(): void;
-  onCopy(question: Question, letter: string): void;
-  onOpenAttachment(attachment: Attachment): void;
-}) {
-  const open = Boolean(question);
-  question = useLastPresent(question);
-  return (
-    <Modal title={question ? `${question.id} · ${question.title}` : "Question"}
-      icon={<Icon name="MessageCircleQuestion" size={16} color={colors.foregroundMuted} />}
-      open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <Modal.Content>
-        {question ? <QuestionView colors={colors} question={question} now={now} onCopy={(letter) => onCopy(question, letter)} onOpenAttachment={onOpenAttachment} /> : null}
-      </Modal.Content>
-    </Modal>
-  );
-}
-
 // A question dialog's body, also shown inside a ticket's dialog. `children` go at the end.
 export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, children }: {
   colors: Colors;
   question: Question;
   now: number;
   onCopy(letter: string): void;
-  onOpenAttachment(attachment: Attachment): void;
+  onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   children?: React.ReactNode;
 }) {
   return (
@@ -255,7 +198,7 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
   question: Question;
   now: number;
   onCopy(letter: string): void;
-  onOpenAttachment(attachment: Attachment): void;
+  onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   onSurface1?: boolean;
 }) {
   const button = onSurface1 ? { rest: colors.surface2, pressed: colors.surface1 } : { rest: colors.surface1, pressed: colors.surface2 };
