@@ -36,6 +36,9 @@ export function ProgressPanel(props: PluginWorkspacePanelProps) {
 function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: PluginWorkspacePanelProps) {
   const colors = theme.colors;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
+  // Paseo marks the workspace running while any of its agents is, including a parent
+  // waiting on subagents that record nothing themselves.
+  const agentRunning = useWorkspace(workspaceId, (workspace) => workspace.status === "running") ?? false;
   const query = useDashboard(host.id, workspaceId, directory);
   const result = query.data ?? null;
   useMarkPanelOpened(workspaceId, directory, Boolean(result?.configured && !result.panelOpened));
@@ -51,7 +54,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
       <LauncherBanner colors={colors} host={host} />
       <SkillBanner colors={colors} host={host} />
       {result && !result.configured ? <EmptyState colors={colors} /> : null}
-      {result?.configured ? <DashboardView colors={colors} dashboard={result.dashboard} compact={layout.compact}
+      {result?.configured ? <DashboardView colors={colors} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
         workspaceId={workspaceId} workspaceDirectory={directory ?? ""} navigation={navigation} /> : null}
     </ScrollView>
   );
@@ -116,16 +119,19 @@ function useNow(intervalMs: number): number {
 
 const WIDE_MIN = 760;
 
-function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirectory, navigation }: {
+function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, workspaceDirectory, navigation }: {
   colors: Colors;
   dashboard: Dashboard;
+  agentRunning: boolean;
   compact: boolean;
   workspaceId: string;
   workspaceDirectory: string;
   navigation: PluginWorkspacePanelProps["navigation"];
 }) {
   const now = useNow(15_000);
-  const live = !dashboard.stale;
+  // Quiet isn't stale while an agent in the workspace is still running.
+  const stale = dashboard.stale && !agentRunning;
+  const live = !stale;
   // Two columns when opened as a wide tab; one in the narrow Explorer pane.
   const [wide, setWide] = useState(false);
   const attachmentContext = { workspaceId, workspaceDirectory, navigation };
@@ -178,7 +184,7 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
         ) : null}
       </View>
       </Presence>
-      <Presence show={Boolean(dashboard.stale && dashboard.updatedAt)} order={1}>{dashboard.stale && dashboard.updatedAt ? (
+      <Presence show={Boolean(stale && dashboard.updatedAt)} order={1}>{stale && dashboard.updatedAt ? (
         <View accessibilityRole="alert" style={{ flexDirection: "row", gap: 8, margin: 12, marginBottom: 0, padding: 10, borderWidth: 1, borderColor: colors.statusWarning, borderRadius: 6 }}>
           {/* Optical: centers the 14px icon on the first 18px line. */}
           <View style={{ paddingTop: 2 }}><Icon name="TriangleAlert" size={14} color={colors.statusWarning} /></View>

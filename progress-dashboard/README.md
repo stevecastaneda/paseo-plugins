@@ -5,7 +5,7 @@ A Paseo 0.9 plugin that gives each worktree a live progress dashboard. Agents re
 The dashboard shows:
 
 - the run's title, a headline ("2 of 4 tickets done, 5 questions waiting for you, 1 stuck"), a one-line "now" ticker, and when it was last updated
-- a "possibly stale" warning after 15 minutes with no update while tickets remain (never once every ticket is done or skipped); working items swap their spinner for a pulsing amber warning
+- a "possibly stale" warning after 15 minutes with no update while tickets remain, unless Paseo shows an agent in the workspace still running (for example one waiting on its subagents), and never once every ticket is done or skipped or the run is finished; working items swap their spinner for a pulsing amber warning
 - percent of estimated work done, hours done of hours estimated, and a bar with one segment per ticket
 - **Stuck:** blocked tickets, tickets running past their estimate, and blockers the agent flags
 - **Tickets:** estimate, status, and the working ticket's stage
