@@ -1,13 +1,14 @@
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
+import { nativeDriver } from "./motion";
 
 // A small spinner sized to sit beside 13px text; the stock ActivityIndicator
 // is larger than a line of text.
 export function Spinner({ color, size = 12 }: { color: string; size?: number }) {
   const turn = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const loop = Animated.loop(Animated.timing(turn, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true }));
+    const loop = Animated.loop(Animated.timing(turn, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: nativeDriver() }));
     loop.start();
     return () => loop.stop();
   }, [turn]);
@@ -25,8 +26,8 @@ export function StalledPulse({ color, size = 12 }: { color: string; size?: numbe
   const opacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(opacity, { toValue: 0.35, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0.35, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: nativeDriver() }),
+      Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: nativeDriver() }),
     ]));
     loop.start();
     return () => loop.stop();

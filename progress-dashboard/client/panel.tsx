@@ -4,7 +4,7 @@ import { DeliverablesSection } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
 import { AnsweredQuestionsSection, QuestionsSection } from "./questions";
 import { Spinner, StalledPulse } from "./spinner";
-import { IconSwap, Presence, StaggerRoot } from "./motion";
+import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { raised } from "./surfaces";
 import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
@@ -260,8 +260,8 @@ function Shimmer() {
   const value = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(value, { toValue: 1, duration: 900, useNativeDriver: true }),
-      Animated.timing(value, { toValue: 0, duration: 900, useNativeDriver: true }),
+      Animated.timing(value, { toValue: 1, duration: 900, useNativeDriver: nativeDriver() }),
+      Animated.timing(value, { toValue: 0, duration: 900, useNativeDriver: nativeDriver() }),
     ]));
     loop.start();
     return () => loop.stop();

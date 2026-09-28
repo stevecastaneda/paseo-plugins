@@ -4,6 +4,9 @@ import { AccessibilityInfo, Animated, Easing, Platform, Pressable, type Pressabl
 // Read at render time, not import time. The native driver can't run on web,
 // and web is the only place filter blur renders.
 const isWeb = () => Platform.OS === "web";
+// On web, react-native-web falls back to JS for `useNativeDriver: true` but
+// Animated.loop still takes the native path and plays one iteration.
+export const nativeDriver = () => !isWeb();
 const easeOut = () => Easing.out(Easing.ease);
 const iconCurve = () => Easing.bezier(0.2, 0, 0, 1);
 
@@ -31,7 +34,7 @@ export function PressScale({ static: isStatic, style, outerStyle, children, ...p
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   // Timing retargets from the current value, so a release mid-press eases back.
-  const to = (toValue: number) => Animated.timing(scale, { toValue, duration: 150, easing: easeOut(), useNativeDriver: !isWeb() }).start();
+  const to = (toValue: number) => Animated.timing(scale, { toValue, duration: 150, easing: easeOut(), useNativeDriver: nativeDriver() }).start();
   const [pressed, setPressed] = useState(false);
   return (
     <Pressable {...props} style={outerStyle}
@@ -62,7 +65,7 @@ export function IconSwap({ swapKey, size, children }: { swapKey: string; size: n
   useLayoutEffect(() => {
     if (!leaving) return;
     enter.setValue(0);
-    const animation = Animated.timing(enter, { toValue: 1, duration: 300, easing: iconCurve(), useNativeDriver: !isWeb() });
+    const animation = Animated.timing(enter, { toValue: 1, duration: 300, easing: iconCurve(), useNativeDriver: nativeDriver() });
     animation.start(({ finished }) => finished && setLeaving(null));
     return () => animation.stop();
   }, [shown]);
@@ -112,7 +115,7 @@ export function Presence({ show, order = 0, children }: { show: boolean; order?:
         return;
       }
       const firstLoad = start !== null && Date.now() - start < FIRST_LOAD_MS;
-      const animation = Animated.timing(enter, { toValue: 1, duration: 400, delay: firstLoad ? order * 100 : 0, easing: easeOut(), useNativeDriver: !isWeb() });
+      const animation = Animated.timing(enter, { toValue: 1, duration: 400, delay: firstLoad ? order * 100 : 0, easing: easeOut(), useNativeDriver: nativeDriver() });
       setMoving(true);
       animation.start(({ finished }) => finished && setMoving(false));
       return () => animation.stop();
@@ -121,7 +124,7 @@ export function Presence({ show, order = 0, children }: { show: boolean; order?:
       setMounted(false);
       return;
     }
-    const animation = Animated.timing(exit, { toValue: 1, duration: 150, easing: easeOut(), useNativeDriver: !isWeb() });
+    const animation = Animated.timing(exit, { toValue: 1, duration: 150, easing: easeOut(), useNativeDriver: nativeDriver() });
     setMoving(true);
     animation.start(({ finished }) => {
       if (finished) {
