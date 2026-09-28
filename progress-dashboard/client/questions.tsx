@@ -5,6 +5,7 @@ import { Text, View } from "react-native";
 import type { Question } from "../shared/dashboard";
 import { AttachmentList, type Attachment, questionAttachments } from "./attachments";
 import { PressableRow } from "./row";
+import { ShowMoreRow, usePaged } from "./show-more";
 import { PressScale } from "./motion";
 import { StackedDialog } from "./dialog-stack";
 import { raised } from "./surfaces";
@@ -81,9 +82,10 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
   context: AttachmentContext;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const paged = usePaged(questions);
   return (
     <View>
-      {questions.map((question, index) => {
+      {paged.shown.map((question, index) => {
         const answer = question.answer!;
         const chosen = question.options.find((option) => option.letter === answer.choice);
         return (
@@ -102,6 +104,7 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
           </View>
         );
       })}
+      <ShowMoreRow colors={colors} total={questions.length} paged={paged} />
       <StackedDialog colors={colors} root={openId ? { kind: "question", id: openId } : null} onClose={() => setOpenId(null)}
         questions={questions} now={now} context={context} />
     </View>

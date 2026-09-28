@@ -18,6 +18,7 @@ import { useDashboard } from "./dashboard-query";
 import { StatusBadge } from "./status-badge";
 import { TicketDialogs } from "./ticket-dialog";
 import { PressableRow } from "./row";
+import { ShowMoreRow, usePaged } from "./show-more";
 import { notePanelOpened } from "./panel-opened";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -297,10 +298,12 @@ function Tab({ colors, label, icon, count, selected, onPress }: { colors: Colors
   );
 }
 
+// Newest first, 10 at a time (see usePaged).
 function ActivityList({ colors, activity, now }: { colors: Colors; activity: Activity[]; now: number }) {
+  const paged = usePaged(activity);
   return (
     <View>
-      {activity.map((entry, index) => (
+      {paged.shown.map((entry, index) => (
         <View key={entry.id} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 1, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
           {/* Muted: a log to glance at, not something to act on. */}
           <Text selectable style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>{entry.text}</Text>
@@ -309,6 +312,7 @@ function ActivityList({ colors, activity, now }: { colors: Colors; activity: Act
           </Text>
         </View>
       ))}
+      <ShowMoreRow colors={colors} total={activity.length} paged={paged} />
     </View>
   );
 }
