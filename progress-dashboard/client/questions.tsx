@@ -3,6 +3,8 @@ import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Question } from "../shared/dashboard";
+import { IconSwap, PressScale } from "./motion";
+import { raised } from "./surfaces";
 import { When } from "./when";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -83,7 +85,7 @@ export function AnsweredQuestionsSection({ colors, questions, scope, now }: {
   const { expanded, toggle } = useExpanded(scope);
   const copy = useCopy();
   return (
-    <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.border, borderRadius: 6, overflow: "hidden" }}>
+    <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
         <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>Answered questions</Text>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{questions.length}</Text>
@@ -102,7 +104,7 @@ export function AnsweredQuestionsSection({ colors, questions, scope, now }: {
                 <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{answer.choice}</Text>
                 {chosen ? <Text style={{ color: colors.foreground }}> {chosen.label}</Text> : null}
               </Text>
-              <Icon name={open ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} />
+              <IconSwap swapKey={open ? "open" : "closed"} size={14}><Icon name={open ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} /></IconSwap>
             </Pressable>
             {open ? (
               <View style={{ paddingLeft: 40, paddingRight: 10, paddingBottom: 10, gap: 6 }}>
@@ -150,23 +152,22 @@ function QuestionRow({ colors, question, now, first, expanded, onToggle, onCopy 
   const answer = question.answer;
   return (
     <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={() => onCopy()} hitSlop={6}
+      <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={() => onCopy()} hitSlop={6}
+        outerStyle={{ alignSelf: "flex-start" }}
         style={({ pressed }) => ({
-          alignSelf: "flex-start",
           paddingHorizontal: 6,
           borderRadius: 999,
           backgroundColor: pressed ? colors.surface2 : colors.surface1,
-          borderWidth: 1,
-          borderColor: colors.border,
+          ...raised(colors),
         })}>
         <Text style={{ color: answer ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 17, fontWeight: "600" }}>{question.id}</Text>
-      </Pressable>
+      </PressScale>
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggle}
           style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
           <Text style={{ flex: 1, color: answer ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
           {!answer ? <DefaultBadge colors={colors} value={question.default} waits={question.waits} /> : null}
-          <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} />
+          <IconSwap swapKey={expanded ? "open" : "closed"} size={14}><Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} /></IconSwap>
         </Pressable>
         {expanded ? <QuestionDetail colors={colors} question={question} now={now} onCopy={onCopy} /> : null}
       </View>
@@ -191,7 +192,7 @@ function QuestionDetail({ colors, question, now, onCopy }: { colors: Colors; que
       {question.options.map((option) => {
         const isDefault = option.letter === question.default;
         return (
-          <View key={option.letter} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 8, borderRadius: 6, borderWidth: 1, borderColor: isDefault ? colors.accent : colors.border }}>
+          <View key={option.letter} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 8, borderRadius: 12, borderWidth: 1, borderColor: isDefault ? colors.accent : colors.border }}>
             <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", width: 14 }}>{option.letter}</Text>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
@@ -200,12 +201,12 @@ function QuestionDetail({ colors, question, now, onCopy }: { colors: Colors; que
               {option.consequence ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{option.consequence}</Text> : null}
             </View>
             {!question.answer ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={`Copy ${question.id} ${option.letter} for your agent`}
+              <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} ${option.letter} for your agent`}
                 onPress={() => onCopy(option.letter)} hitSlop={4}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.surface2 : colors.surface1 })}>
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 3, borderRadius: 4, ...raised(colors), backgroundColor: pressed ? colors.surface2 : colors.surface1 })}>
                 <Icon name="Copy" size={12} color={colors.foreground} />
                 <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>Copy {question.id} {option.letter}</Text>
-              </Pressable>
+              </PressScale>
             ) : null}
           </View>
         );

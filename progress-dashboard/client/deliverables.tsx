@@ -4,6 +4,8 @@ import React from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
 import { openDeliverable } from "../shared/rpc";
+import { PressScale } from "./motion";
+import { raised } from "./surfaces";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type Navigation = PluginWorkspacePanelProps["navigation"];
@@ -52,7 +54,7 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
     }
   }
   return (
-    <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.border, borderRadius: 6, overflow: "hidden" }}>
+    <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
       <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", paddingHorizontal: 10, paddingVertical: 8 }}>
         Latest deliverables
       </Text>
@@ -73,11 +75,11 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
             ) : null}
           </View>
           {deliverable.path ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Copy the path of ${deliverable.title}`} hitSlop={6}
+            <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${deliverable.title}`} hitSlop={6}
               onPress={() => void copyPath(deliverable)}
               style={({ pressed }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
               <Icon name="Copy" size={14} color={colors.foregroundMuted} />
-            </Pressable>
+            </PressScale>
           ) : (
             <Icon name="ExternalLink" size={14} color={colors.foregroundMuted} />
           )}

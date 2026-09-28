@@ -2,7 +2,9 @@ import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client"
 import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import { PressScale, Presence } from "./motion";
+import { raised } from "./surfaces";
 import { getLauncherStatus, getSkillStatus, installLauncher, installSkill, type LauncherStatus, type SkillStatus } from "../shared/rpc";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -89,19 +91,20 @@ function SetupBanner({ colors, icon, notice, pending, onPress }: {
   pending: boolean;
   onPress(): void;
 }) {
-  if (!notice) return null;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 10, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface1 }}>
+    <Presence show={Boolean(notice)}>{notice ? (
+    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
       <Icon name={icon} size={14} color={colors.foregroundMuted} />
       <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{notice.text}</Text>
       {notice.action ? (
-        <Pressable accessibilityRole="button" disabled={pending} onPress={onPress}
-          style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.accent, opacity: pressed || pending ? 0.7 : 1 })}>
+        <PressScale accessibilityRole="button" disabled={pending} onPress={onPress}
+          style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed || pending ? 0.7 : 1 })}>
           <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>
             {pending ? "Installing…" : notice.action}
           </Text>
-        </Pressable>
+        </PressScale>
       ) : null}
     </View>
+    ) : null}</Presence>
   );
 }
