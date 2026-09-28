@@ -50,6 +50,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     title: text,
     estimateMin: minutes,
     status: ticketStatusSchema.optional(),
+    // Another ticket in the run this one can't start until it's done.
+    waitsFor: text.optional(),
   }),
   z.object({
     ...base,
@@ -61,6 +63,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     // The step inside the ticket, like "Build" or "Fixes". Empty clears it.
     stage: z.string().trim().optional(),
     note: z.string().trim().optional(),
+    // Empty clears it.
+    waitsFor: z.string().trim().optional(),
   }),
   z.object({ ...base, type: z.literal("ticket.remove"), id: text }),
   // A blocker that is not a ticket status, like a failing external service.

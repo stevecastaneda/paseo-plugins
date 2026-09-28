@@ -122,6 +122,31 @@ test("a ticket's story: its stages with durations, and what belongs to it exactl
   assert.deepEqual(current.activity.map((entry) => entry.text), ["Untagged, while T02 worked"], "tags to another ticket never match by time");
 });
 
+test("a ticket waiting for another is not stuck, even if marked blocked, until that one is done", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Release");
+  await w.run("ticket", "add", "Ticket 01: Build", "--estimate", "30");
+  assert.match((await w.run("ticket", "add", "Ship", "--estimate", "10", "--waits-for", "t01")).text, /waits for T01$/);
+  await w.run("ticket", "add", "Docs", "--estimate", "10");
+  assert.equal((await w.run("ticket", "update", "T02", "--waits-for", "T02")).code, 1, "can't wait for itself");
+  assert.equal((await w.run("ticket", "update", "T03", "--waits-for", "T09")).code, 1, "must name a ticket in the run");
+  await w.run("ticket", "update", "T02", "--status", "blocked", "--note", "Waits on Ticket 01");
+  await w.run("ticket", "update", "T03", "--status", "blocked", "--note", "Staging is down");
+
+  let { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.tickets.find((ticket) => ticket.id === "T02")?.waitingFor, { id: "T01", title: "Ticket 01: Build" });
+  assert.deepEqual(dashboard.stuck.map((item) => item.key), ["blocked:T03"], "only the outside blocker is stuck");
+  assert.equal(dashboard.progress.segments.find((segment) => segment.id === "T02")?.waiting, true);
+  assert.match((await w.run("show")).text, /T02 {2}Waiting for T01/);
+
+  await w.run("ticket", "update", "T01", "--status", "done");
+  ({ dashboard } = await w.dashboard());
+  assert.equal(dashboard.tickets.find((ticket) => ticket.id === "T02")?.waitingFor, undefined, "done unblocks the wait");
+  assert.deepEqual(dashboard.stuck.map((item) => item.key), ["blocked:T02", "blocked:T03"], "still marked blocked after it: now that's stuck");
+  await w.run("ticket", "update", "T02", "--waits-for", "");
+  assert.equal((await w.dashboard()).dashboard.tickets.find((ticket) => ticket.id === "T02")?.waitsFor, undefined, "an empty value clears it");
+});
+
 test("opening the panel is remembered in the worktree", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Export");

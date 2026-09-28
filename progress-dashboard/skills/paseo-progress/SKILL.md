@@ -14,7 +14,7 @@ The user answers questions by reference ("Q7 A") and reads everything else at a 
 Run `paseo-progress show`. When it shows an open run for this job, continue it. A run marked Finished is closed, even if it looks like your job; start a new one. Otherwise:
 
 1. `paseo-progress start "<job title>"`, with `--subtitle` naming the spec or ticket folder.
-2. Add every ticket in order with `paseo-progress ticket add "Ticket 01: <title>" --estimate <minutes>`. Keep the "Ticket NN:" prefix: the dashboard shortens titles to it. For a job without tickets, add its steps instead and pass `--item-label Step` to `start`.
+2. Add every ticket in order with `paseo-progress ticket add "Ticket 01: <title>" --estimate <minutes>`, with `--waits-for T02` on any that can't start before another finishes. Keep the "Ticket NN:" prefix: the dashboard shortens titles to it. For a job without tickets, add its steps instead and pass `--item-label Step` to `start`.
 3. `paseo-progress activity add "<one line: what this run will do>"`.
 
 Done when `show` lists every ticket with an estimate.
@@ -59,7 +59,8 @@ paseo-progress question ask "<short title>" "<the question, in one or two senten
 
 ## 4. Flag what is stuck
 
-- A ticket waiting on something: `ticket update T03 --status blocked --note "<what it waits on>"`. Set it back to `working` when it moves again.
+- A ticket that has to wait for another ticket in this run is not stuck; that's just the order of work. Record it with `ticket add ... --waits-for T03` (or `ticket update T05 --waits-for T03`) and leave its status alone. The dashboard shows it calmly as waiting until T03 is done.
+- A ticket held up by something outside the run (a service, access, a decision nobody has made): `ticket update T03 --status blocked --note "<what it waits on>"`. That shows as stuck. Set it back to `working` when it moves again.
 - A blocker outside any ticket (a failing service, a missing key): `stuck set "<reason>" [--ticket T03]`, then `stuck clear S1` once it is gone.
 
 ## 5. Finish

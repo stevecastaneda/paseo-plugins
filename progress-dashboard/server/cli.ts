@@ -167,27 +167,31 @@ const commands: Record<string, Command> = {
     },
   },
   "ticket add": {
-    usage: `ticket add "<title>" --estimate <minutes> [--status <status>]`,
-    summary: "Add a ticket. Prints its id (T01, T02, ...).",
-    options: { estimate: { type: "string" }, status: { type: "string" } },
+    usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--waits-for <id>]`,
+    summary: "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker.",
+    options: { estimate: { type: "string" }, status: { type: "string" }, "waits-for": { type: "string" } },
     run({ positionals, values, state }) {
+      const waitsFor = values["waits-for"] === undefined ? undefined : existingTicket(state, stringOption(values["waits-for"])).id;
       const title = required(positionals[0], "ticket title");
       const estimateMin = minutesOption(values.estimate, "estimate");
       if (estimateMin === undefined) throw new UsageError("Missing --estimate <minutes>.");
       const used = eventsInRun(state.events).flatMap((event) => (event.type === "ticket.add" ? [event.id] : []));
       const id = nextId("T", used);
       return {
-        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status) },
-        message: `Added ${id}: ${title} (${estimateMin} min)`,
+        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor },
+        message: `Added ${id}: ${title} (${estimateMin} min)${waitsFor ? `, waits for ${waitsFor}` : ""}`,
       };
     },
   },
   "ticket update": {
-    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>]`,
-    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it).`,
-    options: { status: { type: "string" }, stage: { type: "string" }, title: { type: "string" }, estimate: { type: "string" }, note: { type: "string" } },
+    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>]`,
+    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that.`,
+    options: { status: { type: "string" }, stage: { type: "string" }, title: { type: "string" }, estimate: { type: "string" }, note: { type: "string" }, "waits-for": { type: "string" } },
     run({ positionals, values, state }) {
       const ticket = existingTicket(state, positionals[0]);
+      const rawWaitsFor = values["waits-for"] === undefined ? undefined : String(values["waits-for"]).trim();
+      const waitsFor = rawWaitsFor === undefined || rawWaitsFor === "" ? rawWaitsFor : existingTicket(state, rawWaitsFor).id;
+      if (waitsFor && waitsFor === ticket.id) throw new UsageError(`${ticket.id} can't wait for itself.`);
       const event = {
         type: "ticket.update" as const,
         id: ticket.id,
@@ -196,9 +200,10 @@ const commands: Record<string, Command> = {
         status: statusOption(values.status),
         stage: stringOption(values.stage),
         note: stringOption(values.note),
+        waitsFor,
       };
       const changes = Object.entries(event).filter(([key, value]) => key !== "type" && key !== "id" && value !== undefined);
-      if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, or --note.");
+      if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, or --waits-for.");
       return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${value}`).join(", ")}` };
     },
   },

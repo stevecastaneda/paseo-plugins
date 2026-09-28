@@ -10,7 +10,7 @@ import { raised } from "./surfaces";
 import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import type { Activity, Dashboard, FileIssue, ProgressSegment, StuckItem, Ticket } from "../shared/dashboard";
+import { shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
 import { formatHours, formatMinutes, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
@@ -359,7 +359,7 @@ function Segment({ colors, segment, live }: { colors: Colors; segment: ProgressS
   const working = segment.status === "working";
   const color = segment.status === "done" ? colors.accent
     : working ? colors.accent
-    : segment.status === "blocked" ? colors.statusDanger
+    : segment.status === "blocked" && !segment.waiting ? colors.statusDanger
     : colors.surface2;
   return (
     <View style={{ flex: segment.estimateMin, backgroundColor: color, opacity: working ? 0.45 : 1, overflow: "hidden" }}>
@@ -418,7 +418,7 @@ function TicketRow({ colors, ticket, live, now, onOpen }: { colors: Colors; tick
       accessibilityRole="button" accessibilityLabel={`${ticket.id} details`} onPress={onOpen}
       style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
-        <IconSwap swapKey={ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} /></IconSwap>
+        <IconSwap swapKey={ticket.waitingFor ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={{ color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
@@ -434,18 +434,22 @@ function TicketRow({ colors, ticket, live, now, onOpen }: { colors: Colors; tick
             Working since <When colors={colors} iso={ticket.workingSince} now={now} />
           </Text>
         ) : null}
+        {ticket.waitingFor ? (
+          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>Waits for {shortTitle(ticket.waitingFor.title)}</Text>
+        ) : null}
         {ticket.note ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{ticket.note}</Text> : null}
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{ticket.estimateMin} min</Text>
       {/* The check mark already says done. */}
       {/* Optical: the 20px badge centers on the 18px line. */}
-      {ticket.status === "done" ? null : <View style={{ marginTop: -1 }}><StatusBadge colors={colors} status={ticket.status} /></View>}
+      {ticket.status === "done" ? null : <View style={{ marginTop: -1 }}><StatusBadge colors={colors} status={ticket.status} waiting={Boolean(ticket.waitingFor)} /></View>}
       <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
     </PressableRow>
   );
 }
 
-function StatusIcon({ colors, status, live }: { colors: Colors; status: TicketStatus; live: boolean }) {
+function StatusIcon({ colors, status, live, waiting }: { colors: Colors; status: TicketStatus; live: boolean; waiting: boolean }) {
+  if (waiting) return <Icon name="Hourglass" size={14} color={colors.foregroundMuted} />;
   switch (status) {
     case "done":
       return <Icon name="Check" size={14} color={colors.statusSuccess} />;

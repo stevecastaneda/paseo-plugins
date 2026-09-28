@@ -37,7 +37,8 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   lines.push("", `${dashboard.run?.itemLabel ?? "Ticket"}s`);
   for (const ticket of dashboard.tickets) {
     const stage = ticket.status === "working" && ticket.stage ? `, ${ticket.stage} stage` : "";
-    lines.push(`  ${ticket.id}  ${STATUS[ticket.status]}${stage}  ${ticket.estimateMin} min  ${ticket.title}`);
+    const status = ticket.waitingFor ? `Waiting for ${ticket.waitingFor.id}` : STATUS[ticket.status];
+    lines.push(`  ${ticket.id}  ${status}${stage}  ${ticket.estimateMin} min  ${ticket.title}`);
   }
   if (dashboard.questions.open.length) {
     lines.push("", "Questions waiting");

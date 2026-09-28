@@ -54,20 +54,28 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
     <View style={{ gap: 20 }}>
       <View style={{ gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <StatusBadge colors={colors} status={ticket.status} />
+          <StatusBadge colors={colors} status={ticket.status} waiting={Boolean(ticket.waitingFor)} />
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
             Worked {formatMinutes(story.workedMin)} of a {formatMinutes(ticket.estimateMin)} estimate
             {overMin >= 1 ? <Text style={{ color: colors.statusDanger }}>, {formatMinutes(overMin)} over</Text> : null}
           </Text>
         </View>
+        {ticket.waitingFor ? (
+          <Text style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 }}>Waits for {ticket.waitingFor.id}: {ticket.waitingFor.title}</Text>
+        ) : null}
         {ticket.note ? <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{ticket.note}</Text> : null}
       </View>
 
       <Section colors={colors} title="Timeline">
         <View>
-          {story.timeline.map((step, index) => (
-            <TimelineRow key={`${step.at}-${index}`} colors={colors} step={step} last={index === story.timeline.length - 1} now={now} live={live} />
-          ))}
+          {story.timeline.map((step, index) => {
+            const last = index === story.timeline.length - 1;
+            // A current "Blocked" that's only waiting on another ticket reads as waiting, in the calm color.
+            const shown = last && ticket.waitingFor && step.status === "blocked"
+              ? { ...step, label: `Waiting for ${ticket.waitingFor.id}`, status: "not_started" as const }
+              : step;
+            return <TimelineRow key={`${step.at}-${index}`} colors={colors} step={shown} last={last} now={now} live={live} />;
+          })}
         </View>
       </Section>
 

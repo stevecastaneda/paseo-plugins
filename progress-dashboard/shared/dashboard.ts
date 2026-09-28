@@ -20,6 +20,10 @@ export interface Ticket {
   stage?: string;
   stageSince?: string;
   note?: string;
+  // The ticket this one waits for, while that ticket isn't done or skipped yet.
+  // Waiting is the order of work, not a problem, so it never counts as stuck.
+  waitingFor?: { id: string; title: string };
+  waitsFor?: string;
   // Every status, stage and note change, starting with when it was added.
   history: TicketChange[];
 }
@@ -81,6 +85,7 @@ export interface ProgressSegment {
   id: string;
   estimateMin: number;
   status: TicketStatus;
+  waiting?: boolean;
 }
 
 export interface Dashboard {
@@ -185,6 +190,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           statusSince: event.ts,
           workingSince: event.status === "working" ? event.ts : undefined,
           history: [{ at: event.ts, status: event.status ?? "not_started" }],
+          waitsFor: event.waitsFor,
         });
         break;
       case "ticket.update": {
@@ -210,6 +216,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           ticket.stageSince = event.stage ? event.ts : undefined;
         }
         if (event.note !== undefined) ticket.note = event.note || undefined;
+        if (event.waitsFor !== undefined) ticket.waitsFor = event.waitsFor || undefined;
         break;
       }
       case "ticket.remove":
@@ -292,6 +299,12 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
   }
 
   const list = [...tickets.values()];
+  for (const ticket of list) {
+    const other = ticket.waitsFor ? tickets.get(ticket.waitsFor) : undefined;
+    ticket.waitingFor = other && other.status !== "done" && other.status !== "skipped" && ticket.status !== "done" && ticket.status !== "skipped"
+      ? { id: other.id, title: other.title }
+      : undefined;
+  }
   const itemLabel = run?.itemLabel ?? "Ticket";
   const stuck = stuckItems(list, [...manualStuck.values()], now);
   const allQuestions = [...questions.values()];
@@ -328,14 +341,15 @@ function progress(tickets: Ticket[]): Dashboard["progress"] {
     percent: totalMin ? Math.round((doneMin / totalMin) * 100) : 0,
     doneMin,
     totalMin,
-    segments: counted.map(({ id, estimateMin, status }) => ({ id, estimateMin, status })),
+    segments: counted.map(({ id, estimateMin, status, waitingFor }) => ({ id, estimateMin, status, waiting: Boolean(waitingFor) })),
   };
 }
 
 function stuckItems(tickets: Ticket[], manual: Array<{ id: string; reason: string; ticket?: string; since: string }>, now: Date): StuckItem[] {
   const items: StuckItem[] = [];
   for (const ticket of tickets) {
-    if (ticket.status === "blocked") {
+    // Blocked only on another ticket in the run is waiting, not stuck.
+    if (ticket.status === "blocked" && !ticket.waitingFor) {
       items.push({ kind: "blocked", key: `blocked:${ticket.id}`, ticketId: ticket.id, title: ticket.title, since: ticket.statusSince, note: ticket.note });
     } else if (ticket.status === "working" && ticket.workingSince) {
       const workedMin = (now.getTime() - Date.parse(ticket.workingSince)) / 60_000;
