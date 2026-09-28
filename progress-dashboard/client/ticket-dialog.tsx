@@ -3,7 +3,6 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import React from "react";
 import { Text, View } from "react-native";
 import type { Dashboard, Ticket } from "../shared/dashboard";
-import type { TicketStatus } from "../shared/events";
 import { formatMinutes } from "../shared/format";
 import { type Link, ticketStory, type TimelineStep } from "../shared/ticket-story";
 import { type Attachment, AttachmentList, deliverableAttachment } from "./attachments";
@@ -55,24 +54,31 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
       <View style={{ gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <StatusBadge colors={colors} status={ticket.status} waiting={Boolean(ticket.waitingFor)} />
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
-            Worked {formatMinutes(story.workedMin)} of a {formatMinutes(ticket.estimateMin)} estimate
-            {overMin >= 1 ? <Text style={{ color: colors.statusDanger }}>, {formatMinutes(overMin)} over</Text> : null}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name="Timer" size={12} color={colors.foregroundMuted} />
+            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
+              Worked {formatMinutes(story.workedMin)} of a {formatMinutes(ticket.estimateMin)} estimate
+              {overMin >= 1 ? <Text style={{ color: colors.statusDanger }}>, {formatMinutes(overMin)} over</Text> : null}
+            </Text>
+          </View>
         </View>
         {ticket.waitingFor ? (
-          <Text style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 }}>Waits for {ticket.waitingFor.id}: {ticket.waitingFor.title}</Text>
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            {/* Held on the first line when a long title wraps. */}
+            <View style={{ height: 18, justifyContent: "center" }}><Icon name="Hourglass" size={12} color={colors.foregroundMuted} /></View>
+            <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Waits for {ticket.waitingFor.id}: {ticket.waitingFor.title}</Text>
+          </View>
         ) : null}
         {ticket.note ? <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{ticket.note}</Text> : null}
       </View>
 
-      <Section colors={colors} title="Timeline">
+      <Section colors={colors} icon="History" title="Timeline">
         <View>
           {story.timeline.map((step, index) => {
             const last = index === story.timeline.length - 1;
             // A current "Blocked" that's only waiting on another ticket reads as waiting, in the calm color.
             const shown = last && ticket.waitingFor && step.status === "blocked"
-              ? { ...step, label: `Waiting for ${ticket.waitingFor.id}`, status: "not_started" as const }
+              ? { ...step, label: `Waiting for ${ticket.waitingFor.id}`, waiting: true }
               : step;
             return <TimelineRow key={`${step.at}-${index}`} colors={colors} step={shown} last={last} now={now} live={live} />;
           })}
@@ -80,13 +86,13 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
       </Section>
 
       {story.deliverables.length ? (
-        <Section colors={colors} title="Deliverables">
+        <Section colors={colors} icon="Package" title="Deliverables">
           <AttachmentList colors={colors} attachments={story.deliverables.map(deliverableAttachment)} onOpen={onOpenAttachment} />
         </Section>
       ) : null}
 
       {story.questions.length ? (
-        <Section colors={colors} title="Questions">
+        <Section colors={colors} icon="MessageCircleQuestion" title="Questions">
           <View style={{ gap: 2 }}>
             {story.questions.map((question) => {
               const chosen = question.answer ? question.options.find((option) => option.letter === question.answer!.choice) : undefined;
@@ -111,7 +117,7 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
       ) : null}
 
       {story.activity.length ? (
-        <Section colors={colors} title="Activity">
+        <Section colors={colors} icon="Activity" title="Activity">
           <View style={{ gap: 8 }}>
             {story.activity.map((entry) => (
               <View key={entry.id} style={{ gap: 1 }}>
@@ -132,10 +138,14 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
   );
 }
 
-function Section({ colors, title, children }: { colors: Colors; title: string; children: React.ReactNode }) {
+// A section heading: a 14px icon beside the 13px semibold title, like the panel's cards.
+function Section({ colors, icon, title, children }: { colors: Colors; icon: string; title: string; children: React.ReactNode }) {
   return (
     <View style={{ gap: 8 }}>
-      <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{title}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Icon name={icon} size={14} color={colors.foregroundMuted} />
+        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{title}</Text>
+      </View>
       {children}
     </View>
   );
@@ -145,30 +155,31 @@ function LinkNote({ colors, link }: { colors: Colors; link: Link }) {
   return link === "by-time" ? <Text style={{ color: colors.foregroundMuted, opacity: 0.7 }}>  by time</Text> : null;
 }
 
-const DOT = 8;
-
-function dotColor(colors: Colors, status: TicketStatus): string {
-  return status === "done" ? colors.statusSuccess
-    : status === "working" ? colors.accent
-    : status === "blocked" ? colors.statusDanger
-    : colors.foregroundMuted;
+// The same icons as the ticket rows, so a step reads like the status it was.
+// Past stage steps get an accent ringed dot: work that happened, now over.
+function Marker({ colors, step }: { colors: Colors; step: TimelineStep & { waiting?: boolean } }) {
+  const icon = step.waiting ? { name: "Hourglass", color: colors.foregroundMuted }
+    : step.label === "Added" ? { name: "CirclePlus", color: colors.foregroundMuted }
+    : step.status === "done" ? { name: "CircleCheck", color: colors.statusSuccess }
+    : step.status === "blocked" ? { name: "Ban", color: colors.statusDanger }
+    : step.status === "skipped" ? { name: "CircleSlash", color: colors.foregroundMuted }
+    : step.status === "not_started" ? { name: "Circle", color: colors.foregroundMuted }
+    : { name: "CircleDot", color: colors.accent };
+  return <Icon name={icon.name} size={12} color={icon.color} />;
 }
 
-// A rail of dots joined by a line; the step still going shows the live spinner.
-function TimelineRow({ colors, step, last, now, live }: { colors: Colors; step: TimelineStep; last: boolean; now: number; live: boolean }) {
+// A rail of status icons joined by a line; the step still going shows the live spinner.
+function TimelineRow({ colors, step, last, now, live }: { colors: Colors; step: TimelineStep & { waiting?: boolean }; last: boolean; now: number; live: boolean }) {
   const current = last && step.minutes !== null;
   const working = current && step.status === "working";
   return (
-    <View style={{ flexDirection: "row", gap: 10 }}>
-      <View style={{ width: 12, alignItems: "center" }}>
+    // The rail is as wide as a section icon, so markers sit under it and labels line up with the title.
+    <View style={{ flexDirection: "row", gap: 6 }}>
+      <View style={{ width: 14, alignItems: "center" }}>
         {/* Optical: centers the marker on the 18px first line. */}
         <View style={{ height: 18, justifyContent: "center" }}>
-          <IconSwap swapKey={working ? (live ? "live" : "stale") : step.status} size={12}>
-            {working ? (live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />) : (
-              <View style={{ width: 12, height: 12, alignItems: "center", justifyContent: "center" }}>
-                <View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: dotColor(colors, step.status) }} />
-              </View>
-            )}
+          <IconSwap swapKey={working ? (live ? "live" : "stale") : step.waiting ? "waiting" : step.status} size={12}>
+            {working ? (live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />) : <Marker colors={colors} step={step} />}
           </IconSwap>
         </View>
         {last ? null : <View style={{ flex: 1, width: 1, backgroundColor: colors.border }} />}

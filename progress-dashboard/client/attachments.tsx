@@ -121,7 +121,8 @@ export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true 
         <PressableRow key={attachment.ref} colors={colors} onSurface1={onSurface1} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={`Open ${attachment.title}`}
           onPress={() => onOpen(attachment, attachments)}
           style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
-          <Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} />
+          {/* A 14px slot, like a section icon, so the title lines up with the heading above. */}
+          <View style={{ width: 14, alignItems: "center" }}><Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} /></View>
           {/* The row is the target, so nothing in it is styled as a link. */}
           <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foreground, fontSize: 12, lineHeight: 17 }}>{attachment.title}</Text>
           {shortName(attachment) !== attachment.title ? (
