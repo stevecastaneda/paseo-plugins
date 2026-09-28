@@ -10,12 +10,12 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { handleGetDashboard, markPanelOpened, readDashboard } from "./dashboard.ts";
+import { handleGetAttention, handleGetDashboard, markPanelOpened, readDashboard } from "./dashboard.ts";
 import { formatHours, formatMinutes } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
-import { attachmentPath, MAX_PREVIEW_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
+import { attachmentPath, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
 import { imageMimeType } from "../shared/preview.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 
@@ -238,7 +238,33 @@ test("the handler reads the requested workspace directory without calling Paseo"
   await w.run("start", "Run");
   const paseo = new Proxy({} as PluginHandlerContext["paseo"], { get() { throw new Error("must not call paseo"); } });
   const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: w.directory }, { paseo });
+  assert.ok("dashboard" in result);
   assert.equal(result.dashboard.run?.title, "Run");
+});
+
+test("a poll with the current version gets a short unchanged reply until the file changes", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const context = { paseo: {} as PluginHandlerContext["paseo"] };
+  const input = { workspaceId: "ws-1", workspaceDirectory: w.directory };
+  const first = await handleGetDashboard(input, context);
+  assert.ok("dashboard" in first);
+  assert.deepEqual(await handleGetDashboard({ ...input, since: first.version }, context), { unchanged: true, version: first.version });
+  await w.run("ticket", "add", "Ticket 01: Next", "--estimate", "10");
+  const second = await handleGetDashboard({ ...input, since: first.version }, context);
+  assert.ok("dashboard" in second, "a change to the file sends the new dashboard");
+  assert.equal(second.dashboard.tickets.length, 1);
+  assert.notEqual(second.version, first.version);
+});
+
+test("the pill check returns only counts and run state", async (t) => {
+  const w = await worktree(t);
+  const context = { paseo: {} as PluginHandlerContext["paseo"] };
+  const input = { workspaceId: "ws-1", workspaceDirectory: w.directory };
+  assert.deepEqual(await handleGetAttention(input, context), { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false });
+  await w.run("start", "Run");
+  await w.run("question", "ask", "Spacing", "Tighter?", "--option", "A=Yes | tighter", "--option", "B=No | as is", "--default", "A");
+  assert.deepEqual(await handleGetAttention(input, context), { configured: true, questions: 1, stuck: 0, runOpen: true, panelOpened: false });
 });
 
 test("the command runs as a script and stamps the real time", async (t) => {
@@ -634,6 +660,13 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image or text file/, "HTML is left to the browser");
   await assert.rejects(previewDeliverable(w.directory, "D3"), /too large to preview/);
   await assert.rejects(previewDeliverable(w.directory, "D4"), /no longer exists|outside this worktree/);
+  const longLog = "x".repeat(MAX_PREVIEW_TEXT_BYTES + 10);
+  await writeFile(join(w.directory, "shots", "long.log"), longLog);
+  await writeFile(join(w.directory, "shots", "empty.txt"), "");
+  await w.run("deliverable", "add", "Long", "shots/long.log");
+  await w.run("deliverable", "add", "Empty", "shots/empty.txt");
+  assert.deepEqual(await previewDeliverable(w.directory, "D6"), { kind: "text", text: longLog.slice(0, MAX_PREVIEW_TEXT_BYTES), bytes: longLog.length, truncated: true });
+  assert.deepEqual(await previewDeliverable(w.directory, "D7"), { kind: "text", text: "", bytes: 0, truncated: false });
   assert.equal(imageMimeType("a/b.jpeg"), "image/jpeg");
   assert.equal(imageMimeType("report.html"), null);
 });

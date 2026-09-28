@@ -2,8 +2,8 @@ import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useSyncExternalStore } from "react";
-import { attentionOf, pillLabel, type Attention } from "../shared/attention";
-import { getDashboard } from "../shared/rpc";
+import { pillLabel, type Attention } from "../shared/attention";
+import { getAttention } from "../shared/rpc";
 import { observeDirectory } from "./directory";
 import { onPanelOpened } from "./panel-opened";
 import { IconSwap } from "./motion";
@@ -11,6 +11,10 @@ import { Spinner } from "./spinner";
 import { AttentionPopover } from "./pill-popover";
 
 export const PILL_POLL_MS = 5_000;
+// A worktree with nothing going on (no file, or a closed run with nothing
+// waiting) is checked on every 6th poll, 30 seconds. Its agents' updates
+// still trigger a check, at most once a poll interval.
+export const IDLE_POLL_EVERY = 6;
 const EXPLORER = { location: "explorer" as const };
 
 type Mode = "attention" | "started";
@@ -38,6 +42,9 @@ export function contributePills(client: PluginClientContext) {
   const listeners = new Set<() => void>();
   const pills = new Map<string, { workspaceId: string; label: string; mode: Mode; pill: PluginButtonRegistration }>();
   const pending = new Set<string>();
+  // Polls left before an idle workspace is checked again, and when each was last checked.
+  const idleWait = new Map<string, number>();
+  const checkedAt = new Map<string, number>();
   let agents: Array<{ id: string; workspaceId?: string | null }> = [];
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -125,27 +132,43 @@ export function contributePills(client: PluginClientContext) {
     const directory = workspaces.get(workspaceId);
     if (stopped || !directory || pending.has(workspaceId)) return;
     pending.add(workspaceId);
+    checkedAt.set(workspaceId, Date.now());
     const reportsBefore = openedReports;
     try {
-      const result = await client.rpc(getDashboard, { workspaceId, workspaceDirectory: directory });
+      const result = await client.rpc(getAttention, { workspaceId, workspaceDirectory: directory });
       if (stopped || workspaces.get(workspaceId) !== directory) return;
-      setAttention(workspaceId, result.configured ? attentionOf(result.dashboard) : undefined);
-      if (result.configured && result.dashboard.run && !result.dashboard.run.finished && !result.panelOpened) {
+      setAttention(workspaceId, result.configured ? { questions: result.questions, stuck: result.stuck } : undefined);
+      if (result.configured && result.runOpen && !result.panelOpened) {
         if (openedReports === reportsBefore) started.add(workspaceId);
       } else started.delete(workspaceId);
+      const idle = !result.runOpen && !result.questions && !result.stuck;
+      if (idle) idleWait.set(workspaceId, IDLE_POLL_EVERY - 1);
+      else idleWait.delete(workspaceId);
       publish();
     } catch { /* Try again on the next poll. */ } finally {
       pending.delete(workspaceId);
     }
   };
   const watched = () => new Set(agents.flatMap((agent) => (agent.workspaceId && workspaces.has(agent.workspaceId) ? [agent.workspaceId] : [])));
+  const due = (workspaceId: string) => {
+    const wait = idleWait.get(workspaceId);
+    if (!wait) return true;
+    idleWait.set(workspaceId, wait - 1);
+    return false;
+  };
+  // An agent update can mean a new run; check soon, but not on every update.
+  const nudge = (workspaceId: string) => {
+    if (Date.now() - (checkedAt.get(workspaceId) ?? 0) >= PILL_POLL_MS) void refresh(workspaceId);
+  };
   const sync = async () => {
-    await Promise.all([...watched()].map(refresh));
+    await Promise.all([...watched()].filter(due).map(refresh));
     if (!stopped) timer = setTimeout(() => void sync(), PILL_POLL_MS);
   };
   const forget = (workspaceId: string) => {
     workspaces.delete(workspaceId);
     started.delete(workspaceId);
+    idleWait.delete(workspaceId);
+    checkedAt.delete(workspaceId);
     setAttention(workspaceId, undefined);
   };
 
@@ -189,7 +212,7 @@ export function contributePills(client: PluginClientContext) {
       agents = agents.filter((agent) => agent.id !== id);
       if (update.kind !== "remove") {
         agents.push(update.agent);
-        if (update.agent.workspaceId && !attention.has(update.agent.workspaceId)) void refresh(update.agent.workspaceId);
+        if (update.agent.workspaceId && !attention.has(update.agent.workspaceId)) nudge(update.agent.workspaceId);
       }
       publish();
     },

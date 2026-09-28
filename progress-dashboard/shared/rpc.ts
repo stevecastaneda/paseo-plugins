@@ -2,14 +2,32 @@ import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 import type { Dashboard } from "./dashboard.ts";
 
+// `panelOpened`: the Progress panel has been opened for this worktree before.
+// `version` changes whenever anything else in the result does.
+export type DashboardResult = { configured: boolean; dashboard: Dashboard; panelOpened: boolean; version: string };
+
 export const getDashboard = defineRpc({
   name: "progress-dashboard.get",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
+    // The version the caller already has; if it's current, the reply is `unchanged`.
+    since: z.string().optional(),
   }),
-  // `panelOpened`: the Progress panel has been opened for this worktree before.
-  output: z.custom<{ configured: boolean; dashboard: Dashboard; panelOpened: boolean }>(),
+  output: z.custom<DashboardResult | { unchanged: true; version: string }>(),
+});
+
+// What a message-box pill shows: counts that need the user, and whether a run
+// is open in a worktree whose panel has never been opened.
+export type AttentionResult = { configured: boolean; questions: number; stuck: number; runOpen: boolean; panelOpened: boolean };
+
+export const getAttention = defineRpc({
+  name: "progress-dashboard.attention",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+  }),
+  output: z.custom<AttentionResult>(),
 });
 
 // Records that the Progress panel was opened, so the "Progress" pill goes away for good.

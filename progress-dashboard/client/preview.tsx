@@ -1,7 +1,7 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Platform, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { type Attachment, attachmentIcon, isPreviewable } from "./attachments";
 import { previewDeliverable } from "../shared/rpc";
@@ -64,6 +64,8 @@ export function PreviewBody({ colors, attachment, workspaceId, workspaceDirector
     queryKey: ["progress-dashboard", "preview", workspaceId, target.ref, target.path],
     queryFn: () => fetchPreview({ workspaceId, workspaceDirectory, ref: target.ref }),
     staleTime: 30_000,
+    // Images arrive as data URIs up to ~13 MB; let them go soon after the dialog moves on.
+    gcTime: 30_000,
   });
   // Stepping to another file keeps this one on screen (dimmed) until the next loads,
   // so the dialog doesn't collapse to a spinner and back.
@@ -80,13 +82,17 @@ export function PreviewBody({ colors, attachment, workspaceId, workspaceDirector
     }, () => {});
     return () => { current = false; };
   }, [imageUri, attachment.ref]);
-  // Load the files either side ahead of time, so Previous and Next are instant.
+  // Load the next file in the direction of travel ahead of time, so stepping is
+  // instant without holding both neighbors in memory.
   const queryClient = useQueryClient();
   const items = gallery?.items ?? [];
   const index = items.findIndex((item) => item.ref === attachment.ref);
+  const lastIndex = useRef(index);
   useEffect(() => {
     if (index < 0 || items.length < 2) return;
-    for (const step of [1, -1]) void queryClient.prefetchQuery(previewQuery(items[(index + step + items.length) % items.length]));
+    const step = (lastIndex.current - index + items.length) % items.length === 1 ? -1 : 1;
+    lastIndex.current = index;
+    void queryClient.prefetchQuery(previewQuery(items[(index + step + items.length) % items.length]));
   }, [attachment.ref, items.length]);
   // Screenshots vary from phone-tall to full-width; size to the real image once it loads.
   // Kept per file, so stepping to the next image doesn't borrow this one's shape.

@@ -46,6 +46,20 @@ test("the panel polls only once the workspace directory is known and shares one 
   cache.clear();
 });
 
+test("an unchanged reply keeps the dashboard the panel already has", async () => {
+  const h = clientHarness(directory);
+  const { dashboardQueryOptions } = h.load("client/dashboard-query.ts");
+  const held = { configured: true, dashboard: {}, panelOpened: true, version: "v1" };
+  const sent: Array<{ since?: string }> = [];
+  const fetchDashboard = async (input: { since?: string }) => {
+    sent.push(input);
+    return { unchanged: true, version: "v1" };
+  };
+  const options = dashboardQueryOptions(fetchDashboard, "host", "w", "/w", () => held);
+  assert.equal(await options.queryFn(), held, "the same object, so nothing re-renders");
+  assert.equal(sent[0].since, "v1");
+});
+
 test("tapping a question reference copies it in the reply format", () => {
   const h = clientHarness(directory, { "@getpaseo/plugin/client/react-native": {} });
   const { replyPrefix, replyWithChoice } = h.load("client/questions.tsx");
@@ -53,20 +67,14 @@ test("tapping a question reference copies it in the reply format", () => {
   assert.equal(replyWithChoice({ id: "Q7", title: "Row spacing" }, "B"), "Q7 (Row spacing): B", "an option's Copy button adds its letter");
 });
 
-function dashboardWith(questions: number, stuck: number) {
-  return {
-    configured: true,
-    dashboard: {
-      questions: { open: Array.from({ length: questions }, (_, index) => ({ id: `Q${index + 1}` })), answered: [] },
-      stuck: Array.from({ length: stuck }, (_, index) => ({ key: `s${index}` })),
-    },
-  };
+function attentionWith(questions: number, stuck: number, run: { open?: boolean; panelOpened?: boolean } = {}) {
+  return { configured: true, questions, stuck, runOpen: run.open ?? false, panelOpened: run.panelOpened ?? false };
 }
 
 test("an agent's composer shows a pill while its workspace has questions waiting or something stuck", async () => {
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
-  h.responses["progress-dashboard.get"] = dashboardWith(2, 1);
+  h.responses["progress-dashboard.attention"] = attentionWith(2, 1);
   const stop = contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }, { agent: { id: "idle", workspaceId: "other" } }]);
   h.workspaces.bootstrap([
@@ -87,12 +95,12 @@ test("an agent's composer shows a pill while its workspace has questions waiting
   pill?.button.behavior.Content({ workspaceId: "w", close() {} }).props.openPanel();
   assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }]);
 
-  h.responses["progress-dashboard.get"] = dashboardWith(1, 0);
+  h.responses["progress-dashboard.attention"] = attentionWith(1, 0);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().find((entry) => entry.agentId === "a")?.button.label, "1 question");
 
-  h.responses["progress-dashboard.get"] = dashboardWith(0, 0);
+  h.responses["progress-dashboard.attention"] = attentionWith(0, 0);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().length, 0, "the pill disappears when nothing needs the user");
@@ -105,7 +113,7 @@ test("an agent's composer shows a pill while its workspace has questions waiting
 
 test("a workspace without a progress file never shows a pill", async () => {
   const h = clientHarness(directory);
-  h.responses["progress-dashboard.get"] = { configured: false, dashboard: {} };
+  h.responses["progress-dashboard.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
   const stop = h.load("client/pills.tsx").contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
@@ -114,12 +122,30 @@ test("a workspace without a progress file never shows a pill", async () => {
   stop();
 });
 
+test("a worktree with nothing going on is checked every 30 seconds instead of every 5", async () => {
+  const h = clientHarness(directory);
+  const { contributePills, PILL_POLL_MS, IDLE_POLL_EVERY } = h.load("client/pills.tsx");
+  h.responses["progress-dashboard.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
+  const stop = contributePills(h.client);
+  h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
+  h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
+  await h.flush();
+  const reads = () => h.requests.filter((request) => request.name === "progress-dashboard.attention").length;
+  const before = reads();
+  for (let poll = 0; poll < IDLE_POLL_EVERY; poll++) {
+    await h.tick(PILL_POLL_MS);
+    await h.flush();
+  }
+  assert.equal(reads() - before, 1, "one check across six polls");
+  stop();
+});
+
 test("a run shows a Progress pill until the panel is opened, then never again", async () => {
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
   const { notePanelOpened } = h.load("client/panel-opened.ts");
-  const run = (panelOpened: boolean, questions = 0) => ({ ...dashboardWith(questions, 0), panelOpened, dashboard: { ...dashboardWith(questions, 0).dashboard, run: { title: "Export" } } });
-  h.responses["progress-dashboard.get"] = run(false);
+  const run = (panelOpened: boolean, questions = 0) => attentionWith(questions, 0, { open: true, panelOpened });
+  h.responses["progress-dashboard.attention"] = run(false);
   const stop = contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
@@ -129,18 +155,18 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   active()[0].button.behavior.onPress();
   assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }], "pressing it opens the panel in Explorer");
 
-  h.responses["progress-dashboard.get"] = run(false, 2);
+  h.responses["progress-dashboard.attention"] = run(false, 2);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active()[0]?.button.label, "2 questions", "questions take the pill over");
-  h.responses["progress-dashboard.get"] = run(false);
+  h.responses["progress-dashboard.attention"] = run(false);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active()[0]?.button.label, "Progress", "and hand it back while the panel hasn't been opened");
 
   notePanelOpened("w");
   assert.equal(active().length, 0, "opening the panel removes it at once");
-  h.responses["progress-dashboard.get"] = run(true);
+  h.responses["progress-dashboard.attention"] = run(true);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().length, 0);

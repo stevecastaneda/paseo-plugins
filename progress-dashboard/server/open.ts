@@ -1,6 +1,6 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
-import { readFile, realpath, stat } from "node:fs/promises";
+import { open, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -92,9 +92,14 @@ export async function previewDeliverable(directory: string, id: string): Promise
   if (!kind) throw new Error(`${path} isn't an image or text file, so it can't be previewed.`);
   const { size } = await stat(target);
   if (kind === "text") {
-    const data = await readFile(target);
-    const truncated = data.length > MAX_PREVIEW_TEXT_BYTES;
-    return { kind, text: data.subarray(0, MAX_PREVIEW_TEXT_BYTES).toString("utf8"), bytes: size, truncated };
+    // Read only what's shown, so a huge log doesn't load whole.
+    const file = await open(target);
+    try {
+      const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(Math.min(size, MAX_PREVIEW_TEXT_BYTES)), position: 0 });
+      return { kind, text: buffer.subarray(0, bytesRead).toString("utf8"), bytes: size, truncated: size > MAX_PREVIEW_TEXT_BYTES };
+    } finally {
+      await file.close();
+    }
   }
   if (size > MAX_PREVIEW_BYTES) throw new Error(`${path} is ${Math.round(size / 1024 / 1024)} MB, too large to preview.`);
   const data = await readFile(target);
