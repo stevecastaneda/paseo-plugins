@@ -1,8 +1,8 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Image, Platform, Text, useWindowDimensions, View } from "react-native";
 import { type Attachment, attachmentIcon } from "./attachments";
 import { previewDeliverable } from "../shared/rpc";
 import { PressScale, useLastPresent } from "./motion";
@@ -27,12 +27,10 @@ export function PreviewDialog({ colors, attachment, workspaceId, workspaceDirect
   return (
     <Modal title={attachment?.title ?? "Preview"} icon={<Icon name={attachment ? attachmentIcon(attachment) : "FileText"} size={16} color={colors.foregroundMuted} />}
       open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <Modal.Content>
-        {attachment ? (
-          <PreviewBody colors={colors} attachment={attachment} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
-            onOpenOnHost={() => { onClose(); onOpenOnHost(attachment); }} backLabel={backLabel} onBack={onBack} />
-        ) : null}
-      </Modal.Content>
+      {attachment ? (
+        <PreviewBody colors={colors} attachment={attachment} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
+          onOpenOnHost={() => { onClose(); onOpenOnHost(attachment); }} backLabel={backLabel} onBack={onBack} />
+      ) : <Modal.Content>{null}</Modal.Content>}
     </Modal>
   );
 }
@@ -54,8 +52,12 @@ function PreviewBody({ colors, attachment, workspaceId, workspaceDirectory, onOp
   });
   // Screenshots vary from phone-tall to full-width; size to the real image once it loads.
   const [aspectRatio, setAspectRatio] = useState(16 / 10);
-  return (
-    <View style={{ gap: 12 }}>
+  // A long file gets its own scroll area so the actions below it stay in view.
+  // Short ones keep the dialog sized to them.
+  const { height: windowHeight } = useWindowDimensions();
+  const long = estimatedHeight(preview.data, aspectRatio) > roomForContent(windowHeight);
+  const content = (
+    <>
       {preview.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading preview" style={{ padding: 24 }} /> : null}
       {preview.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
@@ -82,23 +84,57 @@ function PreviewBody({ colors, attachment, workspaceId, workspaceDirectory, onOp
           }}
           style={{ width: "100%", aspectRatio, maxHeight: 640, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1 }} />
       ) : null}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {onBack ? (
-          <PressScale accessibilityRole="button" onPress={onBack}
-            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 4, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface1 : colors.surface2 })}>
-            <Icon name="ChevronLeft" size={12} color={colors.foreground} />
-            <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>{backLabel ?? "Back"}</Text>
-          </PressScale>
-        ) : null}
-        <Text selectable numberOfLines={1} ellipsizeMode="head" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-          {attachment.path}
-        </Text>
-        <PressScale accessibilityRole="button" onPress={onOpenOnHost}
+    </>
+  );
+  const actions = (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      {onBack ? (
+        <PressScale accessibilityRole="button" onPress={onBack}
           style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 4, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface1 : colors.surface2 })}>
-          <Icon name="ExternalLink" size={12} color={colors.foreground} />
-          <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>Open in default app</Text>
+          <Icon name="ChevronLeft" size={12} color={colors.foreground} />
+          <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>{backLabel ?? "Back"}</Text>
         </PressScale>
-      </View>
+      ) : null}
+      <Text selectable numberOfLines={1} ellipsizeMode="head" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+        {attachment.path}
+      </Text>
+      <PressScale accessibilityRole="button" onPress={onOpenOnHost}
+        style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 4, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface1 : colors.surface2 })}>
+        <Icon name="ExternalLink" size={12} color={colors.foreground} />
+        <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>Open in default app</Text>
+      </PressScale>
     </View>
   );
+  return long ? (
+    <Modal.Content scrollable={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
+      {actions}
+    </Modal.Content>
+  ) : (
+    <Modal.Content>
+      <View style={{ gap: 12 }}>
+        {content}
+        {actions}
+      </View>
+    </Modal.Content>
+  );
+}
+
+// Width left for content: Paseo's 520px dialog less its 24px padding each side.
+const CONTENT_WIDTH = 472;
+// Characters of 12px monospace per line of the text box (10px padding each side).
+const CHARS_PER_LINE = Math.floor((CONTENT_WIDTH - 20) / 7.2);
+
+// Roughly how tall the preview draws, including wrapped lines.
+function estimatedHeight(data: { kind: "image" } | { kind: "text"; text: string } | undefined, aspectRatio: number): number {
+  if (!data) return 0;
+  if (data.kind === "image") return Math.min(CONTENT_WIDTH / aspectRatio, 640);
+  const lines = data.text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0);
+  return lines * 18 + 20;
+}
+
+// Height the dialog has for the preview before it must scroll: Paseo caps the card
+// at 85% of the window (inside a 24px margin), less its header, padding and our actions.
+function roomForContent(windowHeight: number): number {
+  return (windowHeight - 48) * 0.85 - 57 - 48 - 16 - 30;
 }
