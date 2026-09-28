@@ -3,7 +3,8 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
-import { type Attachment, attachmentIcon, deliverableAttachment, useAttachmentOpener } from "./attachments";
+import { type Attachment, attachmentIcon, deliverableAttachment, shortName, useAttachmentOpener } from "./attachments";
+import { formatAgo } from "../shared/format";
 import { PressScale } from "./motion";
 import { PreviewDialog, previewable } from "./preview";
 import { PressableRow } from "./row";
@@ -23,8 +24,9 @@ const KIND_ICON: Record<NonNullable<Deliverable["kind"]>, string> = {
   link: "Globe",
 };
 
-export function DeliverablesSection({ colors, deliverables, workspaceId, workspaceDirectory, navigation }: {
+export function DeliverablesSection({ colors, deliverables, now, workspaceId, workspaceDirectory, navigation }: {
   colors: Colors;
+  now: number;
   deliverables: Deliverable[];
   workspaceId: string;
   workspaceDirectory: string;
@@ -44,21 +46,19 @@ export function DeliverablesSection({ colors, deliverables, workspaceId, workspa
           {/* Optical: centers the 14px icon on the 18px title line. */}
           <View style={{ paddingTop: 2 }}><Icon name={deliverable.kind && deliverable.kind !== "file" ? KIND_ICON[deliverable.kind] : attachmentIcon(deliverableAttachment(deliverable))} size={14} color={colors.foregroundMuted} /></View>
           <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-            <Text style={{ color: colors.accent, fontSize: 13, lineHeight: 18, textDecorationLine: "underline" }}>{deliverable.title}</Text>
-            <Text selectable numberOfLines={1} ellipsizeMode="head" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-              {deliverable.url ?? deliverable.path}
+            {/* What the agent found is the headline; the row itself is what opens. */}
+            <Text numberOfLines={3} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{deliverable.title}</Text>
+            {/* Just the name, ticket and age. The full path is one press of Copy away. */}
+            <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+              {[shortName(deliverableAttachment(deliverable)), deliverable.ticketLabel ?? deliverable.ticketId, formatAgo(deliverable.addedAt, now)].filter(Boolean).join(" · ")}
             </Text>
-            {deliverable.ticketLabel || deliverable.kind ? (
-              <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, opacity: 0.8 }}>
-                {[deliverable.ticketLabel ?? deliverable.ticketId, deliverable.kind === "link" ? null : deliverable.kind].filter(Boolean).join(", ")}
-              </Text>
-            ) : null}
           </View>
           {deliverable.path ? (
             // Optical: the 22px button centers on the 18px title line.
             <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${deliverable.title}`} hitSlop={6} outerStyle={{ marginTop: -2 }}
               onPress={() => void copyPath(deliverableAttachment(deliverable))}
-              style={({ pressed }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
+              // A step above the row's own hover tint (surface1), so it reads as its own target.
+              style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
               <Icon name="Copy" size={14} color={colors.foregroundMuted} />
             </PressScale>
           ) : (

@@ -214,7 +214,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
         </View>
         <View style={{ flex: wide ? 2 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={dashboard.deliverables.length > 0} order={5}>{dashboard.deliverables.length ? (
-            <DeliverablesSection colors={colors} deliverables={dashboard.deliverables} workspaceId={workspaceId}
+            <DeliverablesSection colors={colors} deliverables={dashboard.deliverables} now={now} workspaceId={workspaceId}
               workspaceDirectory={workspaceDirectory} navigation={navigation} />
           ) : null}</Presence>
           <Presence show={dashboard.activity.length + dashboard.questions.answered.length > 0} order={6}>

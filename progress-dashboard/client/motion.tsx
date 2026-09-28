@@ -37,18 +37,21 @@ export function PressScale({ static: isStatic, style, outerStyle, children, ...p
   static?: boolean;
   // Layout for the pressable itself, e.g. alignSelf; `style` is what scales.
   outerStyle?: StyleProp<ViewStyle>;
-  style?: StyleProp<ViewStyle> | ((state: { pressed: boolean }) => StyleProp<ViewStyle>);
+  style?: StyleProp<ViewStyle> | ((state: { pressed: boolean; hovered: boolean }) => StyleProp<ViewStyle>);
   children: React.ReactNode;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   // Timing retargets from the current value, so a release mid-press eases back.
   const to = (toValue: number) => Animated.timing(scale, { toValue, duration: 150, easing: easeOut(), useNativeDriver: nativeDriver() }).start();
   const [pressed, setPressed] = useState(false);
+  const [hovered, setHovered] = useState(false);
   return (
     <Pressable {...props} style={outerStyle}
+      onHoverIn={(event) => { setHovered(true); props.onHoverIn?.(event); }}
+      onHoverOut={(event) => { setHovered(false); props.onHoverOut?.(event); }}
       onPressIn={(event) => { setPressed(true); if (!isStatic) to(0.96); props.onPressIn?.(event); }}
       onPressOut={(event) => { setPressed(false); if (!isStatic) to(1); props.onPressOut?.(event); }}>
-      <Animated.View style={[typeof style === "function" ? style({ pressed }) : style, { transform: [{ scale }] }]}>
+      <Animated.View style={[typeof style === "function" ? style({ pressed, hovered }) : style, { transform: [{ scale }] }]}>
         {children}
       </Animated.View>
     </Pressable>

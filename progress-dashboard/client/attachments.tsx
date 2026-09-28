@@ -102,6 +102,14 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
   return { open, openOnHost, copyPath };
 }
 
+// The short name people recognize: a file or folder's own name, or a link's site.
+export function shortName(attachment: Attachment): string {
+  if (attachment.url) {
+    try { return new URL(attachment.url).host.replace(/^www\./, ""); } catch { return attachment.url; }
+  }
+  return (attachment.path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+}
+
 // A question's attachments as pressable rows.
 // Drawn in dialogs and the popover (surface1) unless `onSurface1` is false.
 // `onOpen` also gets the whole list, so a preview can step through its siblings.
@@ -114,10 +122,11 @@ export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true 
           onPress={() => onOpen(attachment, attachments)}
           style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
           <Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} />
-          <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.accent, fontSize: 12, lineHeight: 17, textDecorationLine: "underline" }}>{attachment.title}</Text>
-          <Text numberOfLines={1} ellipsizeMode="head" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-            {attachment.url ?? attachment.path}
-          </Text>
+          {/* The row is the target, so nothing in it is styled as a link. */}
+          <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foreground, fontSize: 12, lineHeight: 17 }}>{attachment.title}</Text>
+          {shortName(attachment) !== attachment.title ? (
+            <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>{shortName(attachment)}</Text>
+          ) : <View style={{ flex: 1 }} />}
         </PressableRow>
       ))}
     </View>
