@@ -8,8 +8,7 @@ import { formatAgo } from "../shared/format";
 import { PressScale } from "./motion";
 import { PreviewDialog, previewable } from "./preview";
 import { PressableRow } from "./row";
-import { SectionTitle } from "./section-title";
-import { raised } from "./surfaces";
+import { ShowMoreRow, usePaged } from "./show-more";
 
 export { absolutePath } from "./attachments";
 
@@ -24,7 +23,8 @@ const KIND_ICON: Record<NonNullable<Deliverable["kind"]>, string> = {
   link: "Globe",
 };
 
-export function DeliverablesSection({ colors, deliverables, now, workspaceId, workspaceDirectory, navigation }: {
+// The Deliverables tab: newest first, 10 at a time (see usePaged).
+export function DeliverablesList({ colors, deliverables, now, workspaceId, workspaceDirectory, navigation }: {
   colors: Colors;
   now: number;
   deliverables: Deliverable[];
@@ -35,14 +35,14 @@ export function DeliverablesSection({ colors, deliverables, now, workspaceId, wo
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
   // Screenshots preview inside Paseo; links open in its browser; the rest open in their own app.
   const { open, openOnHost, copyPath } = useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview: setPreviewing });
+  const paged = usePaged(deliverables);
   return (
-    <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <SectionTitle colors={colors} icon="Package" title="Latest deliverables" />
-      {deliverables.map((deliverable) => (
+    <View>
+      {paged.shown.map((deliverable, index) => (
         <PressableRow key={deliverable.id} colors={colors} accessibilityRole={deliverable.url ? "link" : "button"}
           accessibilityLabel={`Open ${deliverable.title}`}
           onPress={() => void open(deliverableAttachment(deliverable))}
-          style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+          style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
           {/* Optical: centers the 14px icon on the 18px title line. */}
           <View style={{ paddingTop: 2 }}><Icon name={deliverable.kind && deliverable.kind !== "file" ? KIND_ICON[deliverable.kind] : attachmentIcon(deliverableAttachment(deliverable))} size={14} color={colors.foregroundMuted} /></View>
           <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
@@ -66,6 +66,7 @@ export function DeliverablesSection({ colors, deliverables, now, workspaceId, wo
           )}
         </PressableRow>
       ))}
+      <ShowMoreRow colors={colors} total={deliverables.length} paged={paged} />
       <PreviewDialog colors={colors} attachment={previewing} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
         onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void openOnHost(attachment)}
         gallery={{ items: previewable(deliverables.map(deliverableAttachment)), onSelect: setPreviewing }} />

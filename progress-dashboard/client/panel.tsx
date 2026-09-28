@@ -1,6 +1,6 @@
 import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { DeliverablesSection } from "./deliverables";
+import { DeliverablesList } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
 import { Spinner, StalledPulse } from "./spinner";
@@ -128,6 +128,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
   const now = useNow(15_000);
   // Quiet isn't stale while an agent in the workspace is still running.
   const stale = dashboard.stale && !agentRunning;
+  const hasHistory = dashboard.activity.length + dashboard.questions.answered.length + dashboard.deliverables.length > 0;
   const live = !stale;
   // Two columns when opened as a wide tab; one in the narrow Explorer pane.
   const [wide, setWide] = useState(false);
@@ -217,17 +218,17 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
           </Presence>
         </View>
         <View style={{ flex: wide ? 2 : undefined, alignSelf: "stretch", minWidth: 0 }}>
-          <Presence show={dashboard.deliverables.length > 0} order={5}>{dashboard.deliverables.length ? (
-            <DeliverablesSection colors={colors} deliverables={dashboard.deliverables} now={now} workspaceId={workspaceId}
-              workspaceDirectory={workspaceDirectory} navigation={navigation} />
-          ) : null}</Presence>
-          <Presence show={dashboard.activity.length + dashboard.questions.answered.length > 0} order={6}>
-            {dashboard.activity.length + dashboard.questions.answered.length > 0 ? (
-              <HistoryCard colors={colors} workspaceId={workspaceId}
-                answered={<AnsweredQuestionsList colors={colors} questions={dashboard.questions.answered} now={now} context={attachmentContext} />}
-                answeredCount={dashboard.questions.answered.length}
-                activity={<ActivityList colors={colors} activity={dashboard.activity} now={now} />}
-                activityCount={dashboard.activity.length} />
+          <Presence show={hasHistory} order={5}>
+            {hasHistory ? (
+              <HistoryCard colors={colors} workspaceId={workspaceId} tabs={[
+                { id: "activity", label: "Activity", icon: "Activity", count: dashboard.activity.length, empty: "No activity yet.",
+                  content: <ActivityList colors={colors} activity={dashboard.activity} now={now} /> },
+                { id: "answered", label: "Answered", icon: "CircleCheck", count: dashboard.questions.answered.length, empty: "No answered questions yet.",
+                  content: <AnsweredQuestionsList colors={colors} questions={dashboard.questions.answered} now={now} context={attachmentContext} /> },
+                { id: "deliverables", label: "Deliverables", icon: "Package", count: dashboard.deliverables.length, empty: "No deliverables yet.",
+                  content: <DeliverablesList colors={colors} deliverables={dashboard.deliverables} now={now} workspaceId={workspaceId}
+                    workspaceDirectory={workspaceDirectory} navigation={navigation} /> },
+              ]} />
             ) : null}
           </Presence>
         </View>
@@ -236,49 +237,41 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
   );
 }
 
-type HistoryTab = "activity" | "answered";
+type HistoryTab = "activity" | "answered" | "deliverables";
+type HistoryTabEntry = { id: HistoryTab; label: string; icon: string; count: number; empty: string; content: React.ReactNode };
+// Below this width the tab icons drop, so all three labels fit in the Explorer pane.
+const TAB_ICONS_MIN = 370;
 
 // The tab chosen per workspace, kept for the app session so reopening the
 // panel shows the same one.
 const historyTabs = new Map<string, HistoryTab>();
 
-// Activity and answered questions share one card: they're rarely wanted at once.
-function HistoryCard({ colors, workspaceId, activity, activityCount, answered, answeredCount }: {
-  colors: Colors;
-  workspaceId: string;
-  activity: React.ReactNode;
-  activityCount: number;
-  answered: React.ReactNode;
-  answeredCount: number;
-}) {
+// Activity, answered questions and deliverables share one card: they're rarely wanted at once.
+function HistoryCard({ colors, workspaceId, tabs }: { colors: Colors; workspaceId: string; tabs: HistoryTabEntry[] }) {
   const [tab, setTab] = useState<HistoryTab>(() => historyTabs.get(workspaceId) ?? "activity");
+  const [showIcons, setShowIcons] = useState(true);
   const choose = (next: HistoryTab) => {
     historyTabs.set(workspaceId, next);
     setTab(next);
   };
-  const tabs: Array<{ id: HistoryTab; label: string; icon: string; count: number }> = [
-    { id: "activity", label: "Activity", icon: "Activity", count: activityCount },
-    { id: "answered", label: "Answered", icon: "CircleCheck", count: answeredCount },
-  ];
-  const empty = tab === "activity" ? activityCount === 0 : answeredCount === 0;
+  const current = tabs.find((entry) => entry.id === tab) ?? tabs[0];
   return (
-    <View style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+    <View onLayout={(event) => setShowIcons(event.nativeEvent.layout.width >= TAB_ICONS_MIN)}
+      style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
+      <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         {tabs.map((entry) => {
-          return <Tab key={entry.id} colors={colors} label={entry.label} icon={entry.icon} count={entry.count} selected={entry.id === tab} onPress={() => choose(entry.id)} />;
+          return <Tab key={entry.id} colors={colors} label={entry.label} icon={showIcons ? entry.icon : null} count={entry.count} selected={entry.id === current.id} onPress={() => choose(entry.id)} />;
         })}
       </View>
-      {empty ? (
-        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8 }}>
-          {tab === "activity" ? "No activity yet." : "No answered questions yet."}
-        </Text>
-      ) : tab === "activity" ? activity : answered}
+      {current.count === 0 ? (
+        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8 }}>{current.empty}</Text>
+      ) : current.content}
     </View>
   );
 }
 
 // Instant feedback: tabs switch often, so hover and press change color only.
-function Tab({ colors, label, icon, count, selected, onPress }: { colors: Colors; label: string; icon: string; count: number; selected: boolean; onPress(): void }) {
+function Tab({ colors, label, icon, count, selected, onPress }: { colors: Colors; label: string; icon: string | null; count: number; selected: boolean; onPress(): void }) {
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress}
@@ -288,7 +281,7 @@ function Tab({ colors, label, icon, count, selected, onPress }: { colors: Colors
         borderBottomWidth: 2,
         borderBottomColor: selected ? colors.accent : pressed || hovered ? colors.border : "transparent",
       })}>
-      <Icon name={icon} size={14} color={selected ? colors.accent : colors.foregroundMuted} />
+      {icon ? <Icon name={icon} size={14} color={selected ? colors.accent : colors.foregroundMuted} /> : null}
       <Text style={{ color: selected || hovered ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{label}</Text>
       {/* Count badge: muted on both tabs; the chosen tab's number reads darker. */}
       <View style={{ minWidth: 16, paddingHorizontal: 4, borderRadius: 4, alignItems: "center", backgroundColor: colors.surface2 }}>
