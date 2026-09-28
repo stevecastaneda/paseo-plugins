@@ -424,7 +424,7 @@ function StatusIcon({ colors, status, live }: { colors: Colors; status: TicketSt
     case "done":
       return <Icon name="Check" size={14} color={colors.statusSuccess} />;
     case "working":
-      return live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />;
+      return live ? <Spinner color={colors.accent} size={14} /> : <StalledPulse color={colors.statusWarning} size={14} />;
     case "blocked":
       return <Icon name="Ban" size={14} color={colors.statusDanger} />;
     case "skipped":
