@@ -180,6 +180,14 @@ test("the dashboard turns stale exactly 15 minutes after the last event", async 
   assert.equal((await w.dashboard(26)).dashboard.stale, false, "a new event clears it");
 });
 
+test("a run whose tickets are all done or skipped never turns stale", async (t) => {
+  const w = await screenshotRun(t);
+  w.at(10);
+  for (const id of ["T01", "T02", "T03"]) await w.run("ticket", "update", id, "--status", "done");
+  await w.run("ticket", "update", "T04", "--status", "skipped");
+  assert.equal((await w.dashboard(60)).dashboard.stale, false);
+});
+
 test("display helpers format durations and hours the way the panel shows them", () => {
   assert.equal(formatMinutes(0.5), "<1 min");
   assert.equal(formatMinutes(12), "12 min");

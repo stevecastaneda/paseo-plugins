@@ -74,7 +74,7 @@ export interface ProgressSegment {
 export interface Dashboard {
   run: { title: string; subtitle?: string; itemLabel: string; startedAt: string } | null;
   updatedAt: string | null;
-  // Nothing recorded for STALE_AFTER_MIN: the work may have stopped.
+  // Nothing recorded for STALE_AFTER_MIN while tickets remain: the work may have stopped.
   stale: boolean;
   headline: HeadlinePart[];
   stuck: StuckItem[];
@@ -266,13 +266,15 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
   const stuck = stuckItems(list, [...manualStuck.values()], now);
   const allQuestions = [...questions.values()];
   const open = allQuestions.filter((question) => !question.answer);
+  // A finished run has nothing left to stall, so it never goes stale.
+  const finished = list.length > 0 && list.every((ticket) => ticket.status === "done" || ticket.status === "skipped");
   const answered = allQuestions
     .filter((question) => question.answer)
     .sort((a, b) => Date.parse(b.answer!.at) - Date.parse(a.answer!.at));
   return {
     run,
     updatedAt,
-    stale: updatedAt !== null && now.getTime() - Date.parse(updatedAt) >= STALE_AFTER_MIN * 60_000,
+    stale: !finished && updatedAt !== null && now.getTime() - Date.parse(updatedAt) >= STALE_AFTER_MIN * 60_000,
     headline: headline(list, itemLabel, open.length, stuck.length),
     stuck,
     questions: { open, answered },

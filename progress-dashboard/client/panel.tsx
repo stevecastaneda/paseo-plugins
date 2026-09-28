@@ -239,7 +239,10 @@ function Tab({ colors, label, icon, count, selected, onPress }: { colors: Colors
       })}>
       <Icon name={icon} size={14} color={selected ? colors.accent : colors.foregroundMuted} />
       <Text style={{ color: selected || hovered ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{label}</Text>
-      <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{count}</Text>
+      {/* Count badge: muted on both tabs; the chosen tab's number reads darker. */}
+      <View style={{ minWidth: 16, paddingHorizontal: 4, borderRadius: 4, alignItems: "center", backgroundColor: colors.surface2 }}>
+        <Text style={{ color: selected ? colors.foreground : colors.foregroundMuted, fontSize: 10, lineHeight: 14, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{count}</Text>
+      </View>
     </Pressable>
   );
 }
