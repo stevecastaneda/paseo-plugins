@@ -41,6 +41,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     subtitle: text.optional(),
     itemLabel: text.optional(),
   }),
+  // Closes the run. Nothing more is recorded on it; new work needs `run.start`.
+  z.object({ ...base, type: z.literal("run.finish"), outcome: text }),
   z.object({
     ...base,
     type: z.literal("ticket.add"),

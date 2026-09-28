@@ -72,7 +72,14 @@ export interface ProgressSegment {
 }
 
 export interface Dashboard {
-  run: { title: string; subtitle?: string; itemLabel: string; startedAt: string } | null;
+  run: {
+    title: string;
+    subtitle?: string;
+    itemLabel: string;
+    startedAt: string;
+    // Set by `finish`: the run is over and the next work starts a new one.
+    finished?: { at: string; outcome: string };
+  } | null;
   updatedAt: string | null;
   // Nothing recorded for STALE_AFTER_MIN while tickets remain: the work may have stopped.
   stale: boolean;
@@ -152,6 +159,10 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
     switch (event.type) {
       case "run.start":
         run = { title: event.title, subtitle: event.subtitle, itemLabel: event.itemLabel ?? "Ticket", startedAt: event.ts };
+        break;
+      case "run.finish":
+        if (run) run.finished = { at: event.ts, outcome: event.outcome };
+        ticker = null;
         break;
       case "ticket.add":
         tickets.set(event.id, {
@@ -267,7 +278,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
   const allQuestions = [...questions.values()];
   const open = allQuestions.filter((question) => !question.answer);
   // A finished run has nothing left to stall, so it never goes stale.
-  const finished = list.length > 0 && list.every((ticket) => ticket.status === "done" || ticket.status === "skipped");
+  const finished = Boolean(run?.finished) || (list.length > 0 && list.every((ticket) => ticket.status === "done" || ticket.status === "skipped"));
   const answered = allQuestions
     .filter((question) => question.answer)
     .sort((a, b) => Date.parse(b.answer!.at) - Date.parse(a.answer!.at));

@@ -11,7 +11,7 @@ The user answers questions by reference ("Q7 A") and reads everything else at a 
 
 ## 1. Set up the run
 
-Run `paseo-progress show`. When it shows a run for this job, continue it. Otherwise:
+Run `paseo-progress show`. When it shows an open run for this job, continue it. A run marked Finished is closed, even if it looks like your job; start a new one. Otherwise:
 
 1. `paseo-progress start "<job title>"`, with `--subtitle` naming the spec or ticket folder.
 2. Add every ticket in order with `paseo-progress ticket add "Ticket 01: <title>" --estimate <minutes>`. Keep the "Ticket NN:" prefix: the dashboard shortens titles to it. For a job without tickets, add its steps instead and pass `--item-label Step` to `start`.
@@ -62,8 +62,15 @@ paseo-progress question ask "<short title>" "<the question, in one or two senten
 
 ## 5. Finish
 
-1. Mark the last ticket done or skipped.
-2. `ticker clear`, and `activity add "<one line: the outcome>"`.
-3. Run `paseo-progress show`.
+When the job is over:
 
-Done when `show` matches reality: no ticket is still working, nothing is stuck that isn't, and every open question is one the user still has to answer.
+1. Mark the last ticket done or skipped.
+2. Settle every open question: record the user's answer, or withdraw it with `question remove` when it no longer applies. Clear flagged blockers with `stuck clear`.
+3. `paseo-progress finish "<one line: the outcome>"`. It refuses, and says what is still open, until the steps above are done.
+4. Run `paseo-progress show`.
+
+The finished run stays on the dashboard, marked Finished with its outcome, until the next `start`. It takes no more updates.
+
+If the job pauses with questions only the user can answer, don't finish: leave the run open so the questions stay in front of them.
+
+Done when `show` says Finished with the right outcome.

@@ -12,6 +12,10 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   lines.push(dashboard.run?.title ?? "Progress");
   if (dashboard.run?.subtitle) lines.push(dashboard.run.subtitle);
   lines.push(headlineText(dashboard));
+  if (dashboard.run?.finished) {
+    lines.push(`Finished ${when(dashboard.run.finished.at)}: ${dashboard.run.finished.outcome}`);
+    lines.push(`This run is closed. Start new work with: paseo-progress start "<title>"`);
+  }
   if (dashboard.ticker) lines.push(`Now: ${dashboard.ticker.text}`);
   if (dashboard.updatedAt) lines.push(`Last updated ${when(dashboard.updatedAt)}`);
   if (dashboard.stale && dashboard.updatedAt) lines.push(`POSSIBLY STALE: no update for ${formatMinutes(minutesSince(dashboard.updatedAt, nowMs))}.`);

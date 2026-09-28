@@ -41,6 +41,38 @@ async function worktree(t: TestContext) {
   };
 }
 
+test("finish closes the run only once everything is settled, and keeps it on the dashboard", async (t) => {
+  const w = await worktree(t);
+  assert.equal((await w.run("finish", "Nothing yet")).code, 1, "no run to finish");
+  await w.run("start", "Export");
+  await w.run("ticket", "add", "Ticket 01", "--estimate", "30");
+  await w.run("question", "ask", "Format", "CSV or JSON?", "--default", "CSV");
+  await w.run("stuck", "set", "Staging is down");
+  const refused = await w.run("finish", "Shipped");
+  assert.equal(refused.code, 1);
+  assert.match(refused.text, /Can't finish yet\. Still open: open questions Q1 .*; tickets not done or skipped: T01; flagged blockers S1/);
+
+  await w.run("question", "answer", "Q1", "CSV");
+  await w.run("ticket", "update", "T01", "--status", "done");
+  await w.run("stuck", "clear", "S1");
+  await w.run("ticker", "set", "Wrapping up");
+  assert.deepEqual(await w.run("finish", "Shipped the CSV export"), { code: 0, text: "Finished run: Export" });
+
+  w.at(120);
+  const { dashboard } = await w.dashboard();
+  assert.equal(dashboard.run?.title, "Export", "the finished run stays on the dashboard");
+  assert.equal(dashboard.run?.finished?.outcome, "Shipped the CSV export");
+  assert.equal(dashboard.ticker, null);
+  assert.equal(dashboard.stale, false);
+  assert.match((await w.run("show")).text, /Finished .*: Shipped the CSV export\nThis run is closed/);
+
+  const after = await w.run("ticket", "add", "Ticket 02", "--estimate", "10");
+  assert.equal(after.code, 1);
+  assert.match(after.text, /The run "Export" is finished\. Start new work with: paseo-progress start/);
+  assert.equal((await w.run("start", "Next job")).code, 0);
+  assert.equal((await w.dashboard()).dashboard.run?.finished, undefined, "a new run starts open");
+});
+
 test("opening the panel is remembered in the worktree", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Export");

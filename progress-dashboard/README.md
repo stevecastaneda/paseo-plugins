@@ -68,6 +68,7 @@ paseo-progress activity add "Ticket 01 moved to its Fixes stage."
 paseo-progress ticker set "Running the browser check"
 paseo-progress stuck set "Staging is down" --ticket T01                 # Flagged S1
 paseo-progress show
+paseo-progress finish "Snapshots ship for all four tables"
 ```
 
 - Statuses are `not_started`, `working`, `blocked`, `done`, and `skipped`. Skipped tickets leave the totals.
@@ -75,6 +76,7 @@ paseo-progress show
 - `question ask --waits` marks a question the agent won't act on until you answer. Its default shows in amber.
 - Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image (PNG, JPEG, GIF, WebP, up to 10 MB) or text deliverable (Markdown, text, logs, JSON, YAML, CSV; the first 256 KB) previews it in a dialog inside Paseo, which also works from a phone; **Open in default app** there opens the file itself. Pressing any other local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, **Open in default app** sends text files to your default browser. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
 - `start` begins a fresh dashboard. Earlier runs stay in the file. Question references stay unique across runs.
+- `finish "<outcome>"` closes the run once every ticket is done or skipped, no question is open, and nothing is flagged stuck; otherwise it says what is left. The run stays on the dashboard, marked Finished with its outcome, and takes no more updates, so the next agent in the worktree starts a new run instead of adding to it.
 
 ## The progress file
 

@@ -125,7 +125,7 @@ export function contributePills(client: PluginClientContext) {
       const result = await client.rpc(getDashboard, { workspaceId, workspaceDirectory: directory });
       if (stopped || workspaces.get(workspaceId) !== directory) return;
       setAttention(workspaceId, result.configured ? attentionOf(result.dashboard) : undefined);
-      if (result.configured && result.dashboard.run && !result.panelOpened) {
+      if (result.configured && result.dashboard.run && !result.dashboard.run.finished && !result.panelOpened) {
         if (openedReports === reportsBefore) started.add(workspaceId);
       } else started.delete(workspaceId);
       publish();

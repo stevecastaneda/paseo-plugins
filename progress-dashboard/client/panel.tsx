@@ -137,6 +137,15 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
             ))}
           </Text>
         ) : null}
+        {dashboard.run?.finished ? (
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            {/* Optical: centers the 12px icon on the first 18px line. */}
+            <View style={{ paddingTop: 3 }}><Icon name="CircleCheck" size={12} color={colors.statusSuccess} /></View>
+            <Text style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>
+              <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>Finished</Text> <When colors={colors} iso={dashboard.run.finished.at} now={now} />. {dashboard.run.finished.outcome}
+            </Text>
+          </View>
+        ) : null}
         {dashboard.ticker ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <IconSwap swapKey={live ? "live" : "stale"} size={12}>{live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />}</IconSwap>

@@ -128,6 +128,20 @@ function eventsInRun(events: ProgressEvent[]): ProgressEvent[] {
   return start === -1 ? events : events.slice(start);
 }
 
+// What still has to be settled before a run can finish.
+function unfinishedWork(dashboard: Dashboard): string[] {
+  const label = (dashboard.run?.itemLabel ?? "Ticket").toLowerCase();
+  const tickets = dashboard.tickets.filter((ticket) => ticket.status !== "done" && ticket.status !== "skipped");
+  const flagged = dashboard.stuck.filter((item) => item.kind === "manual");
+  return [
+    dashboard.questions.open.length
+      ? `open questions ${dashboard.questions.open.map((question) => question.id).join(", ")} (record the answer with "question answer", or withdraw with "question remove")`
+      : "",
+    tickets.length ? `${label}s not done or skipped: ${tickets.map((ticket) => ticket.id).join(", ")}` : "",
+    flagged.length ? `flagged blockers ${flagged.map((item) => item.id).join(", ")} (clear with "stuck clear")` : "",
+  ].filter(Boolean);
+}
+
 const commands: Record<string, Command> = {
   start: {
     usage: `start "<title>" [--subtitle <text>] [--item-label <word>]`,
@@ -139,6 +153,17 @@ const commands: Record<string, Command> = {
         event: { type: "run.start", title, subtitle: stringOption(values.subtitle), itemLabel: stringOption(values["item-label"]) },
         message: `Started run: ${title}`,
       };
+    },
+  },
+  finish: {
+    usage: `finish "<outcome>"`,
+    summary: "Close the run with a one-line outcome. Every ticket must be done or skipped, no question open, nothing flagged stuck. New work after this needs start.",
+    run({ positionals, state }) {
+      const outcome = required(positionals[0], "outcome");
+      if (!state.dashboard.run) throw new UsageError("No run to finish.");
+      const left = unfinishedWork(state.dashboard);
+      if (left.length) throw new UsageError(`Can't finish yet. Still open: ${left.join("; ")}.`);
+      return { event: { type: "run.finish", outcome }, message: `Finished run: ${state.dashboard.run.title}` };
     },
   },
   "ticket add": {
@@ -484,6 +509,10 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     await mkdir(dirname(file), { recursive: true });
     const message = await withLock(`${file}.lock`, async () => {
       const state = await loadState(root, now());
+      const finished = state.dashboard.run?.finished;
+      if (finished && command !== commands.start) {
+        throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
+      }
       const { event: draft, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root });
       const event = eventSchema.parse({ v: EVENT_VERSION, ts: now().toISOString(), ...withoutUndefined(draft) });
       await appendFile(file, `${JSON.stringify(event)}\n`);
