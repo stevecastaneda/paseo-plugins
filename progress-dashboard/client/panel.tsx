@@ -93,6 +93,17 @@ function EmptyState({ colors }: { colors: Colors }) {
   );
 }
 
+// A 12px icon hung beside 12/18 text. Top-aligned with an optical nudge so the
+// icon stays on the first line when the text wraps.
+function StatusLine({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 6 }}>
+      <View style={{ paddingTop: 3 }}>{icon}</View>
+      <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
+    </View>
+  );
+}
+
 // Re-renders on an interval so "x min ago" keeps counting between polls.
 function useNow(intervalMs: number): number {
   const [now, setNow] = useState(() => Date.now());
@@ -129,7 +140,7 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{dashboard.run.subtitle}</Text>
         ) : null}
         {dashboard.headline.length ? (
-          <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 }}>
+          <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
             {dashboard.headline.map((part, index) => (
               <Text key={part.text} style={part.tone === "danger" ? { color: colors.statusDanger } : undefined}>
                 {index ? ", " : ""}{part.text}
@@ -137,28 +148,33 @@ function DashboardView({ colors, dashboard, compact, workspaceId, workspaceDirec
             ))}
           </Text>
         ) : null}
-        {dashboard.run?.finished ? (
-          <View style={{ flexDirection: "row", gap: 6 }}>
-            {/* Optical: centers the 12px icon on the first 18px line. */}
-            <View style={{ paddingTop: 3 }}><Icon name="CircleCheck" size={12} color={colors.statusSuccess} /></View>
-            <Text style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>
-              <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>Finished</Text> <When colors={colors} iso={dashboard.run.finished.at} now={now} />. {dashboard.run.finished.outcome}
-            </Text>
-          </View>
+        {/* One status slot: the icon morphs from spinner (or stalled pulse) to the check on finish. */}
+        {dashboard.run?.finished || dashboard.ticker ? (
+          <StatusLine icon={
+            <IconSwap swapKey={dashboard.run?.finished ? "finished" : live ? "live" : "stale"} size={12}>
+              {dashboard.run?.finished ? <Icon name="CircleCheck" size={12} color={colors.statusSuccess} />
+                : live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />}
+            </IconSwap>
+          }>
+            {dashboard.run?.finished ? (
+              <>
+                <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+                  <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>Finished</Text> <When colors={colors} iso={dashboard.run.finished.at} now={now} />
+                </Text>
+                <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{dashboard.run.finished.outcome}</Text>
+              </>
+            ) : (
+              <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{dashboard.ticker!.text}</Text>
+            )}
+          </StatusLine>
         ) : null}
-        {dashboard.ticker ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <IconSwap swapKey={live ? "live" : "stale"} size={12}>{live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />}</IconSwap>
-            <Text accessibilityLiveRegion="polite" style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{dashboard.ticker.text}</Text>
-          </View>
-        ) : null}
-        {dashboard.updatedAt ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Icon name="Clock" size={12} color={colors.foregroundMuted} />
-            <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+        {/* A finished run takes no more updates, so its finish time already says this. */}
+        {dashboard.updatedAt && !dashboard.run?.finished ? (
+          <StatusLine icon={<Icon name="Clock" size={12} color={colors.foregroundMuted} />}>
+            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
               Last updated <When colors={colors} iso={dashboard.updatedAt} now={now} />
             </Text>
-          </View>
+          </StatusLine>
         ) : null}
       </View>
       </Presence>
