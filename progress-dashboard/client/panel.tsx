@@ -206,7 +206,10 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
                 No {(dashboard.run?.itemLabel ?? "ticket").toLowerCase()}s yet.
               </Text>
             ) : (
-              dashboard.tickets.map((ticket) => <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} onOpen={() => setOpenTicket(ticket.id)} />)
+              dashboard.tickets.map((ticket) => (
+                <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} onOpen={() => setOpenTicket(ticket.id)}
+                  deliverables={dashboard.deliverables.filter((deliverable) => deliverable.ticketId === ticket.id).length} />
+              ))
             )}
             <TicketDialogs colors={colors} dashboard={dashboard} openId={openTicket} setOpenId={setOpenTicket} now={now} live={live} context={attachmentContext} />
           </Card>
@@ -410,7 +413,7 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
 }
 
 // Press for the ticket's story. Hover and press only tint the row: it's a list, pressed often.
-function TicketRow({ colors, ticket, live, now, onOpen }: { colors: Colors; ticket: Ticket; live: boolean; now: number; onOpen(): void }) {
+function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors: Colors; ticket: Ticket; live: boolean; now: number; onOpen(): void; deliverables: number }) {
   const muted = ticket.status === "skipped";
   const working = ticket.status === "working";
   return (
@@ -421,9 +424,17 @@ function TicketRow({ colors, ticket, live, now, onOpen }: { colors: Colors; tick
         <IconSwap swapKey={ticket.waitingFor ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={{ color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
-          {ticket.title}
-        </Text>
+        {/* A paperclip before the title when the ticket has deliverables; they're listed in its dialog. */}
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {deliverables ? (
+            <View accessibilityLabel={deliverables === 1 ? "Has a deliverable" : `Has ${deliverables} deliverables`} style={{ height: 18, justifyContent: "center" }}>
+              <Icon name="Paperclip" size={12} color={colors.foregroundMuted} />
+            </View>
+          ) : null}
+          <Text style={{ flex: 1, color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
+            {ticket.title}
+          </Text>
+        </View>
         {ticket.status === "working" && ticket.stage && ticket.stageSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             {ticket.stage} stage started <When colors={colors} iso={ticket.stageSince} now={now} />
