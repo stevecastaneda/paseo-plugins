@@ -70,7 +70,7 @@ function PreviewBody({ colors, deliverable, workspaceId, workspaceDirectory, onO
           {deliverable.path}
         </Text>
         <PressScale accessibilityRole="button" onPress={onOpenOnHost}
-          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 4, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface2 : colors.surface1 })}>
+          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 4, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface1 : colors.surface2 })}>
           <Icon name="ExternalLink" size={12} color={colors.foreground} />
           <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>Open in default app</Text>
         </PressScale>

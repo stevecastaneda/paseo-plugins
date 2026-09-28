@@ -16,8 +16,10 @@ const LIST_MAX_HEIGHT = 340;
 
 // What the pill opens: the open questions with their Copy buttons, and anything
 // stuck, so the user can answer without leaving the chat.
-export function AttentionPopover({ theme, host, workspaceId, close, openPanel }: PluginButtonContentProps & { openPanel(): void }) {
+export function AttentionPopover({ theme, host, layout, workspaceId, close, openPanel }: PluginButtonContentProps & { openPanel(): void }) {
   const colors = theme.colors;
+  // Paseo draws the desktop popover on surface1 and the phone sheet on surface0.
+  const onSurface1 = !layout.compact;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const query = useDashboard(host.id, workspaceId, directory);
   const dashboard = query.data?.configured ? query.data.dashboard : null;
@@ -26,7 +28,7 @@ export function AttentionPopover({ theme, host, workspaceId, close, openPanel }:
     <View style={{ width: 360, maxWidth: "100%", gap: 8 }}>
       {dashboard ? (
         <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} contentContainerStyle={{ gap: 12 }}>
-          <AttentionList colors={colors} dashboard={dashboard} onCopy={async (question, letter) => {
+          <AttentionList colors={colors} dashboard={dashboard} onSurface1={onSurface1} onCopy={async (question, letter) => {
             await copy(question, letter);
             close();
           }} />
@@ -38,7 +40,8 @@ export function AttentionPopover({ theme, host, workspaceId, close, openPanel }:
       )}
       <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}
-          style={({ pressed }) => ({ alignItems: "center", paddingVertical: 6, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface2 : colors.surface1 })}>
+          style={({ pressed }) => ({ alignItems: "center", paddingVertical: 6, borderRadius: 4, ...raised(colors),
+            backgroundColor: onSurface1 ? (pressed ? colors.surface1 : colors.surface2) : pressed ? colors.surface2 : colors.surface1 })}>
           <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Open Progress</Text>
         </PressScale>
       </View>
@@ -46,12 +49,17 @@ export function AttentionPopover({ theme, host, workspaceId, close, openPanel }:
   );
 }
 
-export function AttentionList({ colors, dashboard, onCopy }: {
+export function AttentionList({ colors, dashboard, onSurface1, onCopy }: {
   colors: Colors;
   dashboard: Dashboard;
+  onSurface1: boolean;
   onCopy(question: Dashboard["questions"]["open"][number], letter: string): void;
 }) {
   const now = Date.now();
+  // The last question can be answered while the popover is open.
+  if (!dashboard.questions.open.length && !dashboard.stuck.length) {
+    return <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Nothing needs you right now.</Text>;
+  }
   return (
     <>
       {dashboard.questions.open.map((question) => (
@@ -61,7 +69,7 @@ export function AttentionList({ colors, dashboard, onCopy }: {
             <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
             <DefaultBadge colors={colors} value={question.default} waits={question.waits} />
           </View>
-          <QuestionDetail colors={colors} question={question} now={now} onCopy={(letter) => onCopy(question, letter)} />
+          <QuestionDetail colors={colors} question={question} now={now} onSurface1={onSurface1} onCopy={(letter) => onCopy(question, letter)} />
         </View>
       ))}
       {dashboard.stuck.length ? (
