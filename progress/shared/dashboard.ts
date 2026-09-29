@@ -116,6 +116,17 @@ export interface Dashboard {
   issues: FileIssue[];
 }
 
+// The id the next add of each kind gets. Ids are never reused, even after a
+// remove. Question ids stay unique across runs, so an answer like "Q7 A" can't
+// land on a question from an earlier run; the rest restart with each run.
+export interface NextIds {
+  ticket: string;
+  question: string;
+  deliverable: string;
+  activity: string;
+  stuck: string;
+}
+
 export interface ParsedLine {
   line: number;
   event: ProgressEvent;
@@ -176,10 +187,10 @@ export function isSettled(ticket: Ticket): boolean {
   return ticket.status === "done" || ticket.status === "skipped";
 }
 
-// Folds the events of the latest run into what the panel shows at `now`, and
-// how long that stays true while the events don't change.
+// Folds the events of the latest run into what the panel shows at `now`, how
+// long that stays true while the events don't change, and the ids new items get.
 // Everything before the last `run.start` belongs to earlier runs and is ignored.
-export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue[] }, now: Date): { dashboard: Dashboard; validUntil: number } {
+export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue[] }, now: Date): { dashboard: Dashboard; validUntil: number; nextIds: NextIds } {
   const time = clock(now);
   let start = 0;
   parsed.events.forEach(({ event }, index) => {
@@ -356,7 +367,18 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
     tickets: list,
     issues: issues.sort((a, b) => a.line - b.line),
   };
-  return { dashboard, validUntil: time.validUntil };
+  return { dashboard, validUntil: time.validUntil, nextIds: nextIds(parsed.events.map(({ event }) => event), events.map(({ event }) => event)) };
+}
+
+function nextIds(all: ProgressEvent[], inRun: ProgressEvent[]): NextIds {
+  const used = (events: ProgressEvent[], type: ProgressEvent["type"]) => events.flatMap((event) => (event.type === type && "id" in event ? [event.id] : []));
+  return {
+    ticket: nextId("T", used(inRun, "ticket.add")),
+    question: nextId("Q", used(all, "question.ask"), 1),
+    deliverable: nextId("D", used(inRun, "deliverable.add"), 1),
+    activity: nextId("A", used(inRun, "activity.add"), 1),
+    stuck: nextId("S", used(inRun, "stuck.set"), 1),
+  };
 }
 
 function progress(tickets: Ticket[]): Dashboard["progress"] {
@@ -438,8 +460,7 @@ export function headlineText(dashboard: Dashboard): string {
   return dashboard.headline.map((part) => part.text).join(", ");
 }
 
-// Next id for a new item: never reuses an id, even after a remove.
-export function nextId(prefix: string, used: Iterable<string>, width = 2): string {
+function nextId(prefix: string, used: Iterable<string>, width = 2): string {
   let max = 0;
   for (const id of used) {
     const match = new RegExp(`^${prefix}(\\d+)$`).exec(id);

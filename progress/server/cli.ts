@@ -1,16 +1,13 @@
 // The command agents run to record progress. Each command appends one event
 // to the worktree's progress file and prints what it recorded.
 import { existsSync, realpathSync, statSync } from "node:fs";
-import { appendFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { isSettled, nextId, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, EVENT_VERSION, eventSchema, PROGRESS_FILE, TICKET_STATUSES, type ProgressEvent } from "../shared/events.ts";
-import { readProgressText } from "./dashboard.ts";
+import { isSettled, type Dashboard, type NextIds } from "../shared/dashboard.ts";
+import { DELIVERABLE_KINDS, PROGRESS_FILE, TICKET_STATUSES } from "../shared/events.ts";
+import { appendProgress, InvalidEvent, readProgress, type EventDraft } from "./progress-file.ts";
 import { outside } from "./paths.ts";
-import { prepareScratch } from "./scratch.ts";
-import { withLock } from "./lock.ts";
 import { installLauncher } from "./launcher.ts";
 import { dashboardText } from "../shared/show.ts";
 import { homedir } from "node:os";
@@ -23,18 +20,16 @@ export interface CliOptions {
 
 class UsageError extends Error {}
 
-type Draft = { [K in ProgressEvent["type"]]: Omit<Extract<ProgressEvent, { type: K }>, "v" | "ts"> }[ProgressEvent["type"]];
-
 interface State {
   dashboard: Dashboard;
-  events: ProgressEvent[];
+  nextIds: NextIds;
 }
 
 interface Command {
   usage: string;
   summary: string;
   options?: Record<string, { type: "string" | "boolean"; multiple?: boolean }>;
-  run(args: { positionals: string[]; values: Record<string, string | boolean | Array<string | boolean> | undefined>; state: State; cwd: string; root: string }): { event: Draft; message: string };
+  run(args: { positionals: string[]; values: Record<string, string | boolean | Array<string | boolean> | undefined>; state: State; cwd: string; root: string }): { event: EventDraft; message: string };
 }
 
 const USAGE_NAME = "paseo-progress";
@@ -125,11 +120,6 @@ function existingTicket(state: State, id: string | undefined) {
   return ticket;
 }
 
-function eventsInRun(events: ProgressEvent[]): ProgressEvent[] {
-  const start = events.findLastIndex((event) => event.type === "run.start");
-  return start === -1 ? events : events.slice(start);
-}
-
 // What still has to be settled before a run can finish.
 function unfinishedWork(dashboard: Dashboard): string[] {
   const label = (dashboard.run?.itemLabel ?? "Ticket").toLowerCase();
@@ -177,8 +167,7 @@ const commands: Record<string, Command> = {
       const title = required(positionals[0], "ticket title");
       const estimateMin = minutesOption(values.estimate, "estimate");
       if (estimateMin === undefined) throw new UsageError("Missing --estimate <minutes>.");
-      const used = eventsInRun(state.events).flatMap((event) => (event.type === "ticket.add" ? [event.id] : []));
-      const id = nextId("T", used);
+      const id = state.nextIds.ticket;
       return {
         event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor },
         message: `Added ${id}: ${title} (${estimateMin} min)${waitsFor ? `, waits for ${waitsFor}` : ""}`,
@@ -249,8 +238,7 @@ const commands: Record<string, Command> = {
         }
         fallback = fallback.toUpperCase();
       }
-      const used = state.events.flatMap((event) => (event.type === "question.ask" ? [event.id] : []));
-      const id = nextId("Q", used, 1);
+      const id = state.nextIds.question;
       return {
         event: {
           type: "question.ask",
@@ -328,8 +316,7 @@ const commands: Record<string, Command> = {
       }
       const isUrl = URL_PATTERN.test(target);
       if (isUrl && !/^https?:\/\//i.test(target)) throw new UsageError("Only http(s) URLs are supported; give local files as a path.");
-      const used = eventsInRun(state.events).flatMap((event) => (event.type === "deliverable.add" ? [event.id] : []));
-      const id = nextId("D", used, 1);
+      const id = state.nextIds.deliverable;
       return {
         event: {
           type: "deliverable.add",
@@ -363,8 +350,7 @@ const commands: Record<string, Command> = {
     run({ positionals, values, state }) {
       const text = required(positionals[0], "activity text");
       const ticket = values.ticket === undefined ? undefined : existingTicket(state, stringOption(values.ticket));
-      const used = eventsInRun(state.events).flatMap((event) => (event.type === "activity.add" ? [event.id] : []));
-      const id = nextId("A", used, 1);
+      const id = state.nextIds.activity;
       return { event: { type: "activity.add", id, text, ticket: ticket?.id }, message: `Logged ${id}${ticket ? ` on ${ticket.id}` : ""}: ${text}` };
     },
   },
@@ -407,8 +393,7 @@ const commands: Record<string, Command> = {
     run({ positionals, values, state }) {
       const reason = required(positionals[0], "reason");
       const ticket = values.ticket === undefined ? undefined : existingTicket(state, stringOption(values.ticket));
-      const used = eventsInRun(state.events).flatMap((event) => (event.type === "stuck.set" ? [event.id] : []));
-      const id = nextId("S", used, 1);
+      const id = state.nextIds.stuck;
       return { event: { type: "stuck.set", id, reason, ticket: ticket?.id }, message: `Flagged ${id}: ${reason}` };
     },
   },
@@ -475,12 +460,6 @@ export function findRoot(cwd: string): string {
   }
 }
 
-async function loadState(root: string, now: Date): Promise<State> {
-  const text = (await readProgressText(root)) ?? "";
-  const parsed = parseProgress(text);
-  return { dashboard: reduceProgress(parsed, now).dashboard, events: parsed.events.map(({ event }) => event) };
-}
-
 export async function runCli(argv: string[], options: CliOptions): Promise<number> {
   const out = options.out ?? ((line: string) => console.log(line));
   const now = options.now ?? (() => new Date());
@@ -496,7 +475,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     }
     if (first === "show") {
       const root = findRoot(options.cwd);
-      out(`Worktree: ${root}\n\n${dashboardText((await loadState(root, now())).dashboard, now().getTime())}`);
+      out(`Worktree: ${root}\n\n${dashboardText((await readProgress(root, now())).dashboard, now().getTime())}`);
       return 0;
     }
     const target = resolve(options.cwd, (argv[1] ?? DEFAULT_LAUNCHER).replace(/^~(?=$|\/)/, homedir()));
@@ -522,38 +501,23 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
       throw new UsageError((error as Error).message);
     }
     const root = findRoot(options.cwd);
-    const file = join(root, PROGRESS_FILE);
-    await prepareScratch(root);
-    const message = await withLock(`${file}.lock`, async () => {
-      const state = await loadState(root, now());
+    const message = await appendProgress(root, now, (state) => {
       const finished = state.dashboard.run?.finished;
       if (finished && command !== commands.start) {
         throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
       }
-      const { event: draft, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root });
-      const checked = eventSchema.safeParse({ v: EVENT_VERSION, ts: now().toISOString(), ...withoutUndefined(draft) });
-      if (!checked.success) {
-        throw new UsageError(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));
-      }
-      // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
-      const text = await readProgressText(root);
-      const lead = text && !text.endsWith("\n") ? "\n" : "";
-      await appendFile(file, `${lead}${JSON.stringify(checked.data)}\n`);
-      return message;
+      const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root });
+      return { event, result: message };
     });
     out(message);
     return 0;
   } catch (error) {
-    if (error instanceof UsageError) {
+    if (error instanceof UsageError || error instanceof InvalidEvent) {
       out(`${error.message}\nUsage: ${USAGE_NAME} ${command.usage}`);
       return 1;
     }
     throw error;
   }
-}
-
-function withoutUndefined<T extends object>(value: T): T {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
 
 function isMain(): boolean {

@@ -10,14 +10,15 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { handleGetAttention, handleGetDashboard, markPanelOpened, readDashboard } from "./dashboard.ts";
+import { handleGetAttention, handleGetDashboard } from "./dashboard.ts";
+import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatHours, formatMinutes } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
 import { attachmentPath, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
 import { imageMimeType } from "../shared/preview.ts";
-import { SCRATCH_GITIGNORE } from "./scratch.ts";
+import { SCRATCH_GITIGNORE } from "./progress-file.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
@@ -39,7 +40,7 @@ async function worktree(t: TestContext) {
       return { code, text: output.join("\n") };
     },
     // Read at the current clock, or at a given minute.
-    dashboard: (minute = clock) => readDashboard(directory, minutes(minute)),
+    dashboard: (minute = clock) => readProgress(directory, minutes(minute)),
   };
 }
 
@@ -335,7 +336,7 @@ test("unchanged dashboards are reused until exact stale and overdue boundaries, 
   assert.equal(stale.stale, true);
   assert.equal(first.stale, false, "cached snapshots are never mutated");
   assert.strictEqual((await w.dashboard(20)).dashboard, stale, "exactly at the estimate is not overdue");
-  const overdue = (await readDashboard(w.directory, new Date(minutes(20).getTime() + 1))).dashboard;
+  const overdue = (await readProgress(w.directory, new Date(minutes(20).getTime() + 1))).dashboard;
   assert.equal(overdue.stuck.length, 1);
   assert.equal(overdue.stuck[0].kind, "overdue");
   assert.strictEqual((await w.dashboard(60)).dashboard, overdue, "no further time changes remain");
@@ -349,7 +350,7 @@ test("each working ticket's overdue moment ends the cached dashboard", async (t)
   await w.run("start", "Run");
   await w.run("ticket", "add", "Short", "--estimate", "5", "--status", "working");
   await w.run("ticket", "add", "Long", "--estimate", "10", "--status", "working");
-  const after = (minute: number) => readDashboard(w.directory, new Date(minutes(minute).getTime() + 1));
+  const after = (minute: number) => readProgress(w.directory, new Date(minutes(minute).getTime() + 1));
   const first = (await w.dashboard(0)).dashboard;
   assert.strictEqual((await w.dashboard(5)).dashboard, first);
   const one = (await after(5)).dashboard;
@@ -816,7 +817,7 @@ test("question attachments take paths or links, and open and preview like delive
   await writeFile(join(w.directory, "shots", "before.png"), png);
   await w.run("question", "ask", "Header", "Which header?", "--option", "A=Old", "--option", "B=New", "--default", "A",
     "--file", "shots/before.png=Before", "--file", "https://example.com/preview?id=7&tab=2=Live preview", "--file", "https://example.com/?q=1");
-  const { dashboard } = await readDashboard(w.directory);
+  const { dashboard } = await readProgress(w.directory);
   assert.deepEqual(dashboard.questions.open[0].files, [
     { path: "shots/before.png", label: "Before" },
     { url: "https://example.com/preview?id=7&tab=2", label: "Live preview" },

@@ -6,7 +6,7 @@ import { extname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { imageMimeType, previewKind } from "../shared/preview.ts";
 import type { Dashboard } from "../shared/dashboard.ts";
-import { readDashboard } from "./dashboard.ts";
+import { readProgress } from "./progress-file.ts";
 import { outside } from "./paths.ts";
 
 export type Opener = (path: string) => Promise<void>;
@@ -58,7 +58,7 @@ export function attachmentPath(dashboard: Dashboard, ref: string): string | null
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
-  const { dashboard } = await readDashboard(directory);
+  const { dashboard } = await readProgress(directory);
   const path = attachmentPath(dashboard, ref);
   if (!path) throw new Error(`No local ${ref.startsWith("Q") ? "attachment" : "deliverable"} ${ref} in this worktree.`);
   const root = await realpath(directory);
