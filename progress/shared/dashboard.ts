@@ -346,6 +346,33 @@ function progress(tickets: Ticket[]): Dashboard["progress"] {
   };
 }
 
+function lastTicketUpdate(ticket: Ticket, activity: Activity[]): number {
+  return Math.max(
+    ...ticket.history.map((change) => Date.parse(change.at)),
+    ...activity.filter((entry) => entry.ticketId === ticket.id).map((entry) => Date.parse(entry.at)),
+  );
+}
+
+// The first millisecond at which an unchanged file can produce a different
+// dashboard. Keep these boundaries beside the rules they describe.
+export function nextDashboardChangeAt(dashboard: Dashboard, now: Date): number {
+  let next = Infinity;
+  const consider = (at: number) => {
+    if (at > now.getTime()) next = Math.min(next, at);
+  };
+  const finished = Boolean(dashboard.run?.finished) || (dashboard.tickets.length > 0 && dashboard.tickets.every((ticket) => ticket.status === "done" || ticket.status === "skipped"));
+  if (!finished && dashboard.updatedAt !== null) {
+    consider(Date.parse(dashboard.updatedAt) + STALE_AFTER_MIN * 60_000);
+  }
+  for (const ticket of dashboard.tickets) {
+    if (ticket.status === "working") {
+      // Overdue uses >, whereas stale uses >=.
+      consider(lastTicketUpdate(ticket, dashboard.activity) + ticket.estimateMin * 60_000 + 1);
+    }
+  }
+  return next;
+}
+
 function stuckItems(tickets: Ticket[], activity: Activity[], manual: Array<{ id: string; reason: string; ticket?: string; since: string }>, now: Date): StuckItem[] {
   const items: StuckItem[] = [];
   for (const ticket of tickets) {
@@ -354,10 +381,7 @@ function stuckItems(tickets: Ticket[], activity: Activity[], manual: Array<{ id:
       items.push({ kind: "blocked", key: `blocked:${ticket.id}`, ticketId: ticket.id, title: ticket.title, since: ticket.statusSince, note: ticket.note });
     } else if (ticket.status === "working") {
       // Any sign of work resets the clock: a status, stage or note change, or activity tagged to the ticket.
-      const lastUpdate = Math.max(
-        ...ticket.history.map((change) => Date.parse(change.at)),
-        ...activity.filter((entry) => entry.ticketId === ticket.id).map((entry) => Date.parse(entry.at)),
-      );
+      const lastUpdate = lastTicketUpdate(ticket, activity);
       if (now.getTime() - lastUpdate > ticket.estimateMin * 60_000) {
         items.push({
           kind: "overdue",

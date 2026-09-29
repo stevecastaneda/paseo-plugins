@@ -324,6 +324,58 @@ test("the pill check returns only counts and run state", async (t) => {
   assert.deepEqual(await handleGetAttention(input, context), { configured: true, questions: 1, stuck: 0, runOpen: true, panelOpened: false });
 });
 
+test("unchanged dashboards are reused until exact stale and overdue boundaries, including clock rollback", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await w.run("ticket", "add", "Work", "--estimate", "20", "--status", "working");
+  const first = (await w.dashboard(0)).dashboard;
+  assert.strictEqual((await w.dashboard(14)).dashboard, first, "ordinary polls reuse the reduction");
+  const stale = (await w.dashboard(15)).dashboard;
+  assert.notStrictEqual(stale, first);
+  assert.equal(stale.stale, true);
+  assert.equal(first.stale, false, "cached snapshots are never mutated");
+  assert.strictEqual((await w.dashboard(20)).dashboard, stale, "exactly at the estimate is not overdue");
+  const overdue = (await readDashboard(w.directory, new Date(minutes(20).getTime() + 1))).dashboard;
+  assert.equal(overdue.stuck.length, 1);
+  assert.equal(overdue.stuck[0].kind, "overdue");
+  assert.strictEqual((await w.dashboard(60)).dashboard, overdue, "no further time changes remain");
+  const rewound = (await w.dashboard(1)).dashboard;
+  assert.equal(rewound.stale, false);
+  assert.deepEqual(rewound.stuck, []);
+});
+
+test("rewriting or deleting the file invalidates the reduced dashboard", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run A");
+  const first = (await w.dashboard()).dashboard;
+  const path = join(w.directory, ".scratch/progress.jsonl");
+  const text = await readFile(path, "utf8");
+  await writeFile(path, text.replace("Run A", "Run B"));
+  const changed = (await w.dashboard()).dashboard;
+  assert.notStrictEqual(changed, first);
+  assert.equal(changed.run?.title, "Run B");
+  await rm(path);
+  assert.equal((await w.dashboard()).configured, false);
+  await writeFile(path, text);
+  assert.equal((await w.dashboard()).dashboard.run?.title, "Run A");
+});
+
+test("opening the panel changes the response version without rebuilding the dashboard", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const context = { paseo: {} as PluginHandlerContext["paseo"] };
+  const input = { workspaceId: "ws-1", workspaceDirectory: w.directory };
+  const first = await handleGetDashboard(input, context);
+  assert.ok("dashboard" in first);
+  await markPanelOpened(w.directory);
+  const opened = await handleGetDashboard({ ...input, since: first.version }, context);
+  assert.ok("dashboard" in opened);
+  assert.strictEqual(opened.dashboard, first.dashboard);
+  assert.equal(opened.panelOpened, true);
+  assert.notEqual(opened.version, first.version);
+  assert.deepEqual(await handleGetDashboard({ ...input, since: opened.version }, context), { unchanged: true, version: opened.version });
+});
+
 test("the command runs as a script and stamps the real time", async (t) => {
   const w = await worktree(t);
   const cli = fileURLToPath(new URL("./cli.ts", import.meta.url));

@@ -2,7 +2,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { createHash } from "node:crypto";
 import { access, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { EMPTY_DASHBOARD, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
+import { EMPTY_DASHBOARD, nextDashboardChangeAt, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
 import { PANEL_OPENED_FILE, PROGRESS_FILE } from "../shared/events.ts";
 import type { AttentionResult, DashboardResult } from "../shared/rpc.ts";
 import { prepareScratch } from "./scratch.ts";
@@ -19,6 +19,9 @@ export async function readProgressText(directory: string): Promise<string | null
 // The parsed file per worktree, kept until its size or change time moves. The
 // file only grows, and the panel and pills read it every few seconds.
 const parsedFiles = new Map<string, { size: number; mtimeMs: number; ctimeMs: number; parsed: ReturnType<typeof parseProgress> }>();
+// Replaced file snapshots and their derived data can be collected together.
+const dashboards = new WeakMap<ReturnType<typeof parseProgress>, { dashboard: Dashboard; from: number; until: number }>();
+const versions = new WeakMap<Dashboard, { panelOpened: boolean; version: string }>();
 
 async function readParsed(directory: string): Promise<ReturnType<typeof parseProgress> | null> {
   const info = await stat(join(directory, PROGRESS_FILE)).catch((error: NodeJS.ErrnoException) => {
@@ -33,7 +36,10 @@ async function readParsed(directory: string): Promise<ReturnType<typeof parsePro
   if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs && cached.ctimeMs === info.ctimeMs) return cached.parsed;
   // Stat before reading: if the file grows in between, the next stat won't match and it's read again.
   const text = await readProgressText(directory);
-  if (text === null) return null;
+  if (text === null) {
+    parsedFiles.delete(directory);
+    return null;
+  }
   const parsed = parseProgress(text);
   parsedFiles.set(directory, { size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs, parsed });
   return parsed;
@@ -45,7 +51,14 @@ export async function readDashboard(directory: string, now = new Date()): Promis
   const parsed = await readParsed(directory);
   const panelOpened = await exists(join(directory, PANEL_OPENED_FILE));
   if (parsed === null) return { configured: false, dashboard: EMPTY_DASHBOARD, panelOpened };
-  return { configured: true, dashboard: reduceProgress(parsed, now), panelOpened };
+  let cached = dashboards.get(parsed);
+  // A backwards clock jump must also re-evaluate stale/overdue state.
+  if (!cached || now.getTime() < cached.from || now.getTime() >= cached.until) {
+    const dashboard = reduceProgress(parsed, now);
+    cached = { dashboard, from: now.getTime(), until: nextDashboardChangeAt(dashboard, now) };
+    dashboards.set(parsed, cached);
+  }
+  return { configured: true, dashboard: cached.dashboard, panelOpened };
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -77,7 +90,12 @@ export async function handleGetDashboard(
   _context: PluginHandlerContext,
 ): Promise<DashboardResult | { unchanged: true; version: string }> {
   const result = await readDashboard(input.workspaceDirectory);
-  const version = createHash("sha1").update(JSON.stringify(result)).digest("base64url");
+  let cached = versions.get(result.dashboard);
+  if (!cached || cached.panelOpened !== result.panelOpened) {
+    cached = { panelOpened: result.panelOpened, version: createHash("sha1").update(JSON.stringify(result)).digest("base64url") };
+    versions.set(result.dashboard, cached);
+  }
+  const { version } = cached;
   return input.since === version ? { unchanged: true, version } : { ...result, version };
 }
 
