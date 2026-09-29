@@ -33,3 +33,14 @@ export function StalledPulse({ color, size = 12 }: { color: string; size?: numbe
     </Animated.View>
   );
 }
+
+// A ticket waiting on another one: a still, faded dot, so it reads as parked
+// rather than busy. Centered in the same slot an icon would take.
+export function WaitingDot({ color, size = 12 }: { color: string; size?: number }) {
+  const dot = Math.round(size / 2);
+  return (
+    <View accessibilityLabel="Waiting" style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color, opacity: 0.5 }} />
+    </View>
+  );
+}

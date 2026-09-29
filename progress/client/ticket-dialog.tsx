@@ -9,7 +9,7 @@ import { type Attachment, AttachmentList, deliverableAttachment } from "./attach
 import { StackedDialog } from "./dialog-stack";
 import { IconSwap } from "./motion";
 import { PressableRow } from "./row";
-import { Spinner, StalledPulse } from "./spinner";
+import { Spinner, StalledPulse, WaitingDot } from "./spinner";
 import { StatusBadge } from "./status-badge";
 import { When } from "./when";
 
@@ -65,7 +65,7 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
         {ticket.waitingFor ? (
           <View style={{ flexDirection: "row", gap: 4 }}>
             {/* Held on the first line when a long title wraps. */}
-            <View style={{ height: 18, justifyContent: "center" }}><Icon name="Hourglass" size={12} color={colors.foregroundMuted} /></View>
+            <View style={{ height: 18, justifyContent: "center" }}><WaitingDot color={colors.foregroundMuted} /></View>
             <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Waits for {ticket.waitingFor.id}: {ticket.waitingFor.title}</Text>
           </View>
         ) : null}
@@ -158,8 +158,8 @@ function LinkNote({ colors, link }: { colors: Colors; link: Link }) {
 // The same icons as the ticket rows, so a step reads like the status it was.
 // Past stage steps get an accent ringed dot: work that happened, now over.
 function Marker({ colors, step }: { colors: Colors; step: TimelineStep & { waiting?: boolean } }) {
-  const icon = step.waiting ? { name: "Hourglass", color: colors.foregroundMuted }
-    : step.label === "Added" ? { name: "CirclePlus", color: colors.foregroundMuted }
+  if (step.waiting) return <WaitingDot color={colors.foregroundMuted} />;
+  const icon = step.label === "Added" ? { name: "CirclePlus", color: colors.foregroundMuted }
     : step.status === "done" ? { name: "CircleCheck", color: colors.statusSuccess }
     : step.status === "blocked" ? { name: "Ban", color: colors.statusDanger }
     : step.status === "skipped" ? { name: "CircleSlash", color: colors.foregroundMuted }
