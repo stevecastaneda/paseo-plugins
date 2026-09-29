@@ -23,6 +23,8 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   const colors = theme.colors;
   // Paseo draws the desktop popover on surface1 and the phone sheet on surface0.
   const onSurface1 = !layout.compact;
+  // Phones open the panel as its own tab, and are pressed with a finger.
+  const touch = progressPanel().location === "workspace";
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const query = useDashboard(host.id, workspaceId, directory);
   const dashboard = query.data?.configured ? query.data.dashboard : null;
@@ -53,13 +55,14 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
       <PreviewDialog colors={colors} attachment={previewing?.attachment ?? null} workspaceId={workspaceId} workspaceDirectory={directory ?? ""}
         onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)}
         gallery={previewing ? { items: previewing.group, onSelect: (attachment) => setPreviewing({ ...previewing, attachment }) } : undefined} />
-      <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View style={{ paddingTop: touch ? 12 : 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+        {/* A full 44pt touch target on phones; desktop keeps the compact button. */}
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}
-          style={({ pressed }) => ({ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 6, borderRadius: 4, ...raised(colors),
+          style={({ pressed }) => ({ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: touch ? 8 : 6, paddingVertical: 6, minHeight: touch ? 44 : undefined, borderRadius: touch ? 8 : 4, ...raised(colors),
             backgroundColor: onSurface1 ? (pressed ? colors.surface1 : colors.surface2) : pressed ? colors.surface2 : colors.surface1 })}>
           {/* Beside the chat on desktop; on a phone it opens as its own tab, shown with the tab's icon. */}
-          <Icon name={progressPanel().location === "explorer" ? "PanelRight" : "ListChecks"} size={12} color={colors.foreground} />
-          <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Open Progress</Text>
+          <Icon name={touch ? "ListChecks" : "PanelRight"} size={touch ? 16 : 12} color={colors.foreground} />
+          <Text style={{ color: colors.foreground, fontSize: touch ? 15 : 12, lineHeight: touch ? 20 : 16, fontWeight: "600" }}>Open Progress</Text>
         </PressScale>
       </View>
     </View>
