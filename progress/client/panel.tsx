@@ -15,7 +15,7 @@ import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
 import { formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
-import { StatusBadge } from "./status-badge";
+import { STATUS_LABEL } from "./status-badge";
 import { TicketDialogs } from "./ticket-dialog";
 import { PressableRow } from "./row";
 import { ShowMoreRow, usePaged } from "./show-more";
@@ -423,21 +423,14 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
     <PressableRow colors={colors} onSurface1={working} transparentAtRest={!working}
       accessibilityRole="button" accessibilityLabel={`${ticket.id} details`} onPress={onOpen}
       style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-      <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
+      {/* The icon is the only status mark on the row; the ticket dialog spells it out in a badge. */}
+      <View accessible accessibilityLabel={ticket.waitingFor ? "Waiting" : STATUS_LABEL[ticket.status]} style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
         <IconSwap swapKey={ticket.waitingFor ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        {/* The Deliverables tab's icon before the title when the ticket has deliverables; they're listed in its dialog. */}
-        <View style={{ flexDirection: "row", gap: 6 }}>
-          {deliverables ? (
-            <View accessibilityLabel={deliverables === 1 ? "Has a deliverable" : `Has ${deliverables} deliverables`} style={{ height: 18, justifyContent: "center" }}>
-              <Icon name="Package" size={12} color={colors.foregroundMuted} />
-            </View>
-          ) : null}
-          <Text style={{ flex: 1, color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
-            {ticket.title}
-          </Text>
-        </View>
+        <Text style={{ color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
+          {ticket.title}
+        </Text>
         {ticket.status === "working" && ticket.stage && ticket.stageSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             {ticket.stage} stage started <When colors={colors} iso={ticket.stageSince} now={now} />
@@ -453,10 +446,11 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
         ) : null}
         {ticket.note ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{ticket.note}</Text> : null}
       </View>
-      <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{ticket.estimateMin} min</Text>
-      {/* The check mark already says done. */}
-      {/* Optical: the 20px badge centers on the 18px line. */}
-      {ticket.status === "done" ? null : <View style={{ marginTop: -1 }}><StatusBadge colors={colors} status={ticket.status} waiting={Boolean(ticket.waitingFor)} /></View>}
+      {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. */}
+      <View accessibilityLabel={deliverables ? (deliverables === 1 ? "Has a deliverable" : `Has ${deliverables} deliverables`) : undefined} style={{ width: 12, height: 18, justifyContent: "center" }}>
+        {deliverables ? <Icon name="Package" size={12} color={colors.foregroundMuted} /> : null}
+      </View>
+      <Text style={{ minWidth: 44, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{ticket.estimateMin} min</Text>
       <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
     </PressableRow>
   );
