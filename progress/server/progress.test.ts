@@ -344,6 +344,21 @@ test("unchanged dashboards are reused until exact stale and overdue boundaries, 
   assert.deepEqual(rewound.stuck, []);
 });
 
+test("each working ticket's overdue moment ends the cached dashboard", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await w.run("ticket", "add", "Short", "--estimate", "5", "--status", "working");
+  await w.run("ticket", "add", "Long", "--estimate", "10", "--status", "working");
+  const after = (minute: number) => readDashboard(w.directory, new Date(minutes(minute).getTime() + 1));
+  const first = (await w.dashboard(0)).dashboard;
+  assert.strictEqual((await w.dashboard(5)).dashboard, first);
+  const one = (await after(5)).dashboard;
+  assert.deepEqual(one.stuck.map((item) => item.ticketId), ["T01"]);
+  assert.strictEqual((await w.dashboard(10)).dashboard, one);
+  const both = (await after(10)).dashboard;
+  assert.deepEqual(both.stuck.map((item) => item.ticketId), ["T01", "T02"]);
+});
+
 test("rewriting or deleting the file invalidates the reduced dashboard", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run A");

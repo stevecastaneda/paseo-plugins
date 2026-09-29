@@ -154,9 +154,33 @@ function describeInvalid(json: unknown): string {
 
 export const STALE_AFTER_MIN = 15;
 
-// Folds the events of the latest run into what the panel shows at `now`.
+// Every time-dependent rule asks `reached(at)` instead of comparing with `now`
+// itself. Each answer also records the moment it would flip, so `validUntil`
+// is the first millisecond at which the same events can produce a different
+// dashboard, and a new rule can't forget to tell the cache.
+function clock(now: Date) {
+  let validUntil = Infinity;
+  return {
+    reached(at: number): boolean {
+      if (now.getTime() >= at) return true;
+      validUntil = Math.min(validUntil, at);
+      return false;
+    },
+    get validUntil() {
+      return validUntil;
+    },
+  };
+}
+
+export function isSettled(ticket: Ticket): boolean {
+  return ticket.status === "done" || ticket.status === "skipped";
+}
+
+// Folds the events of the latest run into what the panel shows at `now`, and
+// how long that stays true while the events don't change.
 // Everything before the last `run.start` belongs to earlier runs and is ignored.
-export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue[] }, now: Date): Dashboard {
+export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue[] }, now: Date): { dashboard: Dashboard; validUntil: number } {
+  const time = clock(now);
   let start = 0;
   parsed.events.forEach(({ event }, index) => {
     if (event.type === "run.start") start = index;
@@ -302,23 +326,23 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
   const list = [...tickets.values()];
   for (const ticket of list) {
     const other = ticket.waitsFor ? tickets.get(ticket.waitsFor) : undefined;
-    ticket.waitingFor = other && other.status !== "done" && other.status !== "skipped" && ticket.status !== "done" && ticket.status !== "skipped"
+    ticket.waitingFor = other && !isSettled(other) && !isSettled(ticket)
       ? { id: other.id, title: other.title }
       : undefined;
   }
   const itemLabel = run?.itemLabel ?? "Ticket";
-  const stuck = stuckItems(list, [...activity.values()], [...manualStuck.values()], now);
+  const stuck = stuckItems(list, [...activity.values()], [...manualStuck.values()], time.reached);
   const allQuestions = [...questions.values()];
   const open = allQuestions.filter((question) => !question.answer);
   // A finished run has nothing left to stall, so it never goes stale.
-  const finished = Boolean(run?.finished) || (list.length > 0 && list.every((ticket) => ticket.status === "done" || ticket.status === "skipped"));
+  const finished = Boolean(run?.finished) || (list.length > 0 && list.every(isSettled));
   const answered = allQuestions
     .filter((question) => question.answer)
     .sort((a, b) => Date.parse(b.answer!.at) - Date.parse(a.answer!.at));
-  return {
+  const dashboard: Dashboard = {
     run,
     updatedAt,
-    stale: !finished && updatedAt !== null && now.getTime() - Date.parse(updatedAt) >= STALE_AFTER_MIN * 60_000,
+    stale: !finished && updatedAt !== null && time.reached(Date.parse(updatedAt) + STALE_AFTER_MIN * 60_000),
     headline: headline(list, itemLabel, open.length, stuck.length),
     stuck,
     questions: { open, answered },
@@ -332,6 +356,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
     tickets: list,
     issues: issues.sort((a, b) => a.line - b.line),
   };
+  return { dashboard, validUntil: time.validUntil };
 }
 
 function progress(tickets: Ticket[]): Dashboard["progress"] {
@@ -353,27 +378,7 @@ function lastTicketUpdate(ticket: Ticket, activity: Activity[]): number {
   );
 }
 
-// The first millisecond at which an unchanged file can produce a different
-// dashboard. Keep these boundaries beside the rules they describe.
-export function nextDashboardChangeAt(dashboard: Dashboard, now: Date): number {
-  let next = Infinity;
-  const consider = (at: number) => {
-    if (at > now.getTime()) next = Math.min(next, at);
-  };
-  const finished = Boolean(dashboard.run?.finished) || (dashboard.tickets.length > 0 && dashboard.tickets.every((ticket) => ticket.status === "done" || ticket.status === "skipped"));
-  if (!finished && dashboard.updatedAt !== null) {
-    consider(Date.parse(dashboard.updatedAt) + STALE_AFTER_MIN * 60_000);
-  }
-  for (const ticket of dashboard.tickets) {
-    if (ticket.status === "working") {
-      // Overdue uses >, whereas stale uses >=.
-      consider(lastTicketUpdate(ticket, dashboard.activity) + ticket.estimateMin * 60_000 + 1);
-    }
-  }
-  return next;
-}
-
-function stuckItems(tickets: Ticket[], activity: Activity[], manual: Array<{ id: string; reason: string; ticket?: string; since: string }>, now: Date): StuckItem[] {
+function stuckItems(tickets: Ticket[], activity: Activity[], manual: Array<{ id: string; reason: string; ticket?: string; since: string }>, reached: (at: number) => boolean): StuckItem[] {
   const items: StuckItem[] = [];
   for (const ticket of tickets) {
     // Blocked only on another ticket in the run is waiting, not stuck.
@@ -382,7 +387,8 @@ function stuckItems(tickets: Ticket[], activity: Activity[], manual: Array<{ id:
     } else if (ticket.status === "working") {
       // Any sign of work resets the clock: a status, stage or note change, or activity tagged to the ticket.
       const lastUpdate = lastTicketUpdate(ticket, activity);
-      if (now.getTime() - lastUpdate > ticket.estimateMin * 60_000) {
+      // Overdue once more than the estimate has passed, so a millisecond after it.
+      if (reached(lastUpdate + ticket.estimateMin * 60_000 + 1)) {
         items.push({
           kind: "overdue",
           key: `overdue:${ticket.id}`,

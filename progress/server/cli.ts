@@ -5,7 +5,7 @@ import { appendFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { nextId, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
+import { isSettled, nextId, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
 import { DELIVERABLE_KINDS, EVENT_VERSION, eventSchema, PROGRESS_FILE, TICKET_STATUSES, type ProgressEvent } from "../shared/events.ts";
 import { readProgressText } from "./dashboard.ts";
 import { outside } from "./paths.ts";
@@ -133,7 +133,7 @@ function eventsInRun(events: ProgressEvent[]): ProgressEvent[] {
 // What still has to be settled before a run can finish.
 function unfinishedWork(dashboard: Dashboard): string[] {
   const label = (dashboard.run?.itemLabel ?? "Ticket").toLowerCase();
-  const tickets = dashboard.tickets.filter((ticket) => ticket.status !== "done" && ticket.status !== "skipped");
+  const tickets = dashboard.tickets.filter((ticket) => !isSettled(ticket));
   const flagged = dashboard.stuck.filter((item) => item.kind === "manual");
   return [
     dashboard.questions.open.length
@@ -478,7 +478,7 @@ export function findRoot(cwd: string): string {
 async function loadState(root: string, now: Date): Promise<State> {
   const text = (await readProgressText(root)) ?? "";
   const parsed = parseProgress(text);
-  return { dashboard: reduceProgress(parsed, now), events: parsed.events.map(({ event }) => event) };
+  return { dashboard: reduceProgress(parsed, now).dashboard, events: parsed.events.map(({ event }) => event) };
 }
 
 export async function runCli(argv: string[], options: CliOptions): Promise<number> {

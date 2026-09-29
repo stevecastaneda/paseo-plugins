@@ -2,7 +2,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { createHash } from "node:crypto";
 import { access, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { EMPTY_DASHBOARD, nextDashboardChangeAt, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
+import { EMPTY_DASHBOARD, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
 import { PANEL_OPENED_FILE, PROGRESS_FILE } from "../shared/events.ts";
 import type { AttentionResult, DashboardResult } from "../shared/rpc.ts";
 import { prepareScratch } from "./scratch.ts";
@@ -54,8 +54,8 @@ export async function readDashboard(directory: string, now = new Date()): Promis
   let cached = dashboards.get(parsed);
   // A backwards clock jump must also re-evaluate stale/overdue state.
   if (!cached || now.getTime() < cached.from || now.getTime() >= cached.until) {
-    const dashboard = reduceProgress(parsed, now);
-    cached = { dashboard, from: now.getTime(), until: nextDashboardChangeAt(dashboard, now) };
+    const { dashboard, validUntil } = reduceProgress(parsed, now);
+    cached = { dashboard, from: now.getTime(), until: validUntil };
     dashboards.set(parsed, cached);
   }
   return { configured: true, dashboard: cached.dashboard, panelOpened };
