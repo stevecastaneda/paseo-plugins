@@ -16,6 +16,8 @@ The dashboard shows:
 
 The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. When questions are waiting or something is stuck, a pill above the message box shows it (`3 questions · 1 stuck`). Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
 
+On phones, where Paseo has no Explorer pane, Progress opens as a tab of its own, and the pill stays above the message box while a run is open so there's always a way in. SVG files preview on desktop; on phones they open on the daemon host.
+
 The first time a run starts in a worktree whose Progress panel has never been opened, the pill shows a spinner and reads **Progress** instead; pressing it opens the panel. Once the panel has been opened there, the plugin writes an empty `.scratch/progress-panel-opened` and the nudge never comes back, even for later runs. It doesn't open the panel by itself because Paseo switches to a workspace to open its panel, which would pull you away from whatever you're looking at.
 
 ## Install
