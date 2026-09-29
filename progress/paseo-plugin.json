@@ -1,0 +1,7 @@
+{
+  "id": "progress",
+  "requirements": {
+    "paseo": ">=0.9.0"
+  },
+  "build": [["npm", "ci", "--omit=dev"]]
+}

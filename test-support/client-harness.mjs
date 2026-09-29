@@ -13,6 +13,9 @@ export function clientHarness(pluginDirectory, modules = {}) {
   const requests = [];
   const watches = new Map();
   const opened = [];
+  const panels = [];
+  const commandItems = [];
+  const openedPanels = [];
   const responses = { 'time-since.last-reply.list': { lastReplyAt: {} } };
   let nextTimer = 0;
   function timer(callback, delay, repeat = false) { const id = ++nextTimer; timers.set(id, { callback, delay, repeat }); return id; }
@@ -30,7 +33,8 @@ export function clientHarness(pluginDirectory, modules = {}) {
       if (Object.hasOwn(modules, name)) return modules[name];
       if (name === '@getpaseo/plugin') return { defineRpc: (contract) => contract };
       if (name === '@getpaseo/plugin/client') return { openExternalUrl: async (url) => { opened.push(url); } };
-      if ( name === '@getpaseo/plugin/client/react-native' || name === 'react-native') return {};
+      if (name === 'react-native') return { Platform: { OS: 'web' } };
+      if (name === '@getpaseo/plugin/client/react-native') return {};
       return require(name);
     };
     vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {
@@ -106,7 +110,9 @@ export function clientHarness(pluginDirectory, modules = {}) {
     },
     addComposerPill: (target) => add({ ...target, placement: 'composer' }),
     addHeaderButton: (target) => add({ ...target, placement: 'header' }),
-    openPanel() {},
+    addWorkspacePanel(panel) { const entry = { ...panel, removed: false }; panels.push(entry); return () => { entry.removed = true; }; },
+    addCommandCenterItem(item) { const entry = { ...item, removed: false }; commandItems.push(entry); return () => { entry.removed = true; }; },
+    openPanel(id, options) { openedPanels.push({ id, ...options }); },
     async rpc(contract, input) {
       requests.push({ name: contract.name, input });
       if (contract.name === 'time-since.settings.get') return { showIcon: true, showAgo: false };
@@ -116,7 +122,7 @@ export function clientHarness(pluginDirectory, modules = {}) {
       throw new Error(`Unexpected RPC ${contract.name}`);
     },
   };
-  return { client, load, agents, workspaces, registrations, requests, watches, opened, timers, responses,
+  return { client, load, agents, workspaces, registrations, requests, watches, opened, panels, commandItems, openedPanels, timers, responses,
     async flush() { for (let i = 0; i < 10; i++) await Promise.resolve(); },
     async tick(delay) { for (const [id, timer] of [...timers]) if (timer.delay === delay) { if (!timer.repeat) timers.delete(id); await timer.callback(); } },
   };

@@ -8,6 +8,7 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 | [setup-monitor](setup-monitor/README.md) | Live worktree setup progress and logs in Explorer. |
 | [workspace-links](workspace-links/README.md) | Quick access to workspace URLs from a JSON file. |
 | [history](history/README.md) | Inspect chat messages, tools, and raw session records from a composer pill. |
+| [progress](progress/README.md) | A live progress dashboard per worktree, drawn from a file agents write with the `paseo-progress` command. |
 
 ## Install
 
@@ -53,6 +54,18 @@ See [Workspace Links](workspace-links/README.md) for configuration.
 paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
 ```
 
+## progress
+
+A live dashboard for long agent jobs, one per worktree. Agents record tickets, stages, questions, deliverables, and activity with the `paseo-progress` command. The **Progress** panel shows percent done, what's stuck, and questions waiting for you, with a button to copy each answer for your reply. A pill above the message box appears when something needs you.
+
+See [Progress](progress/README.md) for the commands and the launcher setup.
+
+<img src="progress/images/1-panel.png" alt="The Progress panel in Explorer" width="400">
+
+```bash
+paseo plugin add stevecastaneda/paseo-plugins --path progress
+```
+
 ## Local development
 
 Paseo runs each plugin from one folder on your machine. `npm run dev` makes Paseo run the plugin from the folder you're in. You need Node.js 22.18 or later.
@@ -60,7 +73,7 @@ Paseo runs each plugin from one folder on your machine. `npm run dev` makes Pase
 **1. Point Paseo at your copy.** From the plugin's folder in your checkout or worktree:
 
 ```bash
-cd time-since   # or setup-monitor, workspace-links, or history
+cd time-since   # or setup-monitor, workspace-links, history, or progress
 npm install     # first time in this copy, and after pulling dependency changes
 npm run dev
 ```
