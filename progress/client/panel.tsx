@@ -12,7 +12,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
-import { formatHours, formatMinutes, minutesSince } from "../shared/format";
+import { formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
 import { StatusBadge } from "./status-badge";
@@ -348,7 +348,7 @@ function ProgressBar({ colors, progress, live }: { colors: Colors; progress: Das
           <Text style={{ color: colors.foreground, fontWeight: "600" }}>{progress.percent}%</Text> of estimated work done
         </Text>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          {formatHours(progress.doneMin)} of {formatHours(progress.totalMin)}
+          {formatWorkDone(progress.doneMin, progress.totalMin, progress.tookMin)}
         </Text>
       </View>
       <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }}

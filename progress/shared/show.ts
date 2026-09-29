@@ -1,6 +1,6 @@
 import type { Dashboard } from "./dashboard.ts";
 import { headlineText, shortTitle } from "./dashboard.ts";
-import { formatAgo, formatClock, formatHours, formatMinutes, minutesSince } from "./format.ts";
+import { formatAgo, formatClock, formatMinutes, formatWorkDone, minutesSince } from "./format.ts";
 
 const STATUS: Record<string, string> = { not_started: "Not started", working: "Working", blocked: "Blocked", done: "Done", skipped: "Skipped" };
 
@@ -20,7 +20,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.updatedAt) lines.push(`Last updated ${when(dashboard.updatedAt)}`);
   if (dashboard.stale && dashboard.updatedAt) lines.push(`POSSIBLY STALE: no update for ${formatMinutes(minutesSince(dashboard.updatedAt, nowMs))}.`);
   if (dashboard.progress.totalMin) {
-    lines.push(`${dashboard.progress.percent}% of estimated work done, ${formatHours(dashboard.progress.doneMin)} of ${formatHours(dashboard.progress.totalMin)}`);
+    lines.push(`${dashboard.progress.percent}% of estimated work done, ${dashboard.progress.tookMin !== undefined ? "took " : ""}${formatWorkDone(dashboard.progress.doneMin, dashboard.progress.totalMin, dashboard.progress.tookMin)}`);
   }
   if (dashboard.issues.length) {
     lines.push("", `Skipped lines: ${dashboard.issues.map((issue) => `line ${issue.line} (${issue.reason})`).join(", ")}`);

@@ -12,8 +12,14 @@ export function formatMinutes(totalMin: number): string {
   return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
 }
 
-export function formatHours(minutes: number): string {
-  return `${(minutes / 60).toFixed(1).replace(/\.0$/, "")} h`;
+// Estimated work done out of the total, in the units people estimate in:
+// "5 of 10 min", "1 h 30 min of 2 h". Under an hour on both sides, the unit is
+// said once.
+// Once everything is done, how long it really took instead: "1 h 20 min".
+export function formatWorkDone(doneMin: number, totalMin: number, tookMin?: number): string {
+  if (tookMin !== undefined) return formatMinutes(tookMin);
+  if (totalMin < 60 && doneMin >= 1) return `${Math.floor(doneMin)} of ${formatMinutes(totalMin)}`;
+  return `${doneMin < 1 ? "0 min" : formatMinutes(doneMin)} of ${formatMinutes(totalMin)}`;
 }
 
 export function formatClock(iso: string): string {

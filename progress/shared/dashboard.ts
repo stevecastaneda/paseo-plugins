@@ -111,7 +111,9 @@ export interface Dashboard {
   activity: Activity[];
   ticker: { text: string; since: string } | null;
   // Share of estimated minutes in done tickets. Skipped tickets are left out.
-  progress: { percent: number; doneMin: number; totalMin: number; segments: ProgressSegment[] };
+  // `tookMin`: once every counted ticket is done, the real time from the run's
+  // start to the last one finishing.
+  progress: { percent: number; doneMin: number; totalMin: number; tookMin?: number; segments: ProgressSegment[] };
   tickets: Ticket[];
   issues: FileIssue[];
 }
@@ -363,7 +365,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
       const ticket = deliverable.ticketId ? tickets.get(deliverable.ticketId) : undefined;
       return ticket ? { ...deliverable, ticketLabel: shortTitle(ticket.title) } : deliverable;
     }),
-    progress: progress(list),
+    progress: progress(list, run?.startedAt),
     tickets: list,
     issues: issues.sort((a, b) => a.line - b.line),
   };
@@ -381,14 +383,18 @@ function nextIds(all: ProgressEvent[], inRun: ProgressEvent[]): NextIds {
   };
 }
 
-function progress(tickets: Ticket[]): Dashboard["progress"] {
+function progress(tickets: Ticket[], startedAt: string | undefined): Dashboard["progress"] {
   const counted = tickets.filter((ticket) => ticket.status !== "skipped");
   const totalMin = counted.reduce((sum, ticket) => sum + ticket.estimateMin, 0);
   const doneMin = counted.filter((ticket) => ticket.status === "done").reduce((sum, ticket) => sum + ticket.estimateMin, 0);
+  // All done: the last ticket to settle, done or skipped, ended the work.
+  const allDone = counted.length > 0 && counted.every((ticket) => ticket.status === "done") && tickets.every(isSettled);
+  const endedAt = Math.max(...tickets.map((ticket) => Date.parse(ticket.statusSince)));
   return {
     percent: totalMin ? Math.round((doneMin / totalMin) * 100) : 0,
     doneMin,
     totalMin,
+    tookMin: allDone && startedAt ? Math.max(0, (endedAt - Date.parse(startedAt)) / 60_000) : undefined,
     segments: counted.map(({ id, estimateMin, status, waitingFor }) => ({ id, estimateMin, status, waiting: Boolean(waitingFor) })),
   };
 }

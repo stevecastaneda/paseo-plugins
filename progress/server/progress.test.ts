@@ -12,7 +12,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
-import { formatHours, formatMinutes } from "../shared/format.ts";
+import { formatMinutes, formatWorkDone } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
@@ -415,12 +415,11 @@ async function screenshotRun(t: TestContext) {
   return w;
 }
 
-test("progress matches the reference dashboard: 58% and 4.5 h of 7.8 h", async (t) => {
+test("progress matches the reference dashboard: 58%, 4 h 30 min of 7 h 45 min", async (t) => {
   const w = await screenshotRun(t);
   const { progress } = (await w.dashboard()).dashboard;
   assert.equal(progress.percent, 58);
-  assert.equal(formatHours(progress.doneMin), "4.5 h");
-  assert.equal(formatHours(progress.totalMin), "7.8 h");
+  assert.equal(formatWorkDone(progress.doneMin, progress.totalMin), "4 h 30 min of 7 h 45 min");
   assert.deepEqual(
     progress.segments.map(({ id, estimateMin, status }) => `${id}:${estimateMin}:${status}`),
     ["T01:120:done", "T02:150:done", "T03:120:working", "T04:75:not_started"],
@@ -447,6 +446,24 @@ test("the dashboard turns stale exactly 15 minutes after the last event", async 
   assert.equal((await w.dashboard(26)).dashboard.stale, false, "a new event clears it");
 });
 
+test("once every ticket is done, the dashboard says how long the run really took", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await w.run("ticket", "add", "One", "--estimate", "30");
+  await w.run("ticket", "add", "Two", "--estimate", "30");
+  await w.run("ticket", "add", "Extra", "--estimate", "30");
+  w.at(40);
+  await w.run("ticket", "update", "T01", "--status", "done");
+  assert.equal((await w.dashboard()).dashboard.progress.tookMin, undefined, "not while work remains");
+  w.at(70);
+  await w.run("ticket", "update", "T02", "--status", "done");
+  w.at(85);
+  await w.run("ticket", "update", "T03", "--status", "skipped");
+  const { progress } = (await w.dashboard(200)).dashboard;
+  assert.equal(progress.tookMin, 85, "from the start to the last ticket settling, not to now");
+  assert.match((await w.run("show")).text, /100% of estimated work done, took 1 h 25 min/);
+});
+
 test("a run whose tickets are all done or skipped never turns stale", async (t) => {
   const w = await screenshotRun(t);
   w.at(10);
@@ -460,8 +477,11 @@ test("display helpers format durations and hours the way the panel shows them", 
   assert.equal(formatMinutes(12), "12 min");
   assert.equal(formatMinutes(602), "10 h 2 min");
   assert.equal(formatMinutes(120), "2 h");
-  assert.equal(formatHours(465), "7.8 h");
-  assert.equal(formatHours(120), "2 h");
+  assert.equal(formatWorkDone(10, 10), "10 of 10 min", "under an hour, the unit is said once");
+  assert.equal(formatWorkDone(0, 45), "0 min of 45 min");
+  assert.equal(formatWorkDone(30, 120), "30 min of 2 h");
+  assert.equal(formatWorkDone(90, 120), "1 h 30 min of 2 h");
+  assert.equal(formatWorkDone(120, 120, 95), "1 h 35 min", "once done, the real time replaces the estimate");
 });
 
 test("a working ticket shows its stage and when that stage started", async (t) => {
@@ -705,7 +725,7 @@ test("show prints the dashboard as text for the agent", async (t) => {
   for (const expected of [
     "Loan Options",
     "2 of 4 tickets done, 1 question waiting for you, 1 stuck",
-    "58% of estimated work done, 4.5 h of 7.8 h",
+    "58% of estimated work done, 4 h 30 min of 7 h 45 min",
     "POSSIBLY STALE: no update for 10 h 17 min.",
     "Ticket 03 (no update for longer than its 2 h estimate)",
     "T03  Working, Fixes stage  120 min  Ticket 03",
