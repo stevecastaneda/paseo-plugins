@@ -74,7 +74,7 @@ function attentionWith(questions: number, stuck: number, run: { open?: boolean; 
 test("an agent's composer shows a pill while its workspace has questions waiting or something stuck", async () => {
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
-  h.responses["progress-dashboard.attention"] = attentionWith(2, 1);
+  h.responses["progress.attention"] = attentionWith(2, 1);
   const stop = contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }, { agent: { id: "idle", workspaceId: "other" } }]);
   h.workspaces.bootstrap([
@@ -95,12 +95,12 @@ test("an agent's composer shows a pill while its workspace has questions waiting
   pill?.button.behavior.Content({ workspaceId: "w", close() {} }).props.openPanel();
   assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }]);
 
-  h.responses["progress-dashboard.attention"] = attentionWith(1, 0);
+  h.responses["progress.attention"] = attentionWith(1, 0);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().find((entry) => entry.agentId === "a")?.button.label, "1 question");
 
-  h.responses["progress-dashboard.attention"] = attentionWith(0, 0);
+  h.responses["progress.attention"] = attentionWith(0, 0);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().length, 0, "the pill disappears when nothing needs the user");
@@ -113,7 +113,7 @@ test("an agent's composer shows a pill while its workspace has questions waiting
 
 test("a workspace without a progress file never shows a pill", async () => {
   const h = clientHarness(directory);
-  h.responses["progress-dashboard.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
+  h.responses["progress.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
   const stop = h.load("client/pills.tsx").contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
@@ -125,12 +125,12 @@ test("a workspace without a progress file never shows a pill", async () => {
 test("a worktree with nothing going on is checked every 30 seconds instead of every 5", async () => {
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS, IDLE_POLL_EVERY } = h.load("client/pills.tsx");
-  h.responses["progress-dashboard.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
+  h.responses["progress.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
   const stop = contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
   await h.flush();
-  const reads = () => h.requests.filter((request) => request.name === "progress-dashboard.attention").length;
+  const reads = () => h.requests.filter((request) => request.name === "progress.attention").length;
   const before = reads();
   for (let poll = 0; poll < IDLE_POLL_EVERY; poll++) {
     await h.tick(PILL_POLL_MS);
@@ -145,7 +145,7 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
   const { notePanelOpened } = h.load("client/panel-opened.ts");
   const run = (panelOpened: boolean, questions = 0) => attentionWith(questions, 0, { open: true, panelOpened });
-  h.responses["progress-dashboard.attention"] = run(false);
+  h.responses["progress.attention"] = run(false);
   const stop = contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
@@ -155,18 +155,18 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   active()[0].button.behavior.onPress();
   assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }], "pressing it opens the panel in Explorer");
 
-  h.responses["progress-dashboard.attention"] = run(false, 2);
+  h.responses["progress.attention"] = run(false, 2);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active()[0]?.button.label, "2 questions", "questions take the pill over");
-  h.responses["progress-dashboard.attention"] = run(false);
+  h.responses["progress.attention"] = run(false);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active()[0]?.button.label, "Progress", "and hand it back while the panel hasn't been opened");
 
   notePanelOpened("w");
   assert.equal(active().length, 0, "opening the panel removes it at once");
-  h.responses["progress-dashboard.attention"] = run(true);
+  h.responses["progress.attention"] = run(true);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().length, 0);

@@ -24,7 +24,7 @@ const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const minutes = (count: number) => new Date(T0 + count * 60_000);
 
 async function worktree(t: TestContext) {
-  const directory = await mkdtemp(join(tmpdir(), "progress-dashboard-"));
+  const directory = await mkdtemp(join(tmpdir(), "progress-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await writeFile(join(directory, ".git"), "gitdir: elsewhere\n");
   let clock = 0;
@@ -628,7 +628,7 @@ test("the launcher is installed only on request, updated when stale, and never r
   assert.equal(await installLauncher(path), true);
   assert.deepEqual(await launcherStatus(path, "/usr/bin"), { path, state: "current", onPath: false });
   assert.equal(await installLauncher(path), false, "a current launcher is left as is");
-  await writeFile(path, `#!/usr/bin/env node\n// Written by the progress-dashboard Paseo plugin. old\n`);
+  await writeFile(path, `#!/usr/bin/env node\n// Written by the progress Paseo plugin. old\n`);
   assert.equal((await launcherStatus(path)).state, "outdated");
   assert.equal(await installLauncher(path), true);
   const other = join(bin, "other");

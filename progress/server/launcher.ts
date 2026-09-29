@@ -2,7 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 
-export const PLUGIN_ID = "progress-dashboard";
+export const PLUGIN_ID = "progress";
 
 // The launcher never names a plugin folder. Each run asks Paseo which copy of
 // the plugin it is running, so updates and `npm run dev` switches keep working.

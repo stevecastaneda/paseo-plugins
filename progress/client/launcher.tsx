@@ -10,11 +10,11 @@ import { getLauncherStatus, getSkillStatus, installLauncher, installSkill, type 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
 export function launcherQueryKey(hostId: string) {
-  return ["progress-dashboard", "launcher", hostId];
+  return ["progress", "launcher", hostId];
 }
 
 export function skillQueryKey(hostId: string) {
-  return ["progress-dashboard", "skill", hostId];
+  return ["progress", "skill", hostId];
 }
 
 // What the banner says, or null when agents can already run the command.

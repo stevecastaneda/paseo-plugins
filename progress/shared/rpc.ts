@@ -7,7 +7,7 @@ import type { Dashboard } from "./dashboard.ts";
 export type DashboardResult = { configured: boolean; dashboard: Dashboard; panelOpened: boolean; version: string };
 
 export const getDashboard = defineRpc({
-  name: "progress-dashboard.get",
+  name: "progress.get",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
@@ -22,7 +22,7 @@ export const getDashboard = defineRpc({
 export type AttentionResult = { configured: boolean; questions: number; stuck: number; runOpen: boolean; panelOpened: boolean };
 
 export const getAttention = defineRpc({
-  name: "progress-dashboard.attention",
+  name: "progress.attention",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
@@ -32,7 +32,7 @@ export const getAttention = defineRpc({
 
 // Records that the Progress panel was opened, so the "Progress" pill goes away for good.
 export const markPanelOpened = defineRpc({
-  name: "progress-dashboard.panel.opened",
+  name: "progress.panel.opened",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
@@ -50,13 +50,13 @@ const launcherStatus = z.object({
 export type LauncherStatus = z.infer<typeof launcherStatus>;
 
 export const getLauncherStatus = defineRpc({
-  name: "progress-dashboard.launcher.status",
+  name: "progress.launcher.status",
   input: z.object({}),
   output: launcherStatus,
 });
 
 export const installLauncher = defineRpc({
-  name: "progress-dashboard.launcher.install",
+  name: "progress.launcher.install",
   input: z.object({}),
   output: launcherStatus,
 });
@@ -70,20 +70,20 @@ const skillStatus = z.object({
 export type SkillStatus = z.infer<typeof skillStatus>;
 
 export const getSkillStatus = defineRpc({
-  name: "progress-dashboard.skill.status",
+  name: "progress.skill.status",
   input: z.object({}),
   output: skillStatus,
 });
 
 export const installSkill = defineRpc({
-  name: "progress-dashboard.skill.install",
+  name: "progress.skill.install",
   input: z.object({}),
   output: skillStatus,
 });
 
 // Opens a recorded local deliverable on the daemon host with its default app.
 export const openDeliverable = defineRpc({
-  name: "progress-dashboard.deliverable.open",
+  name: "progress.deliverable.open",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
@@ -95,7 +95,7 @@ export const openDeliverable = defineRpc({
 
 // An image or text file's contents, for the preview dialog.
 export const previewDeliverable = defineRpc({
-  name: "progress-dashboard.deliverable.preview",
+  name: "progress.deliverable.preview",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),

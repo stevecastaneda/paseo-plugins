@@ -11,7 +11,7 @@ export const POLL_MS = 3_000;
 // "unchanged" reply keeps that same object, so nothing re-renders.
 export function dashboardQueryOptions(fetchDashboard: FetchDashboard, hostId: string, workspaceId: string, directory: string | null, previous?: () => DashboardResult | undefined) {
   return {
-    queryKey: ["progress-dashboard", "dashboard", hostId, workspaceId, directory],
+    queryKey: ["progress", "dashboard", hostId, workspaceId, directory],
     queryFn: async (): Promise<DashboardResult> => {
       const last = previous?.();
       const result = await fetchDashboard({ workspaceId, workspaceDirectory: directory!, ...(last ? { since: last.version } : {}) });

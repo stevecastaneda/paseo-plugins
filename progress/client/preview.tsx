@@ -61,7 +61,7 @@ export function PreviewBody({ colors, attachment, workspaceId, workspaceDirector
 }) {
   const fetchPreview = useRpc(previewDeliverable);
   const previewQuery = (target: Attachment) => ({
-    queryKey: ["progress-dashboard", "preview", workspaceId, target.ref, target.path],
+    queryKey: ["progress", "preview", workspaceId, target.ref, target.path],
     queryFn: () => fetchPreview({ workspaceId, workspaceDirectory, ref: target.ref }),
     staleTime: 30_000,
     // Images arrive as data URIs up to ~13 MB; let them go soon after the dialog moves on.

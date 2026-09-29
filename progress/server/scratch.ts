@@ -6,7 +6,7 @@ const SCRATCH_DIR = dirname(PROGRESS_FILE);
 
 // Names only this plugin's files, so they stay out of git without the user
 // editing their own .gitignore. Other files in .scratch/ are left to the repo.
-export const SCRATCH_GITIGNORE = `# Added by the Paseo progress-dashboard plugin so its files stay out of git.
+export const SCRATCH_GITIGNORE = `# Added by the progress plugin for Paseo so its files stay out of git.
 progress.jsonl
 progress.jsonl.lock/
 progress-panel-opened
