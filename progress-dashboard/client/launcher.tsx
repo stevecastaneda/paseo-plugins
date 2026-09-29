@@ -94,11 +94,12 @@ function SetupBanner({ colors, icon, notice, pending, onPress }: {
   return (
     <Presence show={Boolean(notice)}>{notice ? (
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
-      <Icon name={icon} size={14} color={colors.foregroundMuted} />
+      {/* Held on the first line: the text wraps to several lines in the Explorer pane. */}
+      <View style={{ alignSelf: "flex-start", height: 17, justifyContent: "center" }}><Icon name={icon} size={14} color={colors.foregroundMuted} /></View>
       <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{notice.text}</Text>
       {notice.action ? (
         <PressScale accessibilityRole="button" disabled={pending} onPress={onPress}
-          style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed || pending ? 0.7 : 1 })}>
+          style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed || pending ? 0.7 : hovered ? 0.85 : 1 })}>
           <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>
             {pending ? "Installing…" : notice.action}
           </Text>

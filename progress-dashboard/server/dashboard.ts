@@ -1,10 +1,11 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { access, readFile, stat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { EMPTY_DASHBOARD, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
 import { PANEL_OPENED_FILE, PROGRESS_FILE } from "../shared/events.ts";
 import type { AttentionResult, DashboardResult } from "../shared/rpc.ts";
+import { prepareScratch } from "./scratch.ts";
 
 export async function readProgressText(directory: string): Promise<string | null> {
   try {
@@ -57,9 +58,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 export async function markPanelOpened(directory: string): Promise<void> {
-  const path = join(directory, PANEL_OPENED_FILE);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, "");
+  await prepareScratch(directory);
+  await writeFile(join(directory, PANEL_OPENED_FILE), "");
 }
 
 export async function handleMarkPanelOpened(

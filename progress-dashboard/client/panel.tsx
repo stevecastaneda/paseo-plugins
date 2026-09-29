@@ -50,7 +50,8 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
       ) : null}
       <LauncherBanner colors={colors} host={host} />
       <SkillBanner colors={colors} host={host} />
-      {result && !result.configured ? <EmptyState colors={colors} /> : null}
+      {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}
+      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} /> : null}</Presence>
       {result?.configured ? <DashboardView colors={colors} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
         workspaceId={workspaceId} workspaceDirectory={directory ?? ""} navigation={navigation} /> : null}
     </ScrollView>
@@ -89,6 +90,10 @@ function EmptyState({ colors }: { colors: Colors }) {
           {`paseo-progress start "Build the export feature"\npaseo-progress ticket add "Ticket 01: Export button" --estimate 60`}
         </Text>
       </View>
+      {/* So a new .scratch folder in the repo isn't a surprise. */}
+      <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+        Progress is saved in <Text style={{ color: colors.foreground }}>.scratch/progress.jsonl</Text> in this worktree. The plugin adds a <Text style={{ color: colors.foreground }}>.gitignore</Text> there, so git leaves its files alone.
+      </Text>
     </View>
   );
 }

@@ -36,7 +36,7 @@ node "$(paseo plugin ls progress-dashboard --json | node -pe 'JSON.parse(require
 
 If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches.
 
-Add `.scratch/` to the repository's `.gitignore` so the progress file is never committed.
+The plugin keeps each worktree's progress in `.scratch/progress.jsonl`. The first time it creates `.scratch/`, it also writes `.scratch/.gitignore` naming only its own files, so git ignores them without any change to your repository's `.gitignore`. If `.scratch/.gitignore` already exists, the plugin leaves it alone.
 
 ## Agent skill
 

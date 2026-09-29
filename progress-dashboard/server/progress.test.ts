@@ -17,6 +17,7 @@ import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
 import { attachmentPath, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
 import { imageMimeType } from "../shared/preview.ts";
+import { SCRATCH_GITIGNORE } from "./scratch.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
@@ -240,6 +241,21 @@ test("the handler reads the requested workspace directory without calling Paseo"
   const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: w.directory }, { paseo });
   assert.ok("dashboard" in result);
   assert.equal(result.dashboard.run?.title, "Run");
+});
+
+test("the first write adds a .gitignore for the plugin's own files and never replaces one", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  assert.equal(await readFile(join(w.directory, ".scratch", ".gitignore"), "utf8"), SCRATCH_GITIGNORE);
+  const other = await worktree(t);
+  await mkdir(join(other.directory, ".scratch"), { recursive: true });
+  await writeFile(join(other.directory, ".scratch", ".gitignore"), "mine\n");
+  await other.run("start", "Run");
+  await markPanelOpened(other.directory);
+  assert.equal(await readFile(join(other.directory, ".scratch", ".gitignore"), "utf8"), "mine\n", "an existing one is the user's");
+  const third = await worktree(t);
+  await markPanelOpened(third.directory);
+  assert.equal(await readFile(join(third.directory, ".scratch", ".gitignore"), "utf8"), SCRATCH_GITIGNORE, "opening the panel first adds it too");
 });
 
 test("a poll with the current version gets a short unchanged reply until the file changes", async (t) => {

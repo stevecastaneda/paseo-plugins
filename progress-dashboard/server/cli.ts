@@ -1,13 +1,14 @@
 // The command agents run to record progress. Each command appends one event
 // to the worktree's progress file and prints what it recorded.
 import { existsSync, realpathSync, statSync } from "node:fs";
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { nextId, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
 import { DELIVERABLE_KINDS, EVENT_VERSION, eventSchema, PROGRESS_FILE, TICKET_STATUSES, type ProgressEvent } from "../shared/events.ts";
 import { readProgressText } from "./dashboard.ts";
+import { prepareScratch } from "./scratch.ts";
 import { withLock } from "./lock.ts";
 import { installLauncher } from "./launcher.ts";
 import { dashboardText } from "../shared/show.ts";
@@ -516,7 +517,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     }
     const root = findRoot(options.cwd);
     const file = join(root, PROGRESS_FILE);
-    await mkdir(dirname(file), { recursive: true });
+    await prepareScratch(root);
     const message = await withLock(`${file}.lock`, async () => {
       const state = await loadState(root, now());
       const finished = state.dashboard.run?.finished;
