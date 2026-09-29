@@ -10,15 +10,15 @@ export function launcherScript(): string {
   return `#!/usr/bin/env node
 // Written by the ${PLUGIN_ID} Paseo plugin. Runs the progress command from the
 // copy of the plugin Paseo is running now.
-const { spawnSync } = require("node:child_process");
-const { existsSync } = require("node:fs");
-const { join } = require("node:path");
-
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major < 22 || (major === 22 && minor < 18)) {
   console.error("paseo-progress needs Node.js 22.18 or later; this is " + process.version + ".");
   process.exit(1);
 }
+// Not require: a package.json with "type": "module" above this folder makes Node load it as ESM.
+const { spawnSync } = process.getBuiltinModule("node:child_process");
+const { existsSync } = process.getBuiltinModule("node:fs");
+const { join } = process.getBuiltinModule("node:path");
 
 function pluginDirectory() {
   if (process.env.PASEO_PROGRESS_PLUGIN_DIR) return process.env.PASEO_PROGRESS_PLUGIN_DIR;

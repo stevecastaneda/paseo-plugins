@@ -2,11 +2,12 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
 import { open, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import { extname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { imageMimeType, previewKind } from "../shared/preview.ts";
 import type { Dashboard } from "../shared/dashboard.ts";
 import { readDashboard } from "./dashboard.ts";
+import { outside } from "./paths.ts";
 
 export type Opener = (path: string) => Promise<void>;
 
@@ -64,7 +65,7 @@ async function resolveAttachment(directory: string, ref: string, verb: string): 
   const target = await realpath(resolve(root, path)).catch(() => null);
   if (!target) throw new Error(`${path} no longer exists.`);
   const inside = relative(root, target);
-  if (inside.startsWith("..") || isAbsolute(inside)) throw new Error(`${path} is outside this worktree, so it was not ${verb}.`);
+  if (outside(inside)) throw new Error(`${path} is outside this worktree, so it was not ${verb}.`);
   return { path, target };
 }
 

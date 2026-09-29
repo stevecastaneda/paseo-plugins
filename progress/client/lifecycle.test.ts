@@ -140,6 +140,30 @@ test("a worktree with nothing going on is checked every 30 seconds instead of ev
   stop();
 });
 
+test("an agent update checks a worktree whose last run is closed, so a new run's question shows soon", async () => {
+  const h = clientHarness(directory);
+  const { contributePills } = h.load("client/pills.tsx");
+  h.responses["progress.attention"] = attentionWith(0, 0);
+  const stop = contributePills(h.client);
+  h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
+  h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
+  await h.flush();
+  const reads = () => h.requests.filter((request) => request.name === "progress.attention").length;
+  const before = reads();
+  const realNow = Date.now;
+  Date.now = () => realNow() + 60_000;
+  try {
+    h.responses["progress.attention"] = attentionWith(1, 0, { open: true, panelOpened: true });
+    h.agents.update({ kind: "upsert", agent: { id: "a", workspaceId: "w" } });
+    await h.flush();
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(reads() - before, 1);
+  assert.equal((h.registrations.find((entry) => !entry.removed) as any)?.button.label, "1 question");
+  stop();
+});
+
 test("a run shows a Progress pill until the panel is opened, then never again", async () => {
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");

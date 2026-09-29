@@ -1,10 +1,10 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
 import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { Dashboard, Question } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, useAttachmentOpener } from "./attachments";
 import { useLastPresent } from "./motion";
-import { BackButton, PreviewBody, previewable } from "./preview";
+import { BackButton, PreviewContent, previewable } from "./preview";
 import { QuestionView, useCopy } from "./questions";
 import { TicketStoryView } from "./ticket-dialog";
 
@@ -60,18 +60,27 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
   const ticket = top?.kind === "ticket" ? dashboard?.tickets.find((candidate) => candidate.id === top.id) : undefined;
   const question = top?.kind === "question" ? questions.find((candidate) => candidate.id === top.id) : undefined;
   const preview = top?.kind === "preview" ? top : undefined;
+  // The ticket or question it opened on went away (answered elsewhere, or a new run): close rather than show a blank dialog.
+  const rootMissing = root !== null && (root.kind === "ticket" ? !dashboard?.tickets.some((candidate) => candidate.id === root.id)
+    : root.kind === "question" ? !questions.some((candidate) => candidate.id === root.id) : false);
+  useEffect(() => {
+    if (rootMissing) onClose();
+  }, [rootMissing]);
+  const [previewLong, setPreviewLong] = useState(false);
   const title = ticket ? `${ticket.id} · ${ticket.title}` : question ? `${question.id} · ${question.title}` : preview ? preview.attachment.title : "";
   const icon = ticket ? "ListChecks" : question ? "MessageCircleQuestion" : preview ? attachmentIcon(preview.attachment) : "ListChecks";
 
   return (
     <Modal title={title} icon={<Icon name={icon} size={16} color={colors.foregroundMuted} />}
       open={Boolean(root)} onOpenChange={(next) => { if (!next) onClose(); }}>
+      {/* One Modal.Content for every step: replacing it would re-present the sheet on phones. */}
+      <Modal.Content scrollable={!(preview && previewLong)}>
       {preview ? (
-        <PreviewBody colors={colors} attachment={preview.attachment} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
+        <PreviewContent colors={colors} attachment={preview.attachment} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
           onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }} backLabel={back?.label} onBack={back?.onPress}
-          gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment }) }} />
+          gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment }) }} onLong={setPreviewLong} />
       ) : (
-        <Modal.Content>
+        <>
           {ticket && dashboard ? (
             <TicketStoryView colors={colors} dashboard={dashboard} ticket={ticket} now={now} live={live}
               onOpenAttachment={openAttachment} onOpenQuestion={(id) => push({ kind: "question", id })} />
@@ -83,8 +92,9 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
               {back ? <BackButton colors={colors} label={back.label} onPress={back.onPress} /> : null}
             </QuestionView>
           ) : null}
-        </Modal.Content>
+        </>
       )}
+      </Modal.Content>
     </Modal>
   );
 }

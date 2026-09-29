@@ -48,8 +48,7 @@ export function previewable(group: Attachment[]): Attachment[] {
   return group.filter(isPreviewable);
 }
 
-// The preview dialog's body as its own Modal.Content, so another dialog can show it in place.
-export function PreviewBody({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, backLabel, onBack, gallery }: {
+type PreviewProps = {
   colors: Colors;
   attachment: Attachment;
   workspaceId: string;
@@ -58,7 +57,19 @@ export function PreviewBody({ colors, attachment, workspaceId, workspaceDirector
   backLabel?: string;
   onBack?(): void;
   gallery?: Gallery;
-}) {
+};
+
+// The preview dialog's body in its own Modal.Content.
+export function PreviewBody(props: PreviewProps) {
+  const [long, setLong] = useState(false);
+  return <Modal.Content scrollable={!long}><PreviewContent {...props} onLong={setLong} /></Modal.Content>;
+}
+
+// The preview without its Modal.Content, for a dialog that already has one (see
+// StackedDialog): swapping Modal.Content itself would re-present the sheet on phones.
+// `onLong` says when the file is too tall for the dialog, so the host turns off
+// its own scrolling and the file scrolls with the actions pinned below.
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, backLabel, onBack, gallery, onLong }: PreviewProps & { onLong(long: boolean): void }) {
   const fetchPreview = useRpc(previewDeliverable);
   const previewQuery = (target: Attachment) => ({
     queryKey: ["progress", "preview", workspaceId, target.ref, target.path],
@@ -102,6 +113,7 @@ export function PreviewBody({ colors, attachment, workspaceId, workspaceDirector
   // Short ones keep the dialog sized to them.
   const { height: windowHeight } = useWindowDimensions();
   const long = estimatedHeight(preview.data, aspectRatio) > roomForContent(windowHeight);
+  useEffect(() => onLong(long), [long]);
   const content = (
     <>
       {preview.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading preview" style={{ padding: 24 }} /> : null}
@@ -149,17 +161,15 @@ export function PreviewBody({ colors, attachment, workspaceId, workspaceDirector
     </View>
   );
   return long ? (
-    <Modal.Content scrollable={false}>
+    <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
       {actions}
-    </Modal.Content>
+    </>
   ) : (
-    <Modal.Content>
-      <View style={{ gap: 20 }}>
-        <View style={{ gap: 12 }}>{content}</View>
-        {actions}
-      </View>
-    </Modal.Content>
+    <View style={{ gap: 20 }}>
+      <View style={{ gap: 12 }}>{content}</View>
+      {actions}
+    </View>
   );
 }
 

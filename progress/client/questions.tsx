@@ -42,9 +42,11 @@ export interface AttachmentContext {
   navigation?: PluginWorkspacePanelProps["navigation"];
 }
 
-export function QuestionsSection({ colors, questions, now, compact, context }: {
+export function QuestionsSection({ colors, questions, answered, now, compact, context }: {
   colors: Colors;
   questions: Question[];
+  // So a question answered while its dialog is open shows the answer instead of vanishing.
+  answered: Question[];
   now: number;
   compact: boolean;
   context: AttachmentContext;
@@ -68,7 +70,7 @@ export function QuestionsSection({ colors, questions, now, compact, context }: {
           onOpen={() => setOpenId(question.id)} onCopy={() => void copy(question)} />
       ))}
       <StackedDialog colors={colors} root={openId ? { kind: "question", id: openId } : null} onClose={() => setOpenId(null)}
-        questions={questions} now={now} context={context} />
+        questions={[...questions, ...answered]} now={now} context={context} />
     </View>
   );
 }

@@ -160,9 +160,11 @@ export function contributePills(client: PluginClientContext) {
   const nudge = (workspaceId: string) => {
     if (Date.now() - (checkedAt.get(workspaceId) ?? 0) >= PILL_POLL_MS) void refresh(workspaceId);
   };
-  const sync = async () => {
-    await Promise.all([...watched()].filter(due).map(refresh));
-    if (!stopped) timer = setTimeout(() => void sync(), PILL_POLL_MS);
+  // The next poll doesn't wait on this one: a slow worktree can't hold up every pill.
+  // `pending` already stops a second check of the same worktree overlapping.
+  const sync = () => {
+    for (const workspaceId of [...watched()].filter(due)) void refresh(workspaceId);
+    if (!stopped) timer = setTimeout(sync, PILL_POLL_MS);
   };
   const forget = (workspaceId: string) => {
     workspaces.delete(workspaceId);
@@ -212,7 +214,7 @@ export function contributePills(client: PluginClientContext) {
       agents = agents.filter((agent) => agent.id !== id);
       if (update.kind !== "remove") {
         agents.push(update.agent);
-        if (update.agent.workspaceId && !attention.has(update.agent.workspaceId)) nudge(update.agent.workspaceId);
+        if (update.agent.workspaceId && workspaces.has(update.agent.workspaceId)) nudge(update.agent.workspaceId);
       }
       publish();
     },
@@ -222,7 +224,7 @@ export function contributePills(client: PluginClientContext) {
     started.delete(workspaceId);
     publish();
   });
-  timer = setTimeout(() => void sync(), PILL_POLL_MS);
+  timer = setTimeout(sync, PILL_POLL_MS);
 
   return () => {
     stopped = true;

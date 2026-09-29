@@ -52,7 +52,8 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
       <SkillBanner colors={colors} host={host} />
       {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}
       <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} /> : null}</Presence>
-      {result?.configured ? <DashboardView colors={colors} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
+      {/* Keyed by run: a new run starts with fresh tabs, pages and dialogs. */}
+      {result?.configured ? <DashboardView key={result.dashboard.run?.startedAt ?? "none"} colors={colors} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
         workspaceId={workspaceId} workspaceDirectory={directory ?? ""} navigation={navigation} /> : null}
     </ScrollView>
   );
@@ -203,7 +204,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
         style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}>
         <View style={{ flex: wide ? 3 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={dashboard.questions.open.length > 0} order={3}>{dashboard.questions.open.length ? (
-            <QuestionsSection colors={colors} questions={dashboard.questions.open} now={now} compact={compact || !wide} context={attachmentContext} />
+            <QuestionsSection colors={colors} questions={dashboard.questions.open} answered={dashboard.questions.answered} now={now} compact={compact || !wide} context={attachmentContext} />
           ) : null}</Presence>
           <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
           <Presence show order={4}>

@@ -2,7 +2,7 @@
 // dashboard the panel would get.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readlink, realpath, rm, utimes, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, readlink, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -42,6 +42,47 @@ async function worktree(t: TestContext) {
     dashboard: (minute = clock) => readDashboard(directory, minutes(minute)),
   };
 }
+
+test("a line cut short by a killed command doesn't swallow the next event", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await appendFile(join(w.directory, ".scratch", "progress.jsonl"), '{"v":1,"ts":"2026-01-01T00:00:00.000Z","type":"activity.ad');
+  assert.equal((await w.run("activity", "add", "After the crash")).code, 0);
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.activity.map((entry) => entry.text), ["After the crash"]);
+  assert.equal(dashboard.issues.length, 1, "only the cut line is skipped");
+});
+
+test("bad values get a usage message, not a schema dump", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await w.run("ticket", "add", "Ticket 01", "--estimate", "30");
+  const result = await w.run("ticket", "update", "T01", "--title", "");
+  assert.equal(result.code, 1);
+  assert.match(result.text, /Usage: paseo-progress ticket update/);
+});
+
+test("a ticket can't wait for one that already waits for it", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await w.run("ticket", "add", "Ticket 01", "--estimate", "30");
+  await w.run("ticket", "add", "Ticket 02", "--estimate", "30", "--waits-for", "T01");
+  await w.run("ticket", "add", "Ticket 03", "--estimate", "30", "--waits-for", "T02");
+  const result = await w.run("ticket", "update", "T01", "--waits-for", "T03");
+  assert.equal(result.code, 1);
+  assert.match(result.text, /neither could start/);
+});
+
+test("a name starting with two dots is inside the worktree", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await mkdir(join(w.directory, "..notes"));
+  await writeFile(join(w.directory, "..notes", "a.md"), "# A");
+  await w.run("deliverable", "add", "Notes", "..notes/a.md");
+  const { dashboard } = await w.dashboard();
+  assert.equal(dashboard.deliverables[0].path, "..notes/a.md");
+  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "text", text: "# A", bytes: 3, truncated: false });
+});
 
 test("finish closes the run only once everything is settled, and keeps it on the dashboard", async (t) => {
   const w = await worktree(t);

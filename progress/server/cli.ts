@@ -2,12 +2,13 @@
 // to the worktree's progress file and prints what it recorded.
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { nextId, parseProgress, reduceProgress, type Dashboard } from "../shared/dashboard.ts";
 import { DELIVERABLE_KINDS, EVENT_VERSION, eventSchema, PROGRESS_FILE, TICKET_STATUSES, type ProgressEvent } from "../shared/events.ts";
 import { readProgressText } from "./dashboard.ts";
+import { outside } from "./paths.ts";
 import { prepareScratch } from "./scratch.ts";
 import { withLock } from "./lock.ts";
 import { installLauncher } from "./launcher.ts";
@@ -193,6 +194,11 @@ const commands: Record<string, Command> = {
       const rawWaitsFor = values["waits-for"] === undefined ? undefined : String(values["waits-for"]).trim();
       const waitsFor = rawWaitsFor === undefined || rawWaitsFor === "" ? rawWaitsFor : existingTicket(state, rawWaitsFor).id;
       if (waitsFor && waitsFor === ticket.id) throw new UsageError(`${ticket.id} can't wait for itself.`);
+      // Refuse a loop (T01 waits for T02 waits for T01): neither could ever start.
+      for (let next = waitsFor ? state.dashboard.tickets.find((entry) => entry.id === waitsFor) : undefined, seen = 0; next?.waitsFor && seen < 1000; seen++) {
+        if (next.waitsFor === ticket.id) throw new UsageError(`${ticket.id} can't wait for ${waitsFor}: ${next.id} already waits for ${ticket.id}, so neither could start.`);
+        next = state.dashboard.tickets.find((entry) => entry.id === next!.waitsFor);
+      }
       const event = {
         type: "ticket.update" as const,
         id: ticket.id,
@@ -428,7 +434,7 @@ function rootRelative(target: string, cwd: string, root: string): string {
   const inside = relative(root, absolute);
   const suffix = /[\/]$/.test(target) ? "/" : "";
   if (!inside) return "./";
-  return inside.startsWith("..") || isAbsolute(inside) ? absolute + suffix : inside + suffix;
+  return outside(inside) ? absolute + suffix : inside + suffix;
 }
 
 function guessKind(target: string, isUrl: boolean, cwd: string): (typeof DELIVERABLE_KINDS)[number] {
@@ -525,8 +531,14 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
       }
       const { event: draft, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root });
-      const event = eventSchema.parse({ v: EVENT_VERSION, ts: now().toISOString(), ...withoutUndefined(draft) });
-      await appendFile(file, `${JSON.stringify(event)}\n`);
+      const checked = eventSchema.safeParse({ v: EVENT_VERSION, ts: now().toISOString(), ...withoutUndefined(draft) });
+      if (!checked.success) {
+        throw new UsageError(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));
+      }
+      // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
+      const text = await readProgressText(root);
+      const lead = text && !text.endsWith("\n") ? "\n" : "";
+      await appendFile(file, `${lead}${JSON.stringify(checked.data)}\n`);
       return message;
     });
     out(message);
