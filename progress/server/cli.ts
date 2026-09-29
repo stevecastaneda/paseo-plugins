@@ -10,6 +10,7 @@ import { appendProgress, InvalidEvent, readProgress, type EventDraft } from "./p
 import { outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
 import { dashboardText } from "../shared/show.ts";
+import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
 
 export interface CliOptions {
@@ -425,7 +426,7 @@ function rootRelative(target: string, cwd: string, root: string): string {
 function guessKind(target: string, isUrl: boolean, cwd: string): (typeof DELIVERABLE_KINDS)[number] {
   if (isUrl) return "link";
   if (/[\/]$/.test(target) || statSync(resolve(cwd, target), { throwIfNoEntry: false })?.isDirectory()) return "folder";
-  if (/\.(png|jpe?g|gif|webp|svg)$/i.test(target)) return "screenshot";
+  if (imageMimeType(target)) return "screenshot";
   return "file";
 }
 

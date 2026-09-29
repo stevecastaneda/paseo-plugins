@@ -15,14 +15,6 @@ export { absolutePath } from "./attachments";
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type Navigation = PluginWorkspacePanelProps["navigation"];
 
-const KIND_ICON: Record<NonNullable<Deliverable["kind"]>, string> = {
-  file: "File",
-  folder: "Folder",
-  report: "FileChartColumn",
-  screenshot: "Image",
-  link: "Globe",
-};
-
 // The Deliverables tab: newest first, 10 at a time (see usePaged).
 export function DeliverablesList({ colors, deliverables, now, workspaceId, workspaceDirectory, navigation }: {
   colors: Colors;
@@ -44,7 +36,7 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
           onPress={() => void open(deliverableAttachment(deliverable))}
           style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
           {/* Optical: centers the 14px icon on the 18px title line. */}
-          <View style={{ paddingTop: 2 }}><Icon name={deliverable.kind && deliverable.kind !== "file" ? KIND_ICON[deliverable.kind] : attachmentIcon(deliverableAttachment(deliverable))} size={14} color={colors.foregroundMuted} /></View>
+          <View style={{ paddingTop: 2 }}><Icon name={attachmentIcon(deliverableAttachment(deliverable))} size={14} color={colors.foregroundMuted} /></View>
           <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
             {/* What the agent found is the headline; the row itself is what opens. */}
             <Text numberOfLines={3} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{deliverable.title}</Text>

@@ -1,51 +1,19 @@
 import { openExternalUrl, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React from "react";
-import { Text, View } from "react-native";
-import type { Deliverable, Question } from "../shared/dashboard";
-import { imageMimeType, previewKind } from "../shared/preview";
+import { Platform, Text, View } from "react-native";
+import { type Attachment, attachmentIcon, canPreview, shortName } from "../shared/attachments";
 import { PressableRow } from "./row";
 import { openDeliverable } from "../shared/rpc";
+
+export { type Attachment, attachmentIcon, deliverableAttachment, questionAttachments, shortName } from "../shared/attachments";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type Navigation = PluginWorkspacePanelProps["navigation"];
 
-// Anything the user can open: a deliverable ("D3") or a question's file ("Q7.2").
-export interface Attachment {
-  ref: string;
-  title: string;
-  path?: string;
-  url?: string;
-}
-
-export function deliverableAttachment(deliverable: Deliverable): Attachment {
-  return { ref: deliverable.id, title: deliverable.title, path: deliverable.path, url: deliverable.url };
-}
-
-export function questionAttachments(question: Question): Attachment[] {
-  return question.files.map((file, index) => ({
-    ref: `${question.id}.${index + 1}`,
-    title: file.label ?? (file.path ?? file.url ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "",
-    path: file.path,
-    url: file.url,
-  }));
-}
-
-export function isImage(attachment: Attachment): boolean {
-  return Boolean(attachment.path && imageMimeType(attachment.path));
-}
-
-// One icon per kind of thing, shared with deliverables and the preview dialog.
-export function attachmentIcon(attachment: Attachment): string {
-  if (attachment.url) return "Globe";
-  if (!attachment.path) return "File";
-  const kind = previewKind(attachment.path);
-  return kind === "image" ? "Image" : kind === "text" ? "FileText" : /[\/]$/.test(attachment.path) ? "Folder" : "File";
-}
-
 // Shown in Paseo's preview dialog rather than handed to another app.
 export function isPreviewable(attachment: Attachment): boolean {
-  return Boolean(attachment.path && previewKind(attachment.path));
+  return canPreview(attachment, { browser: Platform.OS === "web" });
 }
 
 // Full path on the daemon host for a stored path.
@@ -100,14 +68,6 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
     await openOnHost(attachment);
   }
   return { open, openOnHost, copyPath };
-}
-
-// The short name people recognize: a file or folder's own name, or a link's site.
-export function shortName(attachment: Attachment): string {
-  if (attachment.url) {
-    try { return new URL(attachment.url).host.replace(/^www\./, ""); } catch { return attachment.url; }
-  }
-  return (attachment.path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
 }
 
 // A question's attachments as pressable rows.

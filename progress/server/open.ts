@@ -2,26 +2,22 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
 import { open, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { extname, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { imageMimeType, previewKind } from "../shared/preview.ts";
-import type { Dashboard } from "../shared/dashboard.ts";
+import { findAttachment, imageMimeType, previewKind } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
 import { outside } from "./paths.ts";
 
 export type Opener = (path: string) => Promise<void>;
 
-// Plain-text files open in the browser: the Mac's default app for them is
-// often an editor, or one that closes straight away. The browser shows them
-// as text.
-const BROWSER_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt", ".log", ".json", ".jsonl", ".yaml", ".yml", ".csv"]);
-
 // The command that opens `path` on this host: like a double-click, except
-// plain-text files go to the default browser (`browser` is its bundle id).
+// plain-text files go to the default browser (`browser` is its bundle id): the
+// Mac's default app for them is often an editor, or one that closes straight
+// away. The browser shows them as text.
 export function openCommand(path: string, platform: NodeJS.Platform, browser: string | null): [string, string[]] {
   if (platform === "win32") return ["explorer", [path]];
   if (platform !== "darwin") return ["xdg-open", [path]];
-  const toBrowser = BROWSER_EXTENSIONS.has(extname(path).toLowerCase());
+  const toBrowser = previewKind(path) === "text";
   return toBrowser ? ["open", ["-b", browser ?? "com.apple.Safari", path]] : ["open", [path]];
 }
 
@@ -43,23 +39,12 @@ export const systemOpener: Opener = async (path) => {
   await promisify(execFile)(command, args);
 };
 
-// What an attachment reference names: a deliverable ("D3") or the nth file on
-// a question ("Q7.2", counting from 1). Null when it names nothing local.
-export function attachmentPath(dashboard: Dashboard, ref: string): string | null {
-  const question = ref.match(/^(Q\d+)\.(\d+)$/);
-  if (question) {
-    const all = [...dashboard.questions.open, ...dashboard.questions.answered];
-    return all.find((candidate) => candidate.id === question[1])?.files[Number(question[2]) - 1]?.path ?? null;
-  }
-  return dashboard.deliverables.find((candidate) => candidate.id === ref)?.path ?? null;
-}
-
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
   const { dashboard } = await readProgress(directory);
-  const path = attachmentPath(dashboard, ref);
+  const path = findAttachment(dashboard, ref)?.path;
   if (!path) throw new Error(`No local ${ref.startsWith("Q") ? "attachment" : "deliverable"} ${ref} in this worktree.`);
   const root = await realpath(directory);
   const target = await realpath(resolve(root, path)).catch(() => null);

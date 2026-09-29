@@ -16,8 +16,8 @@ import { formatHours, formatMinutes } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
-import { attachmentPath, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
-import { imageMimeType } from "../shared/preview.ts";
+import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
+import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, imageMimeType } from "../shared/attachments.ts";
 import { SCRATCH_GITIGNORE } from "./progress-file.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 
@@ -781,6 +781,24 @@ test("a local deliverable opens on the daemon host by id, only inside the worktr
   assert.equal(opened.length, 1);
 });
 
+test("every screen gives an attachment the same icon, and SVGs preview only where a browser draws them", async (t) => {
+  const w = await screenshotRun(t);
+  await w.run("deliverable", "add", "Findings", "notes/findings.md", "--kind", "report");
+  await w.run("deliverable", "add", "Logo", "art/logo.svg");
+  await w.run("question", "ask", "Logo", "Which logo?", "--default", "A", "--file", "art/logo.svg=Current");
+  const { dashboard } = await readProgress(w.directory);
+  const report = findAttachment(dashboard, dashboard.deliverables.find((entry) => entry.title === "Findings")!.id)!;
+  assert.equal(attachmentIcon(report), "FileChartColumn", "the recorded kind wins over the extension, wherever the deliverable is listed");
+  assert.equal(attachmentIcon(deliverableAttachment(dashboard.deliverables.find((entry) => entry.title === "Findings")!)), "FileChartColumn");
+  const logo = dashboard.deliverables.find((entry) => entry.title === "Logo")!;
+  assert.equal(logo.kind, "screenshot");
+  const questionFile = findAttachment(dashboard, `${dashboard.questions.open[0].id}.1`)!;
+  assert.deepEqual([questionFile.title, questionFile.path, attachmentIcon(questionFile)], ["Current", "art/logo.svg", "Image"]);
+  assert.equal(canPreview(questionFile, { browser: true }), true);
+  assert.equal(canPreview(questionFile, { browser: false }), false, "phone apps can't draw SVG");
+  assert.equal(canPreview({ ref: "D9", title: "Shot", path: "a.png" }, { browser: false }), true);
+});
+
 test("image and text deliverables preview, only inside the worktree", async (t) => {
   const w = await screenshotRun(t);
   await mkdir(join(w.directory, "shots"), { recursive: true });
@@ -823,8 +841,9 @@ test("question attachments take paths or links, and open and preview like delive
     { url: "https://example.com/preview?id=7&tab=2", label: "Live preview" },
     { url: "https://example.com/?q=1" },
   ], "an = after a query key stays in the URL");
-  assert.equal(attachmentPath(dashboard, "Q1.1"), "shots/before.png");
-  assert.equal(attachmentPath(dashboard, "Q1.2"), null, "links are not opened on the host");
+  assert.equal(findAttachment(dashboard, "Q1.1")?.path, "shots/before.png");
+  assert.equal(findAttachment(dashboard, "Q1.2")?.path, undefined, "links are not opened on the host");
+  assert.equal(findAttachment(dashboard, "Q1.4"), null);
   assert.deepEqual(await previewDeliverable(w.directory, "Q1.1"), { kind: "image", dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
   const opened: string[] = [];
   await openDeliverable(w.directory, "Q1.1", async (path) => { opened.push(path); });
