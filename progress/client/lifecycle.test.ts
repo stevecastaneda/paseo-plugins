@@ -81,6 +81,28 @@ function attentionWith(questions: number, stuck: number, run: { open?: boolean; 
   return { configured: true, questions, stuck, runOpen: run.open ?? false, panelOpened: run.panelOpened ?? false };
 }
 
+test("one rule decides what the pill shows, its icon, and whether pressing it opens the popover", () => {
+  const { pillFor, isIdle } = clientHarness(directory).load("client/pill-state.ts");
+  const report = (questions: number, stuck: number, runOpen: boolean, panelOpened: boolean) => ({ configured: true, questions, stuck, runOpen, panelOpened });
+  const desktop = { phone: false };
+  const phone = { phone: true };
+  const cases: Array<[string, unknown, { phone: boolean }, unknown]> = [
+    ["no progress file", { ...report(2, 1, true, false), configured: false }, desktop, null],
+    ["questions and stuck", report(2, 1, true, true), desktop, { mode: "attention", label: "2 questions · 1 stuck", icon: "stuck" }],
+    ["one question, even after the run closed", report(1, 0, false, true), desktop, { mode: "attention", label: "1 question", icon: "questions" }],
+    ["a new run's panel never opened", report(0, 0, true, false), desktop, { mode: "started", label: "Progress", icon: "started" }],
+    ["panel opened, desktop has Explorer", report(0, 0, true, true), desktop, null],
+    ["panel opened, a phone needs the way in", report(0, 0, true, true), phone, { mode: "open", label: "Progress", icon: "open" }],
+    ["a phone after the run finished", report(0, 0, false, true), phone, null],
+  ];
+  for (const [name, input, where, expected] of cases) {
+    assert.deepEqual(JSON.parse(JSON.stringify(pillFor(input, where))), expected, name);
+  }
+  assert.equal(pillFor(undefined, desktop), null, "not read yet");
+  assert.equal(isIdle(report(0, 0, false, true)), true);
+  assert.equal(isIdle(report(1, 0, false, true)), false, "a question left on a closed run still counts");
+});
+
 test("an agent's composer shows a pill while its workspace has questions waiting or something stuck", async () => {
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
