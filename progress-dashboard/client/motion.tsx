@@ -103,8 +103,11 @@ export function StaggerRoot({ children }: { children: React.ReactNode }) {
   return <StaggerStart.Provider value={start}>{children}</StaggerStart.Provider>;
 }
 
+const ENTER_MS = 300;
+const STAGGER_MS = 60;
+
 // Fades a section in (opacity, 12px rise, blur) and out (150ms, 12px lift).
-// `order` staggers the first load by 100ms per section.
+// `order` staggers the first load by 60ms per section, so the last is in by ~0.6s.
 export function Presence({ show, order = 0, children }: { show: boolean; order?: number; children: React.ReactNode }) {
   const reduced = useReducedMotion();
   const start = useContext(StaggerStart);
@@ -126,7 +129,7 @@ export function Presence({ show, order = 0, children }: { show: boolean; order?:
         return;
       }
       const firstLoad = start !== null && Date.now() - start < FIRST_LOAD_MS;
-      const animation = Animated.timing(enter, { toValue: 1, duration: 400, delay: firstLoad ? order * 100 : 0, easing: easeOut(), useNativeDriver: nativeDriver() });
+      const animation = Animated.timing(enter, { toValue: 1, duration: ENTER_MS, delay: firstLoad ? order * STAGGER_MS : 0, easing: easeOut(), useNativeDriver: nativeDriver() });
       setMoving(true);
       animation.start(({ finished }) => finished && setMoving(false));
       return () => animation.stop();
