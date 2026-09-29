@@ -36,9 +36,11 @@ function pluginDirectory() {
   return undefined;
 }
 
+// An npm install puts the plugin under node_modules, where Node won't run
+// TypeScript, so the npm package carries the command compiled to dist/.
 const directory = pluginDirectory();
-const entry = directory && join(directory, "server", "cli.ts");
-if (!entry || !existsSync(entry)) {
+const entry = directory && [join(directory, "dist", "server", "cli.js"), join(directory, "server", "cli.ts")].find((path) => existsSync(path));
+if (!entry) {
   console.error("The ${PLUGIN_ID} plugin is not installed in Paseo, or Paseo is not reachable. Check with: paseo plugin ls");
   process.exit(1);
 }

@@ -1,15 +1,50 @@
 {
-  "name": "progress",
-  "private": true,
+  "name": "@stevecastaneda/paseo-progress",
   "version": "0.1.0",
+  "description": "A live progress dashboard per worktree for Paseo, drawn from a file agents write with the paseo-progress command.",
+  "license": "MIT",
+  "author": "Steve Castaneda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
+    "directory": "progress"
+  },
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/progress#readme",
+  "keywords": [
+    "paseo",
+    "paseo-plugin",
+    "progress",
+    "dashboard",
+    "coding-agents"
+  ],
   "type": "module",
   "engines": {
     "node": "^22.18.0 || >=23.6.0"
   },
+  "files": [
+    "paseo-plugin.json",
+    "npm-shrinkwrap.json",
+    "dist/",
+    "index.client.tsx",
+    "index.server.ts",
+    "client/",
+    "server/",
+    "shared/",
+    "skills/",
+    "images/",
+    "tsconfig.json",
+    "!**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test \"*/*.test.ts\"",
-    "dev": "node ../scripts/dev.mjs"
+    "dev": "node ../scripts/dev.mjs",
+    "build:cli": "rm -rf dist && tsc -p tsconfig.cli.json",
+    "prepack": "npm run build:cli",
+    "postpack": "rm -rf dist"
   },
   "devDependencies": {
     "@getpaseo/plugin": "^0.9.2",
