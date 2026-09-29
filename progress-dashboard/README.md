@@ -2,6 +2,8 @@
 
 A Paseo 0.9 plugin that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to `.scratch/progress.jsonl` in the worktree. The **Progress** panel draws the dashboard from that file and updates by itself.
 
+<img src="images/1-panel.png" alt="The Progress panel in Explorer" width="400">
+
 The dashboard shows:
 
 - the run's title, a headline ("2 of 4 tickets done, 5 questions waiting for you, 1 stuck"), a one-line "now" ticker, and when it was last updated
@@ -80,6 +82,16 @@ paseo-progress finish "Snapshots ship for all four tables"
 ## The progress file
 
 `.scratch/progress.jsonl` holds one JSON event per line, each with a version (`v`), a UTC timestamp (`ts`) from the real clock, and a `type`. It is only ever appended to, so you can read or diff the history. A half-written last line is ignored. Other bad lines are skipped and listed in a small notice in the panel while the rest still renders. A lock keeps two commands from writing at once or handing out the same id.
+
+## Limitations
+
+- Nothing updates unless the agent runs `paseo-progress`. Agents need the skill, and an agent that skips the command leaves the dashboard behind.
+- The command runs on the machine that hosts the Paseo daemon, and it needs Node.js 22.18 or later there.
+- Each worktree keeps its own dashboard in `.scratch/progress.jsonl`. There's no view across worktrees.
+- Paseo can't open a panel without switching you to its workspace. So a new run shows a "Progress" pill, and you open the panel yourself.
+- Pills check busy worktrees every 5 seconds and quiet ones every 30. In a quiet worktree, a new question can take up to half a minute to show.
+- Previews cover images up to 10 MB and the first 256 KB of a text file. Other files open in their default app.
+- Stale warnings and overdue times use the daemon host's clock.
 
 ## Local development
 

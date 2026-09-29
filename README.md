@@ -60,6 +60,8 @@ A live dashboard for long agent jobs, one per worktree. Agents record tickets, s
 
 See [Progress Dashboard](progress-dashboard/README.md) for the commands and the launcher setup.
 
+<img src="progress-dashboard/images/1-panel.png" alt="progress-dashboard in Explorer" width="400">
+
 ```bash
 paseo plugin add stevecastaneda/paseo-plugins --path progress-dashboard
 ```
