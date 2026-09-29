@@ -33,7 +33,8 @@ export function clientHarness(pluginDirectory, modules = {}) {
       if (Object.hasOwn(modules, name)) return modules[name];
       if (name === '@getpaseo/plugin') return { defineRpc: (contract) => contract };
       if (name === '@getpaseo/plugin/client') return { openExternalUrl: async (url) => { opened.push(url); } };
-      if ( name === '@getpaseo/plugin/client/react-native' || name === 'react-native') return {};
+      if (name === 'react-native') return { Platform: { OS: 'web' } };
+      if (name === '@getpaseo/plugin/client/react-native') return {};
       return require(name);
     };
     vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {

@@ -22,6 +22,16 @@ test("registers the Progress panel and a Command Center item that opens it as a 
   assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed));
 });
 
+test("on a phone, where Paseo doesn't draw Explorer, Progress opens as a tab", () => {
+  const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
+  const stop = h.load("index.client.tsx").default(h.client);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.panels.map(({ id, locations }) => ({ id, locations })))), [{ id: "progress-tab", locations: ["workspace"] }],
+    "its own id, so a tab an older version left in the phone's hidden Explorer pane isn't reused");
+  h.commandItems[0].onSelect({ openPanel: (id: string, options?: object) => h.client.openPanel(id, { workspaceId: "w", ...options }) });
+  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress-tab", workspaceId: "w", location: "workspace" }]);
+  stop();
+});
+
 test("the panel polls only once the workspace directory is known and shares one query per workspace", async () => {
   const { QueryClient, QueryObserver } = await import("@tanstack/react-query");
   const h = clientHarness(directory);
@@ -194,6 +204,25 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().length, 0);
+  stop();
+});
+
+test("on a phone, an open run keeps a Progress pill that opens the panel as a tab", async () => {
+  const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
+  const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
+  h.responses["progress.attention"] = attentionWith(0, 0, { open: true, panelOpened: true });
+  const stop = contributePills(h.client);
+  h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
+  h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
+  await h.flush();
+  const active = () => h.registrations.filter((entry) => !entry.removed) as unknown as Array<{ button: any }>;
+  assert.equal(active()[0]?.button.label, "Progress", "shown even after the panel has been opened");
+  active()[0].button.behavior.onPress();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress-tab", workspaceId: "w", location: "workspace" }]);
+  h.responses["progress.attention"] = attentionWith(0, 0, { open: false, panelOpened: true });
+  await h.tick(PILL_POLL_MS);
+  await h.flush();
+  assert.equal(active().length, 0, "a finished run has no pill");
   stop();
 });
 

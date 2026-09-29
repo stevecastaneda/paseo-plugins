@@ -1,15 +1,16 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { ProgressPanel } from "./client/panel";
-import { contributePills } from "./client/pills";
+import { contributePills, progressPanel } from "./client/pills";
 
 export default function contribute(client: PluginClientContext) {
   const stopPills = contributePills(client);
+  const panel = progressPanel();
   const stopPanel = client.addWorkspacePanel({
-    id: "progress",
+    id: panel.id,
     title: "Progress",
     icon: "ListChecks",
     context: "workspace",
-    locations: ["explorer"],
+    locations: [panel.location],
     Component: ProgressPanel,
   });
   const stopCommand = client.addCommandCenterItem({
@@ -18,9 +19,9 @@ export default function contribute(client: PluginClientContext) {
     icon: "ListChecks",
     keywords: ["dashboard", "tickets", "status", "questions"],
     context: "workspace",
-    // Explorer only: the dashboard sits beside the agent chat, so both stay in view.
+    // Beside the agent chat where Paseo can show both; a tab of its own on phones.
     onSelect({ openPanel }) {
-      openPanel("progress", { location: "explorer" });
+      openPanel(panel.id, { location: panel.location });
     },
   });
 

@@ -2,6 +2,7 @@ import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useSyncExternalStore } from "react";
+import { Platform } from "react-native";
 import { pillLabel, type Attention } from "../shared/attention";
 import { getAttention } from "../shared/rpc";
 import { observeDirectory } from "./directory";
@@ -15,9 +16,17 @@ export const PILL_POLL_MS = 5_000;
 // waiting) is checked on every 6th poll, 30 seconds. Its agents' updates
 // still trigger a check, at most once a poll interval.
 export const IDLE_POLL_EVERY = 6;
-const EXPLORER = { location: "explorer" as const };
 
-type Mode = "attention" | "started";
+// Paseo's desktop app shows the panel in Explorer, beside the chat. The phone
+// apps never draw Explorer's pane, so there the panel is a tab of its own.
+// It has its own id on phones: Paseo 0.10.1 reopens an existing tab where it
+// already is, and earlier versions of this plugin left a "progress" tab in the
+// phone's hidden Explorer pane, which a plugin can't move or close.
+export function progressPanel(): { id: string; location: "explorer" | "workspace" } {
+  return Platform.OS === "web" ? { id: "progress", location: "explorer" } : { id: "progress-tab", location: "workspace" };
+}
+
+type Mode = "attention" | "started" | "open";
 type Workspace = { id: string; workspaceDirectory?: string; projectRootPath: string };
 
 function directoryOf(workspace: Workspace): string {
@@ -37,6 +46,10 @@ export function contributePills(client: PluginClientContext) {
   const attention = new Map<string, Attention>();
   // Workspaces with a run whose panel has never been opened.
   const started = new Set<string>();
+  // Workspaces with a run still going. Phones have no Explorer to open the
+  // panel from, so there the pill stays as the way in while a run is open.
+  const runOpen = new Set<string>();
+  const onPhone = progressPanel().location === "workspace";
   // Bumped on each report so a poll that was already in flight can't bring the pill back.
   let openedReports = 0;
   const listeners = new Set<() => void>();
@@ -54,26 +67,32 @@ export function contributePills(client: PluginClientContext) {
       (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
       () => {
         const current = attention.get(props.workspaceId);
-        return current?.stuck ? "stuck" : current?.questions ? "questions" : "started";
+        return current?.stuck ? "stuck" : current?.questions ? "questions" : started.has(props.workspaceId) ? "started" : "open";
       },
     );
     return (
       <IconSwap swapKey={icon} size={props.size}>
         {icon === "stuck" ? <Icon name="OctagonAlert" size={props.size} color={props.theme.colors.statusDanger} />
           : icon === "questions" ? <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />
-          : <Spinner color={props.color} size={props.size} />}
+          : icon === "started" ? <Spinner color={props.color} size={props.size} />
+          : <Icon name="ListChecks" size={props.size} color={props.color} />}
       </IconSwap>
     );
   }
 
-  const openPanel = (workspaceId: string) => client.openPanel("progress", { workspaceId, ...EXPLORER });
+  const openPanel = (workspaceId: string) => {
+    const { id, location } = progressPanel();
+    client.openPanel(id, { workspaceId, location });
+  };
 
-  // What an agent's pill shows: what needs the user first, else the one-time nudge.
+  // What an agent's pill shows: what needs the user first, else the one-time
+  // nudge, else (on a phone) the way into the panel while a run is open.
   const pillFor = (workspaceId: string): { mode: Mode; label: string } | null => {
     const current = attention.get(workspaceId);
     const label = current ? pillLabel(current) : null;
     if (label) return { mode: "attention", label };
     if (started.has(workspaceId)) return { mode: "started", label: "Progress" };
+    if (onPhone && runOpen.has(workspaceId)) return { mode: "open", label: "Progress" };
     return null;
   };
   const buttonFor = (workspaceId: string, mode: Mode, label: string) => mode === "attention"
@@ -141,6 +160,11 @@ export function contributePills(client: PluginClientContext) {
       if (result.configured && result.runOpen && !result.panelOpened) {
         if (openedReports === reportsBefore) started.add(workspaceId);
       } else started.delete(workspaceId);
+      const openBefore = runOpen.has(workspaceId);
+      if (result.configured && result.runOpen) runOpen.add(workspaceId);
+      else runOpen.delete(workspaceId);
+      // The icon reads these sets, so it has to hear when the run opens or closes.
+      if (openBefore !== runOpen.has(workspaceId)) for (const listener of listeners) listener();
       const idle = !result.runOpen && !result.questions && !result.stuck;
       if (idle) idleWait.set(workspaceId, IDLE_POLL_EVERY - 1);
       else idleWait.delete(workspaceId);
@@ -169,6 +193,7 @@ export function contributePills(client: PluginClientContext) {
   const forget = (workspaceId: string) => {
     workspaces.delete(workspaceId);
     started.delete(workspaceId);
+    runOpen.delete(workspaceId);
     idleWait.delete(workspaceId);
     checkedAt.delete(workspaceId);
     setAttention(workspaceId, undefined);
@@ -222,6 +247,7 @@ export function contributePills(client: PluginClientContext) {
   const stopOpened = onPanelOpened((workspaceId) => {
     openedReports++;
     started.delete(workspaceId);
+    for (const listener of listeners) listener();
     publish();
   });
   timer = setTimeout(sync, PILL_POLL_MS);

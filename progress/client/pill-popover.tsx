@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { Dashboard } from "../shared/dashboard";
 import { useDashboard } from "./dashboard-query";
+import { progressPanel } from "./pills";
 import { PressScale } from "./motion";
 import { type Attachment, isPreviewable, useAttachmentOpener } from "./attachments";
 import { PreviewDialog, previewable } from "./preview";
@@ -12,7 +13,7 @@ import { raised } from "./surfaces";
 
 type Colors = PluginButtonContentProps["theme"]["colors"];
 
-// Paseo caps the popover at 440px and scrolls all of it, padding included. The
+// On desktop, Paseo caps the popover at 440px and scrolls all of it, padding included. The
 // list scrolls on its own below that cap so Open Progress stays in view.
 const LIST_MAX_HEIGHT = 340;
 
@@ -34,7 +35,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   return (
     <View style={{ width: 360, maxWidth: "100%", gap: 8 }}>
       {dashboard ? (
-        <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} contentContainerStyle={{ gap: 12 }}>
+        <List compact={layout.compact}>
           <AttentionList colors={colors} dashboard={dashboard} onSurface1={onSurface1} onCopy={async (question, letter) => {
             await copy(question, letter);
             close();
@@ -43,7 +44,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
             if (!isPreviewable(attachment)) close();
             void opener.open(attachment);
           }} />
-        </ScrollView>
+        </List>
       ) : (
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
           {query.error ? `Could not read progress: ${query.error.message}` : "Loading…"}
@@ -56,12 +57,21 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}
           style={({ pressed }) => ({ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 6, borderRadius: 4, ...raised(colors),
             backgroundColor: onSurface1 ? (pressed ? colors.surface1 : colors.surface2) : pressed ? colors.surface2 : colors.surface1 })}>
-          <Icon name="PanelRight" size={12} color={colors.foreground} />
+          {/* Beside the chat on desktop; on a phone it opens as its own tab, shown with the tab's icon. */}
+          <Icon name={progressPanel().location === "explorer" ? "PanelRight" : "ListChecks"} size={12} color={colors.foreground} />
           <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Open Progress</Text>
         </PressScale>
       </View>
     </View>
   );
+}
+
+// On a phone the popover is a sheet that already scrolls, and sizes itself to
+// whichever scroll view reports last. Paseo 0.10.1 turns a ScrollView inside it
+// into one of those, so a short list would shrink the sheet to its title.
+function List({ compact, children }: { compact: boolean; children: React.ReactNode }) {
+  if (compact) return <View style={{ gap: 12 }}>{children}</View>;
+  return <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} contentContainerStyle={{ gap: 12 }}>{children}</ScrollView>;
 }
 
 export function AttentionList({ colors, dashboard, onSurface1, onCopy, onOpenAttachment }: {
