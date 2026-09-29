@@ -3,7 +3,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DeliverablesList } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
-import { Spinner, StalledPulse } from "./spinner";
+import { Spinner, StalledPulse, WaitingDot } from "./spinner";
 import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
@@ -427,11 +427,11 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
         <IconSwap swapKey={ticket.waitingFor ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        {/* A paperclip before the title when the ticket has deliverables; they're listed in its dialog. */}
+        {/* The Deliverables tab's icon before the title when the ticket has deliverables; they're listed in its dialog. */}
         <View style={{ flexDirection: "row", gap: 6 }}>
           {deliverables ? (
             <View accessibilityLabel={deliverables === 1 ? "Has a deliverable" : `Has ${deliverables} deliverables`} style={{ height: 18, justifyContent: "center" }}>
-              <Icon name="Paperclip" size={12} color={colors.foregroundMuted} />
+              <Icon name="Package" size={12} color={colors.foregroundMuted} />
             </View>
           ) : null}
           <Text style={{ flex: 1, color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
@@ -463,7 +463,7 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
 }
 
 function StatusIcon({ colors, status, live, waiting }: { colors: Colors; status: TicketStatus; live: boolean; waiting: boolean }) {
-  if (waiting) return <Icon name="Hourglass" size={14} color={colors.foregroundMuted} />;
+  if (waiting) return <WaitingDot color={colors.foregroundMuted} size={14} />;
   switch (status) {
     case "done":
       return <Icon name="Check" size={14} color={colors.statusSuccess} />;
