@@ -403,7 +403,7 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{item.title}</Text>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {item.kind === "overdue" ? `Running ${formatMinutes(item.overMin)} past its ${formatMinutes(item.estimateMin)} estimate. Timed from ` : null}
+            {item.kind === "overdue" ? `No update for longer than its ${formatMinutes(item.estimateMin)} estimate. Last update ` : null}
             {item.kind === "blocked" ? `Blocked${item.note ? `: ${item.note}` : ""}. Since ` : null}
             {item.kind === "manual" ? `${item.ticketId ? `${item.reason}. ` : ""}Flagged ` : null}
             <When colors={colors} iso={item.since} now={now} />

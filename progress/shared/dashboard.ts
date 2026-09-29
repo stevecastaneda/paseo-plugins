@@ -15,7 +15,7 @@ export interface Ticket {
   status: TicketStatus;
   // When the ticket entered its current status.
   statusSince: string;
-  // When the ticket last started working; overdue time counts from here.
+  // When the ticket last started working.
   workingSince?: string;
   stage?: string;
   stageSince?: string;
@@ -30,7 +30,8 @@ export interface Ticket {
 
 export type StuckItem =
   | { kind: "blocked"; key: string; ticketId: string; title: string; since: string; note?: string }
-  | { kind: "overdue"; key: string; ticketId: string; title: string; since: string; estimateMin: number; overMin: number }
+  // A working ticket with no update for longer than its estimate. `since` is its last update.
+  | { kind: "overdue"; key: string; ticketId: string; title: string; since: string; estimateMin: number }
   | { kind: "manual"; key: string; id: string; ticketId?: string; title: string; reason: string; since: string };
 
 export interface Question {
@@ -306,7 +307,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
       : undefined;
   }
   const itemLabel = run?.itemLabel ?? "Ticket";
-  const stuck = stuckItems(list, [...manualStuck.values()], now);
+  const stuck = stuckItems(list, [...activity.values()], [...manualStuck.values()], now);
   const allQuestions = [...questions.values()];
   const open = allQuestions.filter((question) => !question.answer);
   // A finished run has nothing left to stall, so it never goes stale.
@@ -345,23 +346,26 @@ function progress(tickets: Ticket[]): Dashboard["progress"] {
   };
 }
 
-function stuckItems(tickets: Ticket[], manual: Array<{ id: string; reason: string; ticket?: string; since: string }>, now: Date): StuckItem[] {
+function stuckItems(tickets: Ticket[], activity: Activity[], manual: Array<{ id: string; reason: string; ticket?: string; since: string }>, now: Date): StuckItem[] {
   const items: StuckItem[] = [];
   for (const ticket of tickets) {
     // Blocked only on another ticket in the run is waiting, not stuck.
     if (ticket.status === "blocked" && !ticket.waitingFor) {
       items.push({ kind: "blocked", key: `blocked:${ticket.id}`, ticketId: ticket.id, title: ticket.title, since: ticket.statusSince, note: ticket.note });
-    } else if (ticket.status === "working" && ticket.workingSince) {
-      const workedMin = (now.getTime() - Date.parse(ticket.workingSince)) / 60_000;
-      if (workedMin > ticket.estimateMin) {
+    } else if (ticket.status === "working") {
+      // Any sign of work resets the clock: a status, stage or note change, or activity tagged to the ticket.
+      const lastUpdate = Math.max(
+        ...ticket.history.map((change) => Date.parse(change.at)),
+        ...activity.filter((entry) => entry.ticketId === ticket.id).map((entry) => Date.parse(entry.at)),
+      );
+      if (now.getTime() - lastUpdate > ticket.estimateMin * 60_000) {
         items.push({
           kind: "overdue",
           key: `overdue:${ticket.id}`,
           ticketId: ticket.id,
           title: ticket.title,
-          since: ticket.workingSince,
+          since: new Date(lastUpdate).toISOString(),
           estimateMin: ticket.estimateMin,
-          overMin: Math.floor(workedMin - ticket.estimateMin),
         });
       }
     }

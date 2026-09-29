@@ -28,7 +28,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.stuck.length) {
     lines.push("", "Stuck");
     for (const item of dashboard.stuck) {
-      const detail = item.kind === "overdue" ? `${formatMinutes(item.overMin)} past its ${formatMinutes(item.estimateMin)} estimate`
+      const detail = item.kind === "overdue" ? `no update for longer than its ${formatMinutes(item.estimateMin)} estimate`
         : item.kind === "blocked" ? `blocked${item.note ? `: ${item.note}` : ""}`
         : `${item.id}: ${item.reason}`;
       lines.push(`  ${item.title} (${detail}), since ${when(item.since)}`);

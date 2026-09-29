@@ -413,16 +413,30 @@ test("a working ticket shows its stage and when that stage started", async (t) =
   assert.equal(cleared?.stage, undefined);
 });
 
-test("a working ticket becomes stuck once it runs past its estimate", async (t) => {
+test("a working ticket becomes stuck once it goes longer than its estimate without an update", async (t) => {
   const w = await screenshotRun(t);
   assert.deepEqual((await w.dashboard(120)).dashboard.stuck, [], "exactly at the estimate is not stuck");
   const { dashboard } = await w.dashboard(617);
   assert.deepEqual(dashboard.stuck, [{
     kind: "overdue", key: "overdue:T03", ticketId: "T03", title: "Ticket 03",
-    since: minutes(0).toISOString(), estimateMin: 120, overMin: 497,
+    since: minutes(0).toISOString(), estimateMin: 120,
   }]);
   assert.equal(headlineText(dashboard), "2 of 4 tickets done, 1 stuck");
   assert.deepEqual(dashboard.headline.at(-1), { text: "1 stuck", tone: "danger" });
+});
+
+test("a stage change, note or tagged activity restarts a working ticket's stuck clock", async (t) => {
+  const w = await screenshotRun(t);
+  w.at(100);
+  await w.run("ticket", "update", "T03", "--stage", "Build");
+  assert.deepEqual((await w.dashboard(200)).dashboard.stuck, [], "past the estimate since starting, but updated 100 min ago");
+  w.at(210);
+  await w.run("activity", "add", "Tests pass", "--ticket", "T03");
+  w.at(215);
+  await w.run("activity", "add", "Untagged work");
+  const { dashboard } = await w.dashboard(340);
+  assert.deepEqual(dashboard.stuck.map((item) => item.since), [minutes(210).toISOString()],
+    "timed from the last update that belongs to the ticket");
 });
 
 test("blocked tickets and flagged blockers are stuck until cleared", async (t) => {
@@ -625,7 +639,7 @@ test("show prints the dashboard as text for the agent", async (t) => {
     "2 of 4 tickets done, 1 question waiting for you, 1 stuck",
     "58% of estimated work done, 4.5 h of 7.8 h",
     "POSSIBLY STALE: no update for 10 h 17 min.",
-    "Ticket 03 (8 h 17 min past its 2 h estimate)",
+    "Ticket 03 (no update for longer than its 2 h estimate)",
     "T03  Working, Fixes stage  120 min  Ticket 03",
     "Q1 (Row spacing): Even out the spacing? Default B",
     "      B) No",

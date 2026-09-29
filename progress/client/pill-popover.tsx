@@ -98,7 +98,7 @@ export function AttentionList({ colors, dashboard, onSurface1, onCopy, onOpenAtt
             <Text key={item.key} style={{ color: colors.foreground, fontSize: 12, lineHeight: 17 }}>
               {item.title}
               <Text style={{ color: colors.foregroundMuted }}>
-                {item.kind === "overdue" ? " (past its estimate)" : item.kind === "blocked" ? ` (blocked${item.note ? `: ${item.note}` : ""})` : ""}
+                {item.kind === "overdue" ? " (no update past its estimate)" : item.kind === "blocked" ? ` (blocked${item.note ? `: ${item.note}` : ""})` : ""}
               </Text>
             </Text>
           ))}
