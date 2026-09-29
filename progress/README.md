@@ -23,8 +23,10 @@ The first time a run starts in a worktree whose Progress panel has never been op
 ## Install
 
 ```sh
-paseo plugin add stevecastaneda/paseo-plugins --path progress
+paseo plugin add npm:@stevecastaneda/paseo-progress
 ```
+
+Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path progress`.
 
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
@@ -33,10 +35,11 @@ Then install the `paseo-progress` command agents run. Open **Progress** from Com
 To install from a terminal instead, or to put the command somewhere else:
 
 ```sh
-node "$(paseo plugin ls progress --json | node -pe 'JSON.parse(require("fs").readFileSync(0))[0].path')/server/cli.ts" install-launcher [path]
+dir="$(paseo plugin ls progress --json | node -pe 'JSON.parse(require("fs").readFileSync(0))[0].path')"
+node "$([ -f "$dir/dist/server/cli.js" ] && echo "$dir/dist/server/cli.js" || echo "$dir/server/cli.ts")" install-launcher [path]
 ```
 
-If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches.
+If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches. The npm package carries the command compiled to JavaScript in `dist/`, because Node won't run TypeScript from `node_modules`.
 
 The plugin keeps each worktree's progress in `.scratch/progress.jsonl`. The first time it creates `.scratch/`, it also writes `.scratch/.gitignore` naming only its own files, so git ignores them without any change to your repository's `.gitignore`. If `.scratch/.gitignore` already exists, the plugin leaves it alone.
 
