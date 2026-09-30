@@ -34,8 +34,8 @@ export function StalledPulse({ color, size = 12 }: { color: string; size?: numbe
   );
 }
 
-// A ticket waiting on another one: a still, faded dot, so it reads as parked
-// rather than busy. Centered in the same slot an icon would take.
+// A ticket not started yet, or waiting on another one: a still, faded dot, so it
+// reads as parked rather than busy. Centered in the same slot an icon would take.
 export function WaitingDot({ color, size = 12 }: { color: string; size?: number }) {
   const dot = Math.round(size / 2);
   return (

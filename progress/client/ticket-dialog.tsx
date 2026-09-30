@@ -158,12 +158,11 @@ function LinkNote({ colors, link }: { colors: Colors; link: Link }) {
 // The same icons as the ticket rows, so a step reads like the status it was.
 // Past stage steps get an accent ringed dot: work that happened, now over.
 function Marker({ colors, step }: { colors: Colors; step: TimelineStep & { waiting?: boolean } }) {
-  if (step.waiting) return <WaitingDot color={colors.foregroundMuted} />;
+  if (step.waiting || (step.status === "not_started" && step.label !== "Added")) return <WaitingDot color={colors.foregroundMuted} />;
   const icon = step.label === "Added" ? { name: "CirclePlus", color: colors.foregroundMuted }
     : step.status === "done" ? { name: "CircleCheck", color: colors.statusSuccess }
     : step.status === "blocked" ? { name: "Ban", color: colors.statusDanger }
     : step.status === "skipped" ? { name: "CircleSlash", color: colors.foregroundMuted }
-    : step.status === "not_started" ? { name: "Circle", color: colors.foregroundMuted }
     : { name: "CircleDot", color: colors.accent };
   return <Icon name={icon.name} size={12} color={icon.color} />;
 }
