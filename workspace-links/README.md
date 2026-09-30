@@ -11,8 +11,10 @@ Under **Show as**, switch between the composer pill and a workspace header butto
 ## Install
 
 ```sh
-paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
+paseo plugin add npm:@stevecastaneda/paseo-workspace-links
 ```
+
+Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path workspace-links`.
 
 Enable plugins under **Settings → Plugins** on the Paseo host.
 

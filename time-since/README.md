@@ -15,8 +15,10 @@ Open **Time Since Options** in Command Center to show or hide the clock icon and
 Paseo 0.9 or later. Enable plugins in **Settings → Plugins**, then:
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins --path time-since
+paseo plugin add npm:@stevecastaneda/paseo-time-since
 ```
+
+Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path time-since`.
 
 From a local checkout:
 

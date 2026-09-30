@@ -1,10 +1,39 @@
 {
-  "name": "time-since",
-  "private": true,
-  "version": "0.2.2",
+  "name": "@stevecastaneda/paseo-time-since",
+  "version": "0.3.0",
+  "description": "Elapsed time since the last chat message, shown above the Paseo composer.",
+  "license": "MIT",
+  "author": "Steve Castaneda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
+    "directory": "time-since"
+  },
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/time-since#readme",
+  "keywords": [
+    "paseo",
+    "paseo-plugin",
+    "timer",
+    "composer"
+  ],
   "type": "module",
   "engines": {
     "node": "^22.18.0 || >=23.6.0"
+  },
+  "files": [
+    "paseo-plugin.json",
+    "npm-shrinkwrap.json",
+    "index.client.tsx",
+    "index.server.ts",
+    "client/",
+    "server/",
+    "shared/",
+    "composer-pill.png",
+    "tsconfig.json",
+    "!**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

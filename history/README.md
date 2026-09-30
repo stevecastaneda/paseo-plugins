@@ -16,6 +16,16 @@ OpenCode uses its [session export command](https://opencode.ai/docs/cli/#export)
 
 The viewer shows what the harness saved, which can differ from Paseo's displayed chat. Tool results and mirrored transport events stay behind tags rather than appearing as additional conversation messages.
 
+## Install
+
+Enable plugins in **Settings → Plugins**, then:
+
+```sh
+paseo plugin add npm:@stevecastaneda/paseo-history
+```
+
+Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path history`.
+
 ## Local install
 
 With plugins enabled in Paseo:

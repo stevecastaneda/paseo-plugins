@@ -11,8 +11,10 @@ Paseo 0.9 live view of worktree setup. Paseo already tracks `worktree.setup` fro
 ## Install
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins --path setup-monitor
+paseo plugin add npm:@stevecastaneda/paseo-setup-monitor
 ```
+
+Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path setup-monitor`.
 
 Turn on **Settings → Plugins → Enable plugins** on the daemon first.
 
