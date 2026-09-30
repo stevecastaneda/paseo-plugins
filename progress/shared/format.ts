@@ -12,6 +12,13 @@ export function formatMinutes(totalMin: number): string {
   return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
 }
 
+// A ticket's estimate, the way people say one: "45 min" under an hour, then
+// hours to one decimal: "1 h", "1.5 h", "2.1 h".
+export function formatEstimate(totalMin: number): string {
+  if (totalMin < 60) return formatMinutes(totalMin);
+  return `${Math.round(totalMin / 6) / 10} h`;
+}
+
 // Estimated work done out of the total, in the units people estimate in:
 // "5 of 10 min", "1 h 30 min of 2 h". Under an hour on both sides, the unit is
 // said once.

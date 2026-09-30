@@ -12,7 +12,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
-import { formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
+import { formatEstimate, formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
 import { STATUS_LABEL } from "./status-badge";
@@ -446,11 +446,11 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
         ) : null}
         {ticket.note ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{ticket.note}</Text> : null}
       </View>
-      {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. */}
+      {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. The estimate slot fits "45 min" and "10.5 h"; longer ones grow rather than clip. */}
       <View accessibilityLabel={deliverables ? (deliverables === 1 ? "Has a deliverable" : `Has ${deliverables} deliverables`) : undefined} style={{ width: 12, height: 18, justifyContent: "center" }}>
         {deliverables ? <Icon name="Package" size={12} color={colors.foregroundMuted} /> : null}
       </View>
-      <Text style={{ minWidth: 44, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{ticket.estimateMin} min</Text>
+      <Text style={{ minWidth: 40, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatEstimate(ticket.estimateMin)}</Text>
       <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
     </PressableRow>
   );

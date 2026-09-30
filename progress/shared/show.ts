@@ -1,6 +1,6 @@
 import type { Dashboard } from "./dashboard.ts";
 import { headlineText, shortTitle } from "./dashboard.ts";
-import { formatAgo, formatClock, formatMinutes, formatWorkDone, minutesSince } from "./format.ts";
+import { formatAgo, formatClock, formatEstimate, formatMinutes, formatWorkDone, minutesSince } from "./format.ts";
 
 const STATUS: Record<string, string> = { not_started: "Not started", working: "Working", blocked: "Blocked", done: "Done", skipped: "Skipped" };
 
@@ -38,7 +38,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   for (const ticket of dashboard.tickets) {
     const stage = ticket.status === "working" && ticket.stage ? `, ${ticket.stage} stage` : "";
     const status = ticket.waitingFor ? `Waiting for ${ticket.waitingFor.id}` : STATUS[ticket.status];
-    lines.push(`  ${ticket.id}  ${status}${stage}  ${ticket.estimateMin} min  ${ticket.title}`);
+    lines.push(`  ${ticket.id}  ${status}${stage}  ${formatEstimate(ticket.estimateMin)}  ${ticket.title}`);
   }
   if (dashboard.questions.open.length) {
     lines.push("", "Questions waiting");

@@ -12,7 +12,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
-import { formatMinutes, formatWorkDone } from "../shared/format.ts";
+import { formatEstimate, formatMinutes, formatWorkDone } from "../shared/format.ts";
 import { headlineText } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
@@ -477,6 +477,11 @@ test("display helpers format durations and hours the way the panel shows them", 
   assert.equal(formatMinutes(12), "12 min");
   assert.equal(formatMinutes(602), "10 h 2 min");
   assert.equal(formatMinutes(120), "2 h");
+  assert.equal(formatEstimate(45), "45 min", "estimates under an hour stay in minutes");
+  assert.equal(formatEstimate(60), "1 h");
+  assert.equal(formatEstimate(66), "1.1 h");
+  assert.equal(formatEstimate(90), "1.5 h");
+  assert.equal(formatEstimate(150), "2.5 h");
   assert.equal(formatWorkDone(10, 10), "10 of 10 min", "under an hour, the unit is said once");
   assert.equal(formatWorkDone(0, 45), "0 min of 45 min");
   assert.equal(formatWorkDone(30, 120), "30 min of 2 h");
@@ -728,7 +733,7 @@ test("show prints the dashboard as text for the agent", async (t) => {
     "58% of estimated work done, 4 h 30 min of 7 h 45 min",
     "POSSIBLY STALE: no update for 10 h 17 min.",
     "Ticket 03 (no update for longer than its 2 h estimate)",
-    "T03  Working, Fixes stage  120 min  Ticket 03",
+    "T03  Working, Fixes stage  2 h  Ticket 03",
     "Q1 (Row spacing): Even out the spacing? Default B",
     "      B) No",
     "D1  Screenshots: .scratch/shots/, Ticket 03",
