@@ -1,10 +1,39 @@
 {
-  "name": "setup-monitor",
-  "private": true,
-  "version": "0.2.2",
+  "name": "@stevecastaneda/paseo-setup-monitor",
+  "version": "0.3.0",
+  "description": "Live worktree setup progress and logs in Paseo Explorer.",
+  "license": "MIT",
+  "author": "Steve Castaneda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
+    "directory": "setup-monitor"
+  },
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/setup-monitor#readme",
+  "keywords": [
+    "paseo",
+    "paseo-plugin",
+    "setup",
+    "worktree"
+  ],
   "type": "module",
   "engines": {
     "node": "^22.18.0 || >=23.6.0"
+  },
+  "files": [
+    "paseo-plugin.json",
+    "npm-shrinkwrap.json",
+    "index.client.tsx",
+    "index.server.ts",
+    "client/",
+    "server/",
+    "shared/",
+    "explorer.png",
+    "tsconfig.json",
+    "!**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -12,7 +12,7 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 
 ## Install
 
-Turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want.
+Turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want. Each plugin is published to npm as `@stevecastaneda/paseo-<plugin>`. To install from GitHub instead, use `paseo plugin add stevecastaneda/paseo-plugins --path <plugin>`.
 
 Plugin code is trusted and unsandboxed. Server code runs as the daemon user. Client code runs inside Paseo.
 
@@ -27,7 +27,7 @@ Open **Time Since Options** in Command Center to customize the clock icon and op
 <img src="time-since/composer-pill.png" alt="time-since composer pill" width="336">
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins --path time-since
+paseo plugin add npm:@stevecastaneda/paseo-time-since
 ```
 
 ## setup-monitor
@@ -37,7 +37,7 @@ Live view of `worktree.setup` from `paseo.json`. While that script runs, Setup o
 <img src="setup-monitor/explorer.png" alt="setup-monitor in Explorer" width="451">
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins --path setup-monitor
+paseo plugin add npm:@stevecastaneda/paseo-setup-monitor
 ```
 
 ## workspace-links
@@ -51,7 +51,15 @@ See [Workspace Links](workspace-links/README.md) for configuration.
 <img src="workspace-links/explorer.png" alt="workspace-links in Explorer" width="890">
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins --path workspace-links
+paseo plugin add npm:@stevecastaneda/paseo-workspace-links
+```
+
+## history
+
+A composer pill that opens the chat’s saved history: messages, tools, and the raw session records. Supports Codex, Claude Code, and OpenCode. See [History](history/README.md) for details.
+
+```bash
+paseo plugin add npm:@stevecastaneda/paseo-history
 ```
 
 ## progress
@@ -63,7 +71,7 @@ See [Progress](progress/README.md) for the commands and the launcher setup.
 <img src="progress/images/1-panel.png" alt="The Progress panel in Explorer" width="400">
 
 ```bash
-paseo plugin add stevecastaneda/paseo-plugins --path progress
+paseo plugin add npm:@stevecastaneda/paseo-progress
 ```
 
 ## Local development
@@ -103,4 +111,4 @@ Switching copies keeps what a plugin saved in `~/.paseo/plugin-data/`.
 
 Each plugin versions itself in that directory's `package.json`, starting at `0.1.0`. Paseo Cafe uses that field as the update identity, so bump it whenever you ship a change to that plugin. Sibling plugins and the git tag on this repository do not count.
 
-Do not cut a GitHub Release for the whole repo. A plugin update is: increment that plugin's `package.json` (and matching `package-lock.json`), merge to `main`. Cafe's next scan picks it up. `paseo plugin update` still pulls the tracked git branch.
+Do not cut a GitHub Release for the whole repo. A plugin update is: increment the version in that plugin's `package.json` and `npm-shrinkwrap.json`, merge to `main`, then run `npm publish` in the plugin's folder. Cafe's next scan picks it up. The lockfile is named `npm-shrinkwrap.json` because npm doesn't publish `package-lock.json`, and Paseo runs `npm ci` inside npm installs too. `paseo plugin update` still pulls the tracked git branch.

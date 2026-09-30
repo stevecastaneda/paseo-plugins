@@ -1,10 +1,38 @@
 {
-  "name": "history",
-  "private": true,
-  "version": "0.3.2",
+  "name": "@stevecastaneda/paseo-history",
+  "version": "0.4.0",
+  "description": "Inspect chat messages, tools, and raw session records from a composer pill in Paseo.",
+  "license": "MIT",
+  "author": "Steve Castaneda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
+    "directory": "history"
+  },
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/history#readme",
+  "keywords": [
+    "paseo",
+    "paseo-plugin",
+    "history",
+    "transcript"
+  ],
   "type": "module",
   "engines": {
     "node": "^22.18.0 || >=23.6.0"
+  },
+  "files": [
+    "paseo-plugin.json",
+    "npm-shrinkwrap.json",
+    "index.client.tsx",
+    "index.server.ts",
+    "client/",
+    "server/",
+    "shared/",
+    "tsconfig.json",
+    "!**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
