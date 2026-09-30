@@ -425,7 +425,7 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
       style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       {/* The icon is the only status mark on the row; the ticket dialog spells it out in a badge. */}
       <View accessible accessibilityLabel={ticket.waitingFor ? "Waiting" : STATUS_LABEL[ticket.status]} style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
-        <IconSwap swapKey={ticket.waitingFor ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
+        <IconSwap swapKey={ticket.waitingFor || ticket.status === "not_started" ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={{ color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
@@ -468,7 +468,8 @@ function StatusIcon({ colors, status, live, waiting }: { colors: Colors; status:
     case "skipped":
       return <Icon name="CircleSlash" size={14} color={colors.foregroundMuted} />;
     default:
-      return <Icon name="Circle" size={14} color={colors.foregroundMuted} />;
+      // Every step still ahead gets the same dot; "Waits for" says which ones are held up.
+      return <WaitingDot color={colors.foregroundMuted} size={14} />;
   }
 }
 
