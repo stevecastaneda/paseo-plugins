@@ -10,7 +10,7 @@ import { raised } from "./surfaces";
 import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
+import { finishedAtTop, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
 import { formatEstimate, formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
@@ -214,10 +214,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
                 No {(dashboard.run?.itemLabel ?? "ticket").toLowerCase()}s yet.
               </Text>
             ) : (
-              dashboard.tickets.map((ticket) => (
-                <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} onOpen={() => setOpenTicket(ticket.id)}
-                  deliverables={dashboard.deliverables.filter((deliverable) => deliverable.ticketId === ticket.id).length} />
-              ))
+              <TicketList colors={colors} dashboard={dashboard} live={live} now={now} workspaceId={workspaceId} onOpen={setOpenTicket} />
             )}
             <TicketDialogs colors={colors} dashboard={dashboard} openId={openTicket} setOpenId={setOpenTicket} now={now} live={live} context={attachmentContext} />
           </Card>
@@ -412,6 +409,59 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
         </View>
       ))}
     </View>
+  );
+}
+
+// Whether the finished tickets at the top are shown, per workspace, kept for
+// the app session like the history tab.
+const finishedShown = new Map<string, boolean>();
+
+// Finished tickets at the top fold into one row, so the work still ahead is
+// near the top without scrolling (see finishedAtTop).
+function TicketList({ colors, dashboard, live, now, workspaceId, onOpen }: { colors: Colors; dashboard: Dashboard; live: boolean; now: number; workspaceId: string; onOpen(id: string): void }) {
+  const [shown, setShown] = useState(() => finishedShown.get(workspaceId) ?? false);
+  const toggle = () => {
+    finishedShown.set(workspaceId, !shown);
+    setShown(!shown);
+  };
+  const folded = finishedAtTop(dashboard.tickets);
+  const row = (ticket: Ticket) => (
+    <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} onOpen={() => onOpen(ticket.id)}
+      deliverables={dashboard.deliverables.filter((deliverable) => deliverable.ticketId === ticket.id).length} />
+  );
+  if (!folded) return <>{dashboard.tickets.map(row)}</>;
+  const finished = dashboard.tickets.slice(0, folded);
+  return (
+    <>
+      <FinishedRow colors={colors} tickets={finished} shown={shown} onPress={toggle} />
+      {shown ? finished.map(row) : null}
+      {dashboard.tickets.slice(folded).map(row)}
+    </>
+  );
+}
+
+// Sits on the ticket rows' columns: status icon, label, estimate, then the
+// chevron, which points the way the list will move, like "Show 10 older".
+function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tickets: Ticket[]; shown: boolean; onPress(): void }) {
+  const done = tickets.filter((ticket) => ticket.status === "done").length;
+  const skipped = tickets.length - done;
+  const label = [done ? `${done} done` : "", skipped ? `${skipped} skipped` : ""].filter(Boolean).join(", ");
+  const estimateMin = tickets.reduce((sum, ticket) => sum + (ticket.status === "done" ? ticket.estimateMin : 0), 0);
+  const chevron = shown ? "ChevronUp" : "ChevronDown";
+  return (
+    <PressableRow colors={colors} accessibilityRole="button" accessibilityState={{ expanded: shown }}
+      accessibilityLabel={`${shown ? "Hide" : "Show"} ${label}`} onPress={onPress}
+      style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
+        <Icon name={done ? "Check" : "CircleSlash"} size={14} color={done ? colors.statusSuccess : colors.foregroundMuted} />
+      </View>
+      <Text style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{label}</Text>
+      <View style={{ width: 12 }} />
+      <Text style={{ minWidth: 40, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatEstimate(estimateMin) : ""}</Text>
+      <View style={{ paddingTop: 2 }}>
+        <IconSwap swapKey={chevron} size={14}><Icon name={chevron} size={14} color={colors.foregroundMuted} /></IconSwap>
+      </View>
+    </PressableRow>
   );
 }
 
