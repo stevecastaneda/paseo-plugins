@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-progress",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "A live progress dashboard per worktree for Paseo, drawn from a file agents write with the paseo-progress command.",
   "license": "MIT",
   "author": "Steve Castaneda",

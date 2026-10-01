@@ -5,8 +5,13 @@ import type { Dashboard } from "./dashboard.ts";
 // `panelOpened`: the Progress panel has been opened for this worktree before.
 // `root`: the worktree root the file was read from, which stored paths are
 // relative to. It can sit above the workspace directory.
+// `file`: where the progress file is, for people. `savedTo`: the repo folder
+// each run is saved to, or null when history stays on this computer.
+// `inRepo`: saving history needs a git repo to keep the choice in.
 // `version` changes whenever anything else in the result does.
-export type DashboardResult = { configured: boolean; dashboard: Dashboard; panelOpened: boolean; root: string; version: string };
+export type DashboardResult = {
+  configured: boolean; dashboard: Dashboard; panelOpened: boolean; file: string; savedTo: string | null; inRepo: boolean; root: string; version: string;
+};
 
 export const getDashboard = defineRpc({
   name: "progress.get",
@@ -81,6 +86,30 @@ export const installSkill = defineRpc({
   name: "progress.skill.install",
   input: z.object({}),
   output: skillStatus,
+});
+
+// The folders inside one folder of the worktree ("" is the top), for the
+// folder picker.
+export const listFolders = defineRpc({
+  name: "progress.folders.list",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+    folder: z.string(),
+  }),
+  output: z.object({ folder: z.string(), folders: z.array(z.string()) }),
+});
+
+// Starts saving each run to a folder in the repo (relative to the worktree
+// root), for every worktree of the repo, or stops when `folder` is null.
+export const setHistoryFolder = defineRpc({
+  name: "progress.history.set",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+    folder: z.string().nullable(),
+  }),
+  output: z.object({ savedTo: z.string().nullable() }),
 });
 
 // Opens a recorded local deliverable on the daemon host with its default app.
