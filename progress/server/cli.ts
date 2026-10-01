@@ -1,13 +1,13 @@
 // The command agents run to record progress. Each command appends one event
 // to the worktree's progress file and prints what it recorded.
-import { existsSync, realpathSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { realpathSync, statSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { isSettled, type Dashboard, type NextIds } from "../shared/dashboard.ts";
 import { DELIVERABLE_KINDS, PROGRESS_FILE, TICKET_STATUSES } from "../shared/events.ts";
 import { appendProgress, InvalidEvent, readProgress, type EventDraft } from "./progress-file.ts";
-import { outside } from "./paths.ts";
+import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
 import { dashboardText } from "../shared/show.ts";
 import { imageMimeType } from "../shared/attachments.ts";
@@ -447,18 +447,6 @@ function help(): string {
     `  install-launcher [path]`,
     `      ${INSTALL_SUMMARY}`,
   ].join("\n");
-}
-
-// The worktree root is the nearest directory with a `.git` entry (a folder in
-// a checkout, a file in a linked worktree). Outside git, use the directory.
-export function findRoot(cwd: string): string {
-  let directory = resolve(cwd);
-  while (true) {
-    if (existsSync(join(directory, ".git"))) return directory;
-    const parent = dirname(directory);
-    if (parent === directory) return resolve(cwd);
-    directory = parent;
-  }
 }
 
 export async function runCli(argv: string[], options: CliOptions): Promise<number> {

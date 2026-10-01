@@ -16,10 +16,11 @@ export function isPreviewable(attachment: Attachment): boolean {
   return canPreview(attachment, { browser: Platform.OS === "web" });
 }
 
-// Full path on the daemon host for a stored path.
-export function absolutePath(path: string, workspaceDirectory: string): string {
+// Full path on the daemon host for a stored path. `root` is the worktree
+// root the dashboard was read from, not the workspace directory.
+export function absolutePath(path: string, root: string): string {
   if (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)) return path;
-  const base = workspaceDirectory.replace(/[\\/]+$/, "");
+  const base = root.replace(/[\\/]+$/, "");
   return path === "./" ? `${base}/` : `${base}/${path}`;
 }
 

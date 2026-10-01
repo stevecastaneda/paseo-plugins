@@ -6,7 +6,7 @@ import { join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { findAttachment, imageMimeType, previewKind } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
-import { outside } from "./paths.ts";
+import { findRoot, outside } from "./paths.ts";
 
 export type Opener = (path: string) => Promise<void>;
 
@@ -43,10 +43,11 @@ export const systemOpener: Opener = async (path) => {
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
-  const { dashboard } = await readProgress(directory);
+  const worktree = findRoot(directory);
+  const { dashboard } = await readProgress(worktree);
   const path = findAttachment(dashboard, ref)?.path;
   if (!path) throw new Error(`No local ${ref.startsWith("Q") ? "attachment" : "deliverable"} ${ref} in this worktree.`);
-  const root = await realpath(directory);
+  const root = await realpath(worktree);
   const target = await realpath(resolve(root, path)).catch(() => null);
   if (!target) throw new Error(`${path} no longer exists.`);
   const inside = relative(root, target);

@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { handleGetAttention, handleGetDashboard } from "./dashboard.ts";
+import { handleGetAttention, handleGetDashboard, handleMarkPanelOpened } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatEstimate, formatMinutes, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
@@ -284,6 +284,31 @@ test("commands find the worktree root from a subdirectory", async (t) => {
   await mkdir(nested, { recursive: true });
   assert.equal(await runCli(["start", "From below"], { cwd: nested, out: () => {} }), 0);
   assert.equal((await w.dashboard()).dashboard.run?.title, "From below");
+});
+
+// A Paseo project registered at a subfolder of the repo: the workspace
+// directory is <worktree>/apps/client, but the agent writes at the root.
+test("a workspace below the worktree root reads the root's progress and attachments", async (t) => {
+  const w = await worktree(t);
+  const workspace = join(w.directory, "apps", "client");
+  await mkdir(join(w.directory, "reports"), { recursive: true });
+  await mkdir(workspace, { recursive: true });
+  await writeFile(join(w.directory, "reports", "review.md"), "# A");
+  const run = (...argv: string[]) => runCli(argv, { cwd: workspace, now: () => minutes(0), out: () => {} });
+  assert.equal(await run("start", "From the app"), 0);
+  assert.equal(await run("deliverable", "add", "Review", "../../reports/review.md"), 0);
+  assert.equal(await run("question", "ask", "Pick", "Which?", "--option", "A=One", "--option", "B=Two", "--default", "A"), 0);
+  const context = { paseo: {} as PluginHandlerContext["paseo"] };
+  const input = { workspaceId: "ws-1", workspaceDirectory: workspace };
+
+  const result = await handleGetDashboard(input, context);
+  assert.ok("dashboard" in result);
+  assert.equal(result.dashboard.run?.title, "From the app");
+  assert.equal(result.root, w.directory, "the panel resolves stored paths against the worktree root");
+  assert.equal((await handleGetAttention(input, context)).questions, 1);
+  await handleMarkPanelOpened(input, context);
+  assert.equal((await handleGetAttention(input, context)).panelOpened, true);
+  assert.deepEqual(await previewDeliverable(workspace, "D1"), { kind: "text", text: "# A", bytes: 3, truncated: false });
 });
 
 test("the handler reads the requested workspace directory without calling Paseo", async (t) => {
