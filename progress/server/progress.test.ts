@@ -13,7 +13,7 @@ import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatEstimate, formatMinutes, formatWorkDone } from "../shared/format.ts";
-import { finishedAtTop, headlineText, type Ticket } from "../shared/dashboard.ts";
+import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
 import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
@@ -232,13 +232,14 @@ test("tickets added and updated by the agent show up with ids, statuses, and the
   assert.deepEqual(dashboard.issues, []);
 });
 
-test("the panel folds only the finished tickets at the top, and only two or more", () => {
+test("the panel folds every finished ticket, and only two or more", () => {
   const list = (...statuses: Ticket["status"][]) => statuses.map((status, index) => ({ id: `T0${index + 1}`, title: "", estimateMin: 10, status, statusSince: "", history: [] }));
-  assert.equal(finishedAtTop(list("done", "skipped", "done", "working", "done", "not_started")), 3, "the done ticket after the working one stays in place");
-  assert.equal(finishedAtTop(list("done", "working", "not_started")), 0, "one finished ticket isn't worth a fold row");
-  assert.equal(finishedAtTop(list("done", "skipped", "done")), 0, "once everything is finished, the whole list shows");
-  assert.equal(finishedAtTop(list("not_started", "done", "done")), 0);
-  assert.equal(finishedAtTop([]), 0);
+  const folded = (...statuses: Ticket["status"][]) => finishedToFold(list(...statuses)).map((ticket) => ticket.id);
+  assert.deepEqual(folded("done", "skipped", "done", "working", "done", "not_started"), ["T01", "T02", "T03", "T05"], "the done ticket after the working one folds too");
+  assert.deepEqual(folded("not_started", "done", "done"), ["T02", "T03"]);
+  assert.deepEqual(folded("done", "working", "not_started"), [], "one finished ticket isn't worth a fold row");
+  assert.deepEqual(folded("done", "skipped", "done"), [], "once everything is finished, the whole list shows");
+  assert.deepEqual(folded(), []);
 });
 
 test("removed tickets leave the dashboard and their ids are never reused", async (t) => {
