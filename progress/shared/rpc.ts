@@ -5,8 +5,12 @@ import type { Dashboard } from "./dashboard.ts";
 // `panelOpened`: the Progress panel has been opened for this worktree before.
 // `root`: the worktree root the file was read from, which stored paths are
 // relative to. It can sit above the workspace directory.
+// `setupNeeded`: the repo hasn't picked where progress files live, so the
+// command won't write yet. `file`: where the progress file is, for people.
 // `version` changes whenever anything else in the result does.
-export type DashboardResult = { configured: boolean; dashboard: Dashboard; panelOpened: boolean; root: string; version: string };
+export type DashboardResult = {
+  configured: boolean; dashboard: Dashboard; panelOpened: boolean; setupNeeded: boolean; file: string | null; root: string; version: string;
+};
 
 export const getDashboard = defineRpc({
   name: "progress.get",
@@ -81,6 +85,50 @@ export const installSkill = defineRpc({
   name: "progress.skill.install",
   input: z.object({}),
   output: skillStatus,
+});
+
+// A repo picks once where its progress files live. "folder" is relative to
+// each worktree's root; `hide` says how to keep the files out of git:
+// "computer" (git's local exclude file), "repo" (the root .gitignore), "none".
+const hideChoice = z.enum(["computer", "repo", "none"]);
+export type HideChoice = z.infer<typeof hideChoice>;
+const setupChoice = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("outside") }),
+  z.object({ kind: z.literal("folder"), folder: z.string(), hide: hideChoice }),
+]);
+export type SetupChoice = z.infer<typeof setupChoice>;
+
+// Checks a folder as the user types it: whether it's allowed, and whether git
+// already ignores the plugin's files there (then setup skips that question).
+export const checkSetupFolder = defineRpc({
+  name: "progress.setup.check",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+    folder: z.string(),
+  }),
+  output: z.object({ error: z.string().optional(), alreadyIgnored: z.boolean() }),
+});
+
+// The folders inside one folder of the worktree ("" is the top), for the setup picker.
+export const listSetupFolders = defineRpc({
+  name: "progress.setup.folders",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+    folder: z.string(),
+  }),
+  output: z.object({ folder: z.string(), folders: z.array(z.string()) }),
+});
+
+export const saveSetup = defineRpc({
+  name: "progress.setup.save",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+    choice: setupChoice,
+  }),
+  output: z.object({ shown: z.string() }),
 });
 
 // Opens a recorded local deliverable on the daemon host with its default app.

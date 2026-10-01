@@ -1,6 +1,6 @@
 # Progress
 
-A plugin for Paseo 0.9 and later that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to `.scratch/progress.jsonl` in the worktree. The **Progress** panel draws the dashboard from that file and updates by itself.
+A plugin for Paseo 0.9 and later that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to the worktree's progress file. Each repo chooses once where that file lives. The **Progress** panel draws the dashboard from that file and updates by itself.
 
 <img src="images/1-panel.png" alt="The Progress panel in Explorer" width="400">
 
@@ -18,7 +18,7 @@ The panel lives in Explorer, beside the agent chat, so you can watch both. Open 
 
 On phones, where Paseo has no Explorer pane, Progress opens as a tab of its own, and the pill stays above the message box while a run is open so there's always a way in. SVG files preview on desktop; on phones they open on the daemon host.
 
-The first time a run starts in a worktree whose Progress panel has never been opened, the pill shows a spinner and reads **Progress** instead; pressing it opens the panel. Once the panel has been opened there, the plugin writes an empty `.scratch/progress-panel-opened` and the nudge never comes back, even for later runs. It doesn't open the panel by itself because Paseo switches to a workspace to open its panel, which would pull you away from whatever you're looking at.
+The first time a run starts in a worktree whose Progress panel has never been opened, the pill shows a spinner and reads **Progress** instead; pressing it opens the panel. Once the panel has been opened there, the plugin writes an empty `progress-panel-opened` file next to the progress file and the nudge never comes back, even for later runs. It doesn't open the panel by itself because Paseo switches to a workspace to open its panel, which would pull you away from whatever you're looking at.
 
 ## Install
 
@@ -41,7 +41,21 @@ node "$([ -f "$dir/dist/server/cli.js" ] && echo "$dir/dist/server/cli.js" || ec
 
 If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches. The npm package carries the command compiled to JavaScript in `dist/`, because Node won't run TypeScript from `node_modules`.
 
-The plugin keeps each worktree's progress in `.scratch/progress.jsonl`. The first time it creates `.scratch/`, it also writes `.scratch/.gitignore` naming only its own files, so git ignores them without any change to your repository's `.gitignore`. If `.scratch/.gitignore` already exists, the plugin leaves it alone.
+## Setup for each repo
+
+The first time you open Progress in a repo, the panel asks where that repo's progress files go. You choose once; every worktree of the repo uses the answer. Until then the command records nothing and tells the agent to ask you to finish setup.
+
+- **Outside the repo**: a folder per worktree in `~/.local/state/paseo-progress/` on the daemon host. Git never sees the files.
+- **In a folder in the repo**: pick a folder with **Choose…**, which browses the repo (or name a new one), like `.scratch`. The path is the same in every worktree. Then choose how to keep the files out of git:
+  - **On this computer only** adds rules to git's local exclude file (`.git/info/exclude`), which every worktree of the repo shares. Nothing in the repo changes.
+  - **For everyone** adds rules to the repo's `.gitignore`. Commit it to share it with your team.
+  - **Don't hide them** leaves the files visible to git.
+
+  The rules name only the plugin's files (`progress.jsonl`, `progress.jsonl.lock/`, `progress-panel-opened`), so your other files in that folder are left alone. If git already ignores them there, setup skips this question.
+
+The answer is kept in the repo's local git config (`paseo-progress.location` and `paseo-progress.hide`), so nothing is committed. To choose again, run `git config --local --unset paseo-progress.location` and reopen the panel. Folders outside git need no setup; their progress goes outside the folder.
+
+Worktrees that already had a run in `.scratch/` from an earlier version keep using it. Saving setup from one of them moves its files to the new place.
 
 ## Agent skill
 
@@ -86,13 +100,14 @@ paseo-progress finish "Snapshots ship for all four tables"
 
 ## The progress file
 
-`.scratch/progress.jsonl` holds one JSON event per line, each with a version (`v`), a UTC timestamp (`ts`) from the real clock, and a `type`. It is only ever appended to, so you can read or diff the history. A half-written last line is ignored. Other bad lines are skipped and listed in a small notice in the panel while the rest still renders. A lock keeps two commands from writing at once or handing out the same id.
+The progress file, `progress.jsonl`, holds one JSON event per line, each with a version (`v`), a UTC timestamp (`ts`) from the real clock, and a `type`. It is only ever appended to, so you can read or diff the history. A half-written last line is ignored. Other bad lines are skipped and listed in a small notice in the panel while the rest still renders. A lock keeps two commands from writing at once or handing out the same id.
 
 ## Limitations
 
 - Nothing updates unless the agent runs `paseo-progress`. Agents need the skill, and an agent that skips the command leaves the dashboard behind.
 - The command runs on the machine that hosts the Paseo daemon, and it needs Node.js 22.18 or later there.
-- Each worktree keeps its own dashboard in `.scratch/progress.jsonl`. There's no view across worktrees.
+- Each worktree keeps its own dashboard. There's no view across worktrees.
+- Progress folders outside the repo stay behind when a worktree is deleted. They're small, and you can delete them from `~/.local/state/paseo-progress/`.
 - Paseo can't open a panel without switching you to its workspace. So a new run shows a "Progress" pill, and you open the panel yourself.
 - Pills check busy worktrees every 5 seconds and quiet ones every 30. In a quiet worktree, a new question can take up to half a minute to show.
 - Previews cover images up to 10 MB and the first 256 KB of a text file. Other files open in their default app.

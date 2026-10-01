@@ -2,7 +2,7 @@
 // dashboard the panel would get.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, mkdtemp, readFile, readlink, realpath, rm, utimes, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { handleGetAttention, handleGetDashboard, handleMarkPanelOpened } from "./dashboard.ts";
+import { handleCheckSetupFolder, handleGetAttention, handleGetDashboard, handleListSetupFolders, handleMarkPanelOpened, handleSaveSetup } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatEstimate, formatMinutes, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
@@ -18,8 +18,14 @@ import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
 import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, imageMimeType } from "../shared/attachments.ts";
-import { SCRATCH_GITIGNORE } from "./progress-file.ts";
+import { findStore, outsideDirectory, saveSetup, SETUP_NEEDED_MESSAGE } from "./setup.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
+
+// Real repos in these tests; the user's own git config stays out of them.
+process.env.GIT_CONFIG_GLOBAL = "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+const git = async (cwd: string, ...args: string[]) =>
+  (await promisify(execFile)("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd })).stdout;
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const minutes = (count: number) => new Date(T0 + count * 60_000);
@@ -27,7 +33,9 @@ const minutes = (count: number) => new Date(T0 + count * 60_000);
 async function worktree(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "progress-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  await writeFile(join(directory, ".git"), "gitdir: elsewhere\n");
+  // A repo already set up to keep progress in .scratch.
+  await git(directory, "init", "-q");
+  await git(directory, "config", "paseo-progress.location", ".scratch");
   let clock = 0;
   const output: string[] = [];
   return {
@@ -40,7 +48,7 @@ async function worktree(t: TestContext) {
       return { code, text: output.join("\n") };
     },
     // Read at the current clock, or at a given minute.
-    dashboard: (minute = clock) => readProgress(directory, minutes(minute)),
+    dashboard: (minute = clock) => readProgress(join(directory, ".scratch"), minutes(minute)),
   };
 }
 
@@ -194,7 +202,7 @@ test("opening the panel is remembered in the worktree", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Export");
   assert.equal((await w.dashboard()).panelOpened, false);
-  await markPanelOpened(w.directory);
+  await markPanelOpened(join(w.directory, ".scratch"));
   assert.equal((await w.dashboard()).panelOpened, true);
   await w.run("start", "Another run");
   assert.equal((await w.dashboard()).panelOpened, true, "a new run doesn't bring the pill back");
@@ -320,21 +328,6 @@ test("the handler reads the requested workspace directory without calling Paseo"
   assert.equal(result.dashboard.run?.title, "Run");
 });
 
-test("the first write adds a .gitignore for the plugin's own files and never replaces one", async (t) => {
-  const w = await worktree(t);
-  await w.run("start", "Run");
-  assert.equal(await readFile(join(w.directory, ".scratch", ".gitignore"), "utf8"), SCRATCH_GITIGNORE);
-  const other = await worktree(t);
-  await mkdir(join(other.directory, ".scratch"), { recursive: true });
-  await writeFile(join(other.directory, ".scratch", ".gitignore"), "mine\n");
-  await other.run("start", "Run");
-  await markPanelOpened(other.directory);
-  assert.equal(await readFile(join(other.directory, ".scratch", ".gitignore"), "utf8"), "mine\n", "an existing one is the user's");
-  const third = await worktree(t);
-  await markPanelOpened(third.directory);
-  assert.equal(await readFile(join(third.directory, ".scratch", ".gitignore"), "utf8"), SCRATCH_GITIGNORE, "opening the panel first adds it too");
-});
-
 test("a poll with the current version gets a short unchanged reply until the file changes", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");
@@ -371,7 +364,7 @@ test("unchanged dashboards are reused until exact stale and overdue boundaries, 
   assert.equal(stale.stale, true);
   assert.equal(first.stale, false, "cached snapshots are never mutated");
   assert.strictEqual((await w.dashboard(20)).dashboard, stale, "exactly at the estimate is not overdue");
-  const overdue = (await readProgress(w.directory, new Date(minutes(20).getTime() + 1))).dashboard;
+  const overdue = (await readProgress(join(w.directory, ".scratch"), new Date(minutes(20).getTime() + 1))).dashboard;
   assert.equal(overdue.stuck.length, 1);
   assert.equal(overdue.stuck[0].kind, "overdue");
   assert.strictEqual((await w.dashboard(60)).dashboard, overdue, "no further time changes remain");
@@ -385,7 +378,7 @@ test("each working ticket's overdue moment ends the cached dashboard", async (t)
   await w.run("start", "Run");
   await w.run("ticket", "add", "Short", "--estimate", "5", "--status", "working");
   await w.run("ticket", "add", "Long", "--estimate", "10", "--status", "working");
-  const after = (minute: number) => readProgress(w.directory, new Date(minutes(minute).getTime() + 1));
+  const after = (minute: number) => readProgress(join(w.directory, ".scratch"), new Date(minutes(minute).getTime() + 1));
   const first = (await w.dashboard(0)).dashboard;
   assert.strictEqual((await w.dashboard(5)).dashboard, first);
   const one = (await after(5)).dashboard;
@@ -418,7 +411,7 @@ test("opening the panel changes the response version without rebuilding the dash
   const input = { workspaceId: "ws-1", workspaceDirectory: w.directory };
   const first = await handleGetDashboard(input, context);
   assert.ok("dashboard" in first);
-  await markPanelOpened(w.directory);
+  await markPanelOpened(join(w.directory, ".scratch"));
   const opened = await handleGetDashboard({ ...input, since: first.version }, context);
   assert.ok("dashboard" in opened);
   assert.strictEqual(opened.dashboard, first.dashboard);
@@ -846,7 +839,7 @@ test("every screen gives an attachment the same icon, and SVGs preview only wher
   await w.run("deliverable", "add", "Findings", "notes/findings.md", "--kind", "report");
   await w.run("deliverable", "add", "Logo", "art/logo.svg");
   await w.run("question", "ask", "Logo", "Which logo?", "--default", "A", "--file", "art/logo.svg=Current");
-  const { dashboard } = await readProgress(w.directory);
+  const { dashboard } = await readProgress(join(w.directory, ".scratch"));
   const report = findAttachment(dashboard, dashboard.deliverables.find((entry) => entry.title === "Findings")!.id)!;
   assert.equal(attachmentIcon(report), "FileChartColumn", "the recorded kind wins over the extension, wherever the deliverable is listed");
   assert.equal(attachmentIcon(deliverableAttachment(dashboard.deliverables.find((entry) => entry.title === "Findings")!)), "FileChartColumn");
@@ -895,7 +888,7 @@ test("question attachments take paths or links, and open and preview like delive
   await writeFile(join(w.directory, "shots", "before.png"), png);
   await w.run("question", "ask", "Header", "Which header?", "--option", "A=Old", "--option", "B=New", "--default", "A",
     "--file", "shots/before.png=Before", "--file", "https://example.com/preview?id=7&tab=2=Live preview", "--file", "https://example.com/?q=1");
-  const { dashboard } = await readProgress(w.directory);
+  const { dashboard } = await readProgress(join(w.directory, ".scratch"));
   assert.deepEqual(dashboard.questions.open[0].files, [
     { path: "shots/before.png", label: "Before" },
     { url: "https://example.com/preview?id=7&tab=2", label: "Live preview" },
@@ -943,4 +936,153 @@ test("the skill is linked for every agent only on request, follows the copy Pase
   assert.equal(await installSkill(paths, moved), true);
   assert.equal(await readlink(paths[1]), skillSource(moved));
   await assert.rejects(installSkill([paths[2]], plugin), /were not linked by this plugin/);
+});
+
+
+// A fresh repo with no setup, a stand-in home folder, and the command run in
+// any worktree of it.
+async function newRepo(t: TestContext) {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "progress-repo-")));
+  const home = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
+  const linked = `${directory}-linked`;
+  const savedHome = process.env.HOME;
+  process.env.HOME = home;
+  t.after(async () => {
+    process.env.HOME = savedHome;
+    await Promise.all([directory, home, linked].map((path) => rm(path, { recursive: true, force: true })));
+  });
+  await git(directory, "init", "-q");
+  const output: string[] = [];
+  return {
+    directory, home, linked,
+    async run(cwd: string, ...argv: string[]) {
+      output.length = 0;
+      const code = await runCli(argv, { cwd, now: () => minutes(0), out: (line) => output.push(line) });
+      return { code, text: output.join("\n") };
+    },
+    // What `git status` lists, one path per line.
+    visible: async (cwd = directory) => (await git(cwd, "status", "--porcelain", "-uall")).split("\n").filter(Boolean).map((line) => line.slice(3)),
+    async addWorktree() {
+      await git(directory, "add", "-A");
+      await git(directory, "commit", "-q", "--allow-empty", "-m", "init");
+      await git(directory, "worktree", "add", "-q", linked);
+    },
+  };
+}
+
+const context = { paseo: {} as PluginHandlerContext["paseo"] };
+
+test("before setup the command refuses and writes nothing, and the panel asks for setup", async (t) => {
+  const repo = await newRepo(t);
+  assert.deepEqual(await repo.run(repo.directory, "start", "Run"), { code: 1, text: SETUP_NEEDED_MESSAGE });
+  assert.equal((await repo.run(repo.directory, "show")).code, 1);
+  assert.deepEqual(await repo.visible(), []);
+  const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+  assert.ok("dashboard" in result);
+  assert.equal(result.setupNeeded, true);
+  assert.equal(result.file, null);
+});
+
+test("outside the repo: git never sees the files, and every worktree of the repo is set up", async (t) => {
+  const repo = await newRepo(t);
+  await repo.addWorktree();
+  const saved = await handleSaveSetup({ workspaceId: "ws-1", workspaceDirectory: repo.directory, choice: { kind: "outside" } }, context);
+  assert.match(saved.shown, /^~\/\.local\/state\/paseo-progress\/progress-repo-/);
+  assert.equal((await repo.run(repo.directory, "start", "Main")).code, 0);
+  assert.equal((await repo.run(repo.linked, "start", "Linked")).code, 0);
+  assert.deepEqual(await repo.visible(), []);
+  assert.deepEqual(await repo.visible(repo.linked), []);
+  assert.ok((await readFile(join(outsideDirectory(repo.directory, repo.home), "progress.jsonl"), "utf8")).includes('"Main"'));
+  assert.ok((await readFile(join(outsideDirectory(repo.linked, repo.home), "progress.jsonl"), "utf8")).includes('"Linked"'), "each worktree has its own");
+  const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.linked }, context);
+  assert.ok("dashboard" in result);
+  assert.equal(result.setupNeeded, false);
+  assert.equal(result.dashboard.run?.title, "Linked");
+});
+
+test("a folder hidden on this computer: rules go in git's local exclude file and nothing in the repo changes", async (t) => {
+  const repo = await newRepo(t);
+  await mkdir(join(repo.directory, "notes"));
+  await writeFile(join(repo.directory, "notes", ".gitignore"), "drafts/\n");
+  await repo.addWorktree();
+  await saveSetup(repo.linked, { kind: "folder", folder: "notes/", hide: "computer" });
+  await repo.run(repo.linked, "start", "Run");
+  await markPanelOpened(join(repo.linked, "notes"));
+  await writeFile(join(repo.linked, "notes", "mine.md"), "");
+  assert.deepEqual(await repo.visible(repo.linked), ["notes/mine.md"], "only the plugin's files are hidden");
+  assert.equal(await readFile(join(repo.linked, "notes", ".gitignore"), "utf8"), "drafts/\n");
+  assert.match(await readFile(join(repo.directory, ".git", "info", "exclude"), "utf8"), /^\/notes\/progress\.jsonl$/m);
+  assert.equal((await repo.run(repo.directory, "start", "Main")).code, 0);
+  assert.deepEqual(await repo.visible(), [], "the main checkout uses the same setup and rules");
+});
+
+test("a folder hidden for everyone: rules go in the repo's .gitignore", async (t) => {
+  const repo = await newRepo(t);
+  await writeFile(join(repo.directory, ".gitignore"), "node_modules");
+  await saveSetup(repo.directory, { kind: "folder", folder: ".scratch", hide: "repo" });
+  await repo.run(repo.directory, "start", "Run");
+  assert.deepEqual(await repo.visible(), [".gitignore"]);
+  assert.match(await readFile(join(repo.directory, ".gitignore"), "utf8"), /^node_modules\n\n# Added by the progress plugin/);
+});
+
+test("a folder left visible stays visible, and one git already ignores gets no new rules", async (t) => {
+  const repo = await newRepo(t);
+  await saveSetup(repo.directory, { kind: "folder", folder: "progress", hide: "none" });
+  await repo.run(repo.directory, "start", "Run");
+  assert.deepEqual(await repo.visible(), ["progress/progress.jsonl"]);
+
+  const ignored = await newRepo(t);
+  await writeFile(join(ignored.directory, ".gitignore"), "/.scratch/\n");
+  const checked = await handleCheckSetupFolder({ workspaceId: "ws-1", workspaceDirectory: ignored.directory, folder: ".scratch" }, context);
+  assert.deepEqual(checked, { alreadyIgnored: true });
+  await saveSetup(ignored.directory, { kind: "folder", folder: ".scratch", hide: "repo" });
+  assert.equal(await readFile(join(ignored.directory, ".gitignore"), "utf8"), "/.scratch/\n");
+});
+
+test("setup only takes folders inside the repo", async (t) => {
+  const repo = await newRepo(t);
+  const check = (folder: string) => handleCheckSetupFolder({ workspaceId: "ws-1", workspaceDirectory: repo.directory, folder }, context);
+  for (const folder of ["", " ", "../elsewhere", "/tmp/x", ".", ".git", ".git/x", "outside"]) {
+    assert.ok((await check(folder)).error, `rejects "${folder}"`);
+  }
+  assert.deepEqual(await check("a/b/"), { alreadyIgnored: false });
+  await assert.rejects(saveSetup(repo.directory, { kind: "folder", folder: "../x", hide: "none" }), /inside the repo/);
+});
+
+test("a run from before setup keeps working in .scratch until setup moves it", async (t) => {
+  const repo = await newRepo(t);
+  await mkdir(join(repo.directory, ".scratch"));
+  await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), "");
+  assert.equal((await repo.run(repo.directory, "start", "Old run")).code, 0);
+  const before = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+  assert.ok("dashboard" in before);
+  assert.deepEqual([before.setupNeeded, before.configured, before.file], [true, true, ".scratch/progress.jsonl"]);
+  await saveSetup(repo.directory, { kind: "outside" });
+  const store = await findStore(repo.directory);
+  assert.ok(store.ready && store.directory === outsideDirectory(repo.directory, repo.home));
+  const after = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+  assert.ok("dashboard" in after);
+  assert.equal(after.dashboard.run?.title, "Old run", "the run moved with it");
+  assert.equal(after.setupNeeded, false);
+});
+
+test("outside git there's no setup: progress goes outside the folder", async (t) => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "progress-nogit-")));
+  const home = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
+  t.after(() => Promise.all([directory, home].map((path) => rm(path, { recursive: true, force: true }))));
+  const store = await findStore(directory, home);
+  assert.deepEqual(store, { ready: true, directory: outsideDirectory(directory, home), shown: outsideDirectory(directory, home).replace(home, "~") });
+});
+
+test("the folder picker lists the repo's folders, without .git or links", async (t) => {
+  const repo = await newRepo(t);
+  await mkdir(join(repo.directory, "src", "app"), { recursive: true });
+  await mkdir(join(repo.directory, ".scratch"));
+  await writeFile(join(repo.directory, "README.md"), "");
+  await symlink(tmpdir(), join(repo.directory, "elsewhere"));
+  const list = (folder: string) => handleListSetupFolders({ workspaceId: "ws-1", workspaceDirectory: repo.directory, folder }, context);
+  assert.deepEqual(await list(""), { folder: "", folders: [".scratch", "src"] });
+  assert.deepEqual(await list("src"), { folder: "src", folders: ["app"] });
+  assert.deepEqual(await list("new/folder"), { folder: "new/folder", folders: [] }, "a folder that doesn't exist yet is empty");
+  await assert.rejects(list("../"), /inside the repo/);
 });

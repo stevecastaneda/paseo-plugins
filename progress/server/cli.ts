@@ -5,10 +5,11 @@ import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { isSettled, type Dashboard, type NextIds } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, PROGRESS_FILE, TICKET_STATUSES } from "../shared/events.ts";
+import { DELIVERABLE_KINDS, TICKET_STATUSES } from "../shared/events.ts";
 import { appendProgress, InvalidEvent, readProgress, type EventDraft } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
+import { findStore, SETUP_NEEDED_MESSAGE } from "./setup.ts";
 import { dashboardText } from "../shared/show.ts";
 import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
@@ -438,7 +439,7 @@ function help(): string {
   return [
     `Usage: ${USAGE_NAME} <command>`,
     "",
-    `Records progress in ${PROGRESS_FILE} at the worktree root, shown by the Progress panel in Paseo.`,
+    `Records progress for this worktree, shown by the Progress panel in Paseo. Where the file lives is set up once per repo in that panel.`,
     `Add --help after any command for its options.`,
     "",
     ...Object.values(commands).flatMap((command) => [`  ${command.usage}`, `      ${command.summary}`]),
@@ -464,7 +465,12 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     }
     if (first === "show") {
       const root = findRoot(options.cwd);
-      out(`Worktree: ${root}\n\n${dashboardText((await readProgress(root, now())).dashboard, now().getTime())}`);
+      const store = await findStore(root);
+      if (!store.ready) {
+        out(`Worktree: ${root}\n\n${SETUP_NEEDED_MESSAGE}`);
+        return 1;
+      }
+      out(`Worktree: ${root}\n\n${dashboardText((await readProgress(store.directory, now())).dashboard, now().getTime())}`);
       return 0;
     }
     const target = resolve(options.cwd, (argv[1] ?? DEFAULT_LAUNCHER).replace(/^~(?=$|\/)/, homedir()));
@@ -490,7 +496,12 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
       throw new UsageError((error as Error).message);
     }
     const root = findRoot(options.cwd);
-    const message = await appendProgress(root, now, (state) => {
+    const store = await findStore(root);
+    if (!store.ready) {
+      out(SETUP_NEEDED_MESSAGE);
+      return 1;
+    }
+    const message = await appendProgress(store.directory, now, (state) => {
       const finished = state.dashboard.run?.finished;
       if (finished && command !== commands.start) {
         throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);

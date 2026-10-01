@@ -1,11 +1,13 @@
 import { z } from "zod";
 
-// One line of `.scratch/progress.jsonl`. The command-line tool writes these;
-// the dashboard reducer reads them. `v` lets later versions change a shape
-// without misreading old files.
-export const PROGRESS_FILE = ".scratch/progress.jsonl";
+// One line of `progress.jsonl`. The command-line tool writes these; the
+// dashboard reducer reads them. `v` lets later versions change a shape without
+// misreading old files. Which folder holds it is set up per repo.
+export const PROGRESS_FILE_NAME = "progress.jsonl";
 // Present once someone has opened the Progress panel for this worktree.
-export const PANEL_OPENED_FILE = ".scratch/progress-panel-opened";
+export const PANEL_OPENED_NAME = "progress-panel-opened";
+// Where every worktree kept its files before setup existed.
+export const LEGACY_FOLDER = ".scratch";
 export const EVENT_VERSION = 1;
 
 export const TICKET_STATUSES = ["not_started", "working", "blocked", "done", "skipped"] as const;

@@ -11,7 +11,7 @@ The user answers questions by reference ("Q7 A") and reads everything else at a 
 
 ## 1. Set up the run
 
-Run `paseo-progress show`. When it shows an open run for this job, continue it. A run marked Finished is closed, even if it looks like your job; start a new one. Otherwise:
+Run `paseo-progress show`. If it says the Progress plugin isn't set up for this repo, ask the user to open the Progress panel in Paseo and finish setup, then carry on with the job; run `show` again once they have. When it shows an open run for this job, continue it. A run marked Finished is closed, even if it looks like your job; start a new one. Otherwise:
 
 1. `paseo-progress start "<job title>"`, with `--subtitle` naming the spec or ticket folder.
 2. Add every ticket in order with `paseo-progress ticket add "Ticket 01: <title>" --estimate <minutes>`, with `--waits-for T02` on any that can't start before another finishes. Keep the "Ticket NN:" prefix: the dashboard shortens titles to it. For a job without tickets, add its steps instead and pass `--item-label Step` to `start`.

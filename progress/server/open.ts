@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { findAttachment, imageMimeType, previewKind } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
+import { findStore } from "./setup.ts";
 
 export type Opener = (path: string) => Promise<void>;
 
@@ -44,8 +45,8 @@ export const systemOpener: Opener = async (path) => {
 // worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
   const worktree = findRoot(directory);
-  const { dashboard } = await readProgress(worktree);
-  const path = findAttachment(dashboard, ref)?.path;
+  const store = await findStore(worktree);
+  const path = store.ready ? findAttachment((await readProgress(store.directory)).dashboard, ref)?.path : undefined;
   if (!path) throw new Error(`No local ${ref.startsWith("Q") ? "attachment" : "deliverable"} ${ref} in this worktree.`);
   const root = await realpath(worktree);
   const target = await realpath(resolve(root, path)).catch(() => null);
