@@ -28,12 +28,14 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const query = useDashboard(host.id, workspaceId, directory);
   const dashboard = query.data?.configured ? query.data.dashboard : null;
+  // Stored paths are relative to the worktree root, which can sit above the workspace directory.
+  const root = query.data?.root ?? directory ?? "";
   const copy = useCopy();
   // Previews open in a dialog over the popover, which stays open to return to.
   // Links and other files leave Paseo, so the popover closes for those.
   const [previewing, setPreviewing] = useState<{ attachment: Attachment; group: Attachment[] } | null>(null);
   const group = useRef<Attachment[]>([]);
-  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: directory ?? "", onPreview: (attachment) => setPreviewing({ attachment, group: previewable(group.current) }) });
+  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: root, onPreview: (attachment) => setPreviewing({ attachment, group: previewable(group.current) }) });
   return (
     <View style={{ width: 360, maxWidth: "100%", gap: 8 }}>
       {dashboard ? (
@@ -52,7 +54,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
           {query.error ? `Could not read progress: ${query.error.message}` : "Loading…"}
         </Text>
       )}
-      <PreviewDialog colors={colors} attachment={previewing?.attachment ?? null} workspaceId={workspaceId} workspaceDirectory={directory ?? ""}
+      <PreviewDialog colors={colors} attachment={previewing?.attachment ?? null} workspaceId={workspaceId} workspaceDirectory={root}
         onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)}
         gallery={previewing ? { items: previewing.group, onSelect: (attachment) => setPreviewing({ ...previewing, attachment }) } : undefined} />
       <View style={{ paddingTop: touch ? 12 : 8, borderTopWidth: 1, borderTopColor: colors.border }}>

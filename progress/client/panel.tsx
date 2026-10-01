@@ -54,7 +54,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
       <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} /> : null}</Presence>
       {/* Keyed by run: a new run starts with fresh tabs, pages and dialogs. */}
       {result?.configured ? <DashboardView key={result.dashboard.run?.startedAt ?? "none"} colors={colors} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
-        workspaceId={workspaceId} workspaceDirectory={directory ?? ""} navigation={navigation} /> : null}
+        workspaceId={workspaceId} workspaceDirectory={result.root} navigation={navigation} /> : null}
     </ScrollView>
   );
 }

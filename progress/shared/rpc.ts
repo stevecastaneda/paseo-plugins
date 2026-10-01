@@ -3,8 +3,10 @@ import { z } from "zod";
 import type { Dashboard } from "./dashboard.ts";
 
 // `panelOpened`: the Progress panel has been opened for this worktree before.
+// `root`: the worktree root the file was read from, which stored paths are
+// relative to. It can sit above the workspace directory.
 // `version` changes whenever anything else in the result does.
-export type DashboardResult = { configured: boolean; dashboard: Dashboard; panelOpened: boolean; version: string };
+export type DashboardResult = { configured: boolean; dashboard: Dashboard; panelOpened: boolean; root: string; version: string };
 
 export const getDashboard = defineRpc({
   name: "progress.get",
