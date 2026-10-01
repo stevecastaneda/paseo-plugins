@@ -10,7 +10,7 @@ import { raised } from "./surfaces";
 import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { finishedAtTop, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
+import { finishedToFold, isFinished, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
 import { formatEstimate, formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
@@ -416,26 +416,25 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
 // the app session like the history tab.
 const finishedShown = new Map<string, boolean>();
 
-// Finished tickets at the top fold into one row, so the work still ahead is
-// near the top without scrolling (see finishedAtTop).
+// Finished tickets fold into one row at the top, so the work still ahead is
+// near the top without scrolling (see finishedToFold).
 function TicketList({ colors, dashboard, live, now, workspaceId, onOpen }: { colors: Colors; dashboard: Dashboard; live: boolean; now: number; workspaceId: string; onOpen(id: string): void }) {
   const [shown, setShown] = useState(() => finishedShown.get(workspaceId) ?? false);
   const toggle = () => {
     finishedShown.set(workspaceId, !shown);
     setShown(!shown);
   };
-  const folded = finishedAtTop(dashboard.tickets);
+  const finished = finishedToFold(dashboard.tickets);
   const row = (ticket: Ticket) => (
     <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} onOpen={() => onOpen(ticket.id)}
       deliverables={dashboard.deliverables.filter((deliverable) => deliverable.ticketId === ticket.id).length} />
   );
-  if (!folded) return <>{dashboard.tickets.map(row)}</>;
-  const finished = dashboard.tickets.slice(0, folded);
+  if (!finished.length) return <>{dashboard.tickets.map(row)}</>;
   return (
     <>
       <FinishedRow colors={colors} tickets={finished} shown={shown} onPress={toggle} />
       {shown ? finished.map(row) : null}
-      {dashboard.tickets.slice(folded).map(row)}
+      {dashboard.tickets.filter((ticket) => !isFinished(ticket)).map(row)}
     </>
   );
 }
