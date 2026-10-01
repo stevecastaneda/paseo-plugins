@@ -1,9 +1,9 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { handleGetAttention, handleGetDashboard, handleMarkPanelOpened } from "./server/dashboard";
+import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./server/dashboard";
 import { handleInstallLauncher, handleLauncherStatus } from "./server/launcher";
 import { handleOpenDeliverable, handlePreviewDeliverable } from "./server/open";
 import { handleInstallSkill, handleSkillStatus } from "./server/skill";
-import { getAttention, getDashboard, getLauncherStatus, getSkillStatus, installLauncher, installSkill, markPanelOpened, openDeliverable, previewDeliverable } from "./shared/rpc";
+import { getAttention, getDashboard, getLauncherStatus, getSkillStatus, installLauncher, installSkill, listFolders, markPanelOpened, openDeliverable, previewDeliverable, setHistoryFolder } from "./shared/rpc";
 
 export default function contribute(server: PluginServerContext) {
   server.handle(getDashboard, handleGetDashboard);
@@ -15,5 +15,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(previewDeliverable, handlePreviewDeliverable);
   server.handle(getSkillStatus, handleSkillStatus);
   server.handle(installSkill, handleInstallSkill);
+  server.handle(listFolders, handleListFolders);
+  server.handle(setHistoryFolder, handleSetHistoryFolder);
   return () => {};
 }

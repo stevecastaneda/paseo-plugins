@@ -2,6 +2,7 @@ import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DeliverablesList } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
+import { HistoryRow } from "./history";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
 import { Spinner, StalledPulse, WaitingDot } from "./spinner";
 import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
@@ -11,7 +12,7 @@ import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { finishedToFold, isFinished, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
-import { PROGRESS_FILE, type TicketStatus } from "../shared/events";
+import type { TicketStatus } from "../shared/events";
 import { formatEstimate, formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
@@ -51,10 +52,11 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
       <LauncherBanner colors={colors} host={host} />
       <SkillBanner colors={colors} host={host} />
       {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}
-      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} /> : null}</Presence>
+      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} file={result.file} /> : null}</Presence>
       {/* Keyed by run: a new run starts with fresh tabs, pages and dialogs. */}
       {result?.configured ? <DashboardView key={result.dashboard.run?.startedAt ?? "none"} colors={colors} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
-        workspaceId={workspaceId} workspaceDirectory={result.root} navigation={navigation} /> : null}
+        workspaceId={workspaceId} workspaceDirectory={result.root} file={result.file} navigation={navigation} /> : null}
+      {result?.inRepo && directory ? <HistoryRow colors={colors} workspaceId={workspaceId} directory={directory} savedTo={result.savedTo} /> : null}
     </ScrollView>
   );
 }
@@ -74,7 +76,7 @@ function useMarkPanelOpened(workspaceId: string, directory: string | null, neede
   }, [needed, directory, workspaceId, mark]);
 }
 
-function EmptyState({ colors }: { colors: Colors }) {
+function EmptyState({ colors, file }: { colors: Colors; file: string }) {
   return (
     <View style={{ padding: 12, paddingTop: 20, gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -91,9 +93,9 @@ function EmptyState({ colors }: { colors: Colors }) {
           {`paseo-progress start "Build the export feature"\npaseo-progress ticket add "Ticket 01: Export button" --estimate 60`}
         </Text>
       </View>
-      {/* So a new .scratch folder in the repo isn't a surprise. */}
+      {/* So people know nothing lands in the repo. */}
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        Progress is saved in <Text style={{ color: colors.foreground }}>.scratch/progress.jsonl</Text> in this worktree. The plugin adds a <Text style={{ color: colors.foreground }}>.gitignore</Text> there, so git leaves its files alone.
+        Progress is saved outside the repo, in <Text selectable style={{ color: colors.foreground }}>{file}</Text>, so git never sees it.
       </Text>
     </View>
   );
@@ -122,13 +124,14 @@ function useNow(intervalMs: number): number {
 
 const WIDE_MIN = 760;
 
-function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, workspaceDirectory, navigation }: {
+function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, workspaceDirectory, file, navigation }: {
   colors: Colors;
   dashboard: Dashboard;
   agentRunning: boolean;
   compact: boolean;
   workspaceId: string;
   workspaceDirectory: string;
+  file: string;
   navigation: PluginWorkspacePanelProps["navigation"];
 }) {
   const now = useNow(15_000);
@@ -198,7 +201,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
           </Text>
         </View>
       ) : null}</Presence>
-      <Presence show={Boolean(dashboard.issues.length)} order={1}>{dashboard.issues.length ? <IssuesNotice colors={colors} issues={dashboard.issues} /> : null}</Presence>
+      <Presence show={Boolean(dashboard.issues.length)} order={1}>{dashboard.issues.length ? <IssuesNotice colors={colors} issues={dashboard.issues} file={file} /> : null}</Presence>
       <Presence show={Boolean(dashboard.progress.totalMin > 0)} order={2}>{dashboard.progress.totalMin > 0 ? <ProgressBar colors={colors} progress={dashboard.progress} live={live} /> : null}</Presence>
       <View onLayout={(event) => setWide(event.nativeEvent.layout.width >= WIDE_MIN)}
         style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}>
@@ -314,13 +317,13 @@ function ActivityList({ colors, activity, now }: { colors: Colors; activity: Act
 }
 
 // Small and non-blocking: the rest of the dashboard still renders.
-function IssuesNotice({ colors, issues }: { colors: Colors; issues: FileIssue[] }) {
+function IssuesNotice({ colors, issues, file }: { colors: Colors; issues: FileIssue[]; file: string }) {
   const shown = issues.slice(0, 5);
   return (
     <View style={{ flexDirection: "row", gap: 8, margin: 12, marginBottom: 0, padding: 8, borderRadius: 6, backgroundColor: colors.surface1 }}>
       <View style={{ paddingTop: 1.5 }}><Icon name="FileWarning" size={14} color={colors.statusWarning} /></View>
       <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-        Skipped {issues.length === 1 ? "1 line" : `${issues.length} lines`} in {PROGRESS_FILE}:{" "}
+        Skipped {issues.length === 1 ? "1 line" : `${issues.length} lines`} in {file}:{" "}
         {shown.map((issue) => `line ${issue.line} (${issue.reason})`).join(", ")}
         {issues.length > shown.length ? `, and ${issues.length - shown.length} more` : ""}.
       </Text>
