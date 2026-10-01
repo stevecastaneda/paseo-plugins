@@ -1086,3 +1086,26 @@ test("the folder picker lists the repo's folders, without .git or links", async 
   assert.deepEqual(await list("new/folder"), { folder: "new/folder", folders: [] }, "a folder that doesn't exist yet is empty");
   await assert.rejects(list("../"), /inside the repo/);
 });
+
+test("saving setup moves the old .scratch run in every worktree of the repo", async (t) => {
+  const repo = await newRepo(t);
+  await repo.addWorktree();
+  for (const tree of [repo.directory, repo.linked]) {
+    await mkdir(join(tree, ".scratch"), { recursive: true });
+    await writeFile(join(tree, ".scratch", "progress.jsonl"), "");
+    await writeFile(join(tree, ".scratch", "notes.md"), "mine");
+  }
+  await repo.run(repo.directory, "start", "Main run");
+  await repo.run(repo.linked, "start", "Linked run");
+  await saveSetup(repo.directory, { kind: "folder", folder: "progress-notes", hide: "computer" });
+  for (const [tree, title] of [[repo.directory, "Main run"], [repo.linked, "Linked run"]]) {
+    const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: tree }, context);
+    assert.ok("dashboard" in result);
+    assert.equal(result.dashboard.run?.title, title, "each worktree keeps its own run");
+    assert.equal(result.file, "progress-notes/progress.jsonl");
+    assert.equal(await readFile(join(tree, ".scratch", "notes.md"), "utf8"), "mine", "other files stay where they are");
+    await assert.rejects(readFile(join(tree, ".scratch", "progress.jsonl")));
+  }
+  assert.equal((await repo.run(repo.linked, "activity", "add", "After the move")).code, 0);
+  assert.match(await readFile(join(repo.linked, "progress-notes", "progress.jsonl"), "utf8"), /After the move/);
+});

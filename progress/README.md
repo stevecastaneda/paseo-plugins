@@ -55,7 +55,7 @@ The first time you open Progress in a repo, the panel asks where that repo's pro
 
 The answer is kept in the repo's local git config (`paseo-progress.location` and `paseo-progress.hide`), so nothing is committed. To choose again, run `git config --local --unset paseo-progress.location` and reopen the panel. Folders outside git need no setup; their progress goes outside the folder.
 
-Worktrees that already had a run in `.scratch/` from an earlier version keep using it. Saving setup from one of them moves its files to the new place.
+Worktrees that already had a run in `.scratch/` from an earlier version keep using it until the repo is set up. Saving setup then moves the run in every worktree of the repo to the chosen place. Only the plugin's files move; anything else in `.scratch/` stays.
 
 ## Agent skill
 

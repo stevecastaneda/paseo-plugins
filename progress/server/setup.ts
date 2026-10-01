@@ -11,6 +11,7 @@ import { basename, dirname, join, normalize, resolve } from "node:path";
 import { promisify } from "node:util";
 import { LEGACY_FOLDER, PANEL_OPENED_NAME, PROGRESS_FILE_NAME } from "../shared/events.ts";
 import type { HideChoice, SetupChoice } from "../shared/rpc.ts";
+import { withLock } from "./lock.ts";
 import { outside } from "./paths.ts";
 
 const LOCATION_KEY = "paseo-progress.location";
@@ -144,10 +145,19 @@ async function appendRules(file: string, folder: string): Promise<void> {
   await appendFile(file, `${lead}${rules(folder)}`);
 }
 
-// Saves the repo's choice, writes the ignore rules it asks for, and moves a
-// run already in .scratch to the new place.
+// Every worktree of the repo, this one included, that's still on disk.
+async function worktreesOf(root: string): Promise<string[]> {
+  const { code, stdout } = await git(root, ["worktree", "list", "--porcelain"]);
+  const listed = code === 0 ? stdout.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length)) : [];
+  const present = await Promise.all(listed.map(async (tree) => ((await exists(tree)) ? tree : null)));
+  return [...new Set([root, ...present.filter((tree): tree is string => tree !== null)])];
+}
+
+// Saves the repo's choice, writes the ignore rules it asks for, and moves each
+// worktree's existing run to the new place, so the whole repo follows it.
 export async function saveSetup(root: string, choice: SetupChoice, home = homedir()): Promise<Store> {
-  const before = await findStore(root, home);
+  const trees = await worktreesOf(root);
+  const before = await Promise.all(trees.map((tree) => findStore(tree, home)));
   let location = OUTSIDE;
   let hide: HideChoice | "none" = "none";
   if (choice.kind === "folder") {
@@ -169,23 +179,29 @@ export async function saveSetup(root: string, choice: SetupChoice, home = homedi
     const { code } = await git(root, ["config", "--local", key, value]);
     if (code !== 0) throw new Error("Could not save the setup in this repo's git settings.");
   }
-  const after = storeAt(root, location, home);
-  if (before.ready && after.ready && before.directory !== after.directory) await moveFiles(before.directory, after.directory);
-  return after;
+  for (const [index, tree] of trees.entries()) {
+    const from = before[index];
+    const to = storeAt(tree, location, home);
+    if (from.ready && to.ready && from.directory !== to.directory) await moveFiles(from.directory, to.directory);
+  }
+  return storeAt(root, location, home);
 }
 
-// Moves the plugin's files, never over files already at the new place.
+// Moves the plugin's files, never over files already at the new place. Holds
+// the old folder's lock, so it waits for a command that's writing there.
 async function moveFiles(from: string, to: string): Promise<void> {
   await mkdir(to, { recursive: true });
-  for (const name of [PROGRESS_FILE_NAME, PANEL_OPENED_NAME]) {
-    if (await exists(join(to, name)) || !(await exists(join(from, name)))) continue;
-    await rename(join(from, name), join(to, name)).catch(async (error: NodeJS.ErrnoException) => {
-      // Outside the repo can be on another disk, where rename can't go.
-      if (error.code !== "EXDEV") throw error;
-      await copyFile(join(from, name), join(to, name));
-      await rm(join(from, name));
-    });
-  }
+  await withLock(join(from, `${PROGRESS_FILE_NAME}.lock`), async () => {
+    for (const name of [PROGRESS_FILE_NAME, PANEL_OPENED_NAME]) {
+      if (await exists(join(to, name)) || !(await exists(join(from, name)))) continue;
+      await rename(join(from, name), join(to, name)).catch(async (error: NodeJS.ErrnoException) => {
+        // Outside the repo can be on another disk, where rename can't go.
+        if (error.code !== "EXDEV") throw error;
+        await copyFile(join(from, name), join(to, name));
+        await rm(join(from, name));
+      });
+    }
+  });
 }
 
 // For tests: forget cached config paths and values.
