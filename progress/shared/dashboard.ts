@@ -453,11 +453,11 @@ export function shortTitle(title: string): string {
 // the panel can fold them into one row and the work still ahead sits near the
 // top. Only the leading run folds: a ticket finished out of order stays in
 // place, so the plan's order never looks shuffled. A single one isn't worth a
-// fold row.
+// fold row. Once every ticket is finished nothing is ahead, and the whole list
+// is the record of the run, so nothing folds.
 export function finishedAtTop(tickets: Ticket[]): number {
   const index = tickets.findIndex((ticket) => ticket.status !== "done" && ticket.status !== "skipped");
-  const count = index === -1 ? tickets.length : index;
-  return count >= 2 ? count : 0;
+  return index >= 2 ? index : 0;
 }
 
 function plural(count: number, noun: string): string {

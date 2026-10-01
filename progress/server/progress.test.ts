@@ -236,7 +236,7 @@ test("the panel folds only the finished tickets at the top, and only two or more
   const list = (...statuses: Ticket["status"][]) => statuses.map((status, index) => ({ id: `T0${index + 1}`, title: "", estimateMin: 10, status, statusSince: "", history: [] }));
   assert.equal(finishedAtTop(list("done", "skipped", "done", "working", "done", "not_started")), 3, "the done ticket after the working one stays in place");
   assert.equal(finishedAtTop(list("done", "working", "not_started")), 0, "one finished ticket isn't worth a fold row");
-  assert.equal(finishedAtTop(list("done", "done")), 2, "a finished run folds too");
+  assert.equal(finishedAtTop(list("done", "skipped", "done")), 0, "once everything is finished, the whole list shows");
   assert.equal(finishedAtTop(list("not_started", "done", "done")), 0);
   assert.equal(finishedAtTop([]), 0);
 });
