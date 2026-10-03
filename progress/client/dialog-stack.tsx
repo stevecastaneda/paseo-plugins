@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { Dashboard, Question } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, useAttachmentOpener } from "./attachments";
 import { useLastPresent } from "./motion";
+import { NarrowProvider } from "./narrow";
 import { BackButton, PreviewContent, previewable } from "./preview";
 import { QuestionView, useCopy } from "./questions";
 import { TicketStoryView } from "./ticket-dialog";
@@ -75,6 +76,8 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
       open={Boolean(root)} onOpenChange={(next) => { if (!next) onClose(); }}>
       {/* One Modal.Content for every step: replacing it would re-present the sheet on phones. */}
       <Modal.Content scrollable={!(preview && previewLong)}>
+      {/* A dialog has room for clock times, however narrow the panel that opened it. */}
+      <NarrowProvider value={false}>
       {preview ? (
         <PreviewContent colors={colors} attachment={preview.attachment} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
           onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }} backLabel={back?.label} onBack={back?.onPress}
@@ -94,6 +97,7 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
           ) : null}
         </>
       )}
+      </NarrowProvider>
       </Modal.Content>
     </Modal>
   );

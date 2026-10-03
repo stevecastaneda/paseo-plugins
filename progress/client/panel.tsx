@@ -21,6 +21,7 @@ import { TicketDialogs } from "./ticket-dialog";
 import { PressableRow } from "./row";
 import { ShowMoreRow, usePaged } from "./show-more";
 import { notePanelOpened } from "./panel-opened";
+import { NARROW_MAX, NarrowProvider, useNarrow } from "./narrow";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -40,9 +41,12 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
   const query = useDashboard(host.id, workspaceId, directory);
   const result = query.data ?? null;
   useMarkPanelOpened(workspaceId, directory, Boolean(result?.configured && !result.panelOpened));
+  const [narrow, setNarrow] = useState(false);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ paddingBottom: 16 }}>
+    <NarrowProvider value={narrow}>
+    <ScrollView onLayout={(event) => setNarrow(event.nativeEvent.layout.width <= NARROW_MAX)}
+      style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ paddingBottom: 16 }}>
       {query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading progress" style={{ padding: 12 }} /> : null}
       {query.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>
@@ -58,6 +62,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
         workspaceId={workspaceId} workspaceDirectory={result.root} file={result.file} navigation={navigation} /> : null}
       {result?.inRepo && directory ? <HistoryRow colors={colors} workspaceId={workspaceId} directory={directory} savedTo={result.savedTo} /> : null}
     </ScrollView>
+    </NarrowProvider>
   );
 }
 
@@ -256,6 +261,7 @@ const historyTabs = new Map<string, HistoryTab>();
 function HistoryCard({ colors, workspaceId, tabs }: { colors: Colors; workspaceId: string; tabs: HistoryTabEntry[] }) {
   const [tab, setTab] = useState<HistoryTab>(() => historyTabs.get(workspaceId) ?? "activity");
   const [showIcons, setShowIcons] = useState(true);
+  const narrow = useNarrow();
   const choose = (next: HistoryTab) => {
     historyTabs.set(workspaceId, next);
     setTab(next);
@@ -264,9 +270,9 @@ function HistoryCard({ colors, workspaceId, tabs }: { colors: Colors; workspaceI
   return (
     <View onLayout={(event) => setShowIcons(event.nativeEvent.layout.width >= TAB_ICONS_MIN)}
       style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+      <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: narrow ? 10 : 16, paddingHorizontal: narrow ? 8 : 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         {tabs.map((entry) => {
-          return <Tab key={entry.id} colors={colors} label={entry.label} icon={showIcons ? entry.icon : null} count={entry.count} selected={entry.id === current.id} onPress={() => choose(entry.id)} />;
+          return <Tab key={entry.id} colors={colors} narrow={narrow} label={entry.label} icon={showIcons ? entry.icon : null} count={entry.count} selected={entry.id === current.id} onPress={() => choose(entry.id)} />;
         })}
       </View>
       {current.count === 0 ? (
@@ -277,13 +283,14 @@ function HistoryCard({ colors, workspaceId, tabs }: { colors: Colors; workspaceI
 }
 
 // Instant feedback: tabs switch often, so hover and press change color only.
-function Tab({ colors, label, icon, count, selected, onPress }: { colors: Colors; label: string; icon: string | null; count: number; selected: boolean; onPress(): void }) {
+// Narrow tightens the spacing so all three tabs stay on one line at the sidebar's 320px.
+function Tab({ colors, narrow, label, icon, count, selected, onPress }: { colors: Colors; narrow: boolean; label: string; icon: string | null; count: number; selected: boolean; onPress(): void }) {
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress}
       onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
       style={({ pressed }) => ({
-        flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 8, paddingBottom: 6, marginBottom: -1,
+        flexDirection: "row", alignItems: "center", gap: narrow ? 4 : 6, paddingTop: 8, paddingBottom: 6, marginBottom: -1,
         borderBottomWidth: 2,
         borderBottomColor: selected ? colors.accent : pressed || hovered ? colors.border : "transparent",
       })}>
@@ -341,11 +348,12 @@ function Card({ colors, icon, title, children }: { colors: Colors; icon: string;
 }
 
 function ProgressBar({ colors, progress, live }: { colors: Colors; progress: Dashboard["progress"]; live: boolean }) {
+  const narrow = useNarrow();
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
         <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>
-          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{progress.percent}%</Text> of estimated work done
+          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{progress.percent}%</Text> {narrow ? "done" : "of estimated work done"}
         </Text>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
           {formatWorkDone(progress.doneMin, progress.totalMin, progress.tookMin)}
@@ -393,6 +401,7 @@ function Shimmer() {
 const STUCK_ICON: Record<StuckItem["kind"], string> = { blocked: "Ban", overdue: "Hourglass", manual: "Flag" };
 
 function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem[]; now: number }) {
+  const narrow = useNarrow();
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.statusDanger, borderRadius: 6, overflow: "hidden" }}>
       <SectionTitle colors={colors} icon="OctagonAlert" title="Stuck" color={colors.statusDanger} style={{ borderBottomWidth: 1, borderBottomColor: colors.border }} />
@@ -404,7 +413,7 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
           <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{item.title}</Text>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             {item.kind === "overdue" ? `No update for longer than its ${formatMinutes(item.estimateMin)} estimate. Last update ` : null}
-            {item.kind === "blocked" ? `Blocked${item.note ? `: ${item.note}` : ""}. Since ` : null}
+            {item.kind === "blocked" ? `Blocked${item.note ? `: ${item.note}` : ""}${narrow ? ", " : ". Since "}` : null}
             {item.kind === "manual" ? `${item.ticketId ? `${item.reason}. ` : ""}Flagged ` : null}
             <When colors={colors} iso={item.since} now={now} />
           </Text>
@@ -450,6 +459,7 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
   const label = [done ? `${done} done` : "", skipped ? `${skipped} skipped` : ""].filter(Boolean).join(", ");
   const estimateMin = tickets.reduce((sum, ticket) => sum + (ticket.status === "done" ? ticket.estimateMin : 0), 0);
   const chevron = shown ? "ChevronUp" : "ChevronDown";
+  const narrow = useNarrow();
   return (
     <PressableRow colors={colors} accessibilityRole="button" accessibilityState={{ expanded: shown }}
       accessibilityLabel={`${shown ? "Hide" : "Show"} ${label}`} onPress={onPress}
@@ -458,8 +468,11 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
         <Icon name={done ? "Check" : "CircleSlash"} size={14} color={done ? colors.statusSuccess : colors.foregroundMuted} />
       </View>
       <Text style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{label}</Text>
-      <View style={{ width: 12 }} />
-      <Text style={{ minWidth: 40, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatEstimate(estimateMin) : ""}</Text>
+      {/* Narrow ticket rows drop their chevron, so this total would sit off their estimate column. */}
+      {narrow ? null : <>
+        <View style={{ width: 12 }} />
+        <Text style={{ minWidth: 40, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatEstimate(estimateMin) : ""}</Text>
+      </>}
       <View style={{ paddingTop: 2 }}>
         <IconSwap swapKey={chevron} size={14}><Icon name={chevron} size={14} color={colors.foregroundMuted} /></IconSwap>
       </View>
@@ -471,12 +484,14 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
 function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors: Colors; ticket: Ticket; live: boolean; now: number; onOpen(): void; deliverables: number }) {
   const muted = ticket.status === "skipped";
   const working = ticket.status === "working";
+  // Narrow: tighter gaps and no chevron (the whole row still presses), so the title keeps its width.
+  const narrow = useNarrow();
   return (
     <PressableRow colors={colors} onSurface1={working} transparentAtRest={!working}
       accessibilityRole="button" accessibilityLabel={`${ticket.id} details`} onPress={onOpen}
-      style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+      style={{ flexDirection: "row", alignItems: "flex-start", gap: narrow ? 6 : 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       {/* The icon is the only status mark on the row; the ticket dialog spells it out in a badge. */}
-      <View accessible accessibilityLabel={ticket.waitingFor ? "Waiting" : STATUS_LABEL[ticket.status]} style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
+      <View accessible accessibilityLabel={ticket.waitingFor ? "Waiting" : STATUS_LABEL[ticket.status]} style={{ width: 16, paddingTop: 2, alignItems: "center", marginRight: narrow ? 2 : 0 }}>
         <IconSwap swapKey={ticket.waitingFor || ticket.status === "not_started" ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -490,7 +505,7 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
         ) : null}
         {ticket.status === "working" && ticket.workingSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            Working since <When colors={colors} iso={ticket.workingSince} now={now} />
+            {narrow ? "Started working " : "Working since "}<When colors={colors} iso={ticket.workingSince} now={now} />
           </Text>
         ) : null}
         {ticket.waitingFor ? (
@@ -503,7 +518,7 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
         {deliverables ? <Icon name="Package" size={12} color={colors.foregroundMuted} /> : null}
       </View>
       <Text style={{ minWidth: 40, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatEstimate(ticket.estimateMin)}</Text>
-      <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
+      {narrow ? null : <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>}
     </PressableRow>
   );
 }
