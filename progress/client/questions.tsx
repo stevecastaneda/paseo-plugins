@@ -8,6 +8,7 @@ import { PressableRow } from "./row";
 import { ShowMoreRow, usePaged } from "./show-more";
 import { PressScale } from "./motion";
 import { StackedDialog } from "./dialog-stack";
+import { useNarrow } from "./narrow";
 import { raised } from "./surfaces";
 import { When } from "./when";
 
@@ -140,6 +141,9 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
   onOpen(): void;
   onCopy(): void;
 }) {
+  // Narrow: the badge goes under the question, so the question keeps the row's width.
+  const narrow = useNarrow();
+  const badge = <DefaultBadge colors={colors} value={question.default} waits={question.waits} />;
   return (
     <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
       <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={onCopy} hitSlop={6}
@@ -154,8 +158,11 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
       </PressScale>
       <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={`${question.id} choices`} onPress={onOpen}
         style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 4, margin: -4, padding: 4 }}>
-        <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
-        <DefaultBadge colors={colors} value={question.default} waits={question.waits} />
+        <View style={{ flex: 1, minWidth: 0, gap: 6, alignItems: "flex-start" }}>
+          <Text style={{ alignSelf: "stretch", color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
+          {narrow ? badge : null}
+        </View>
+        {narrow ? null : badge}
         {/* Optical: centers the 14px chevron on the 19px first line. */}
         <View style={{ paddingTop: 2.5 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
       </PressableRow>
