@@ -38,7 +38,7 @@ export const getPulse = defineRpc({
   output: z.custom<PulseResult | { unchanged: true; version: string }>(),
 });
 
-// Runs only when the user presses Set up in the panel.
+// The panel's Try again, when writing the reporter on start failed.
 export const installReporter = defineRpc({
   name: "pulse.reporter.install",
   input: z.object({}),

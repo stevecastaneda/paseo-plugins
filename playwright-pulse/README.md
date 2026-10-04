@@ -21,29 +21,40 @@ Open it from Explorer, or with **Open Playwright Pulse** in the Command Center.
    paseo plugin add npm:@stevecastaneda/paseo-playwright-pulse
    ```
 
-2. Open the panel and press **Set up**. That writes the reporter to `~/.local/share/playwright-pulse/reporter.mjs`. The plugin keeps that file up to date after that, and never replaces a file it didn't write.
+2. The plugin writes its reporter to `~/.local/share/playwright-pulse/reporter.mjs` when it starts, keeps it up to date, and removes it when it stops (including when you remove the plugin). It never replaces or removes a file it didn't write.
 
-3. Add the reporter to your `playwright.config.ts`, only where it's installed and never in CI:
+3. Add the reporter to your `playwright.config.ts`, only when that file is the plugin's own and never in CI:
 
    ```ts
-   import { existsSync } from "node:fs";
+   import { readFileSync } from "node:fs";
    import { homedir } from "node:os";
    import { join } from "node:path";
    import { defineConfig, type ReporterDescription } from "@playwright/test";
 
    const pulseReporter = join(homedir(), ".local/share/playwright-pulse/reporter.mjs");
-   const pulse: ReporterDescription[] = !process.env.CI && existsSync(pulseReporter) ? [[pulseReporter]] : [];
+   const pulse: ReporterDescription[] = !process.env.CI && isPulseReporter(pulseReporter) ? [[pulseReporter]] : [];
+
+   // Any other file at that path could keep Playwright from starting, so check the plugin's first line.
+   function isPulseReporter(path: string): boolean {
+     try {
+       return readFileSync(path, "utf8").startsWith("// Written by the playwright-pulse Paseo plugin.");
+     } catch {
+       return false;
+     }
+   }
 
    export default defineConfig({
      reporter: [["list"], ...pulse],
    });
    ```
 
+   While Paseo or the plugin isn't running, runs print the list reporter as usual.
+
 4. Run tests without a `--reporter` flag. That flag replaces every reporter in the config, Pulse included. To add one for a single run, use `--add-reporter` instead.
 
 ## How it works
 
-The reporter writes a snapshot of the run to `~/.local/state/playwright-pulse/<worktree>-<hash>/run.json`, outside the repo, so git never sees it. The worktree is the nearest folder with `.git` above where Playwright runs. Only the latest run is kept.
+The reporter writes a snapshot of the run to `~/.local/state/playwright-pulse/<worktree>-<hash>/run.json`, outside the repo, so git never sees it. The worktree is the nearest folder with `.git` above where Playwright runs. Only the latest run is kept, and when the plugin starts it deletes the runs of worktrees that no longer exist.
 
 The reporter is plain JavaScript with no dependencies. It never fails a run: a write that fails is skipped. It writes at most four times a second, and right away when a test or the run ends. A run whose process dies without ending shows as interrupted.
 

@@ -62,11 +62,11 @@ function EmptyState({ colors, file, reporterPath }: { colors: Colors; file: stri
       </Text>
       <View style={{ backgroundColor: colors.surface1, borderRadius: 6, padding: 10 }}>
         <Text selectable style={{ color: colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
-          {`const pulse = join(homedir(), "${shownPath.replace(/^~\//, "")}");\n\nreporter: [\n  ["list"],\n  ...(existsSync(pulse) && !process.env.CI\n    ? [[pulse] as const] : []),\n],`}
+          {`const pulse = join(homedir(), "${shownPath.replace(/^~\//, "")}");\nconst ours = (path: string) => {\n  try { return readFileSync(path, "utf8")\n    .startsWith("// Written by the playwright-pulse"); }\n  catch { return false; }\n};\n\nreporter: [\n  ["list"],\n  ...(!process.env.CI && ours(pulse)\n    ? [[pulse] as const] : []),\n],`}
         </Text>
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        A <Text style={{ color: colors.foreground, fontFamily: mono(), fontSize: 11 }}>--reporter</Text> flag replaces the config's reporters, so leave it off. Runs are kept outside the repo, in <Text selectable style={{ color: colors.foreground }}>{file}</Text>.
+        A <Text style={{ color: colors.foreground, fontFamily: mono(), fontSize: 11 }}>--reporter</Text> flag replaces the config's reporters, so leave it off. The README has the full snippet. Runs are kept outside the repo, in <Text selectable style={{ color: colors.foreground }}>{file}</Text>.
       </Text>
     </View>
   );

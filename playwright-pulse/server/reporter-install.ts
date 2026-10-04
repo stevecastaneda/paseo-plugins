@@ -1,8 +1,14 @@
 // Keeps the copy of the reporter that playwright.config.ts names, at a fixed
 // path, in step with the plugin. The copy is self-contained, so a test run
 // never has to ask Paseo anything.
+//
+// The copy exists only while the plugin runs: written when it starts, removed
+// when it stops. Paseo runs the same cleanup on reload, disable, removal and
+// shutdown, so this is how removing the plugin leaves nothing behind. A
+// config that names the copy only when it exists then falls back to its other
+// reporters. A run already going keeps the reporter it loaded.
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -10,8 +16,9 @@ import type { ReporterStatus } from "../shared/rpc.ts";
 
 export const PLUGIN_ID = "playwright-pulse";
 export const REPORTER_SOURCE = join("server", "pulse-reporter.mjs");
-// The reporter's first line; only files starting with it are ever replaced.
-const MARKER = "// Written by the playwright-pulse Paseo plugin.";
+// The reporter's first line; only files starting with it are ever replaced or
+// removed. Configs can check for it too, so they never load someone else's file.
+export const MARKER = "// Written by the playwright-pulse Paseo plugin.";
 
 export function defaultReporterPath(home = homedir()): string {
   return join(home, ".local", "share", "playwright-pulse", "reporter.mjs");
@@ -29,7 +36,7 @@ export async function reporterState(path: string, source: string): Promise<Repor
 export async function writeReporter(path: string, source: string): Promise<ReporterStatus["state"]> {
   const state = await reporterState(path, source);
   if (state === "current") return state;
-  if (state === "foreign") throw new Error(`${path} already exists and was not written by this plugin. Move it, then press Set up again.`);
+  if (state === "foreign") throw new Error(`${path} already exists and was not written by this plugin. Move it, then press Try again.`);
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
   await writeFile(temporary, source);
@@ -71,7 +78,7 @@ export function reporterSource(): Promise<string> {
 }
 
 // For each poll: the copy's state, bringing one this plugin wrote up to date
-// on its own. Setting it up the first time waits for the user.
+// on its own.
 export async function reporterStatus(path = defaultReporterPath()): Promise<ReporterStatus> {
   const text = await reporterSource().catch(() => null);
   if (text === null) return { path, state: "unknown" };
@@ -80,6 +87,29 @@ export async function reporterStatus(path = defaultReporterPath()): Promise<Repo
   return { path, state };
 }
 
+// Removes the copy, unless something else has taken its place.
+export async function removeReporter(path: string): Promise<boolean> {
+  const current = await readFile(path, "utf8").catch(() => null);
+  if (current === null || !current.startsWith(MARKER)) return false;
+  await rm(path, { force: true });
+  return true;
+}
+
+// When the plugin starts. A failure shows in the panel, with a way to retry.
+export async function startReporter(path = defaultReporterPath()): Promise<void> {
+  try {
+    await writeReporter(path, await reporterSource());
+  } catch (error) {
+    console.error(`playwright-pulse: could not write the reporter to ${path}:`, error);
+  }
+}
+
+// When the plugin stops. Never throws: Paseo is shutting the plugin down.
+export async function stopReporter(path = defaultReporterPath()): Promise<void> {
+  await removeReporter(path).catch((error) => console.error(`playwright-pulse: could not remove ${path}:`, error));
+}
+
+// The panel's Try again, for when writing on start failed.
 export async function handleInstallReporter(): Promise<ReporterStatus> {
   const path = defaultReporterPath();
   return { path, state: await writeReporter(path, await reporterSource()) };

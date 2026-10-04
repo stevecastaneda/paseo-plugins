@@ -10,11 +10,12 @@ import { raised } from "./surfaces";
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
 // What the banner says, or null when Playwright can already load the reporter.
-// An outdated copy is brought up to date on its own, so it never shows here.
+// The plugin writes the copy when it starts and keeps it current, so this only
+// shows when that failed or another file is in the way.
 export function reporterNotice(status: ReporterStatus): { text: string; action?: string } | null {
   switch (status.state) {
     case "missing":
-      return { text: `Playwright loads Pulse from one file, which isn't there yet. Setting up writes ${status.path}.`, action: "Set up" };
+      return { text: `Pulse couldn't write its reporter to ${status.path}, so test runs aren't recorded.`, action: "Try again" };
     case "foreign":
       return { text: `Something else already exists at ${status.path}, so Pulse won't write its reporter there. Move that file, then come back.` };
     default:
@@ -22,7 +23,6 @@ export function reporterNotice(status: ReporterStatus): { text: string; action?:
   }
 }
 
-// Nothing is written until the user presses the button.
 export function ReporterBanner({ colors, status }: { colors: Colors; status: ReporterStatus | null }) {
   const install = useRpc(installReporter);
   const queryClient = useQueryClient();
@@ -46,7 +46,7 @@ export function ReporterBanner({ colors, status }: { colors: Colors; status: Rep
           <PressScale accessibilityRole="button" disabled={mutation.isPending} onPress={() => mutation.mutate()}
             style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed || mutation.isPending ? 0.7 : hovered ? 0.85 : 1 })}>
             <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>
-              {mutation.isPending ? "Setting up…" : notice.action}
+              {mutation.isPending ? "Writing…" : notice.action}
             </Text>
           </PressScale>
         ) : null}

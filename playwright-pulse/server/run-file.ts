@@ -1,8 +1,8 @@
 // Reads a worktree's latest run for the panel. The reporter rewrites the file
 // up to four times a second while tests run; the panel asks every second.
-import { readFile, stat } from "node:fs/promises";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { RUN_FILE_NAME, findRoot, pulseDirectory } from "./pulse-reporter.mjs";
 import type { RunSnapshot } from "../shared/run.ts";
 
@@ -68,4 +68,21 @@ export function runForPanel(run: RunSnapshot, alive: IsAlive): RunSnapshot {
 export async function readRun(location: RunLocation, alive: IsAlive = processAlive): Promise<RunSnapshot | null> {
   const run = await readRunFile(location.file);
   return run ? runForPanel(run, alive) : null;
+}
+
+// Drops the runs of worktrees that no longer exist, so archived worktrees
+// don't leave their last run behind. Runs on start; failures are ignored.
+export async function pruneRuns(home = homedir()): Promise<string[]> {
+  const parent = dirname(pulseDirectory(home, home));
+  const folders = await readdir(parent, { withFileTypes: true }).catch(() => []);
+  const removed: string[] = [];
+  for (const folder of folders) {
+    if (!folder.isDirectory()) continue;
+    const directory = join(parent, folder.name);
+    const run = await readRunFile(join(directory, RUN_FILE_NAME));
+    if (!run?.root || (await stat(run.root).catch(() => null))) continue;
+    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    removed.push(directory);
+  }
+  return removed;
 }

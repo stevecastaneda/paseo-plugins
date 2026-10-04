@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { PulseTest, RunSnapshot } from "../shared/run.ts";
 import { openCommand, openFile, previewImage } from "./attachments.ts";
-import { reporterState, writeReporter } from "./reporter-install.ts";
-import { locateRun, readRun, runForPanel } from "./run-file.ts";
+import { removeReporter, reporterState, writeReporter } from "./reporter-install.ts";
+import { locateRun, pruneRuns, readRun, runForPanel } from "./run-file.ts";
 import { stopRun } from "./stop.ts";
 
 const SOURCE = "// Written by the playwright-pulse Paseo plugin.\nexport default class {}\n";
@@ -123,4 +123,31 @@ test("stops only a live run whose process is still Playwright", async () => {
   writeFileSync(location.file, JSON.stringify(snapshot({ pid: process.pid, status: "passed" })));
   await assert.rejects(stopRun(location, "run-1", { command: playwright, signal }), /already ended/);
   assert.equal(signalled.length, 1);
+});
+
+test("stopping the plugin removes its reporter, but never someone else's file", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "pulse-reporter-"));
+  const path = join(directory, "reporter.mjs");
+  assert.equal(await removeReporter(path), false);
+  await writeReporter(path, SOURCE);
+  assert.equal(await removeReporter(path), true);
+  assert.equal(existsSync(path), false);
+  writeFileSync(path, "export default class Mine {}\n");
+  assert.equal(await removeReporter(path), false);
+  assert.equal(readFileSync(path, "utf8"), "export default class Mine {}\n");
+});
+
+test("drops the runs of worktrees that were deleted, and keeps the rest", async () => {
+  const kept = worktree();
+  const gone = worktree();
+  const home = kept.home;
+  // Both worktrees' runs under one home.
+  const goneLocation = locateRun(gone.root, home);
+  mkdirSync(join(goneLocation.file, ".."), { recursive: true });
+  writeFileSync(kept.location.file, JSON.stringify(snapshot({ root: kept.root })));
+  writeFileSync(goneLocation.file, JSON.stringify(snapshot({ root: gone.root })));
+  rmSync(gone.root, { recursive: true });
+  const removed = await pruneRuns(home);
+  assert.deepEqual(removed, [join(goneLocation.file, "..")]);
+  assert.equal(existsSync(kept.location.file), true);
 });
