@@ -1,0 +1,8 @@
+{
+  "id": "playwright-pulse",
+  "description": "A live sidebar dashboard for the Playwright test run in a worktree.",
+  "requirements": {
+    "paseo": ">=0.10.0"
+  },
+  "build": [["npm", "ci", "--omit=dev"]]
+}

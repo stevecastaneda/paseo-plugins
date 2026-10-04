@@ -9,6 +9,7 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 | [workspace-links](workspace-links/README.md) | Quick access to workspace URLs from a JSON file. |
 | [history](history/README.md) | Inspect chat messages, tools, and raw session records from a composer pill. |
 | [progress](progress/README.md) | A live progress dashboard per worktree, drawn from a file agents write with the `paseo-progress` command. |
+| [playwright-pulse](playwright-pulse/README.md) | A live sidebar dashboard for the Playwright test run in a worktree: the running test and step, failures with screenshots and traces. |
 
 ## Install
 
