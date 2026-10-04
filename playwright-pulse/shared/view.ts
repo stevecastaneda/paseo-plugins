@@ -1,25 +1,58 @@
 // What the panel derives from a run snapshot. Pure, so it's tested without a UI.
 import type { PulseTest, RunSnapshot, RunStatus } from "./run.ts";
 
-export type Counts = { passed: number; failed: number; flaky: number; skipped: number; running: number; done: number; total: number };
+export type Counts = { passed: number; failed: number; flaky: number; skipped: number; stopped: number; running: number; done: number; total: number };
 
-// A test that failed on its last try counts as failed; one that failed and then
-// passed on a retry counts as flaky (and passed).
+// How a test came out, by Playwright's own verdict, so test.fail(), retries
+// and skips read the way the terminal reports them.
+export type Verdict = "running" | "failed" | "stopped" | "flaky" | "skipped" | "passed";
+
+export function verdict(test: PulseTest): Verdict {
+  if (test.status === "running") return "running";
+  if (test.outcome === "unexpected") return "failed";
+  // Snapshots without a verdict fall back to how the last try ended.
+  if (!test.outcome && (test.status === "failed" || test.status === "timedOut")) return "failed";
+  if (test.status === "interrupted") return "stopped";
+  if (test.outcome === "flaky") return "flaky";
+  if (test.outcome === "skipped" || test.status === "skipped") return "skipped";
+  return "passed";
+}
+
 export function isFailure(test: PulseTest): boolean {
-  return test.status === "failed" || test.status === "timedOut" || (test.status === "interrupted" && test.outcome === "unexpected");
+  return verdict(test) === "failed";
+}
+
+// What a finished test's row says under its title, if anything.
+export function verdictNote(test: PulseTest): string | undefined {
+  switch (verdict(test)) {
+    case "failed": return "Failed, details above";
+    case "flaky": return `Flaky: passed on retry ${test.retry}`;
+    case "stopped": return "Stopped before it finished";
+    case "skipped": return "Skipped";
+    case "passed": return test.status === "passed" ? undefined : "Failed, as expected";
+    default: return undefined;
+  }
+}
+
+// The message a failure leads with when Playwright gave no error.
+export function failureMessage(test: PulseTest, formatTimeout: (ms: number) => string): string {
+  if (test.error?.message) return test.error.message;
+  if (test.status === "timedOut") return `Test timed out after ${formatTimeout(test.timeout)}.`;
+  if (test.status === "passed") return "Marked as expected to fail, but it passed.";
+  return "The test failed.";
 }
 
 export function counts(run: RunSnapshot): Counts {
-  const tally: Counts = { passed: 0, failed: 0, flaky: 0, skipped: 0, running: 0, done: 0, total: run.total };
+  const tally: Counts = { passed: 0, failed: 0, flaky: 0, skipped: 0, stopped: 0, running: 0, done: 0, total: run.total };
   for (const test of run.tests) {
-    if (test.status === "running") tally.running++;
-    else if (test.status === "passed") {
+    const result = verdict(test);
+    if (result === "flaky") {
+      // Flaky tests passed in the end; they're counted with the passes.
       tally.passed++;
-      if (test.outcome === "flaky") tally.flaky++;
-    } else if (test.status === "skipped") tally.skipped++;
-    else if (isFailure(test)) tally.failed++;
+      tally.flaky++;
+    } else tally[result]++;
   }
-  tally.done = tally.passed + tally.failed + tally.skipped;
+  tally.done = tally.passed + tally.failed + tally.skipped + tally.stopped;
   // Repeats and retries can outnumber what onBegin counted.
   tally.total = Math.max(tally.total, tally.done + tally.running);
   return tally;

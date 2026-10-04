@@ -4,7 +4,7 @@
 // Ctrl+C does.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { type RunLocation, processAlive, readRunFile } from "./run-file.ts";
+import { type RunLocation, type StartTimeOf, isOpen, processStartTime, readCurrentRun, runProcessAlive } from "./run-file.ts";
 
 // The command line of a process on this host, or null when it's gone.
 export type CommandOf = (pid: number) => Promise<string | null>;
@@ -24,13 +24,13 @@ export const interrupt: Signal = (pid) => {
   process.kill(pid, "SIGINT");
 };
 
-export async function stopRun(location: RunLocation, runId: string, { command = commandOf, signal = interrupt } = {}): Promise<{ stopped: true }> {
-  const run = await readRunFile(location.file);
-  if (!run || run.id !== runId) throw new Error("That run has been replaced by a newer one.");
-  if (run.status !== "starting" && run.status !== "running") throw new Error("That run has already ended.");
-  if (!processAlive(run.pid)) throw new Error("That run's process has already exited.");
-  // The run file names a process id; make sure it's still Playwright before
-  // signalling it, since ids get reused.
+export async function stopRun(location: RunLocation, runId: string, { command = commandOf, signal = interrupt, startTimeOf = processStartTime }: { command?: CommandOf; signal?: Signal; startTimeOf?: StartTimeOf } = {}): Promise<{ stopped: true }> {
+  const run = await readCurrentRun(location, runId);
+  if (!isOpen(run)) throw new Error("That run has already ended.");
+  // The run names a process id, and ids get reused: signal only the process
+  // that started with the run and is still Playwright. When `ps` can't
+  // confirm that, leave it alone.
+  if (!(await runProcessAlive(run, startTimeOf))) throw new Error("That run's process has already exited.");
   const line = await command(run.pid);
   if (!line || !/playwright/i.test(line)) throw new Error("That run's process has already exited.");
   signal(run.pid);

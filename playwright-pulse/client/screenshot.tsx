@@ -43,8 +43,9 @@ function ScreenshotBody({ colors, shot, workspaceId, workspaceDirectory, onOpenO
 }) {
   const fetchPreview = useRpc(previewAttachment);
   const preview = useQuery({
-    queryKey: ["playwright-pulse", "screenshot", workspaceId, shot.runId, shot.testId, shot.index],
-    queryFn: () => fetchPreview({ workspaceId, workspaceDirectory, runId: shot.runId, testId: shot.testId, index: shot.index }),
+    // The path too: a retry's screenshot sits at the same position.
+    queryKey: ["playwright-pulse", "screenshot", workspaceId, shot.runId, shot.testId, shot.index, shot.path],
+    queryFn: () => fetchPreview({ workspaceId, workspaceDirectory, runId: shot.runId, testId: shot.testId, index: shot.index, path: shot.path }),
     staleTime: 60_000,
     // Images arrive as data URIs; let them go soon after the dialog closes.
     gcTime: 30_000,

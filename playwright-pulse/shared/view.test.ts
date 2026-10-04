@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PulseTest, RunSnapshot } from "./run.ts";
-import { attachmentKind, commandLine, counts, errorPreview, formatAgo, formatClock, formatDuration, runElapsed, testWhere, timeoutShare } from "./view.ts";
+import { attachmentKind, commandLine, counts, errorPreview, failureMessage, verdict, verdictNote, formatAgo, formatClock, formatDuration, runElapsed, testWhere, timeoutShare } from "./view.ts";
 
 function pulseTest(overrides: Partial<PulseTest>): PulseTest {
   return { id: "t", title: "User edits a lead", titlePath: [], file: "e2e/a.spec.ts", line: 3, project: "", status: "passed", retry: 0, timeout: 60_000, attachments: [], ...overrides };
@@ -20,7 +20,27 @@ test("counts passed, flaky, failed, skipped and running tests", () => {
     pulseTest({ status: "skipped" }),
     pulseTest({ status: "running" }),
   ]));
-  assert.deepEqual(tally, { passed: 2, failed: 2, flaky: 1, skipped: 1, running: 1, done: 5, total: 6 });
+  assert.deepEqual(tally, { passed: 2, failed: 2, flaky: 1, skipped: 1, stopped: 0, running: 1, done: 5, total: 6 });
+});
+
+test("follows Playwright's verdict: expected failures pass, unexpected passes fail, stops are counted", () => {
+  // test.fail() that failed: what the test expected.
+  const expectedFailure = pulseTest({ status: "failed", outcome: "expected" });
+  // test.fail() that passed: a failure.
+  const unexpectedPass = pulseTest({ status: "passed", outcome: "unexpected" });
+  const stopped = pulseTest({ status: "interrupted", outcome: "skipped" });
+  // Failed a first try, then stopped during the retry: Playwright calls it failed.
+  const failedThenStopped = pulseTest({ status: "interrupted", outcome: "unexpected" });
+  const flaky = pulseTest({ status: "passed", outcome: "flaky", retry: 1 });
+  const skipped = pulseTest({ status: "skipped", outcome: "skipped" });
+  assert.deepEqual([expectedFailure, unexpectedPass, stopped, failedThenStopped, flaky, skipped].map(verdict),
+    ["passed", "failed", "stopped", "failed", "flaky", "skipped"]);
+  assert.equal(verdictNote(expectedFailure), "Failed, as expected");
+  assert.equal(verdictNote(stopped), "Stopped before it finished");
+  assert.equal(verdictNote(flaky), "Flaky: passed on retry 1");
+  assert.equal(failureMessage(unexpectedPass, String), "Marked as expected to fail, but it passed.");
+  assert.deepEqual(counts(run([expectedFailure, unexpectedPass, stopped, failedThenStopped, flaky, skipped])),
+    { passed: 2, failed: 2, flaky: 1, skipped: 1, stopped: 1, running: 0, done: 6, total: 6 });
 });
 
 test("durations read naturally at every scale", () => {

@@ -8,12 +8,21 @@
 // It must never fail or slow a test run, so every write is guarded and
 // throttled.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
 export const SNAPSHOT_VERSION = 1;
-export const RUN_FILE_NAME = "run.json";
+// Each run writes its own file in runs/, and latest.json names the newest
+// run. A run that starts while another is still going takes over the pointer,
+// so the older one's later writes can't replace what the panel shows.
+export const LATEST_FILE_NAME = "latest.json";
+export const RUNS_FOLDER = "runs";
+export const RUN_ID = /^[a-z0-9]+-\d+$/;
+
+export function runFile(directory, id) {
+  return join(directory, RUNS_FOLDER, `${id}.json`);
+}
 
 const FLUSH_MS = 250;
 const MAX_ERROR_CHARS = 4000;
@@ -63,6 +72,22 @@ function clean(text, limit = MAX_ERROR_CHARS) {
   return plain.length > limit ? `${plain.slice(0, limit)}…` : plain;
 }
 
+function realRoot(root) {
+  try {
+    return realpathSync(root);
+  } catch {
+    return root;
+  }
+}
+
+// Write, then rename over the target, so a reader never sees half a file.
+function writeAtomic(file, text) {
+  mkdirSync(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}.tmp`;
+  writeFileSync(temporary, text);
+  renameSync(temporary, file);
+}
+
 function iso(date) {
   return (date instanceof Date ? date : new Date()).toISOString();
 }
@@ -85,14 +110,17 @@ export default class PulseReporter {
   constructor(options = {}) {
     this.disabled = process.argv.includes("--list") || process.env.PLAYWRIGHT_PULSE === "0";
     this.root = findRoot(options.cwd ?? process.cwd());
-    this.file = join(options.directory ?? pulseDirectory(this.root), RUN_FILE_NAME);
+    this.directory = options.directory ?? pulseDirectory(this.root);
+    const id = `${Date.now().toString(36)}-${process.pid}`;
+    this.file = runFile(this.directory, id);
     this.timer = null;
     this.running = new Map(); // test id -> step stack (begun, not ended)
     this.snapshot = {
       v: SNAPSHOT_VERSION,
-      id: `${Date.now().toString(36)}-${process.pid}`,
+      id,
       pid: process.pid,
-      root: this.root,
+      // Resolved, so pruning can tell this worktree's folder from others.
+      root: realRoot(this.root),
       args: process.argv.slice(2).filter((arg) => arg !== "test"),
       status: "starting",
       startedAt: iso(),
@@ -106,6 +134,22 @@ export default class PulseReporter {
     // Playwright builds reporters before it boots web servers and runs global
     // setup, so this first write is what shows "Starting up" during that wait.
     this.flush();
+    this.publish();
+  }
+
+  // Points latest.json at this run, once its file exists, and clears out the
+  // files of earlier runs. One still running may write its file again; the
+  // next run clears it.
+  publish() {
+    if (this.disabled) return;
+    try {
+      writeAtomic(join(this.directory, LATEST_FILE_NAME), JSON.stringify({ id: this.snapshot.id }));
+      for (const name of readdirSync(join(this.directory, RUNS_FOLDER))) {
+        if (name !== `${this.snapshot.id}.json`) rmSync(join(this.directory, RUNS_FOLDER, name), { force: true });
+      }
+    } catch {
+      // The dashboard is a nicety; a failed write must never fail the run.
+    }
   }
 
   printsToStdio() {
@@ -126,6 +170,7 @@ export default class PulseReporter {
     const entry = this.entry(test);
     entry.status = "running";
     entry.retry = result.retry;
+    entry.timeout = test.timeout;
     entry.startedAt = iso(result.startTime);
     delete entry.duration;
     delete entry.error;
@@ -172,6 +217,8 @@ export default class PulseReporter {
     entry.status = result.status;
     entry.retry = result.retry;
     entry.duration = result.duration;
+    // test.slow() and test.setTimeout() change it while the test runs.
+    entry.timeout = test.timeout;
     entry.outcome = test.outcome();
     const error = result.errors?.[0] ?? result.error;
     if (error) {
@@ -260,10 +307,7 @@ export default class PulseReporter {
     if (this.disabled) return;
     try {
       this.snapshot.updatedAt = iso();
-      mkdirSync(dirname(this.file), { recursive: true });
-      const temporary = `${this.file}.${process.pid}.tmp`;
-      writeFileSync(temporary, JSON.stringify(this.snapshot));
-      renameSync(temporary, this.file);
+      writeAtomic(this.file, JSON.stringify(this.snapshot));
     } catch {
       // The dashboard is a nicety; a failed write must never fail the run.
     }

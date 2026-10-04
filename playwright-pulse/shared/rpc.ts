@@ -46,12 +46,14 @@ export const installReporter = defineRpc({
 });
 
 // An attachment of a test in the latest run, by position, so the panel can
-// never reach an arbitrary path.
+// never reach an arbitrary path. `path` is what the panel saw there; a retry
+// replaces a test's files, and the server refuses a stale one.
 const attachmentRef = z.object({
   ...workspace,
   runId: z.string().min(1),
   testId: z.string().min(1),
   index: z.number().int().min(0),
+  path: z.string().min(1),
 });
 
 export const previewAttachment = defineRpc({

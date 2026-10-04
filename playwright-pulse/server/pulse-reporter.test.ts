@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { RunSnapshot } from "../shared/run.ts";
-import PulseReporter, { findRoot, pulseDirectory } from "./pulse-reporter.mjs";
+import { existsSync } from "node:fs";
+import PulseReporter, { LATEST_FILE_NAME, findRoot, pulseDirectory } from "./pulse-reporter.mjs";
 
 // Shapes Playwright hands a reporter, cut down to what the reporter reads.
 function fakeTest(root: string, id: string, title: string, outcome = "expected") {
@@ -29,7 +30,7 @@ function setup() {
   mkdirSync(join(root, ".git"));
   const directory = join(root, "store");
   const reporter = new PulseReporter({ cwd: root, directory });
-  const read = () => JSON.parse(readFileSync(join(directory, "run.json"), "utf8")) as RunSnapshot;
+  const read = () => JSON.parse(readFileSync(reporter.file, "utf8")) as RunSnapshot;
   return { root, reporter, read };
 }
 
@@ -118,6 +119,31 @@ test("a retry reuses the test's row, and an interrupted run closes running tests
   reporter.onEnd({ status: "interrupted" });
   assert.equal(read().status, "interrupted");
   assert.equal(read().tests[0].status, "interrupted");
+});
+
+test("a newer run takes over latest.json; an older one still running writes only its own file", async () => {
+  const { root, reporter: older } = setup();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const newer = new PulseReporter({ cwd: root, directory: older.directory });
+  const latest = () => JSON.parse(readFileSync(join(older.directory, LATEST_FILE_NAME), "utf8")).id;
+  assert.notEqual(older.snapshot.id, newer.snapshot.id);
+  assert.equal(latest(), newer.snapshot.id);
+  // The newer run cleared out the older one's file.
+  assert.equal(existsSync(older.file), false);
+  older.onError({ message: "still going" });
+  older.onEnd({ status: "failed" });
+  assert.equal(latest(), newer.snapshot.id);
+  assert.equal(JSON.parse(readFileSync(newer.file, "utf8")).status, "starting");
+});
+
+test("records the timeout a test ends with, after test.slow() or test.setTimeout()", () => {
+  const { root, reporter, read } = setup();
+  const one = fakeTest(root, "t1", "User imports leads");
+  reporter.onBegin({ workers: 1 }, { allTests: () => [one] });
+  reporter.onTestBegin(one, { retry: 0, startTime: new Date() });
+  one.timeout = 180_000;
+  reporter.onTestEnd(one, { status: "passed", retry: 0, duration: 90_000, errors: [], attachments: [] });
+  assert.equal(read().tests[0].timeout, 180_000);
 });
 
 test("a write that fails never throws into Playwright", () => {

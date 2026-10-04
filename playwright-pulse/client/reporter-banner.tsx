@@ -16,6 +16,8 @@ export function reporterNotice(status: ReporterStatus): { text: string; action?:
   switch (status.state) {
     case "missing":
       return { text: `Pulse couldn't write its reporter to ${status.path}, so test runs aren't recorded.`, action: "Try again" };
+    case "unknown":
+      return { text: "Pulse couldn't find its own files to set up its reporter, so test runs may not be recorded.", action: "Try again" };
     case "foreign":
       return { text: `Something else already exists at ${status.path}, so Pulse won't write its reporter there. Move that file, then come back.` };
     default:
@@ -35,7 +37,8 @@ export function ReporterBanner({ colors, status }: { colors: Colors; status: Rep
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not set up the reporter."),
   });
-  const notice = status && !(mutation.isSuccess && status.state === "missing") ? reporterNotice(status) : null;
+  // Until the next poll catches up with a successful retry.
+  const notice = status && !(mutation.isSuccess && (status.state === "missing" || status.state === "unknown")) ? reporterNotice(status) : null;
   return (
     <Presence show={Boolean(notice)}>{notice ? (
       <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>

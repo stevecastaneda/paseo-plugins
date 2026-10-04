@@ -6,9 +6,9 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 import type { Attachment } from "../shared/run.ts";
-import { type RunLocation, readRunFile } from "./run-file.ts";
+import { type RunLocation, readCurrentRun } from "./run-file.ts";
 
-export type AttachmentRef = { runId: string; testId: string; index: number };
+export type AttachmentRef = { runId: string; testId: string; index: number; path: string };
 
 const IMAGE_TYPES: Record<string, string> = {
   ".png": "image/png",
@@ -30,10 +30,10 @@ function outside(inside: string): boolean {
 }
 
 export async function resolveAttachment(location: RunLocation, ref: AttachmentRef): Promise<{ attachment: Attachment; target: string }> {
-  const run = await readRunFile(location.file);
-  if (!run || run.id !== ref.runId) throw new Error("That run has been replaced by a newer one.");
+  const run = await readCurrentRun(location, ref.runId);
   const attachment = run.tests.find((test) => test.id === ref.testId)?.attachments[ref.index];
   if (!attachment) throw new Error("No such attachment in the latest run.");
+  if (attachment.path !== ref.path) throw new Error(`A retry replaced this ${attachment.name}. Open the new one from the failure.`);
   const root = await realpath(location.root);
   const target = await realpath(attachment.path).catch(() => null);
   if (!target) throw new Error(`${attachment.name} no longer exists. Playwright clears its results folder at the start of each run.`);
@@ -50,32 +50,42 @@ export async function previewImage(location: RunLocation, ref: AttachmentRef): P
   return { dataUri: `data:${mime};base64,${(await readFile(target)).toString("base64")}`, bytes: size };
 }
 
+export type OpenCommand = { command: string; args: string[]; detached: boolean; needs?: string };
+
 // How to open a file on this host. Traces go to the project's own Playwright
-// trace viewer, so it matches the version that recorded them.
-export function openCommand(attachment: Attachment, target: string, root: string, platform: NodeJS.Platform): { command: string; args: string[]; detached: boolean } {
+// trace viewer, so it matches the version that recorded them. On Windows the
+// viewer's script runs under node directly: the .cmd shim in node_modules/.bin
+// would need a shell, which would also read the trace's path as commands.
+export function openCommand(attachment: Attachment, target: string, root: string, platform: NodeJS.Platform): OpenCommand {
   if (isTrace(attachment)) {
-    const local = join(root, "node_modules", ".bin", platform === "win32" ? "playwright.cmd" : "playwright");
-    return { command: local, args: ["show-trace", target], detached: true };
+    if (platform === "win32") {
+      const cli = join(root, "node_modules", "@playwright", "test", "cli.js");
+      return { command: "node", args: [cli, "show-trace", target], detached: true, needs: cli };
+    }
+    const local = join(root, "node_modules", ".bin", "playwright");
+    return { command: local, args: ["show-trace", target], detached: true, needs: local };
   }
   if (platform === "win32") return { command: "explorer", args: [target], detached: false };
   if (platform !== "darwin") return { command: "xdg-open", args: [target], detached: false };
   return { command: "open", args: [target], detached: false };
 }
 
-export type Opener = (command: { command: string; args: string[]; detached: boolean }, cwd: string) => Promise<void>;
+export type Opener = (command: OpenCommand, cwd: string) => Promise<void>;
 
 // The trace viewer keeps running until its window closes, so it's left to
 // run on its own instead of being waited on.
-export const systemOpener: Opener = async ({ command, args, detached }, cwd) => {
+export const systemOpener: Opener = async ({ command, args, detached, needs }, cwd) => {
+  if (needs) {
+    await stat(needs).catch(() => {
+      throw new Error("Playwright isn't installed in this worktree (nothing in node_modules), so the trace can't open.");
+    });
+  }
   if (!detached) {
     await promisify(execFile)(command, args, { cwd });
     return;
   }
-  await stat(command).catch(() => {
-    throw new Error("Playwright isn't installed in this worktree (no node_modules/.bin/playwright), so the trace can't open.");
-  });
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { cwd, detached: true, stdio: "ignore" });
+    const child = spawn(command, args, { cwd, detached: true, stdio: "ignore", windowsHide: true });
     child.once("error", reject);
     child.once("spawn", () => {
       child.unref();

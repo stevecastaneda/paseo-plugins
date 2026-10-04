@@ -91,6 +91,11 @@ function RunView({ colors, run, workspaceId, workspaceDirectory }: { colors: Col
   const [shot, setShot] = useState<ScreenshotRef | null>(null);
   const actions = useAttachmentActions(run, workspaceId, workspaceDirectory, setShot);
   const running = run.tests.filter((test) => test.status === "running");
+  // A new run or a retry replaces the screenshot on show; close it then.
+  const shotGone = shot !== null && (run.id !== shot.runId || run.tests.find((test) => test.id === shot.testId)?.attachments[shot.index]?.path !== shot.path);
+  useEffect(() => {
+    if (shotGone) setShot(null);
+  }, [shotGone]);
   return (
     <StaggerRoot>
       <Presence show order={0}>
@@ -112,7 +117,7 @@ function RunView({ colors, run, workspaceId, workspaceDirectory }: { colors: Col
         <TestsSection colors={colors} run={run} tally={tally} />
       </Presence>
       <ScreenshotDialog colors={colors} shot={shot} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
-        onClose={() => setShot(null)} onOpenOnHost={(target) => actions.open(target.testId, target.index, "screenshot")} />
+        onClose={() => setShot(null)} onOpenOnHost={(target) => actions.open(target, "screenshot")} />
     </StaggerRoot>
   );
 }
@@ -125,9 +130,9 @@ function useAttachmentActions(run: RunSnapshot, workspaceId: string, workspaceDi
       const attachment = test.attachments[index];
       setShot({ runId: run.id, testId: test.id, index, title: test.title, path: attachment.path });
     },
-    open(testId, index, kind) {
+    open({ testId, index, path }, kind) {
       if (kind === "trace") toast.show("Opening the trace viewer…", { durationMs: 2500 });
-      open({ workspaceId, workspaceDirectory, runId: run.id, testId, index })
+      open({ workspaceId, workspaceDirectory, runId: run.id, testId, index, path })
         .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not open it."));
     },
   };
@@ -182,13 +187,14 @@ function Header({ colors, run, tally, now, workspaceId, workspaceDirectory }: { 
 }
 
 // One segment per outcome, in the order people scan: passed, failed, skipped,
-// then the test running now and what's still to go.
+// stopped, then the test running now and what's still to go.
 function ProgressBar({ colors, tally, live }: { colors: Colors; tally: Counts; live: boolean }) {
   const toGo = Math.max(0, tally.total - tally.done - tally.running);
   const segments = [
     { key: "passed", flex: tally.passed, color: colors.statusSuccess },
     { key: "failed", flex: tally.failed, color: colors.statusDanger },
     { key: "skipped", flex: tally.skipped, color: colors.foregroundMuted },
+    { key: "stopped", flex: tally.stopped, color: colors.statusWarning },
     { key: "running", flex: live ? tally.running : 0, color: colors.accent, shimmer: true },
     { key: "togo", flex: toGo, color: colors.surface2 },
   ].filter((segment) => segment.flex > 0);
@@ -211,6 +217,7 @@ function ProgressBar({ colors, tally, live }: { colors: Colors; tally: Counts; l
         {tally.failed ? <Tally colors={colors} color={colors.statusDanger} count={tally.failed} label="failed" /> : null}
         {tally.flaky ? <Tally colors={colors} color={colors.statusWarning} count={tally.flaky} label="flaky" /> : null}
         {tally.skipped ? <Tally colors={colors} color={colors.foregroundMuted} count={tally.skipped} label="skipped" /> : null}
+        {tally.stopped ? <Tally colors={colors} color={colors.statusWarning} count={tally.stopped} label="stopped" /> : null}
       </View>
     </View>
   );

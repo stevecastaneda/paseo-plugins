@@ -1,4 +1,4 @@
-// The run snapshot the reporter writes to run.json and the panel reads.
+// The run snapshot the reporter writes to runs/<id>.json and the panel reads.
 // server/pulse-reporter.mjs builds it; keep the two in step.
 
 export type RunStatus = "starting" | "running" | "passed" | "failed" | "timedout" | "interrupted";

@@ -1,7 +1,10 @@
 import type { RunSnapshot } from "../shared/run.ts";
 
 export const SNAPSHOT_VERSION: 1;
-export const RUN_FILE_NAME: string;
+export const LATEST_FILE_NAME: string;
+export const RUNS_FOLDER: string;
+export const RUN_ID: RegExp;
+export function runFile(directory: string, id: string): string;
 export function findRoot(cwd: string): string;
 export function pulseDirectory(root: string, home?: string): string;
 
@@ -10,6 +13,7 @@ export function pulseDirectory(root: string, home?: string): string;
 export default class PulseReporter {
   constructor(options?: { cwd?: string; directory?: string });
   file: string;
+  directory: string;
   snapshot: RunSnapshot;
   printsToStdio(): boolean;
   onBegin(config: any, suite: any): void;

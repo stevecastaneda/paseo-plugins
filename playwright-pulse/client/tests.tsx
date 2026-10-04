@@ -3,7 +3,7 @@ import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import type { PulseTest, RunSnapshot } from "../shared/run";
-import { attachmentKind, errorPreview, formatClock, formatDuration, isFailure, testWhere, timeoutShare, type AttachmentKind, type Counts } from "../shared/view";
+import { attachmentKind, errorPreview, failureMessage, formatClock, formatDuration, isFailure, testWhere, timeoutShare, verdict, verdictNote, type AttachmentKind, type Counts } from "../shared/view";
 import { IconSwap, PressScale } from "./motion";
 import { mono } from "./mono";
 import { useNarrow } from "./narrow";
@@ -16,7 +16,7 @@ type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
 export interface AttachmentActions {
   preview(test: PulseTest, index: number): void;
-  open(testId: string, index: number, kind: AttachmentKind): void;
+  open(file: { testId: string; index: number; path: string }, kind: AttachmentKind): void;
 }
 
 function Card({ colors, children, tone }: { colors: Colors; children: React.ReactNode; tone?: "danger" }) {
@@ -133,7 +133,7 @@ const KIND_ICON: Record<AttachmentKind, string> = { screenshot: "Image", video: 
 function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; actions: AttachmentActions }) {
   const [expanded, setExpanded] = useState(false);
   const toast = useToast();
-  const message = test.error?.message ?? (test.status === "timedOut" ? `Test timed out after ${formatDuration(test.timeout)}.` : "The test failed.");
+  const message = failureMessage(test, formatDuration);
   const preview = errorPreview(message);
   const files = test.attachments
     .map((attachment, index) => ({ attachment, index, kind: attachmentKind(attachment) }))
@@ -182,7 +182,7 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
           const file = byKind.get(kind);
           if (!file) return null;
           return <ChipButton key={kind} colors={colors} icon={KIND_ICON[kind]} label={KIND_LABEL[kind]}
-            onPress={() => (kind === "screenshot" ? actions.preview(test, file.index) : actions.open(test.id, file.index, kind))} />;
+            onPress={() => (kind === "screenshot" ? actions.preview(test, file.index) : actions.open({ testId: test.id, index: file.index, path: file.attachment.path }, kind))} />;
         })}
         <ChipButton colors={colors} icon="Copy" label="Copy error" onPress={copy} />
       </View>
@@ -213,8 +213,9 @@ export function TestsSection({ colors, run, tally }: { colors: Colors; run: RunS
     setShown(!shown);
   };
   const finished = run.tests.filter((test) => test.status !== "running");
-  const passed = finished.filter((test) => test.status === "passed");
-  const others = finished.filter((test) => test.status !== "passed");
+  const passes = (test: PulseTest) => verdict(test) === "passed" || verdict(test) === "flaky";
+  const passed = finished.filter(passes);
+  const others = finished.filter((test) => !passes(test));
   const toGo = Math.max(0, tally.total - tally.done - tally.running);
   const live = run.status === "running" || run.status === "starting";
   return (
@@ -236,7 +237,7 @@ export function TestsSection({ colors, run, tally }: { colors: Colors; run: RunS
 }
 
 function PassedRow({ colors, tests, shown, onPress }: { colors: Colors; tests: PulseTest[]; shown: boolean; onPress(): void }) {
-  const flaky = tests.filter((test) => test.outcome === "flaky").length;
+  const flaky = tests.filter((test) => verdict(test) === "flaky").length;
   const label = `${tests.length} passed${flaky ? `, ${flaky} flaky` : ""}`;
   const total = tests.reduce((sum, test) => sum + (test.duration ?? 0), 0);
   const chevron = shown ? "ChevronUp" : "ChevronDown";
@@ -255,27 +256,25 @@ function PassedRow({ colors, tests, shown, onPress }: { colors: Colors; tests: P
 }
 
 function TestIcon({ colors, test }: { colors: Colors; test: PulseTest }) {
-  if (test.status === "passed") {
-    return test.outcome === "flaky" ? <Icon name="TriangleAlert" size={14} color={colors.statusWarning} /> : <Icon name="Check" size={14} color={colors.statusSuccess} />;
+  switch (verdict(test)) {
+    case "passed": return <Icon name="Check" size={14} color={colors.statusSuccess} />;
+    case "flaky": return <Icon name="TriangleAlert" size={14} color={colors.statusWarning} />;
+    case "skipped": return <Icon name="CircleSlash" size={14} color={colors.foregroundMuted} />;
+    case "stopped": return <Icon name="CircleStop" size={14} color={colors.statusWarning} />;
+    default: return <Icon name={test.status === "timedOut" ? "Timer" : "X"} size={14} color={colors.statusDanger} />;
   }
-  if (test.status === "skipped") return <Icon name="CircleSlash" size={14} color={colors.foregroundMuted} />;
-  if (test.status === "interrupted" && !isFailure(test)) return <Icon name="CircleStop" size={14} color={colors.statusWarning} />;
-  if (test.status === "timedOut") return <Icon name="Timer" size={14} color={colors.statusDanger} />;
-  return <Icon name="X" size={14} color={colors.statusDanger} />;
 }
-
-const NOTE: Partial<Record<PulseTest["status"], string>> = { skipped: "Skipped", interrupted: "Stopped before it finished" };
 
 function TestRow({ colors, test }: { colors: Colors; test: PulseTest }) {
   const narrow = useNarrow();
-  const failed = isFailure(test);
-  const note = test.outcome === "flaky" ? `Flaky: passed on retry ${test.retry}` : failed ? "Failed, details above" : NOTE[test.status];
+  const note = verdictNote(test);
+  const flaky = verdict(test) === "flaky";
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: narrow ? 8 : 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}><TestIcon colors={colors} test={test} /></View>
       <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
         <Text style={{ color: test.status === "skipped" ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18 }}>{test.title}</Text>
-        {note ? <Text style={{ color: test.outcome === "flaky" ? colors.statusWarning : colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{note}</Text> : null}
+        {note ? <Text style={{ color: flaky ? colors.statusWarning : colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{note}</Text> : null}
       </View>
       {test.duration !== undefined && test.status !== "skipped" ? (
         <Text style={{ minWidth: 36, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatDuration(test.duration)}</Text>

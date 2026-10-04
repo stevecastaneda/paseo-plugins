@@ -54,7 +54,7 @@ Open it from Explorer, or with **Open Playwright Pulse** in the Command Center.
 
 ## How it works
 
-The reporter writes a snapshot of the run to `~/.local/state/playwright-pulse/<worktree>-<hash>/run.json`, outside the repo, so git never sees it. The worktree is the nearest folder with `.git` above where Playwright runs. Only the latest run is kept, and when the plugin starts it deletes the runs of worktrees that no longer exist.
+The reporter writes a snapshot of the run to `~/.local/state/playwright-pulse/<worktree>-<hash>/runs/<run-id>.json`, outside the repo, so git never sees it, and points `latest.json` beside it at the newest run. The worktree is the nearest folder with `.git` above where Playwright runs. Each new run clears out the files of earlier ones, so a run that starts while another is still going takes over the panel. When the plugin starts it deletes the runs of worktrees that no longer exist.
 
 The reporter is plain JavaScript with no dependencies. It never fails a run: a write that fails is skipped. It writes at most four times a second, and right away when a test or the run ends. A run whose process dies without ending shows as interrupted.
 
