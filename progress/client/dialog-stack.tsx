@@ -49,8 +49,15 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
   const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment, group: previewable(group.current) }) });
   const openAttachment = (attachment: Attachment, from: Attachment[]) => {
     group.current = from;
+    // A link opens elsewhere in Paseo; close first so it isn't left behind the dialog.
+    if (attachment.url) onClose();
     void opener.open(attachment);
   };
+  // Opens the agent's chat in its workspace, with the dialog out of the way.
+  const openAgent = context.navigation ? (agentId: string) => {
+    onClose();
+    context.navigation!.openAgent({ agentId });
+  } : undefined;
   const copy = useCopy();
   const steps: Step[] = root ? [root, ...trail] : [];
   // Keep drawing the last step while the dialog fades out.
@@ -85,7 +92,7 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
       ) : (
         <>
           {ticket && dashboard ? (
-            <TicketStoryView colors={colors} dashboard={dashboard} ticket={ticket} now={now} live={live}
+            <TicketStoryView colors={colors} dashboard={dashboard} ticket={ticket} now={now} live={live} context={context} onOpenAgent={openAgent}
               onOpenAttachment={openAttachment} onOpenQuestion={(id) => push({ kind: "question", id })} />
           ) : null}
           {question ? (

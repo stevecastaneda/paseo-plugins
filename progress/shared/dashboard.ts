@@ -26,6 +26,8 @@ export interface Ticket {
   waitsFor?: string;
   // Where the ticket is written up: a spec file or an issue link.
   source?: FileLink;
+  // The Paseo agent that last added or updated it, when written from Paseo.
+  agentId?: string;
   // Every status, stage and note change, starting with when it was added.
   history: TicketChange[];
 }
@@ -111,7 +113,8 @@ export interface Dashboard {
   deliverables: Deliverable[];
   // Newest first.
   activity: Activity[];
-  ticker: { text: string; since: string } | null;
+  // `by` is the Paseo agent that set it, when set from Paseo.
+  ticker: { text: string; since: string; by?: string } | null;
   // Share of estimated minutes in done tickets. Skipped tickets are left out.
   // `tookMin`: once every counted ticket is done, the real time from the run's
   // start to the last one finishing.
@@ -234,6 +237,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           history: [{ at: event.ts, status: event.status ?? "not_started" }],
           waitsFor: event.waitsFor,
           source: event.source,
+          agentId: event.by,
         });
         break;
       case "ticket.update": {
@@ -261,6 +265,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         if (event.note !== undefined) ticket.note = event.note || undefined;
         if (event.waitsFor !== undefined) ticket.waitsFor = event.waitsFor || undefined;
         if (event.source !== undefined) ticket.source = event.source || undefined;
+        if (event.by) ticket.agentId = event.by;
         break;
       }
       case "ticket.remove":
@@ -328,7 +333,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         if (!activity.delete(event.id)) issues.push({ line, reason: `unknown activity ${event.id}` });
         break;
       case "ticker.set":
-        ticker = { text: event.text, since: event.ts };
+        ticker = { text: event.text, since: event.ts, ...(event.by ? { by: event.by } : {}) };
         break;
       case "ticker.clear":
         ticker = null;

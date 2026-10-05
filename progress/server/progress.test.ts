@@ -12,7 +12,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
-import { formatEstimate, formatMinutes, formatWorkDone } from "../shared/format.ts";
+import { formatEstimate, formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
@@ -20,6 +20,7 @@ import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
+import { parseWriteUp, writeUpExcerpt } from "../shared/write-up.ts";
 
 // Real repos in these tests; the user's own git config stays out of them.
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
@@ -506,6 +507,67 @@ test("a ticket links to where it's written up: a file in the worktree or a link,
   assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, undefined, { path: "specs/01-login.md", label: "Shared spec" }]);
 });
 
+test("a write-up reads as headings, paragraphs, list items and code, and its excerpt drops the title", () => {
+  const blocks = parseWriteUp([
+    "# Ticket 01: Login",
+    "",
+    "Let people sign in with **email** and a [magic link](https://x.y).",
+    "It wraps onto",
+    "two lines.",
+    "",
+    "## Acceptance",
+    "- [ ] Sends the `link`",
+    "  within a minute",
+    "  1. Nested _step_",
+    "---",
+    "```",
+    "npm test",
+    "```",
+  ].join("\n"));
+  assert.deepEqual(blocks, [
+    { kind: "heading", level: 1, spans: [{ text: "Ticket 01: Login" }] },
+    { kind: "paragraph", spans: [{ text: "Let people sign in with email and a magic link. It wraps onto two lines." }] },
+    { kind: "heading", level: 2, spans: [{ text: "Acceptance" }] },
+    { kind: "item", marker: "☐", depth: 0, spans: [{ text: "Sends the " }, { text: "link", code: true }, { text: " within a minute" }] },
+    { kind: "item", marker: "1.", depth: 1, spans: [{ text: "Nested step" }] },
+    { kind: "code", text: "npm test" },
+  ]);
+  const short = writeUpExcerpt(blocks, 90);
+  assert.equal(short.blocks[0].kind, "paragraph", "the title is the ticket's own, so it's left out");
+  assert.equal(short.blocks.length, 2);
+  assert.equal(short.more, true);
+  assert.equal(writeUpExcerpt(blocks).more, false);
+});
+
+test("each ticket and the ticker remember the agent that last wrote them", async (t) => {
+  const w = await worktree(t);
+  await w.runAs("a", "start", "Run");
+  await w.runAs("a", "ticket", "add", "One", "--estimate", "30");
+  await w.run("ticket", "add", "Two", "--estimate", "30");
+  await w.runAs("b", "ticket", "update", "T01", "--status", "working");
+  await w.run("ticket", "update", "T01", "--stage", "Review");
+  await w.runAs("b", "ticker", "set", "Reviewing");
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.agentId), ["b", undefined]);
+  assert.equal(dashboard.ticker?.by, "b");
+});
+
+test("plain steps, with no write-ups, stages or Paseo agent, still get a dialog with a time bar and nothing missing", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Clean up the garage", "--item-label", "Step");
+  await w.run("ticket", "add", "Sort the shelves", "--estimate", "30");
+  await w.run("ticket", "update", "T01", "--status", "working");
+  await w.run("ticker", "set", "Sorting tools");
+  w.at(12);
+  const { dashboard } = await w.dashboard();
+  const [step] = dashboard.tickets;
+  assert.equal(step.source, undefined, "no write-up section");
+  assert.equal(step.agentId, undefined, "no agent row");
+  assert.equal(dashboard.ticker?.by, undefined, "the status line goes by the one working step");
+  assert.deepEqual(ticketStory(step, { deliverables: [], questions: [], activity: [] }, minutes(12).getTime()).timeline.map(({ label, minutes }) => ({ label, minutes })),
+    [{ label: "Added", minutes: 0 }, { label: "Working", minutes: 12 }], "one working span for the time bar");
+});
+
 async function screenshotRun(t: TestContext) {
   const w = await worktree(t);
   await w.run("start", "Loan Options");
@@ -577,6 +639,9 @@ test("a run whose tickets are all done or skipped never turns stale", async (t) 
 });
 
 test("display helpers format durations and hours the way the panel shows them", () => {
+  const morning = new Date(2026, 9, 5, 2, 8).toISOString();
+  assert.equal(formatTimeOfDay(morning, new Date(2026, 9, 5, 23, 0).getTime()), "2:08 AM", "same day: just the time");
+  assert.equal(formatTimeOfDay(morning, new Date(2026, 9, 6, 9, 0).getTime()), "Oct 5, 2:08 AM", "another day: the date too");
   assert.equal(formatMinutes(0.5), "<1 min");
   assert.equal(formatMinutes(12), "12 min");
   assert.equal(formatMinutes(602), "10 h 2 min");
