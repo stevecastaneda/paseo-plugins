@@ -9,6 +9,7 @@ import { removeReporter, reporterState, writeReporter } from "./reporter-install
 import { locateRun, pruneRuns, readRun, runForPanel, type RunLocation } from "./run-file.ts";
 import { LATEST_FILE_NAME, runFile } from "./pulse-reporter.mjs";
 import { stopRun } from "./stop.ts";
+import { handleGetBriefs } from "./pulse.ts";
 
 const SOURCE = "// Written by the playwright-pulse Paseo plugin.\nexport default class {}\n";
 
@@ -89,6 +90,15 @@ test("a live process id reused by a later process doesn't keep a dead run alive"
   assert.equal((await readRun(location, startedBefore))?.status, "running");
   // Without ps, a live process id is taken at its word.
   assert.equal((await readRun(location, async () => null))?.status, "running");
+});
+
+test("briefs each workspace's newest run for the header pill", async () => {
+  const { location, root, home } = worktree();
+  const elsewhere = mkdtempSync(join(tmpdir(), "pulse-empty-"));
+  writeRun(location, snapshot({ status: "failed", endedAt: "2026-10-04T12:01:00.000Z", total: 2, tests: [pulseTest({ status: "failed" }), pulseTest({ id: "t2" })] }));
+  const { briefs } = await handleGetBriefs({ directories: [root, join(root, "apps"), elsewhere] }, home);
+  const brief = { runId: "run1-4242", status: "failed", done: 2, total: 2, failed: 1, endedAt: "2026-10-04T12:01:00.000Z" };
+  assert.deepEqual(briefs, { [root]: brief, [join(root, "apps")]: brief, [elsewhere]: null });
 });
 
 test("installs the reporter, updates its own copy, and leaves anyone else's alone", async () => {

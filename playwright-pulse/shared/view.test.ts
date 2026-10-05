@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PulseTest, RunSnapshot } from "./run.ts";
-import { attachmentKind, commandLine, counts, errorPreview, failureMessage, verdict, verdictNote, formatAgo, formatClock, formatDuration, runElapsed, testWhere, timeoutShare } from "./view.ts";
+import { PILL_LINGER_MS, folderLabel, folders, formatTimeLeft, slowest, timeLeft, assignSlots, shownFailure, stepFailure, pillView, runBrief, attachmentKind, commandLine, counts, runningSlotCount, errorPreview, failureMessage, verdict, verdictNote, formatAgo, formatClock, formatDuration, runElapsed, testWhere, timeoutShare } from "./view.ts";
 
 function pulseTest(overrides: Partial<PulseTest>): PulseTest {
   return { id: "t", title: "User edits a lead", titlePath: [], file: "e2e/a.spec.ts", line: 3, project: "", status: "passed", retry: 0, timeout: 60_000, attachments: [], ...overrides };
@@ -41,6 +41,83 @@ test("follows Playwright's verdict: expected failures pass, unexpected passes fa
   assert.equal(failureMessage(unexpectedPass, String), "Marked as expected to fail, but it passed.");
   assert.deepEqual(counts(run([expectedFailure, unexpectedPass, stopped, failedThenStopped, flaky, skipped])),
     { passed: 2, failed: 2, flaky: 1, skipped: 1, stopped: 1, running: 0, done: 6, total: 6 });
+});
+
+test("running tests keep their row; a new test takes the first free one", () => {
+  assert.deepEqual(assignSlots([], ["a", "b"], 3), ["a", "b", null]);
+  // a finished and c started: c takes a's row, b stays put.
+  assert.deepEqual(assignSlots(["a", "b", null], ["b", "c"], 3), ["c", "b", null]);
+  // Between tests the row stays, empty.
+  assert.deepEqual(assignSlots(["c", "b", null], ["b"], 3), [null, "b", null]);
+  // More running than rows (retries can overlap): add rows rather than drop a test.
+  assert.deepEqual(assignSlots(["a"], ["a", "b"], 1), ["a", "b"]);
+  const run = { workers: 4, total: 2 } as RunSnapshot;
+  assert.equal(runningSlotCount(run, 0), 2);
+  assert.equal(runningSlotCount({ ...run, total: 40 }, 1), 4);
+});
+
+test("the header pill shows while tests run and briefly after", () => {
+  const now = Date.parse("2026-10-05T12:00:00.000Z");
+  const live = runBrief(run([pulseTest({ status: "passed" }), pulseTest({ status: "running" })], { total: 40 }));
+  assert.deepEqual(pillView(live, now), { label: "Tests 1/40", tone: "running" });
+  const failing = runBrief(run([pulseTest({ status: "failed" })], { total: 40 }));
+  assert.deepEqual(pillView(failing, now), { label: "1 failed · 1/40", tone: "failing" });
+  const ended = runBrief(run([pulseTest({ status: "failed" })], { status: "failed", endedAt: "2026-10-05T11:59:00.000Z" }));
+  assert.deepEqual(pillView(ended, now), { label: "1 failed", tone: "failed" });
+  assert.equal(pillView(ended, now + PILL_LINGER_MS), null);
+  assert.equal(pillView(null, now), null);
+  // Killed without an end: it ended at its last write.
+  const killed = runBrief(run([], { status: "interrupted", updatedAt: "2026-10-05T11:59:30.000Z" }));
+  assert.deepEqual(pillView(killed, now), { label: "Tests stopped", tone: "stopped" });
+});
+
+test("failures show one at a time, cycling, and stay put as new ones arrive", () => {
+  const ids = ["a", "b", "c"];
+  assert.equal(shownFailure(ids, null), 0);
+  assert.equal(stepFailure(ids, null, 1), "b");
+  assert.equal(stepFailure(ids, "c", 1), "a");
+  assert.equal(stepFailure(ids, "a", -1), "c");
+  // A new failure is added; the one on show stays on show.
+  assert.equal(shownFailure([...ids, "d"], "b"), 1);
+  // A new run: the one picked is gone, so the first shows.
+  assert.equal(shownFailure(["x"], "b"), 0);
+  assert.equal(stepFailure([], "b", 1), null);
+});
+
+test("groups the suite by folder, including folders that haven't started", () => {
+  const plan = [
+    { file: "e2e/leads/edit.spec.ts", count: 2 },
+    { file: "e2e/leads/delete.spec.ts", count: 1 },
+    { file: "e2e/billing/plans.spec.ts", count: 3 },
+  ];
+  const tests = [
+    pulseTest({ id: "a", file: "e2e/leads/edit.spec.ts", duration: 1000 }),
+    pulseTest({ id: "b", file: "e2e/leads/edit.spec.ts", status: "failed", duration: 2000 }),
+    pulseTest({ id: "c", file: "e2e/leads/delete.spec.ts", status: "running" }),
+  ];
+  const [leads, billing] = folders(run(tests, { plan, total: 6 }));
+  assert.deepEqual({ ...leads, tests: leads.tests.length },
+    { name: "leads", kind: "folder", total: 3, done: 2, passed: 1, failed: 1, flaky: 0, skipped: 0, stopped: 0, running: 1, duration: 3000, tests: 3 });
+  assert.deepEqual([billing.name, billing.total, billing.done], ["billing", 3, 0]);
+  assert.equal(folderLabel(folders(run(tests, { plan }))), "Folders");
+  // Spec files in one folder: each file is its own row, and the tab says Files.
+  const flat = folders(run([], { plan: [{ file: "smoke/e2e/watch.spec.mjs", count: 1 }, { file: "smoke/e2e/demo.spec.mjs", count: 1 }] }));
+  assert.deepEqual(flat.map((folder) => folder.name), ["watch", "demo"]);
+  assert.equal(folderLabel(flat), "Files");
+  // Older runs have no plan: folders come from the tests seen.
+  assert.deepEqual(folders(run([pulseTest({ file: "e2e/auth/login.spec.ts" })])).map((folder) => [folder.name, folder.total]), [["login", 1]]);
+});
+
+test("lists the slowest finished tests and estimates the time left", () => {
+  const tests = [1, 5, 3, 9, 2, 7].map((seconds, index) => pulseTest({ id: `t${index}`, duration: seconds * 1000 }));
+  assert.deepEqual(slowest(run([...tests, pulseTest({ status: "running" })]), 3).map((test) => test.duration), [9000, 7000, 5000]);
+  const live = run(tests, { total: 12, testsStartedAt: "2026-10-04T12:00:00.000Z" });
+  // Six done in a minute: six more take about another minute.
+  assert.equal(timeLeft(live, Date.parse("2026-10-04T12:01:00.000Z")), 60_000);
+  assert.equal(timeLeft(run(tests.slice(0, 2), { total: 12, testsStartedAt: "2026-10-04T12:00:00.000Z" }), Date.now()), null);
+  assert.equal(formatTimeLeft(20_000), "under a minute left");
+  assert.equal(formatTimeLeft(4 * 60_000), "about 4 min left");
+  assert.equal(formatTimeLeft(65 * 60_000), "about 1 h 05 min left");
 });
 
 test("durations read naturally at every scale", () => {

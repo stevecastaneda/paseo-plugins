@@ -49,6 +49,7 @@ test("tracks a passing test with its live step and context", async () => {
   assert.equal(read().status, "running");
   assert.equal(read().total, 2);
   assert.deepEqual(read().projects, ["authenticated"]);
+  assert.deepEqual(read().plan, [{ file: join("e2e", "leads", "leads.spec.ts"), count: 2 }]);
 
   reporter.onTestBegin(one, { retry: 0, startTime: new Date() });
   const wrapper = step("Open the lead", "test.step");

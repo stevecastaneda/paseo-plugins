@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, ScrollView, Text, View } from "react-native";
 import { openAttachment } from "../shared/rpc";
 import type { RunSnapshot } from "../shared/run";
-import { STATUS_TITLE, commandLine, counts, formatAgo, formatClock, formatDuration, isLive, runElapsed, type Counts } from "../shared/view";
+import { STATUS_TITLE, commandLine, counts, formatAgo, formatClock, formatDuration, formatTimeLeft, isLive, runElapsed, slowest, timeLeft, folderLabel, folders, type Counts } from "../shared/view";
 import { mono } from "./mono";
 import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { NARROW_MAX, NarrowProvider } from "./narrow";
@@ -13,7 +13,8 @@ import { ReporterBanner } from "./reporter-banner";
 import { ScreenshotDialog, type ScreenshotRef } from "./screenshot";
 import { Spinner } from "./spinner";
 import { StopButton } from "./stop-button";
-import { FailuresSection, RunningSection, TestsSection, type AttachmentActions } from "./tests";
+import { FoldersList, FailuresSection, RunningSection, SlowestList, type AttachmentActions } from "./tests";
+import { TabbedCard } from "./tabs";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -90,7 +91,9 @@ function RunView({ colors, run, workspaceId, workspaceDirectory }: { colors: Col
   const tally = counts(run);
   const [shot, setShot] = useState<ScreenshotRef | null>(null);
   const actions = useAttachmentActions(run, workspaceId, workspaceDirectory, setShot);
-  const running = run.tests.filter((test) => test.status === "running");
+  const folderList = folders(run);
+  const folderTab = folderLabel(folderList);
+  const slowestCount = slowest(run).length;
   // A new run or a retry replaces the screenshot on show; close it then.
   const shotGone = shot !== null && (run.id !== shot.runId || run.tests.find((test) => test.id === shot.testId)?.attachments[shot.index]?.path !== shot.path);
   useEffect(() => {
@@ -107,14 +110,21 @@ function RunView({ colors, run, workspaceId, workspaceDirectory }: { colors: Col
       <Presence show={run.errors.length > 0} order={1}>
         {run.errors.length ? <RunErrors colors={colors} errors={run.errors} /> : null}
       </Presence>
-      <Presence show={running.length > 0} order={2}>
-        {running.length ? <RunningSection colors={colors} tests={running} now={now} /> : null}
-      </Presence>
-      <Presence show={tally.failed > 0} order={3}>
+      {/* Failures sit above the running card, so what you're reading holds still. */}
+      <Presence show={tally.failed > 0} order={2}>
         {tally.failed ? <FailuresSection colors={colors} run={run} actions={actions} /> : null}
       </Presence>
-      <Presence show={tally.done > 0 || tally.total > tally.running} order={4}>
-        <TestsSection colors={colors} run={run} tally={tally} />
+      <Presence show={run.status === "running"} order={3}>
+        {run.status === "running" ? <RunningSection colors={colors} run={run} now={now} /> : null}
+      </Presence>
+      {/* Folders and the slowest tests share one card: they're rarely wanted at once. */}
+      <Presence show={run.status !== "starting" && tally.total > 0} order={4}>
+        {run.status !== "starting" && tally.total > 0 ? (
+          <TabbedCard colors={colors} memoryKey={workspaceId} tabs={[
+            { id: "folders", label: folderTab, icon: folderTab === "Files" ? "Files" : "FolderTree", count: folderList.length, empty: "No tests yet.", content: <FoldersList colors={colors} run={run} /> },
+            { id: "slowest", label: "Slowest", icon: "Hourglass", count: slowestCount, empty: "No finished tests yet.", content: <SlowestList colors={colors} run={run} /> },
+          ]} />
+        ) : null}
       </Presence>
       <ScreenshotDialog colors={colors} shot={shot} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
         onClose={() => setShot(null)} onOpenOnHost={(target) => actions.open(target, "screenshot")} />
@@ -181,14 +191,14 @@ function Header({ colors, run, tally, now, workspaceId, workspaceDirectory }: { 
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{run.projects.join(", ")}</Text>
         ) : null}
       </View>
-      {run.status !== "starting" && tally.total > 0 ? <ProgressBar colors={colors} tally={tally} live={live} /> : null}
+      {run.status !== "starting" && tally.total > 0 ? <ProgressBar colors={colors} tally={tally} live={live} left={timeLeft(run, now)} /> : null}
     </View>
   );
 }
 
 // One segment per outcome, in the order people scan: passed, failed, skipped,
 // stopped, then the test running now and what's still to go.
-function ProgressBar({ colors, tally, live }: { colors: Colors; tally: Counts; live: boolean }) {
+function ProgressBar({ colors, tally, live, left }: { colors: Colors; tally: Counts; live: boolean; left: number | null }) {
   const toGo = Math.max(0, tally.total - tally.done - tally.running);
   const segments = [
     { key: "passed", flex: tally.passed, color: colors.statusSuccess },
@@ -219,6 +229,12 @@ function ProgressBar({ colors, tally, live }: { colors: Colors; tally: Counts; l
         {tally.skipped ? <Tally colors={colors} color={colors.foregroundMuted} count={tally.skipped} label="skipped" /> : null}
         {tally.stopped ? <Tally colors={colors} color={colors.statusWarning} count={tally.stopped} label="stopped" /> : null}
       </View>
+      {/* Its own line, held for the whole run, so the estimate settling in doesn't move anything. */}
+      {live ? (
+        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+          {left === null ? "Estimating time left…" : formatTimeLeft(left)}
+        </Text>
+      ) : null}
     </View>
   );
 }

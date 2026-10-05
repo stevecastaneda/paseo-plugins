@@ -38,6 +38,16 @@ export const getPulse = defineRpc({
   output: z.custom<PulseResult | { unchanged: true; version: string }>(),
 });
 
+// The newest run of each workspace, in brief, for the header pill. Keyed by
+// the directory asked about; null where there's no run yet.
+export type RunBrief = { runId: string; status: RunSnapshot["status"]; done: number; total: number; failed: number; endedAt?: string };
+
+export const getBriefs = defineRpc({
+  name: "pulse.briefs",
+  input: z.object({ directories: z.array(z.string().min(1)).max(500) }),
+  output: z.custom<{ briefs: Record<string, RunBrief | null> }>(),
+});
+
 // The panel's Try again, when writing the reporter on start failed.
 export const installReporter = defineRpc({
   name: "pulse.reporter.install",

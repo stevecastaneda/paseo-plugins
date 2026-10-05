@@ -57,6 +57,8 @@ export type RunSnapshot = {
   total: number;
   projects: string[];
   workers: number;
+  // How many tests each file will run, from the start of the run.
+  plan?: { file: string; count: number }[];
   // In the order they started.
   tests: PulseTest[];
   // Errors outside any test, like a web server that never came up.

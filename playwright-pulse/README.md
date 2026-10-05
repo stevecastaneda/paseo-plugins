@@ -4,12 +4,16 @@ A live sidebar dashboard in Paseo for the Playwright test run in a worktree. You
 
 ## What it shows
 
-- **Header:** whether the run is starting up, running, passed, failed or interrupted, with a clock, the command that started it, and a progress bar split into passed, failed and skipped.
+- **Header pill:** while a workspace's tests run, its header shows a pill with the count so far (`Tests 12/40`, or `1 failed · 12/40` with a red spinner once a test fails). It stays for two minutes after the run ends with the result. Press it to open the panel.
+- **Header:** whether the run is starting up, running, passed, failed or interrupted, with a clock, the command that started it, and a progress bar split into passed, failed, skipped and stopped.
 - **Stop:** ends a live run the way Ctrl+C in its terminal would: Playwright stops the running test, runs teardown and shuts its web servers. The first press asks to confirm; if the run hasn't ended 8 seconds later, the button offers to force it.
 - **Starting up:** while Playwright boots web servers and runs global setup, before the first test.
-- **Running now:** the test's title and file, its live step (`Click  getByTestId('save')`, inside its `test.step` or hook), the last few steps, and how much of its timeout it has used.
-- **Failures:** pinned above the rest, with the error, the failing step, the code around it, and buttons to preview the screenshot, open the video, open the trace in Playwright's trace viewer, or copy the error.
-- **Tests:** every finished test; passed ones fold into one row. Flaky tests (passed on a retry) are marked.
+- **Running now:** one row per worker, each a fixed size so the panel doesn't jump while you read: the test's title and file, its live step (`Click  getByTestId('save')`, inside its `test.step` or hook), the last few steps, and how much of its timeout it has used.
+- **Failures:** pinned above the running tests and the rest, with the error, the failing step, the code around it, and buttons to preview the screenshot, open the video, open the trace in Playwright's trace viewer, or copy the error.
+- **Time left:** an estimate from the run's pace so far, once a few tests have finished.
+- **Folders and Slowest tabs:** one card, two tabs (the same tabs as Progress's history card).
+  - **Slowest:** the five longest so far, each against its timeout, amber past three quarters of it.
+  - **Folders:** the suite by folder, or **Files** when the specs share one folder, in run order, with how far each has got and what failed, was flaky or was skipped. Folders that haven't started show too. Press one for its tests.
 
 Open it from Explorer, or with **Open Playwright Pulse** in the Command Center.
 

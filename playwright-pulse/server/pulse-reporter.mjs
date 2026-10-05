@@ -163,6 +163,14 @@ export default class PulseReporter {
     this.snapshot.total = tests.length;
     this.snapshot.workers = config.workers;
     this.snapshot.projects = [...new Set(tests.map((test) => test.parent?.project()?.name).filter(Boolean))];
+    // How many tests each file will run, in run order, so the panel can show
+    // progress for parts of the suite that haven't started yet.
+    const plan = new Map();
+    for (const test of tests) {
+      const file = this.relative(test.location.file);
+      plan.set(file, (plan.get(file) ?? 0) + 1);
+    }
+    this.snapshot.plan = [...plan].map(([file, count]) => ({ file, count }));
     this.flush();
   }
 
