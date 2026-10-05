@@ -10,7 +10,7 @@ import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
 import { When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Platform, ScrollView, Text, View } from "react-native";
 import { finishedToFold, isFinished, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import type { TicketStatus } from "../shared/events";
 import { formatEstimate, formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
@@ -19,6 +19,7 @@ import { useDashboard } from "./dashboard-query";
 import { STATUS_LABEL } from "./status-badge";
 import { TicketDialogs } from "./ticket-dialog";
 import { PressableRow } from "./row";
+import { TabStrip } from "./tabs";
 import { ShowMoreRow, usePaged } from "./show-more";
 import { notePanelOpened } from "./panel-opened";
 import { NARROW_MAX, NarrowProvider, useNarrow } from "./narrow";
@@ -212,7 +213,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
         style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}>
         <View style={{ flex: wide ? 3 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={dashboard.questions.open.length > 0} order={3}>{dashboard.questions.open.length ? (
-            <QuestionsSection colors={colors} questions={dashboard.questions.open} answered={dashboard.questions.answered} now={now} compact={compact || !wide} context={attachmentContext} />
+            <QuestionsSection colors={colors} questions={dashboard.questions.open} answered={dashboard.questions.answered} now={now} context={attachmentContext} />
           ) : null}</Presence>
           <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
           <Presence show order={4}>
@@ -270,37 +271,12 @@ function HistoryCard({ colors, workspaceId, tabs }: { colors: Colors; workspaceI
   return (
     <View onLayout={(event) => setShowIcons(event.nativeEvent.layout.width >= TAB_ICONS_MIN)}
       style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: narrow ? 10 : 16, paddingHorizontal: narrow ? 8 : 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        {tabs.map((entry) => {
-          return <Tab key={entry.id} colors={colors} narrow={narrow} label={entry.label} icon={showIcons ? entry.icon : null} count={entry.count} selected={entry.id === current.id} onPress={() => choose(entry.id)} />;
-        })}
-      </View>
+      <TabStrip colors={colors} narrow={narrow} tabs={tabs.map((entry) => ({ ...entry, icon: showIcons ? entry.icon : null }))} selected={current.id} onSelect={choose}
+        style={{ paddingHorizontal: narrow ? 8 : 10 }} />
       {current.count === 0 ? (
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8 }}>{current.empty}</Text>
       ) : current.content}
     </View>
-  );
-}
-
-// Instant feedback: tabs switch often, so hover and press change color only.
-// Narrow tightens the spacing so all three tabs stay on one line at the sidebar's 320px.
-function Tab({ colors, narrow, label, icon, count, selected, onPress }: { colors: Colors; narrow: boolean; label: string; icon: string | null; count: number; selected: boolean; onPress(): void }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress}
-      onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
-      style={({ pressed }) => ({
-        flexDirection: "row", alignItems: "center", gap: narrow ? 4 : 6, paddingTop: 8, paddingBottom: 6, marginBottom: -1,
-        borderBottomWidth: 2,
-        borderBottomColor: selected ? colors.accent : pressed || hovered ? colors.border : "transparent",
-      })}>
-      {icon ? <Icon name={icon} size={14} color={selected ? colors.accent : colors.foregroundMuted} /> : null}
-      <Text style={{ color: selected || hovered ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{label}</Text>
-      {/* Count badge: muted on both tabs; the chosen tab's number reads darker. */}
-      <View style={{ minWidth: 16, paddingHorizontal: 4, borderRadius: 4, alignItems: "center", backgroundColor: colors.surface2 }}>
-        <Text style={{ color: selected ? colors.foreground : colors.foregroundMuted, fontSize: 10, lineHeight: 14, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{count}</Text>
-      </View>
-    </Pressable>
   );
 }
 

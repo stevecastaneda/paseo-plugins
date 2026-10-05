@@ -8,7 +8,7 @@ import { progressPanel } from "./pills";
 import { PressScale } from "./motion";
 import { type Attachment, isPreviewable, useAttachmentOpener } from "./attachments";
 import { PreviewDialog, previewable } from "./preview";
-import { DefaultBadge, QuestionDetail, useCopy } from "./questions";
+import { QuestionDetail, QuestionState, useCopy } from "./questions";
 import { raised } from "./surfaces";
 
 type Colors = PluginButtonContentProps["theme"]["colors"];
@@ -97,8 +97,10 @@ export function AttentionList({ colors, dashboard, onSurface1, onCopy, onOpenAtt
         <View key={question.id} style={{ gap: 6 }}>
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
             <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19, fontWeight: "600" }}>{question.id}</Text>
-            <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
-            <DefaultBadge colors={colors} value={question.default} waits={question.waits} />
+            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+              <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
+              <QuestionState colors={colors} question={question} />
+            </View>
           </View>
           <QuestionDetail colors={colors} question={question} now={now} onSurface1={onSurface1} onCopy={(letter) => onCopy(question, letter)} onOpenAttachment={onOpenAttachment} />
         </View>

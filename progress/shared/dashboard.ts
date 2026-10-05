@@ -24,6 +24,10 @@ export interface Ticket {
   // Waiting is the order of work, not a problem, so it never counts as stuck.
   waitingFor?: { id: string; title: string };
   waitsFor?: string;
+  // Where the ticket is written up: a spec file or an issue link.
+  source?: FileLink;
+  // The Paseo agent that last added or updated it, when written from Paseo.
+  agentId?: string;
   // Every status, stage and note change, starting with when it was added.
   history: TicketChange[];
 }
@@ -39,14 +43,15 @@ export interface Question {
   title: string;
   question: string;
   options: QuestionOption[];
-  default: string;
-  waits: boolean;
+  // The option the agent leans toward. Nothing is built until the user answers.
+  recommended: string;
   background?: string;
   files: FileLink[];
   raisedBy?: string;
   ticketId?: string;
   askedAt: string;
-  answer?: { choice: string; words?: string; changedCourse: boolean; at: string };
+  // `changedCourse` only on older answers, from when agents built a default before asking.
+  answer?: { choice: string; words?: string; changedCourse?: boolean; at: string };
 }
 
 export interface Deliverable {
@@ -109,7 +114,8 @@ export interface Dashboard {
   deliverables: Deliverable[];
   // Newest first.
   activity: Activity[];
-  ticker: { text: string; since: string } | null;
+  // `by` is the Paseo agent that set it, when set from Paseo.
+  ticker: { text: string; since: string; by?: string } | null;
   // Share of estimated minutes in done tickets. Skipped tickets are left out.
   // `tookMin`: once every counted ticket is done, the real time from the run's
   // start to the last one finishing.
@@ -189,16 +195,18 @@ export function isSettled(ticket: Ticket): boolean {
   return ticket.status === "done" || ticket.status === "skipped";
 }
 
+// The events from the last `run.start` on; earlier runs are ignored.
+export function latestRun(events: ParsedLine[]): ParsedLine[] {
+  const start = events.findLastIndex(({ event }) => event.type === "run.start");
+  return events.slice(Math.max(start, 0));
+}
+
 // Folds the events of the latest run into what the panel shows at `now`, how
 // long that stays true while the events don't change, and the ids new items get.
 // Everything before the last `run.start` belongs to earlier runs and is ignored.
 export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue[] }, now: Date): { dashboard: Dashboard; validUntil: number; nextIds: NextIds } {
   const time = clock(now);
-  let start = 0;
-  parsed.events.forEach(({ event }, index) => {
-    if (event.type === "run.start") start = index;
-  });
-  const events = parsed.events.slice(start);
+  const events = latestRun(parsed.events);
   const issues = [...parsed.issues];
   let run: Dashboard["run"] = null;
   const tickets = new Map<string, Ticket>();
@@ -229,6 +237,8 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           workingSince: event.status === "working" ? event.ts : undefined,
           history: [{ at: event.ts, status: event.status ?? "not_started" }],
           waitsFor: event.waitsFor,
+          source: event.source,
+          agentId: event.by,
         });
         break;
       case "ticket.update": {
@@ -255,6 +265,8 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         }
         if (event.note !== undefined) ticket.note = event.note || undefined;
         if (event.waitsFor !== undefined) ticket.waitsFor = event.waitsFor || undefined;
+        if (event.source !== undefined) ticket.source = event.source || undefined;
+        if (event.by) ticket.agentId = event.by;
         break;
       }
       case "ticket.remove":
@@ -266,8 +278,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           title: event.title,
           question: event.question,
           options: event.options ?? [],
-          default: event.default,
-          waits: event.waits ?? false,
+          recommended: event.recommend ?? event.default ?? "",
           background: event.background,
           files: event.files ?? [],
           raisedBy: event.raisedBy,
@@ -322,7 +333,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         if (!activity.delete(event.id)) issues.push({ line, reason: `unknown activity ${event.id}` });
         break;
       case "ticker.set":
-        ticker = { text: event.text, since: event.ts };
+        ticker = { text: event.text, since: event.ts, ...(event.by ? { by: event.by } : {}) };
         break;
       case "ticker.clear":
         ticker = null;

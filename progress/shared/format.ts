@@ -36,6 +36,13 @@ export function formatClock(iso: string): string {
   return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${hours % 12 || 12}:${minutes} ${hours < 12 ? "AM" : "PM"}`;
 }
 
+// Just the time, "2:08 AM", when it falls on the same day as `nowMs`; the full
+// clock time otherwise.
+export function formatTimeOfDay(iso: string, nowMs: number): string {
+  const full = formatClock(iso);
+  return new Date(iso).toDateString() === new Date(nowMs).toDateString() ? full.slice(full.indexOf(", ") + 2) : full;
+}
+
 export function formatAgo(iso: string, nowMs: number): string {
   const minutes = (nowMs - Date.parse(iso)) / 60_000;
   return minutes < 1 ? "just now" : `${formatMinutes(minutes)} ago`;

@@ -10,8 +10,8 @@ The dashboard shows:
 - a "possibly stale" warning after 15 minutes with no update while tickets remain, unless Paseo shows an agent in the workspace still running (for example one waiting on its subagents), and never once every ticket is done or skipped or the run is finished; working items swap their spinner for a pulsing amber warning
 - percent of estimated work done, time done of time estimated (like "1 h 30 min of 2 h"; once everything is done, how long it really took), and a bar with one segment per ticket
 - **Stuck:** blocked tickets, working tickets with no update for longer than their estimate, and blockers the agent flags
-- **Tickets:** estimate, status, and the working ticket's stage. A ticket that waits for another (`--waits-for T03`) shows "Waits for Ticket 03" under its title until that one is done; waiting is the order of work, so it never counts as stuck, even if the agent also marked it blocked. Press a ticket for its story in a dialog: a timeline of its stages and statuses with how long each took, notes, time worked against the estimate, and the deliverables, questions and activity that belong to it. Items tagged with `--ticket` belong exactly; older, untagged ones are matched by when they happened and marked "by time"
-- **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the default the agent is using. Press a question to open it in a dialog, then press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Files and links the agent attached (`--file`) open like deliverables: images and text files preview in Paseo (with **Back** to the question), links open in Paseo's browser, and other files open in their default app. From the pill's popover, the preview opens over the popover, which stays open so you can go back to it. Answers stay listed under the same reference.
+- **Tickets:** estimate, status, and the working ticket's stage. A ticket that waits for another (`--waits-for T03`) shows "Waits for Ticket 03" under its title until that one is done; waiting is the order of work, so it never counts as stuck, even if the agent also marked it blocked. Press a ticket for its story in a dialog. A summary on top shows its status and stage, time worked against the estimate as a bar that turns red past it, the agent's latest status line while it's working, and the agent on it. Tabs below hold the rest, each only when it has something: the ticket's write-up when it has a `--source` file (the start of it, with the rest a press away), a timeline of its stages and statuses with how long each took, and the activity, questions and deliverables that belong to it. The agent on a ticket shows by its chat title; pressing it opens that chat. Items tagged with `--ticket` belong exactly; older, untagged ones are matched by when they happened and marked "by time"
+- **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the option the agent recommends. The agent builds nothing a question affects until you answer; it works on other things meanwhile, and stops when nothing else is left. Press a question to open it in a dialog, then press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Files and links the agent attached (`--file`) open like deliverables: images and text files preview in Paseo (with **Back** to the question), links open in Paseo's browser, and other files open in their default app. From the pill's popover, the preview opens over the popover, which stays open so you can go back to it. Answers stay listed under the same reference.
 - **Activity**, **Answered** questions and **Deliverables** (press one to open it), sharing one card with a tab for each; the panel remembers the tab you picked. Each shows the newest 10, with **Show 10 older** below
 
 The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. When questions are waiting or something is stuck, a pill above the message box shows it (`3 questions · 1 stuck`). Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
@@ -72,14 +72,15 @@ Run `paseo-progress --help` for every command, and `paseo-progress <command> --h
 
 ```sh
 paseo-progress start "Loan Options snapshots" --subtitle "4 tickets"
-paseo-progress ticket add "Ticket 01: Saved table" --estimate 120      # Added T01
+paseo-progress ticket add "Ticket 01: Saved table" --estimate 120 \
+  --source specs/01-saved-table.md                                     # Added T01
 paseo-progress ticket update T01 --status working --stage Build
 paseo-progress ticket update T01 --stage Fixes
 paseo-progress ticket update T01 --status done
 paseo-progress question ask "Row spacing" "Even out the card spacing?" \
   --option "A=Even it out | Cards look balanced" \
   --option "B=Leave it | No change" \
-  --default B --raised-by "Ticket 01 design review"                     # Asked Q1
+  --recommend A --raised-by "Ticket 01 design review"                   # Asked Q1
 paseo-progress question answer Q1 A --words "Even it out."
 paseo-progress deliverable add "Browser check screenshots" .scratch/shots/ --ticket T01
 paseo-progress activity add "Saved table matches the design now." --ticket T01
@@ -90,18 +91,21 @@ paseo-progress finish "Snapshots ship for all four tables"
 ```
 
 - Statuses are `not_started`, `working`, `blocked`, `done`, and `skipped`. Skipped tickets leave the totals.
+- `ticket add` and `ticket update` take an optional `--source <path or link>[=<label>]`: where the ticket is written up, like its spec file or issue. It shows under the ticket's status in its dialog and opens like a deliverable. `--source ""` clears it. Tickets without one are fine.
 - A working ticket is stuck once it goes longer than its estimate without an update, timed from its last status, stage or note change, or activity tagged to it. The ticket's dialog still shows total time worked against the estimate.
-- `question ask --waits` marks a question the agent won't act on until you answer. Its default shows in amber.
+- `question ask` needs `--recommend`, the agent's pick. The question dialog tags that option "Recommended".
 - Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image (PNG, JPEG, GIF, WebP, up to 10 MB) or text deliverable (Markdown, text, logs, JSON, YAML, CSV; the first 256 KB) previews it in a dialog inside Paseo, which also works from a phone; **Open** there opens the file in its default app. Pressing any other local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, **Open** sends text files to your default browser. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
+- Several agents can share one run. When another session adds a ticket, each agent sees it at the end of its next command's output (and in `show`), and the skill has it work that ticket in order after its current one. An agent only hears about tickets added since its own last update in the run, and only once.
 - `start` begins a fresh dashboard. Earlier runs stay in the file. Question references stay unique across runs.
 - `finish "<outcome>"` closes the run once every ticket is done or skipped, no question is open, and nothing is flagged stuck; otherwise it says what is left. The run stays on the dashboard, marked Finished with its outcome, and takes no more updates, so the next agent in the worktree starts a new run instead of adding to it.
 
 ## The progress file
 
-The progress file, `progress.jsonl`, holds one JSON event per line, each with a version (`v`), a UTC timestamp (`ts`) from the real clock, and a `type`. It is only ever appended to, so you can read or diff the history. A half-written last line is ignored. Other bad lines are skipped and listed in a small notice in the panel while the rest still renders. A lock keeps two commands from writing at once or handing out the same id.
+The progress file, `progress.jsonl`, holds one JSON event per line, each with a version (`v`), a UTC timestamp (`ts`) from the real clock, and a `type`. Events written by a Paseo agent also carry its agent id (`by`). It is only ever appended to, so you can read or diff the history. A half-written last line is ignored. Other bad lines are skipped and listed in a small notice in the panel while the rest still renders. A lock keeps two commands from writing at once or handing out the same id.
 
 ## Limitations
 
+- An agent hears about tickets other sessions added only when it next runs `paseo-progress`. One in the middle of a long step finds out when that step ends.
 - Nothing updates unless the agent runs `paseo-progress`. Agents need the skill, and an agent that skips the command leaves the dashboard behind.
 - The command runs on the machine that hosts the Paseo daemon, and it needs Node.js 22.18 or later there.
 - Each worktree keeps its own dashboard. There's no view across worktrees.
