@@ -39,22 +39,23 @@ Other sessions may add tickets (or steps) to the same run. When a command's outp
 
 A working ticket turns stuck on its own once it goes longer than its estimate without an update: a status, stage or note change, or activity tagged to it. When a ticket will run long, keep updating its stage, or raise its estimate with `--estimate`.
 
-## 3. Ask questions without stopping
+## 3. Ask questions, and work around them
 
-When a decision belongs to the user, ask it and keep working:
+When a decision belongs to the user, ask it, then park everything the answer affects:
 
 ```sh
 paseo-progress question ask "<short title>" "<the question, in one or two sentences>" \
   --option "A=<choice> | <what happens if they pick it>" \
   --option "B=<choice> | <what happens if they pick it>" \
-  --default <letter> --ticket T03 --raised-by "Ticket 03 design review" \
+  --recommend <letter> --ticket T03 --raised-by "Ticket 03 design review" \
   [--background "<what they need to decide without opening the worktree>"] \
   [--file <path or http(s) URL>=<what it shows>]
 ```
 
-- The default is the safest choice. Carry on with it straight away.
-- Add `--waits` when acting on any choice needs the user's yes: purchases, production, live vendor calls, commits. Then work on something else until they answer.
-- When the user replies ("Q7 A", or in their own words), run `question answer Q7 A --words "<their words>"`. The command reports whether the answer differs from the default; when it does, change course before anything else.
+- `--recommend` is the option you would pick, so the user knows which way to lean.
+- Build no option before the user answers, not even the one you recommend. The point of asking is that the user decides before the work is done.
+- Keep working on whatever the question doesn't affect: other tickets, or other parts of this one. If nothing else is left, stop, tell the user in chat which questions you're waiting on, and leave the run open.
+- When the user replies ("Q7 A", or in their own words), run `question answer Q7 A --words "<their words>"`, then build what they chose.
 - When a question is about how something looks, attach the screenshot, mockup or preview link with `--file`. The user opens it from the question: images preview in Paseo, links open in its browser. Add more later with `question update Q7 --file <path>=<what it shows>`.
 - When the user asks about a question, answer in chat and also put the explanation on the question with `question update Q7 --background "<text>"`, so the dashboard carries it too.
 - `question remove Q7` withdraws a question that no longer applies.

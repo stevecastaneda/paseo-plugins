@@ -77,7 +77,9 @@ export const eventSchema = z.discriminatedUnion("type", [
   // A blocker that is not a ticket status, like a failing external service.
   z.object({ ...base, type: z.literal("stuck.set"), id: text, reason: text, ticket: text.optional() }),
   z.object({ ...base, type: z.literal("stuck.clear"), id: text }),
-  // The agent asks, picks `default`, and keeps working on it until answered.
+  // The agent asks, recommends an option, and builds none of them before the
+  // answer: it works only on what the question doesn't affect. Older questions
+  // carry `default` (the option the agent carried on with) and `waits` instead.
   z.object({
     ...base,
     type: z.literal("question.ask"),
@@ -85,9 +87,9 @@ export const eventSchema = z.discriminatedUnion("type", [
     title: text,
     question: text,
     options: z.array(questionOptionSchema).max(26).optional(),
-    // An option letter, or a word such as "Your check" when there are no options.
-    default: text,
-    // True when the agent will not act on the default and waits for the answer.
+    // The agent's pick: an option letter, or a word such as "Looks right" when there are no options.
+    recommend: text.optional(),
+    default: text.optional(),
     waits: z.boolean().optional(),
     background: text.optional(),
     files: z.array(fileLinkSchema).optional(),
@@ -102,7 +104,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     choice: text,
     // The user's own words, quoted under the answer.
     words: text.optional(),
-    changedCourse: z.boolean(),
+    // Older answers: true when the agent had to undo work built on its default.
+    changedCourse: z.boolean().optional(),
   }),
   // Adds detail to an open question; its reference and default stay.
   z.object({

@@ -213,7 +213,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
         style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}>
         <View style={{ flex: wide ? 3 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={dashboard.questions.open.length > 0} order={3}>{dashboard.questions.open.length ? (
-            <QuestionsSection colors={colors} questions={dashboard.questions.open} answered={dashboard.questions.answered} now={now} compact={compact || !wide} context={attachmentContext} />
+            <QuestionsSection colors={colors} questions={dashboard.questions.open} answered={dashboard.questions.answered} now={now} context={attachmentContext} />
           ) : null}</Presence>
           <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
           <Presence show order={4}>

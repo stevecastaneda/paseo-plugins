@@ -43,14 +43,15 @@ export interface Question {
   title: string;
   question: string;
   options: QuestionOption[];
-  default: string;
-  waits: boolean;
+  // The option the agent leans toward. Nothing is built until the user answers.
+  recommended: string;
   background?: string;
   files: FileLink[];
   raisedBy?: string;
   ticketId?: string;
   askedAt: string;
-  answer?: { choice: string; words?: string; changedCourse: boolean; at: string };
+  // `changedCourse` only on older answers, from when agents built a default before asking.
+  answer?: { choice: string; words?: string; changedCourse?: boolean; at: string };
 }
 
 export interface Deliverable {
@@ -277,8 +278,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           title: event.title,
           question: event.question,
           options: event.options ?? [],
-          default: event.default,
-          waits: event.waits ?? false,
+          recommended: event.recommend ?? event.default ?? "",
           background: event.background,
           files: event.files ?? [],
           raisedBy: event.raisedBy,

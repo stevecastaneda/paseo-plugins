@@ -243,12 +243,11 @@ const commands: Record<string, Command> = {
     },
   },
   "question ask": {
-    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --default <letter or word> [--waits] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
-    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...). Keep working on the default until it is answered, unless --waits: then the default is only a suggestion and you wait.",
+    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --recommend <letter or word> [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
+    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...). --recommend is the option you would pick. Build no option before the answer: work only on what the question doesn't affect, and if nothing else is left, stop and wait.",
     options: {
       option: { type: "string", multiple: true },
-      default: { type: "string" },
-      waits: { type: "boolean" },
+      recommend: { type: "string" },
       background: { type: "string" },
       file: { type: "string", multiple: true },
       "raised-by": { type: "string" },
@@ -262,12 +261,12 @@ const commands: Record<string, Command> = {
       const letters = options.map((option) => option.letter);
       const duplicate = letters.find((letter, index) => letters.indexOf(letter) !== index);
       if (duplicate) throw new UsageError(`Option ${duplicate} is given twice.`);
-      let fallback = required(stringOption(values.default), "--default");
+      let recommend = required(stringOption(values.recommend), "--recommend (the option you would pick)");
       if (options.length) {
-        if (!/^[A-Za-z]$/.test(fallback) || !letters.includes(fallback.toUpperCase())) {
-          throw new UsageError(`--default must be one of the option letters: ${letters.join(", ")}.`);
+        if (!/^[A-Za-z]$/.test(recommend) || !letters.includes(recommend.toUpperCase())) {
+          throw new UsageError(`--recommend must be one of the option letters: ${letters.join(", ")}.`);
         }
-        fallback = fallback.toUpperCase();
+        recommend = recommend.toUpperCase();
       }
       const id = state.nextIds.question;
       return {
@@ -277,14 +276,13 @@ const commands: Record<string, Command> = {
           title,
           question,
           options: options.length ? options : undefined,
-          default: fallback,
-          waits: values.waits === true ? true : undefined,
+          recommend,
           background: stringOption(values.background),
           files: listOption(values.file).length ? listOption(values.file).map((raw) => parseFile(raw, cwd, root)) : undefined,
           raisedBy: stringOption(values["raised-by"]),
           ticket: ticket?.id,
         },
-        message: `Asked ${id} (${title}). Default: ${fallback}${values.waits === true ? " (waiting for the answer)" : ""}`,
+        message: `Asked ${id} (${title}). You recommend ${recommend}. Build no option before the answer: work only on what it doesn't affect, and if nothing else is left, stop and wait.`,
       };
     },
   },
@@ -300,10 +298,10 @@ const commands: Record<string, Command> = {
         choice = choice.toUpperCase();
         if (letters.length && !letters.includes(choice)) throw new UsageError(`${question.id} has options ${letters.join(", ")}, not ${choice}.`);
       }
-      const changedCourse = choice.toLowerCase() !== question.default.toLowerCase();
+      const asRecommended = choice.toLowerCase() === question.recommended.toLowerCase();
       return {
-        event: { type: "question.answer", id: question.id, choice, words: stringOption(values.words), changedCourse },
-        message: `Answered ${question.id}: ${choice}${changedCourse ? ` (differs from default ${question.default}: change course)` : " (same as the default)"}`,
+        event: { type: "question.answer", id: question.id, choice, words: stringOption(values.words) },
+        message: `Answered ${question.id}: ${choice}${asRecommended ? " (as you recommended)" : ` (not your recommendation, ${question.recommended})`}. Build it now.`,
       };
     },
   },

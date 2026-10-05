@@ -94,13 +94,12 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, context,
               onPress={() => onOpenQuestion(question.id)}
               style={{ flexDirection: "row", gap: 8, paddingVertical: 4, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
               <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"], minWidth: 30 }}>{question.id}</Text>
-              <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
-                {question.title}{"  "}
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{question.title}<LinkNote colors={colors} link={question.link} /></Text>
                 {question.answer
-                  ? <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{question.answer.choice}{chosen ? <Text style={{ fontWeight: "400" }}> {chosen.label}</Text> : null}</Text>
-                  : <Text style={{ color: question.waits ? colors.statusWarning : colors.foregroundMuted }}>Open, default {question.default}</Text>}
-                <LinkNote colors={colors} link={question.link} />
-              </Text>
+                  ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>Answered <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{question.answer.choice}</Text>{chosen ? <Text style={{ color: colors.foreground }}>: {chosen.label}</Text> : null}</Text>
+                  : null}
+              </View>
               <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
             </PressableRow>
           );
