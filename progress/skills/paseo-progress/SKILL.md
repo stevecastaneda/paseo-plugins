@@ -35,6 +35,8 @@ Record each change as it happens, on the ticket's id from `show` (T01, T02, ...)
 
 Pass `--ticket` on every activity, deliverable and question that belongs to a ticket. The user presses a ticket to see its story: each stage and how long it took, with the activity, deliverables and questions tagged to it. Leave it off only for run-wide notes. Stage changes and notes are timed from your `ticket update` calls, so make them when the change happens.
 
+Other sessions may add tickets to the same run. When a command's output says another session added one, it is part of the plan: work it in order after your current ticket, the same as the tickets you added.
+
 A working ticket turns stuck on its own once it goes longer than its estimate without an update: a status, stage or note change, or activity tagged to it. When a ticket will run long, keep updating its stage, or raise its estimate with `--estimate`.
 
 ## 3. Ask questions without stopping

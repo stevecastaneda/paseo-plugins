@@ -46,9 +46,13 @@ async function worktree(t: TestContext) {
     store,
     output,
     at(minute: number) { clock = minute; },
-    async run(...argv: string[]) {
+    run(...argv: string[]) {
+      return this.runAs(undefined, ...argv);
+    },
+    // Run as the Paseo agent with this id.
+    async runAs(agentId: string | undefined, ...argv: string[]) {
       output.length = 0;
-      const code = await runCli(argv, { cwd: directory, now: () => minutes(clock), out: (line) => output.push(line) });
+      const code = await runCli(argv, { cwd: directory, now: () => minutes(clock), out: (line) => output.push(line), agentId });
       return { code, text: output.join("\n") };
     },
     // Read at the current clock, or at a given minute.
@@ -432,6 +436,52 @@ test("the command runs as a script and stamps the real time", async (t) => {
   assert.equal(stdout.trim(), "Started run: Real clock");
   const updatedAt = Date.parse((await w.dashboard()).dashboard.updatedAt ?? "");
   assert.ok(updatedAt >= before - 1000 && updatedAt <= Date.now() + 1000);
+});
+
+test("each event records the Paseo agent that wrote it, from PASEO_AGENT_ID", async (t) => {
+  const w = await worktree(t);
+  const cli = fileURLToPath(new URL("./cli.ts", import.meta.url));
+  const run = (env: NodeJS.ProcessEnv, ...argv: string[]) => promisify(execFile)(process.execPath, [cli, ...argv], { cwd: w.directory, env });
+  const { PASEO_AGENT_ID: _, ...outside } = process.env;
+  await run({ ...process.env, PASEO_AGENT_ID: "agent-a" }, "start", "Run");
+  await run(outside, "ticker", "set", "From a terminal");
+  const lines = (await readFile(join(w.store, "progress.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(lines.map((line) => line.by), ["agent-a", undefined]);
+});
+
+test("an agent hears about tickets another session added, once, on its next command", async (t) => {
+  const w = await worktree(t);
+  await w.runAs("a", "start", "Run");
+  await w.runAs("a", "ticket", "add", "Ticket 01: Mine", "--estimate", "30");
+  assert.doesNotMatch((await w.runAs("a", "ticket", "update", "T01", "--status", "working")).text, /Another session/, "its own tickets are not news");
+
+  await w.runAs("b", "ticket", "add", "Ticket 02: Theirs", "--estimate", "20");
+  await w.run("ticket", "add", "Ticket 03: From a terminal", "--estimate", "20");
+  await w.runAs("b", "ticket", "add", "Ticket 04: Already done", "--estimate", "20", "--status", "done");
+  await w.runAs("b", "ticket", "add", "Ticket 05: Removed again", "--estimate", "20");
+  await w.runAs("b", "ticket", "remove", "T05");
+
+  const shown = await w.runAs("a", "show");
+  assert.match(shown.text, /Another session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket\.$/);
+  const told = await w.runAs("a", "ticker", "set", "Building");
+  assert.equal(told.text, "Ticker: Building\n\nAnother session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket.");
+  assert.equal((await w.runAs("a", "ticker", "set", "Still building")).text, "Ticker: Still building", "each alert shows once");
+
+  await w.runAs("b", "ticket", "add", "Ticket 06: One more", "--estimate", "20");
+  assert.match((await w.runAs("a", "ticket", "update", "T01", "--stage", "Review")).text, /added a ticket since your last update:\n  T06  Ticket 06: One more\nIt is part of this run: work it in order after your current ticket\.$/);
+});
+
+test("an agent new to the run, a command outside Paseo, and a new run hear nothing", async (t) => {
+  const w = await worktree(t);
+  await w.runAs("a", "start", "Run", "--item-label", "Step");
+  await w.runAs("a", "ticket", "add", "First", "--estimate", "30");
+  assert.doesNotMatch((await w.runAs("b", "ticker", "set", "Joining")).text, /Another session/, "b reads show first");
+  assert.doesNotMatch((await w.runAs("b", "show")).text, /Another session/);
+  await w.runAs("b", "ticket", "add", "Second", "--estimate", "30");
+  assert.doesNotMatch((await w.run("ticker", "set", "From a terminal")).text, /Another session/);
+  assert.doesNotMatch((await w.runAs("a", "start", "Next run", "--item-label", "Step")).text, /Another session/);
+  await w.runAs("b", "ticket", "add", "Third", "--estimate", "30");
+  assert.match((await w.runAs("a", "ticker", "set", "Back")).text, /Another session added a step since your last update:\n  T01  Third\nIt is part of this run: work it in order after your current step\.$/);
 });
 
 async function screenshotRun(t: TestContext) {

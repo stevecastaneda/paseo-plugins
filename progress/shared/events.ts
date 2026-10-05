@@ -16,7 +16,8 @@ export type TicketStatus = z.infer<typeof ticketStatusSchema>;
 
 const text = z.string().trim().min(1);
 const minutes = z.number().int().positive().max(100_000);
-const base = { v: z.literal(EVENT_VERSION), ts: z.iso.datetime() };
+// `by` is the Paseo agent that wrote the event, absent when run outside Paseo.
+const base = { v: z.literal(EVENT_VERSION), ts: z.iso.datetime(), by: text.optional() };
 
 export const questionOptionSchema = z.object({
   letter: z.string().regex(/^[A-Z]$/),

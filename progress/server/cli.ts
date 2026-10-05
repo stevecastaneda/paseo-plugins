@@ -4,9 +4,9 @@ import { realpathSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { isSettled, type Dashboard, type NextIds } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, TICKET_STATUSES } from "../shared/events.ts";
-import { appendProgress, InvalidEvent, readProgress, type EventDraft } from "./progress-file.ts";
+import { isSettled, type Dashboard, type NextIds, type Ticket } from "../shared/dashboard.ts";
+import { DELIVERABLE_KINDS, TICKET_STATUSES, type ProgressEvent } from "../shared/events.ts";
+import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
 import { findStore, saveRunCopy } from "./store.ts";
@@ -18,6 +18,8 @@ export interface CliOptions {
   cwd: string;
   now?: () => Date;
   out?: (line: string) => void;
+  // The Paseo agent running the command, recorded on each event it writes.
+  agentId?: string;
 }
 
 class UsageError extends Error {}
@@ -134,6 +136,30 @@ function unfinishedWork(dashboard: Dashboard): string[] {
     tickets.length ? `${label}s not done or skipped: ${tickets.map((ticket) => ticket.id).join(", ")}` : "",
     flagged.length ? `flagged blockers ${flagged.map((item) => item.id).join(", ")} (clear with "stuck clear")` : "",
   ].filter(Boolean);
+}
+
+// Tickets another session added since this agent last wrote to the run, still
+// to do. Nothing until the agent has written to the run: it reads `show` first.
+function addedByOthers(events: ProgressEvent[], dashboard: Dashboard, agentId: string | undefined): Ticket[] {
+  if (!agentId) return [];
+  const since = events.findLastIndex((event) => event.by === agentId);
+  if (since === -1) return [];
+  const added = new Set(events.slice(since + 1).flatMap((event) => (event.type === "ticket.add" && event.by !== agentId ? [event.id] : [])));
+  return dashboard.tickets.filter((ticket) => added.has(ticket.id) && !isSettled(ticket));
+}
+
+function addedByOthersText(tickets: Ticket[], dashboard: Dashboard): string {
+  if (!tickets.length) return "";
+  const label = (dashboard.run?.itemLabel ?? "Ticket").toLowerCase();
+  const one = tickets.length === 1;
+  // Starts with a blank line, to follow the command's own output.
+  return [
+    "",
+    "",
+    `Another session added ${one ? `a ${label}` : `${tickets.length} ${label}s`} since your last update:`,
+    ...tickets.map((ticket) => `  ${ticket.id}  ${ticket.title}`),
+    `${one ? "It is" : "They are"} part of this run: work ${one ? "it" : "them"} in order after your current ${label}.`,
+  ].join("\n");
 }
 
 const commands: Record<string, Command> = {
@@ -466,7 +492,9 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     if (first === "show") {
       const root = findRoot(options.cwd);
       const store = await findStore(root);
-      out(`Worktree: ${root}\n\n${dashboardText((await readProgress(store.directory, now())).dashboard, now().getTime())}`);
+      const { dashboard } = await readProgress(store.directory, now());
+      const added = addedByOthersText(addedByOthers(await readLatestRun(store.directory), dashboard, options.agentId), dashboard);
+      out(`Worktree: ${root}\n\n${dashboardText(dashboard, now().getTime())}${added}`);
       return 0;
     }
     const target = resolve(options.cwd, (argv[1] ?? DEFAULT_LAUNCHER).replace(/^~(?=$|\/)/, homedir()));
@@ -499,7 +527,8 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
       }
       const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root });
-      return { event, result: message };
+      const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
+      return { event: { ...event, by: options.agentId }, result: `${message}${added}` };
     }, (text) => saveRunCopy(root, text));
     out(message);
     return 0;
@@ -522,7 +551,7 @@ function isMain(): boolean {
 }
 
 if (isMain()) {
-  runCli(process.argv.slice(2), { cwd: process.cwd() }).then(
+  runCli(process.argv.slice(2), { cwd: process.cwd(), agentId: process.env.PASEO_AGENT_ID || undefined }).then(
     (code) => { process.exitCode = code; },
     (error) => {
       console.error(error instanceof Error ? error.message : error);

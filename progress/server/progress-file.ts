@@ -4,7 +4,7 @@
 // the panel's RPC handlers go through here, so they agree on how they're read.
 import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { EMPTY_DASHBOARD, parseProgress, reduceProgress, type Dashboard, type NextIds } from "../shared/dashboard.ts";
+import { EMPTY_DASHBOARD, latestRun, parseProgress, reduceProgress, type Dashboard, type NextIds } from "../shared/dashboard.ts";
 import { EVENT_VERSION, eventSchema, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, type ProgressEvent } from "../shared/events.ts";
 import { withLock } from "./lock.ts";
 
@@ -47,21 +47,28 @@ export async function readProgress(directory: string, now = new Date()): Promise
   return { configured: true, dashboard: cached.dashboard, panelOpened };
 }
 
+// The events of the latest run, oldest first.
+export async function readLatestRun(directory: string): Promise<ProgressEvent[]> {
+  return latestRun((await readParsed(directory))?.events ?? []).map(({ event }) => event);
+}
+
 // Appends the one event `write` builds from the file as it is now. Commands
 // that run at once take turns, so each sees the others' events and no two hand
 // out the same id. `write` may throw to append nothing.
 export async function appendProgress<T>(
   directory: string,
   now: () => Date,
-  write: (state: { dashboard: Dashboard; nextIds: NextIds }) => { event: EventDraft; result: T },
+  // `events` is the latest run as it is now, oldest first.
+  write: (state: { dashboard: Dashboard; nextIds: NextIds; events: ProgressEvent[] }) => { event: EventDraft; result: T },
   // Runs before the lock is released, with the whole file as it now is.
   after?: (text: string) => Promise<void>,
 ): Promise<T> {
   await mkdir(directory, { recursive: true });
   return withLock(join(directory, LOCK_NAME), async () => {
     const text = (await readText(directory)) ?? "";
-    const { dashboard, nextIds } = reduceProgress(parseProgress(text), now());
-    const { event, result } = write({ dashboard, nextIds });
+    const parsed = parseProgress(text);
+    const { dashboard, nextIds } = reduceProgress(parsed, now());
+    const { event, result } = write({ dashboard, nextIds, events: latestRun(parsed.events).map((line) => line.event) });
     const checked = eventSchema.safeParse({ v: EVENT_VERSION, ts: now().toISOString(), ...withoutUndefined(event) });
     if (!checked.success) {
       throw new InvalidEvent(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));

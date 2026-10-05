@@ -189,16 +189,18 @@ export function isSettled(ticket: Ticket): boolean {
   return ticket.status === "done" || ticket.status === "skipped";
 }
 
+// The events from the last `run.start` on; earlier runs are ignored.
+export function latestRun(events: ParsedLine[]): ParsedLine[] {
+  const start = events.findLastIndex(({ event }) => event.type === "run.start");
+  return events.slice(Math.max(start, 0));
+}
+
 // Folds the events of the latest run into what the panel shows at `now`, how
 // long that stays true while the events don't change, and the ids new items get.
 // Everything before the last `run.start` belongs to earlier runs and is ignored.
 export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue[] }, now: Date): { dashboard: Dashboard; validUntil: number; nextIds: NextIds } {
   const time = clock(now);
-  let start = 0;
-  parsed.events.forEach(({ event }, index) => {
-    if (event.type === "run.start") start = index;
-  });
-  const events = parsed.events.slice(start);
+  const events = latestRun(parsed.events);
   const issues = [...parsed.issues];
   let run: Dashboard["run"] = null;
   const tickets = new Map<string, Ticket>();
