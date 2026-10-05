@@ -24,6 +24,8 @@ export interface Ticket {
   // Waiting is the order of work, not a problem, so it never counts as stuck.
   waitingFor?: { id: string; title: string };
   waitsFor?: string;
+  // Where the ticket is written up: a spec file or an issue link.
+  source?: FileLink;
   // Every status, stage and note change, starting with when it was added.
   history: TicketChange[];
 }
@@ -231,6 +233,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           workingSince: event.status === "working" ? event.ts : undefined,
           history: [{ at: event.ts, status: event.status ?? "not_started" }],
           waitsFor: event.waitsFor,
+          source: event.source,
         });
         break;
       case "ticket.update": {
@@ -257,6 +260,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         }
         if (event.note !== undefined) ticket.note = event.note || undefined;
         if (event.waitsFor !== undefined) ticket.waitsFor = event.waitsFor || undefined;
+        if (event.source !== undefined) ticket.source = event.source || undefined;
         break;
       }
       case "ticket.remove":

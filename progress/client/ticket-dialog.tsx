@@ -5,7 +5,7 @@ import { Text, View } from "react-native";
 import type { Dashboard, Ticket } from "../shared/dashboard";
 import { formatMinutes } from "../shared/format";
 import { type Link, ticketStory, type TimelineStep } from "../shared/ticket-story";
-import { type Attachment, AttachmentList, deliverableAttachment } from "./attachments";
+import { type Attachment, AttachmentList, deliverableAttachment, ticketSourceAttachment } from "./attachments";
 import { StackedDialog } from "./dialog-stack";
 import { IconSwap } from "./motion";
 import { PressableRow } from "./row";
@@ -49,6 +49,7 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
   }, now);
   const overMin = story.workedMin - ticket.estimateMin;
   const byTime = [...story.questions, ...story.activity].some((item) => item.link === "by-time");
+  const source = ticketSourceAttachment(ticket);
   return (
     <View style={{ gap: 20 }}>
       <View style={{ gap: 6 }}>
@@ -70,6 +71,8 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, onOpenAt
           </View>
         ) : null}
         {ticket.note ? <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{ticket.note}</Text> : null}
+        {/* Where the ticket is written up, after what explains its status: reference, read when needed. */}
+        {source ? <AttachmentList colors={colors} attachments={[source]} onOpen={onOpenAttachment} /> : null}
       </View>
 
       <Section colors={colors} icon="History" title="Timeline">

@@ -39,6 +39,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
     const stage = ticket.status === "working" && ticket.stage ? `, ${ticket.stage} stage` : "";
     const status = ticket.waitingFor ? `Waiting for ${ticket.waitingFor.id}` : STATUS[ticket.status];
     lines.push(`  ${ticket.id}  ${status}${stage}  ${formatEstimate(ticket.estimateMin)}  ${ticket.title}`);
+    if (ticket.source) lines.push(`      Source: ${ticket.source.path ?? ticket.source.url}${ticket.source.label ? ` (${ticket.source.label})` : ""}`);
   }
   if (dashboard.questions.open.length) {
     lines.push("", "Questions waiting");

@@ -5,7 +5,7 @@ import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { isSettled, type Dashboard, type NextIds, type Ticket } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, TICKET_STATUSES, type ProgressEvent } from "../shared/events.ts";
+import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent } from "../shared/events.ts";
 import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
@@ -187,26 +187,27 @@ const commands: Record<string, Command> = {
     },
   },
   "ticket add": {
-    usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--waits-for <id>]`,
-    summary: "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker.",
-    options: { estimate: { type: "string" }, status: { type: "string" }, "waits-for": { type: "string" } },
-    run({ positionals, values, state }) {
+    usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
+    summary: "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker. --source is where the ticket is written up, like its spec file or issue link.",
+    options: { estimate: { type: "string" }, status: { type: "string" }, "waits-for": { type: "string" }, source: { type: "string" } },
+    run({ positionals, values, state, cwd, root }) {
       const waitsFor = values["waits-for"] === undefined ? undefined : existingTicket(state, stringOption(values["waits-for"])).id;
       const title = required(positionals[0], "ticket title");
       const estimateMin = minutesOption(values.estimate, "estimate");
       if (estimateMin === undefined) throw new UsageError("Missing --estimate <minutes>.");
+      const source = values.source === undefined ? undefined : parseFile(String(values.source), cwd, root);
       const id = state.nextIds.ticket;
       return {
-        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor },
-        message: `Added ${id}: ${title} (${estimateMin} min)${waitsFor ? `, waits for ${waitsFor}` : ""}`,
+        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor, source },
+        message: `Added ${id}: ${title} (${estimateMin} min)${waitsFor ? `, waits for ${waitsFor}` : ""}${source ? `, source ${source.path ?? source.url}` : ""}`,
       };
     },
   },
   "ticket update": {
-    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>]`,
-    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that.`,
-    options: { status: { type: "string" }, stage: { type: "string" }, title: { type: "string" }, estimate: { type: "string" }, note: { type: "string" }, "waits-for": { type: "string" } },
-    run({ positionals, values, state }) {
+    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
+    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that. --source is where the ticket is written up ("" clears it).`,
+    options: { status: { type: "string" }, stage: { type: "string" }, title: { type: "string" }, estimate: { type: "string" }, note: { type: "string" }, "waits-for": { type: "string" }, source: { type: "string" } },
+    run({ positionals, values, state, cwd, root }) {
       const ticket = existingTicket(state, positionals[0]);
       const rawWaitsFor = values["waits-for"] === undefined ? undefined : String(values["waits-for"]).trim();
       const waitsFor = rawWaitsFor === undefined || rawWaitsFor === "" ? rawWaitsFor : existingTicket(state, rawWaitsFor).id;
@@ -225,10 +226,12 @@ const commands: Record<string, Command> = {
         stage: stringOption(values.stage),
         note: stringOption(values.note),
         waitsFor,
+        source: values.source === undefined ? undefined : String(values.source).trim() === "" ? "" as const : parseFile(String(values.source), cwd, root),
       };
       const changes = Object.entries(event).filter(([key, value]) => key !== "type" && key !== "id" && value !== undefined);
-      if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, or --waits-for.");
-      return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${value}`).join(", ")}` };
+      if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, --waits-for, or --source.");
+      const shown = (value: unknown) => (typeof value === "object" ? (value as FileLink).path ?? (value as FileLink).url : value);
+      return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${shown(value)}`).join(", ")}` };
     },
   },
   "ticket remove": {

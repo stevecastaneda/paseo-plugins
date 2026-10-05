@@ -55,6 +55,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     status: ticketStatusSchema.optional(),
     // Another ticket in the run this one can't start until it's done.
     waitsFor: text.optional(),
+    // Where the ticket is written up: a spec file or an issue link.
+    source: fileLinkSchema.optional(),
   }),
   z.object({
     ...base,
@@ -68,6 +70,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     note: z.string().trim().optional(),
     // Empty clears it.
     waitsFor: z.string().trim().optional(),
+    // Empty clears it.
+    source: z.union([fileLinkSchema, z.literal("")]).optional(),
   }),
   z.object({ ...base, type: z.literal("ticket.remove"), id: text }),
   // A blocker that is not a ticket status, like a failing external service.

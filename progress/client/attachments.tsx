@@ -6,7 +6,7 @@ import { type Attachment, attachmentIcon, canPreview, shortName } from "../share
 import { PressableRow } from "./row";
 import { openDeliverable } from "../shared/rpc";
 
-export { type Attachment, attachmentIcon, deliverableAttachment, questionAttachments, shortName } from "../shared/attachments";
+export { type Attachment, attachmentIcon, deliverableAttachment, questionAttachments, shortName, ticketSourceAttachment } from "../shared/attachments";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type Navigation = PluginWorkspacePanelProps["navigation"];

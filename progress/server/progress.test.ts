@@ -484,6 +484,28 @@ test("an agent new to the run, a command outside Paseo, and a new run hear nothi
   assert.match((await w.runAs("a", "ticker", "set", "Back")).text, /Another session added a step since your last update:\n  T01  Third\nIt is part of this run: work it in order after your current step\.$/);
 });
 
+test("a ticket links to where it's written up: a file in the worktree or a link, changed or cleared later", async (t) => {
+  const w = await worktree(t);
+  await mkdir(join(w.directory, "specs"));
+  await writeFile(join(w.directory, "specs", "01-login.md"), "# Login\n");
+  await w.run("start", "Run");
+  assert.equal((await w.run("ticket", "add", "Ticket 01: Login", "--estimate", "30", "--source", "specs/01-login.md")).text, "Added T01: Ticket 01: Login (30 min), source specs/01-login.md");
+  await w.run("ticket", "add", "Ticket 02: Reset", "--estimate", "20", "--source", "https://linear.app/acme/issue/ENG-12=ENG-12");
+  await w.run("ticket", "add", "Ticket 03: No write-up", "--estimate", "20");
+  let { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, { url: "https://linear.app/acme/issue/ENG-12", label: "ENG-12" }, undefined]);
+  assert.deepEqual(findAttachment(dashboard, "T01.source"), { ref: "T01.source", title: "01-login.md", path: "specs/01-login.md", url: undefined });
+  assert.equal(findAttachment(dashboard, "T03.source"), null);
+  assert.match((await w.run("show")).text, /T01 .*Ticket 01: Login\n      Source: specs\/01-login.md\n.*T02 .*\n      Source: https:\/\/linear.app\/acme\/issue\/ENG-12 \(ENG-12\)\n.*T03 .*No write-up(\n|$)/);
+
+  assert.deepEqual(await previewDeliverable(w.directory, "T01.source"), { kind: "text", text: "# Login\n", bytes: 8, truncated: false });
+
+  assert.equal((await w.run("ticket", "update", "T03", "--source", "specs/01-login.md=Shared spec")).text, "Updated T03: source specs/01-login.md");
+  await w.run("ticket", "update", "T02", "--source", "");
+  ({ dashboard } = await w.dashboard());
+  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, undefined, { path: "specs/01-login.md", label: "Shared spec" }]);
+});
+
 async function screenshotRun(t: TestContext) {
   const w = await worktree(t);
   await w.run("start", "Loan Options");

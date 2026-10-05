@@ -72,7 +72,8 @@ Run `paseo-progress --help` for every command, and `paseo-progress <command> --h
 
 ```sh
 paseo-progress start "Loan Options snapshots" --subtitle "4 tickets"
-paseo-progress ticket add "Ticket 01: Saved table" --estimate 120      # Added T01
+paseo-progress ticket add "Ticket 01: Saved table" --estimate 120 \
+  --source specs/01-saved-table.md                                     # Added T01
 paseo-progress ticket update T01 --status working --stage Build
 paseo-progress ticket update T01 --stage Fixes
 paseo-progress ticket update T01 --status done
@@ -90,6 +91,7 @@ paseo-progress finish "Snapshots ship for all four tables"
 ```
 
 - Statuses are `not_started`, `working`, `blocked`, `done`, and `skipped`. Skipped tickets leave the totals.
+- `ticket add` and `ticket update` take an optional `--source <path or link>[=<label>]`: where the ticket is written up, like its spec file or issue. It shows under the ticket's status in its dialog and opens like a deliverable. `--source ""` clears it. Tickets without one are fine.
 - A working ticket is stuck once it goes longer than its estimate without an update, timed from its last status, stage or note change, or activity tagged to it. The ticket's dialog still shows total time worked against the estimate.
 - `question ask --waits` marks a question the agent won't act on until you answer. Its default shows in amber.
 - Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image (PNG, JPEG, GIF, WebP, up to 10 MB) or text deliverable (Markdown, text, logs, JSON, YAML, CSV; the first 256 KB) previews it in a dialog inside Paseo, which also works from a phone; **Open** there opens the file in its default app. Pressing any other local deliverable opens it with its default app on the machine running the Paseo daemon (for example HTML in your browser and folders in the file manager). On macOS, **Open** sends text files to your default browser. Only recorded deliverables inside the worktree open this way; otherwise the path is copied. The copy icon on each row copies the path.
