@@ -4,16 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { clientHarness } from '../../test-support/client-harness.mjs';
 const directory = fileURLToPath(new URL('..', import.meta.url));
 
-test('status polling reuses subscribed directories and ignores removed workspace responses', async () => {
+test('status polling reuses the subscribed directory and ignores removed workspace responses', async () => {
   const h = clientHarness(directory);
   let resolveStatus;
   h.client.rpc = () => new Promise((resolve) => { resolveStatus = resolve; });
-  const stop = h.load('client/pills.tsx').contributeClient(h.client);
-  h.agents.bootstrap([{ agent: { id: 'a', workspaceId: 'w' } }]);
+  const stop = h.load('client/buttons.tsx').contributeClient(h.client);
   h.workspaces.bootstrap([{ id: 'w', workspaceKind: 'worktree' }]);
   await h.flush();
   await h.tick(2000);
-  assert.equal(h.agents.calls, 1);
   assert.equal(h.workspaces.calls, 1);
   h.workspaces.update({ kind: 'remove', id: 'w' });
   resolveStatus({ snapshot: { status: 'running' } });
@@ -21,20 +19,19 @@ test('status polling reuses subscribed directories and ignores removed workspace
   assert.equal(h.registrations.length, 0);
   stop();
   assert.equal(h.timers.size, 0);
-  assert.equal(h.agents.listenerCount, 0);
   assert.equal(h.workspaces.listenerCount, 0);
 });
 
-test('a running setup shows a pill that opens a popover, not a tab', async () => {
+test('a running setup shows a top-bar button before the worktree has any agent', async () => {
   const h = clientHarness(directory);
   h.client.rpc = async () => ({ snapshot: { status: 'running', detail: { commands: [], log: '' } } });
-  const stop = h.load('client/pills.tsx').contributeClient(h.client);
-  h.agents.bootstrap([{ agent: { id: 'a', workspaceId: 'w' } }]);
+  const stop = h.load('client/buttons.tsx').contributeClient(h.client);
   h.workspaces.bootstrap([{ id: 'w', workspaceKind: 'worktree' }]);
   await h.flush();
   assert.equal(h.registrations.length, 1);
+  assert.equal(h.registrations[0].placement, 'header');
+  assert.equal(h.registrations[0].workspaceId, 'w');
   assert.equal(h.registrations[0].button.behavior.kind, 'popover');
-  await h.tick(1200);
   assert.equal(h.openedPanels.length, 0, 'setup no longer opens a tab on its own');
   stop();
 });

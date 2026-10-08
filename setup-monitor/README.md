@@ -2,8 +2,8 @@
 
 Paseo 0.9 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.
 
-- Composer pill while setup is running or failed, with the current step and elapsed time.
-- Click the pill for a popover: each setup command with its status and duration, a live log, and the failure reason if it failed. Click a command to see its log.
+- A button in the workspace top bar while setup is running or failed, with the current step and elapsed time. It's there from the moment the worktree opens, before you've sent a message.
+- Click it for a popover: each setup command with its status and duration, a live log, and the failure reason if it failed. Click a command to see its log.
 
 ## Install
 
@@ -30,5 +30,5 @@ paseo plugin reload setup-monitor
 
 Workspace and agent changes arrive through subscriptions rather than repeated
 list requests. Setup status refreshes every two seconds while the plugin is
-active. Each workspace has at most one pending status request, and its pill
-icon and popover share that result instead of making separate requests.
+active. Each workspace has at most one pending status request, and its button
+and popover share that result instead of making separate requests.

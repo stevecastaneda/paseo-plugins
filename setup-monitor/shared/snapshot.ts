@@ -4,7 +4,7 @@ const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const MAX_LOG_CHARS = 8_000;
-const MAX_PILL_LINE = 48;
+const MAX_BUTTON_LINE = 48;
 
 export function formatDuration(ms: number): string {
   const elapsed = Math.max(0, Math.floor(ms));
@@ -67,8 +67,8 @@ export function lastUsefulLogLine(log: string): string | null {
     if (!line) continue;
     if (line.length > 120) continue;
     if (/^[|*\-.\s]+$/.test(line)) continue;
-    if (line.length <= MAX_PILL_LINE) return line;
-    return `${line.slice(0, MAX_PILL_LINE - 1)}…`;
+    if (line.length <= MAX_BUTTON_LINE) return line;
+    return `${line.slice(0, MAX_BUTTON_LINE - 1)}…`;
   }
   return null;
 }
@@ -97,7 +97,7 @@ export function liveLog(snapshot: SetupSnapshot): string {
   return snapshot.detail.log;
 }
 
-export function shouldShowPill(snapshot: SetupSnapshot | null): boolean {
+export function shouldShowButton(snapshot: SetupSnapshot | null): boolean {
   return snapshot?.status === "running" || snapshot?.status === "failed";
 }
 
@@ -107,8 +107,8 @@ export function statusIconName(status: SetupStatus): "Check" | "X" | "Package" {
   return "Package";
 }
 
-export function pillLabel(snapshot: SetupSnapshot | null, elapsedMs: number): string | null {
-  if (!snapshot || !shouldShowPill(snapshot)) return null;
+export function buttonLabel(snapshot: SetupSnapshot | null, elapsedMs: number): string | null {
+  if (!snapshot || !shouldShowButton(snapshot)) return null;
   const elapsed = formatDuration(elapsedMs);
   if (snapshot.status === "failed") return "setup failed";
   const running = runningCommand(snapshot.detail.commands);

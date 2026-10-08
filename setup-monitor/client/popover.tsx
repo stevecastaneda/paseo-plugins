@@ -45,7 +45,7 @@ function defaultCommandIndex(commands: readonly SetupCommand[]): number | null {
   return command?.index ?? null;
 }
 
-/** Popover body for the composer pill: overall status, each command, and one log. */
+/** Popover body for the top-bar setup button: overall status, each command, and one log. */
 export function SetupPopover({
   theme,
   snapshot,

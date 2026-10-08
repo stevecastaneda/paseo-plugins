@@ -8,11 +8,11 @@ import {
   headline,
   lastUsefulLogLine,
   liveLog,
-  pillLabel,
+  buttonLabel,
   processCarriageReturns,
   relativeCwd,
   shortCommand,
-  shouldShowPill,
+  shouldShowButton,
   statusIconName,
   trimLog,
   trimSnapshot,
@@ -92,19 +92,19 @@ test("statusIconName maps terminal states", () => {
   assert.equal(statusIconName("failed"), "X");
 });
 
-test("pillLabel hides completed setup and names a live install", () => {
-  assert.equal(shouldShowPill(null), false);
-  assert.equal(pillLabel(null, 12_000), null);
+test("buttonLabel hides completed setup and names a live install", () => {
+  assert.equal(shouldShowButton(null), false);
+  assert.equal(buttonLabel(null, 12_000), null);
   assert.equal(
-    pillLabel(snapshot({ status: "completed", commands: [command({ command: "npm ci", status: "completed" })] }), 12_000),
+    buttonLabel(snapshot({ status: "completed", commands: [command({ command: "npm ci", status: "completed" })] }), 12_000),
     null,
   );
   assert.equal(
-    pillLabel(snapshot({ status: "failed", error: "boom" }), 12_000),
+    buttonLabel(snapshot({ status: "failed", error: "boom" }), 12_000),
     "setup failed",
   );
   assert.equal(
-    pillLabel(
+    buttonLabel(
       snapshot({
         status: "running",
         log: "Installing dependencies...",
