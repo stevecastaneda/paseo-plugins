@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-setup-monitor",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Live worktree setup progress and logs in Paseo Explorer.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -28,7 +28,6 @@
     "client/",
     "server/",
     "shared/",
-    "explorer.png",
     "tsconfig.json",
     "!**/*.test.ts"
   ],
