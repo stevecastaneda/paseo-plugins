@@ -18,3 +18,13 @@ export const getLinks = defineRpc({
   input: workspaceInput,
   output: z.object({ links: linksSchema, configured: z.boolean() }),
 });
+
+export const linkStatusSchema = z.enum(["up", "down"]);
+export type LinkStatus = z.infer<typeof linkStatusSchema>;
+
+/** Whether each link in the workspace's file answers, in file order. */
+export const getLinkStatus = defineRpc({
+  name: "workspace-links.status",
+  input: workspaceInput,
+  output: z.object({ statuses: z.array(linkStatusSchema) }),
+});

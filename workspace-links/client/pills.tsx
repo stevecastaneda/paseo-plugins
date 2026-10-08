@@ -1,17 +1,16 @@
 import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import type {
   PluginButton,
+  PluginButtonContentProps,
   PluginButtonIconProps,
-  PluginButtonMenuEntry,
   PluginButtonRegistration,
   PluginClientContext,
 } from "@getpaseo/plugin/client";
-import { openExternalUrl, useWorkspace } from "@getpaseo/plugin/client";
-import { subscribeLinks } from "./links-state";
+import { useWorkspace } from "@getpaseo/plugin/client";
 import { observeDirectory } from "./directory";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useLinks } from "./links-query";
-import { linksMenuEntries, linksMenuKey, type WorkspaceLink } from "../shared/menu";
+import { LinksPopover } from "./popover";
 import {
   defaultShortcut,
   getShortcutSettings,
@@ -53,65 +52,13 @@ export function setShortcut(patch: Partial<ShortcutSettings>) {
   notify();
 }
 
-type WorkspaceLinksState = {
-  directory?: string;
-  links: WorkspaceLink[];
-};
-
-function toPluginMenuItems(
-  client: PluginClientContext,
-  workspaceId: string,
-  directory: string | undefined,
-  links: readonly WorkspaceLink[],
-): PluginButtonMenuEntry[] {
-  return linksMenuEntries(links).map((entry) => {
-    if (entry.kind === "separator") return { kind: "separator", id: entry.id };
-    if (entry.action === "manage") {
-      return {
-        kind: "item",
-        id: entry.id,
-        title: entry.title,
-        icon: entry.icon,
-        behavior: {
-          kind: "action",
-          onPress() {
-            client.openPanel("links", { workspaceId, location: "explorer" });
-          },
-        },
-      };
-    }
-    return {
-      kind: "item",
-      id: entry.id,
-      title: entry.title,
-      icon: entry.icon,
-      disabled: !directory,
-      behavior: {
-        kind: "action",
-        async onPress() {
-          if (!directory) return;
-          await openExternalUrl(entry.url);
-        },
-      },
-    };
-  });
-}
-
-function linksButton(
-  client: PluginClientContext,
-  workspaceId: string,
-  showLabel: boolean,
-  state: WorkspaceLinksState | undefined,
-): PluginButton {
+function linksButton(behavior: PluginButton["behavior"], showLabel: boolean): PluginButton {
   const label = headerButtonLabel(showLabel);
   return {
     title: "Workspace Links",
     icon: LinksIcon,
     ...(label ? { label } : {}),
-    behavior: {
-      kind: "menu",
-      items: toPluginMenuItems(client, workspaceId, state?.directory, state?.links ?? []),
-    },
+    behavior,
   };
 }
 
@@ -123,22 +70,23 @@ export function contributeClient(client: PluginClientContext) {
   let agents = new Map<string, string>();
   const workspaces = new Map<string, string>();
   const agentsByWorkspace = new Map<string, string[]>();
-  const linksByWorkspace = new Map<string, WorkspaceLinksState>();
-  const pills = new Map<string, { workspaceId: string; menuKey: string; pill: PluginButtonRegistration }>();
-  const headers = new Map<string, { showLabel: boolean; menuKey: string; button: PluginButtonRegistration }>();
+  const pills = new Map<string, { workspaceId: string; pill: PluginButtonRegistration }>();
+  const headers = new Map<string, { showLabel: boolean; button: PluginButtonRegistration }>();
   let stopped = false;
 
-  const stateFor = (workspaceId: string): WorkspaceLinksState | undefined => {
-    const cached = linksByWorkspace.get(workspaceId);
-    if (cached) return cached;
-    const directory = workspaces.get(workspaceId);
-    return directory ? { directory, links: [] } : undefined;
-  };
+  // The popover reads links itself, so the button never needs rebuilding when they change.
+  function Content(props: PluginButtonContentProps) {
+    return (
+      <LinksPopover
+        {...props}
+        onManage={() => client.openPanel("links", { workspaceId: props.workspaceId, location: "explorer" })}
+      />
+    );
+  }
+  const popover: PluginButton["behavior"] = { kind: "popover", Content };
 
   const publishWorkspace = (workspaceId: string) => {
     const shortcut = getShortcut();
-    const state = stateFor(workspaceId);
-    const menuKey = linksMenuKey(state?.directory, state?.links ?? []);
 
     for (const agentId of agentsByWorkspace.get(workspaceId) ?? []) {
       const existing = pills.get(agentId);
@@ -149,20 +97,15 @@ export function contributeClient(client: PluginClientContext) {
         }
         continue;
       }
-      if (existing && existing.workspaceId === workspaceId && existing.menuKey === menuKey) continue;
-      if (existing && existing.workspaceId === workspaceId) {
-        existing.pill.update({ behavior: linksButton(client, workspaceId, true, state).behavior });
-        existing.menuKey = menuKey;
-        continue;
-      }
+      if (existing && existing.workspaceId === workspaceId) continue;
       existing?.pill.remove();
       const pill = client.addComposerPill({
         id: "workspace-links",
         workspaceId,
         agentId,
-        button: linksButton(client, workspaceId, true, state),
+        button: linksButton(popover, true),
       });
-      pills.set(agentId, { workspaceId, menuKey, pill });
+      pills.set(agentId, { workspaceId, pill });
     }
 
     const header = headers.get(workspaceId);
@@ -176,19 +119,15 @@ export function contributeClient(client: PluginClientContext) {
     if (header && header.showLabel !== shortcut.headerShowsLabel) {
       header.button.remove();
       headers.delete(workspaceId);
-    } else if (header && header.menuKey !== menuKey) {
-      header.button.update({ behavior: linksButton(client, workspaceId, shortcut.headerShowsLabel, state).behavior });
-      header.menuKey = menuKey;
-      return;
     } else if (header) {
       return;
     }
     const button = client.addHeaderButton({
       id: "workspace-links",
       workspaceId,
-      button: linksButton(client, workspaceId, shortcut.headerShowsLabel, state),
+      button: linksButton(popover, shortcut.headerShowsLabel),
     });
-    headers.set(workspaceId, { showLabel: shortcut.headerShowsLabel, menuKey, button });
+    headers.set(workspaceId, { showLabel: shortcut.headerShowsLabel, button });
   };
 
   const sync = () => {
@@ -234,35 +173,20 @@ export function contributeClient(client: PluginClientContext) {
       sync();
     },
   });
-  const refreshWorkspace = (workspaceId: string, directory: string) => {
-    if (workspaces.get(workspaceId) === directory) return;
-    workspaces.set(workspaceId, directory);
-    linksByWorkspace.delete(workspaceId);
-  };
   const stopWorkspaces = observeDirectory({
     list: (options) => client.paseo.workspaces.list(options),
     select: (message) => message.type === "workspace_update" ? message.payload : undefined,
     snapshot: (entries) => {
       const ids = new Set(entries.map((workspace) => workspace.id));
-      for (const id of workspaces.keys()) if (!ids.has(id)) {
-        workspaces.delete(id);
-        linksByWorkspace.delete(id);
-      }
-      for (const workspace of entries) refreshWorkspace(workspace.id, workspaceDirectory(workspace));
+      for (const id of workspaces.keys()) if (!ids.has(id)) workspaces.delete(id);
+      for (const workspace of entries) workspaces.set(workspace.id, workspaceDirectory(workspace));
       sync();
     },
     update: (update: PaseoWorkspaceUpdate) => {
-      if (update.kind === "remove") {
-        workspaces.delete(update.id);
-        linksByWorkspace.delete(update.id);
-      } else refreshWorkspace(update.workspace.id, workspaceDirectory(update.workspace));
+      if (update.kind === "remove") workspaces.delete(update.id);
+      else workspaces.set(update.workspace.id, workspaceDirectory(update.workspace));
       sync();
     },
-  });
-  const stopLinks = subscribeLinks((workspaceId, directory, links) => {
-    if (stopped || workspaces.get(workspaceId) !== directory) return;
-    linksByWorkspace.set(workspaceId, { directory, links });
-    publishWorkspace(workspaceId);
   });
   const initialSettings = settings;
   void client.rpc(getShortcutSettings, {}).then((next) => {
@@ -272,7 +196,6 @@ export function contributeClient(client: PluginClientContext) {
     stopped = true;
     stopAgents();
     stopWorkspaces();
-    stopLinks();
     listeners.delete(sync);
     for (const { pill } of pills.values()) pill.remove();
     pills.clear();

@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-workspace-links",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Quick access to workspace URLs from a JSON file, in Paseo.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -22,6 +22,7 @@
   },
   "files": [
     "paseo-plugin.json",
+    "OVERVIEW.md",
     "npm-shrinkwrap.json",
     "index.client.tsx",
     "index.server.ts",

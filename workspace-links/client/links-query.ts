@@ -1,9 +1,7 @@
-import { useEffect } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
 import { useQuery } from "@tanstack/react-query";
 import type { RpcOutput } from "@getpaseo/plugin";
-import { getLinks } from "../shared/links";
-import { publishLinks } from "./links-state";
+import { getLinks, getLinkStatus } from "../shared/links";
 
 type FetchLinks = (input: { workspaceId: string; workspaceDirectory: string }) => Promise<RpcOutput<typeof getLinks>>;
 
@@ -19,9 +17,16 @@ export function linksQueryOptions(fetchLinks: FetchLinks, hostId: string, worksp
 
 export function useLinks(hostId: string, workspaceId: string, directory: string | null) {
   const fetchLinks = useRpc(getLinks);
-  const query = useQuery(linksQueryOptions(fetchLinks, hostId, workspaceId, directory));
-  useEffect(() => {
-    if (directory && query.data) publishLinks(workspaceId, directory, query.data.links);
-  }, [workspaceId, directory, query.data]);
-  return query;
+  return useQuery(linksQueryOptions(fetchLinks, hostId, workspaceId, directory));
+}
+
+/** Polls whether each link answers, only while something on screen is showing it. */
+export function useLinkStatus(hostId: string, workspaceId: string, directory: string | null) {
+  const fetchStatus = useRpc(getLinkStatus);
+  return useQuery({
+    queryKey: ["workspace-links", "status", hostId, workspaceId, directory],
+    queryFn: () => fetchStatus({ workspaceId, workspaceDirectory: directory! }),
+    enabled: Boolean(directory),
+    refetchInterval: 5_000,
+  });
 }
