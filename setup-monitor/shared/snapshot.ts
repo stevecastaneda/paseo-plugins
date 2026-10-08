@@ -75,19 +75,30 @@ export function completedDurationMs(commands: readonly SetupCommand[]): number {
   return total;
 }
 
-export function shouldShowButton(snapshot: SetupSnapshot | null): boolean {
-  return snapshot?.status === "running" || snapshot?.status === "failed";
+/**
+ * Running setup always shows. A finished one stays, with its check or alert,
+ * until it is dismissed; a success only shows if this session watched it run,
+ * so worktrees set up long ago stay quiet.
+ */
+export function shouldShowButton(
+  snapshot: SetupSnapshot | null,
+  seen: { sawRunning: boolean; dismissed: boolean } = { sawRunning: false, dismissed: false },
+): boolean {
+  if (snapshot?.status === "running") return true;
+  if (seen.dismissed) return false;
+  if (snapshot?.status === "failed") return true;
+  return snapshot?.status === "completed" && seen.sawRunning;
 }
 
-export function statusIconName(status: SetupStatus): "Check" | "X" | "Package" {
-  if (status === "completed") return "Check";
-  if (status === "failed") return "X";
+export function statusIconName(status: SetupStatus): "CircleCheck" | "CircleAlert" | "Package" {
+  if (status === "completed") return "CircleCheck";
+  if (status === "failed") return "CircleAlert";
   return "Package";
 }
 
 /** Short enough for the top bar: the current step lives in the popover. */
 export function buttonLabel(snapshot: SetupSnapshot | null, elapsedMs: number): string | null {
-  if (!snapshot || !shouldShowButton(snapshot)) return null;
+  if (!snapshot) return null;
   if (snapshot.status === "failed") return "Setup failed";
   return `Setup ${formatDuration(elapsedMs)}`;
 }

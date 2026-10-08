@@ -32,9 +32,9 @@ const MONO =
       : "Menlo";
 
 function StatusIcon({ status, colors }: { status: SetupStatus; colors: Colors }) {
-  if (status === "running") return <ActivityIndicator size={14} color={colors.foregroundMuted} />;
+  if (status === "running") return <ActivityIndicator size={14} color={colors.accent} />;
   if (status === "completed") {
-    return <Icon name="CheckCircle2" size={14} color={colors.statusSuccess} />;
+    return <Icon name="CircleCheck" size={14} color={colors.statusSuccess} />;
   }
   return <Icon name="CircleAlert" size={14} color={colors.statusDanger} />;
 }
@@ -50,10 +50,12 @@ export function SetupPopover({
   theme,
   snapshot,
   runningSinceMs,
+  onDismiss,
 }: {
   theme: PluginTheme;
   snapshot: SetupSnapshot | null;
   runningSinceMs: number | null;
+  onDismiss(): void;
 }) {
   const { colors } = theme;
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -96,7 +98,13 @@ export function SetupPopover({
   }
 
   const elapsedMs = running && runningSinceMs ? Math.max(0, nowMs - runningSinceMs) : 0;
-  const title = snapshot.status === "failed" ? "Setup failed" : headline(snapshot);
+  // The command line below names the step, so the title only says where setup is.
+  const title =
+    snapshot.status === "failed"
+      ? "Setup failed"
+      : snapshot.status === "running"
+        ? "Setting up worktree"
+        : headline(snapshot);
   const showError =
     snapshot.status === "failed" &&
     Boolean(snapshot.error?.trim()) &&
@@ -154,10 +162,6 @@ export function SetupPopover({
             );
           })}
         </View>
-      ) : selected ? (
-        <Text style={styles.singleCommand} numberOfLines={2}>
-          {selected.command}
-        </Text>
       ) : null}
 
       {showError ? (
@@ -169,11 +173,31 @@ export function SetupPopover({
       {snapshot.status === "completed" && commands.length === 0 && !log ? (
         <Text style={styles.muted}>No setup commands ran in this worktree.</Text>
       ) : (
-        <ScrollView ref={logRef} style={styles.logBox} contentContainerStyle={styles.logPad}>
-          <Text style={log ? styles.log : styles.muted} selectable>
-            {log || "No output yet."}
-          </Text>
-        </ScrollView>
+        <View style={styles.logGroup}>
+          {commands.length === 1 && selected ? (
+            <Text style={styles.singleCommand} numberOfLines={2}>
+              {selected.command}
+            </Text>
+          ) : null}
+          <ScrollView ref={logRef} style={styles.logBox} contentContainerStyle={styles.logPad}>
+            <Text style={log ? styles.log : styles.muted} selectable>
+              {log || "No output yet."}
+            </Text>
+          </ScrollView>
+        </View>
+      )}
+
+      {running ? null : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onDismiss}
+          style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
+            styles.dismiss,
+            hovered || pressed ? styles.dismissActive : null,
+          ]}
+        >
+          <Text style={styles.dismissLabel}>Dismiss</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -228,6 +252,7 @@ function makeStyles(colors: Colors) {
       fontVariant: ["tabular-nums"],
       flexShrink: 0,
     } satisfies TextStyle,
+    logGroup: { gap: 6 } satisfies ViewStyle,
     logBox: {
       height: LOG_HEIGHT,
       borderRadius: 6,
@@ -242,6 +267,18 @@ function makeStyles(colors: Colors) {
       lineHeight: 18,
       fontFamily: MONO,
     } satisfies TextStyle,
+    dismiss: {
+      alignSelf: "flex-end",
+      height: 28,
+      paddingHorizontal: 12,
+      justifyContent: "center",
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface1,
+    } satisfies ViewStyle,
+    dismissActive: { backgroundColor: colors.surface2 } satisfies ViewStyle,
+    dismissLabel: { color: colors.foreground, fontSize: 13, fontWeight: "500" } satisfies TextStyle,
     error: { color: colors.statusDanger, fontSize: 12, lineHeight: 18 } satisfies TextStyle,
   };
 }

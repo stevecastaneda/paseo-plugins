@@ -35,3 +35,18 @@ test('a running setup shows a top-bar button before the worktree has any agent',
   assert.equal(h.openedPanels.length, 0, 'setup no longer opens a tab on its own');
   stop();
 });
+
+test('a finished setup keeps its button until dismissed', async () => {
+  const h = clientHarness(directory);
+  let status = 'running';
+  h.client.rpc = async () => ({ snapshot: { status, detail: { commands: [], log: '' }, error: null } });
+  const stop = h.load('client/buttons.tsx').contributeClient(h.client);
+  h.workspaces.bootstrap([{ id: 'w', workspaceKind: 'worktree' }]);
+  await h.flush();
+  status = 'completed';
+  await h.tick(2000);
+  await h.flush();
+  assert.equal(h.registrations.length, 1);
+  assert.equal(h.registrations[0].removed, false, 'the check stays after setup finishes');
+  stop();
+});

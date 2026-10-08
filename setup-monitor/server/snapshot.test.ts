@@ -77,32 +77,28 @@ test("shortCommand prefers the package-manager verb", () => {
 
 test("statusIconName maps terminal states", () => {
   assert.equal(statusIconName("running"), "Package");
-  assert.equal(statusIconName("completed"), "Check");
-  assert.equal(statusIconName("failed"), "X");
+  assert.equal(statusIconName("completed"), "CircleCheck");
+  assert.equal(statusIconName("failed"), "CircleAlert");
 });
 
-test("buttonLabel hides completed setup and stays short while it runs", () => {
+test("a finished setup stays until dismissed, and only if this session saw it run", () => {
+  const done = snapshot({ status: "completed", commands: [command({ command: "npm ci", status: "completed" })] });
+  const failed = snapshot({ status: "failed", error: "boom" });
+  const running = snapshot({ status: "running" });
   assert.equal(shouldShowButton(null), false);
+  assert.equal(shouldShowButton(running, { sawRunning: false, dismissed: true }), true);
+  assert.equal(shouldShowButton(done, { sawRunning: true, dismissed: false }), true);
+  assert.equal(shouldShowButton(done, { sawRunning: false, dismissed: false }), false, "old worktrees stay quiet");
+  assert.equal(shouldShowButton(done, { sawRunning: true, dismissed: true }), false);
+  assert.equal(shouldShowButton(failed, { sawRunning: false, dismissed: false }), true);
+  assert.equal(shouldShowButton(failed, { sawRunning: false, dismissed: true }), false);
+});
+
+test("buttonLabel stays short", () => {
   assert.equal(buttonLabel(null, 12_000), null);
-  assert.equal(
-    buttonLabel(snapshot({ status: "completed", commands: [command({ command: "npm ci", status: "completed" })] }), 12_000),
-    null,
-  );
-  assert.equal(
-    buttonLabel(snapshot({ status: "failed", error: "boom" }), 12_000),
-    "Setup failed",
-  );
-  assert.equal(
-    buttonLabel(
-      snapshot({
-        status: "running",
-        log: "Installing dependencies...",
-        commands: [command({ command: "./scripts/worktree-setup.sh", status: "running", log: "Installing dependencies..." })],
-      }),
-      72_000,
-    ),
-    "Setup 1m 12s",
-  );
+  assert.equal(buttonLabel(snapshot({ status: "failed", error: "boom" }), 12_000), "Setup failed");
+  assert.equal(buttonLabel(snapshot({ status: "running" }), 72_000), "Setup 1m 12s");
+  assert.equal(buttonLabel(snapshot({ status: "completed" }), 72_000), "Setup 1m 12s");
 });
 
 test("headline and commandLabel describe the current step", () => {

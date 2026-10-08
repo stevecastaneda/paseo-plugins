@@ -11,7 +11,12 @@ import React, { useSyncExternalStore } from "react";
 import { ActivityIndicator } from "react-native";
 import type { SetupSnapshot } from "../shared/setup";
 import { getSetupStatus } from "../shared/setup";
-import { buttonLabel, shouldShowButton, statusIconName } from "../shared/snapshot";
+import {
+  buttonLabel,
+  completedDurationMs,
+  shouldShowButton,
+  statusIconName,
+} from "../shared/snapshot";
 import { SetupPopover } from "./popover";
 
 export function contributeClient(client: PluginClientContext) {
@@ -37,29 +42,42 @@ export function contributeClient(client: PluginClientContext) {
     const { theme, workspaceId, size, color } = props;
     const snapshot = useSnapshot(workspaceId);
     if (snapshot?.status === "running") {
-      return <ActivityIndicator size={size} color={color} />;
+      return <ActivityIndicator size={size} color={theme.colors.accent} />;
     }
     return (
       <Icon
         name={snapshot ? statusIconName(snapshot.status) : "Package"}
         size={size}
-        color={snapshot?.status === "failed" ? theme.colors.statusDanger : color}
+        color={
+          snapshot?.status === "failed"
+            ? theme.colors.statusDanger
+            : snapshot?.status === "completed"
+              ? theme.colors.statusSuccess
+              : color
+        }
       />
     );
   }
 
-  function SetupContent({ theme, workspaceId }: PluginButtonContentProps) {
+  function SetupContent({ theme, workspaceId, close }: PluginButtonContentProps) {
     const snapshot = useSnapshot(workspaceId);
     return (
       <SetupPopover
         theme={theme}
         snapshot={snapshot}
         runningSinceMs={runningSince.get(workspaceId) ?? null}
+        onDismiss={() => {
+          close();
+          dismiss(workspaceId);
+        }}
       />
     );
   }
 
   const runningSince = new Map<string, number>();
+  const tookMs = new Map<string, number>();
+  const sawRunning = new Set<string>();
+  const dismissed = new Set<string>();
   let stopped = false;
   let dataTimer: ReturnType<typeof setTimeout> | undefined;
   const worktreeIds = new Set<string>();
@@ -76,6 +94,14 @@ export function contributeClient(client: PluginClientContext) {
     snapshots.delete(workspaceId);
     for (const listener of snapshotListeners.get(workspaceId) ?? []) listener();
     runningSince.delete(workspaceId);
+    tookMs.delete(workspaceId);
+    sawRunning.delete(workspaceId);
+    dismissed.delete(workspaceId);
+  };
+
+  const dismiss = (workspaceId: string) => {
+    dismissed.add(workspaceId);
+    publishButtons();
   };
 
   const rememberSnapshot = (workspaceId: string, snapshot: SetupSnapshot | null) => {
@@ -84,8 +110,14 @@ export function contributeClient(client: PluginClientContext) {
       for (const listener of snapshotListeners.get(workspaceId) ?? []) listener();
     }
     if (snapshot?.status === "running") {
+      // A rerun shows again even after the last result was dismissed.
       if (!runningSince.has(workspaceId)) runningSince.set(workspaceId, Date.now());
+      sawRunning.add(workspaceId);
+      dismissed.delete(workspaceId);
+      tookMs.delete(workspaceId);
     } else {
+      const since = runningSince.get(workspaceId);
+      if (since !== undefined) tookMs.set(workspaceId, Date.now() - since);
       runningSince.delete(workspaceId);
     }
   };
@@ -95,13 +127,16 @@ export function contributeClient(client: PluginClientContext) {
     const now = Date.now();
     for (const workspaceId of worktreeIds) {
       const snapshot = snapshots.get(workspaceId) ?? null;
-      if (!shouldShowButton(snapshot)) {
+      const seen = { sawRunning: sawRunning.has(workspaceId), dismissed: dismissed.has(workspaceId) };
+      if (!shouldShowButton(snapshot, seen)) {
         remove(workspaceId);
         continue;
       }
       const since = runningSince.get(workspaceId);
       const elapsedMs =
-        snapshot?.status === "running" && since ? Math.max(0, now - since) : 0;
+        snapshot?.status === "running" && since
+          ? Math.max(0, now - since)
+          : completedDurationMs(snapshot?.detail.commands ?? []) || (tookMs.get(workspaceId) ?? 0);
       const label = buttonLabel(snapshot, elapsedMs) ?? "Setup";
       const current = buttons.get(workspaceId);
       if (!current) {

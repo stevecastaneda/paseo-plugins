@@ -2,7 +2,7 @@
 
 Paseo 0.9 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.
 
-- A button in the workspace top bar while setup is running or failed, with the current step and elapsed time. It's there from the moment the worktree opens, before you've sent a message.
+- A button in the workspace top bar from the moment the worktree opens, before you've sent a message: a spinner and elapsed time while setup runs, then a green check or a red alert. It stays until you dismiss it from the popover.
 - Click it for a popover: each setup command with its status and duration, a live log, and the failure reason if it failed. Click a command to see its log.
 
 ## Install
