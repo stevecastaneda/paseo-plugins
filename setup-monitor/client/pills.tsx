@@ -1,6 +1,7 @@
 import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import { observeDirectory } from "./directory";
 import {
+  type PluginButtonContentProps,
   type PluginButtonIconProps,
   type PluginButtonRegistration,
   type PluginClientContext,
@@ -11,18 +12,14 @@ import { ActivityIndicator } from "react-native";
 import type { SetupSnapshot } from "../shared/setup";
 import { getSetupStatus } from "../shared/setup";
 import { pillLabel, shouldShowPill, statusIconName } from "../shared/snapshot";
-
-const EXPLORER = { location: "explorer" as const };
-const CHAT_SEED_MS = 1_200;
+import { SetupPopover } from "./popover";
 
 export function contributeClient(client: PluginClientContext) {
   const pills = new Map<string, { workspaceId: string; label: string; pill: PluginButtonRegistration }>();
   const snapshots = new Map<string, SetupSnapshot | null>();
   const snapshotListeners = new Map<string, Set<() => void>>();
-  function SetupIcon(props: PluginButtonIconProps) {
-    if (props.context !== "agent") return null;
-    const { theme, workspaceId, size, color } = props;
-    const snapshot = useSyncExternalStore(
+  const useSnapshot = (workspaceId: string) =>
+    useSyncExternalStore(
       (listener) => {
         const listeners = snapshotListeners.get(workspaceId) ?? new Set<() => void>();
         listeners.add(listener);
@@ -34,6 +31,10 @@ export function contributeClient(client: PluginClientContext) {
       },
       () => snapshots.get(workspaceId) ?? null,
     );
+  function SetupIcon(props: PluginButtonIconProps) {
+    if (props.context !== "agent") return null;
+    const { theme, workspaceId, size, color } = props;
+    const snapshot = useSnapshot(workspaceId);
     if (snapshot?.status === "running") {
       return <ActivityIndicator size="small" color={theme.colors.accent} />;
     }
@@ -46,9 +47,18 @@ export function contributeClient(client: PluginClientContext) {
     );
   }
 
+  function SetupContent({ theme, workspaceId }: PluginButtonContentProps) {
+    const snapshot = useSnapshot(workspaceId);
+    return (
+      <SetupPopover
+        theme={theme}
+        snapshot={snapshot}
+        runningSinceMs={runningSince.get(workspaceId) ?? null}
+      />
+    );
+  }
+
   const runningSince = new Map<string, number>();
-  const autoOpened = new Set<string>();
-  const scheduled = new Map<string, ReturnType<typeof setTimeout>>();
   let lastAgents: Array<{ id: string; workspaceId?: string | null }> = [];
   let stopped = false;
   let dataTimer: ReturnType<typeof setTimeout> | undefined;
@@ -63,35 +73,9 @@ export function contributeClient(client: PluginClientContext) {
 
   const forgetWorkspace = (workspaceId: string) => {
     pending.delete(workspaceId);
-    autoOpened.delete(workspaceId);
     snapshots.delete(workspaceId);
     for (const listener of snapshotListeners.get(workspaceId) ?? []) listener();
     runningSince.delete(workspaceId);
-    const scheduledId = scheduled.get(workspaceId);
-    if (scheduledId) {
-      clearTimeout(scheduledId);
-      scheduled.delete(workspaceId);
-    }
-  };
-
-  const openSetupInExplorer = (workspaceId: string) => {
-    try {
-      client.openPanel("setup", { workspaceId, ...EXPLORER });
-    } catch {
-      // Compact hosts have no Explorer pane.
-    }
-  };
-
-  const scheduleSetupTab = (workspaceId: string, snapshot: SetupSnapshot | null) => {
-    if (snapshot?.status !== "running") return;
-    if (autoOpened.has(workspaceId) || scheduled.has(workspaceId)) return;
-    const scheduledId = setTimeout(() => {
-      scheduled.delete(workspaceId);
-      if (stopped || autoOpened.has(workspaceId)) return;
-      autoOpened.add(workspaceId);
-      openSetupInExplorer(workspaceId);
-    }, CHAT_SEED_MS);
-    scheduled.set(workspaceId, scheduledId);
   };
 
   const rememberSnapshot = (workspaceId: string, snapshot: SetupSnapshot | null) => {
@@ -135,12 +119,7 @@ export function contributeClient(client: PluginClientContext) {
             title: "Worktree setup",
             icon: SetupIcon,
             label,
-            behavior: {
-              kind: "action",
-              onPress() {
-                client.openPanel("setup", { workspaceId, ...EXPLORER });
-              },
-            },
+            behavior: { kind: "popover", Content: SetupContent },
           },
         });
         pills.set(agent.id, { workspaceId, label, pill });
@@ -162,7 +141,6 @@ export function contributeClient(client: PluginClientContext) {
       const { snapshot } = await client.rpc(getSetupStatus, { workspaceId });
       if (stopped || !worktreeIds.has(workspaceId) || pending.get(workspaceId) !== request) return;
       rememberSnapshot(workspaceId, snapshot);
-      scheduleSetupTab(workspaceId, snapshot);
       publishPills();
     } catch { /* Retry on the next status refresh. */ }
     finally { if (pending.get(workspaceId) === request) pending.delete(workspaceId); }
@@ -221,8 +199,6 @@ export function contributeClient(client: PluginClientContext) {
     unsubscribeAgents();
     if (dataTimer) clearTimeout(dataTimer);
     if (labelTimer) clearInterval(labelTimer);
-    for (const id of scheduled.values()) clearTimeout(id);
-    scheduled.clear();
     for (const { pill } of pills.values()) pill.remove();
     pills.clear();
   };

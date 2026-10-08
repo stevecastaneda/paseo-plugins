@@ -19,9 +19,22 @@ test('status polling reuses subscribed directories and ignores removed workspace
   resolveStatus({ snapshot: { status: 'running' } });
   await h.flush();
   assert.equal(h.registrations.length, 0);
-  assert.equal([...h.timers.values()].some((timer) => timer.delay === 1200), false);
   stop();
   assert.equal(h.timers.size, 0);
   assert.equal(h.agents.listenerCount, 0);
   assert.equal(h.workspaces.listenerCount, 0);
+});
+
+test('a running setup shows a pill that opens a popover, not a tab', async () => {
+  const h = clientHarness(directory);
+  h.client.rpc = async () => ({ snapshot: { status: 'running', detail: { commands: [], log: '' } } });
+  const stop = h.load('client/pills.tsx').contributeClient(h.client);
+  h.agents.bootstrap([{ agent: { id: 'a', workspaceId: 'w' } }]);
+  h.workspaces.bootstrap([{ id: 'w', workspaceKind: 'worktree' }]);
+  await h.flush();
+  assert.equal(h.registrations.length, 1);
+  assert.equal(h.registrations[0].button.behavior.kind, 'popover');
+  await h.tick(1200);
+  assert.equal(h.openedPanels.length, 0, 'setup no longer opens a tab on its own');
+  stop();
 });
