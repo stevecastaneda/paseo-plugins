@@ -32,7 +32,7 @@ const MONO =
       : "Menlo";
 
 function StatusIcon({ status, colors }: { status: SetupStatus; colors: Colors }) {
-  if (status === "running") return <ActivityIndicator size="small" color={colors.accent} />;
+  if (status === "running") return <ActivityIndicator size={14} color={colors.foregroundMuted} />;
   if (status === "completed") {
     return <Icon name="CheckCircle2" size={14} color={colors.statusSuccess} />;
   }
@@ -89,7 +89,7 @@ export function SetupPopover({
   if (!snapshot) {
     return (
       <View style={styles.waiting}>
-        <ActivityIndicator size="small" color={colors.foregroundMuted} />
+        <ActivityIndicator size={14} color={colors.foregroundMuted} />
         <Text style={styles.muted}>Waiting for setup…</Text>
       </View>
     );

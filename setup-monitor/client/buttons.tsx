@@ -37,7 +37,7 @@ export function contributeClient(client: PluginClientContext) {
     const { theme, workspaceId, size, color } = props;
     const snapshot = useSnapshot(workspaceId);
     if (snapshot?.status === "running") {
-      return <ActivityIndicator size="small" color={theme.colors.accent} />;
+      return <ActivityIndicator size={size} color={color} />;
     }
     return (
       <Icon
