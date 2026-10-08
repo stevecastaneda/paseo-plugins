@@ -102,7 +102,7 @@ export function contributeClient(client: PluginClientContext) {
       const since = runningSince.get(workspaceId);
       const elapsedMs =
         snapshot?.status === "running" && since ? Math.max(0, now - since) : 0;
-      const label = buttonLabel(snapshot, elapsedMs) ?? "setup";
+      const label = buttonLabel(snapshot, elapsedMs) ?? "Setup";
       const current = buttons.get(workspaceId);
       if (!current) {
         const button = client.addHeaderButton({

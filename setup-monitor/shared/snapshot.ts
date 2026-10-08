@@ -4,7 +4,6 @@ const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const MAX_LOG_CHARS = 8_000;
-const MAX_BUTTON_LINE = 48;
 
 export function formatDuration(ms: number): string {
   const elapsed = Math.max(0, Math.floor(ms));
@@ -60,19 +59,6 @@ export function shortCommand(command: string): string {
   return candidate.length > 0 ? candidate : "setup";
 }
 
-export function lastUsefulLogLine(log: string): string | null {
-  const lines = log.split(/\r?\n/);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i]?.replace(/\r/g, "").trim() ?? "";
-    if (!line) continue;
-    if (line.length > 120) continue;
-    if (/^[|*\-.\s]+$/.test(line)) continue;
-    if (line.length <= MAX_BUTTON_LINE) return line;
-    return `${line.slice(0, MAX_BUTTON_LINE - 1)}…`;
-  }
-  return null;
-}
-
 export function runningCommand(commands: readonly SetupCommand[]): SetupCommand | null {
   return commands.find((command) => command.status === "running") ?? null;
 }
@@ -89,14 +75,6 @@ export function completedDurationMs(commands: readonly SetupCommand[]): number {
   return total;
 }
 
-export function liveLog(snapshot: SetupSnapshot): string {
-  const running = runningCommand(snapshot.detail.commands);
-  if (running?.log) return running.log;
-  const failed = failedCommand(snapshot.detail.commands);
-  if (failed?.log) return failed.log;
-  return snapshot.detail.log;
-}
-
 export function shouldShowButton(snapshot: SetupSnapshot | null): boolean {
   return snapshot?.status === "running" || snapshot?.status === "failed";
 }
@@ -107,15 +85,11 @@ export function statusIconName(status: SetupStatus): "Check" | "X" | "Package" {
   return "Package";
 }
 
+/** Short enough for the top bar: the current step lives in the popover. */
 export function buttonLabel(snapshot: SetupSnapshot | null, elapsedMs: number): string | null {
   if (!snapshot || !shouldShowButton(snapshot)) return null;
-  const elapsed = formatDuration(elapsedMs);
-  if (snapshot.status === "failed") return "setup failed";
-  const running = runningCommand(snapshot.detail.commands);
-  const line = lastUsefulLogLine(liveLog(snapshot));
-  if (line && line.length <= 28) return `${line} ${elapsed}`;
-  const command = running ? shortCommand(running.command) : "setup";
-  return `${command} ${elapsed}`;
+  if (snapshot.status === "failed") return "Setup failed";
+  return `Setup ${formatDuration(elapsedMs)}`;
 }
 
 export function headline(snapshot: SetupSnapshot): string {
