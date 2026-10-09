@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Setup monitor: a blue delivery box, on dark blue. Tailwind blue-50/100/300/400/500/900/950. Store icon; icon.png is this file rendered at 512 px. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.25" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g stroke-linejoin="round" stroke-width="18">
+    <path d="M256 262 L386 187 L386 337 L256 412 Z" fill="#3b82f6" stroke="#3b82f6"/>
+    <path d="M256 262 L126 187 L126 337 L256 412 Z" fill="#60a5fa" stroke="#60a5fa"/>
+    <path d="M256 112 L386 187 L256 262 L126 187 Z" fill="#93c5fd" stroke="#93c5fd"/>
+  </g>
+  <!-- Tape across the lid and down the right side -->
+  <path d="M171.9 160.5 L301.9 235.5 L340.1 213.5 L210.1 138.5 Z" fill="#eff6ff"/>
+  <path d="M301.9 235.5 L340.1 213.5 L340.1 283.5 L301.9 305.5 Z" fill="#dbeafe"/>
+</svg>
