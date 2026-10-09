@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Time since: an orange stopwatch with the elapsed time as a wedge, on dark orange. Tailwind orange-300/500/900/950. Store icon; icon.png is this file rendered at 512 px. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c2d12"/>
+      <stop offset="1" stop-color="#431407"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.25" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <rect x="220" y="96" width="72" height="36" rx="18" fill="#fdba74"/>
+  <rect x="242" y="120" width="28" height="48" fill="#fdba74"/>
+  <circle cx="256" cy="292" r="136" fill="#fdba74"/>
+  <!-- Elapsed wedge from 12 o'clock to 4 o'clock -->
+  <path d="M256 292 L256 186 A106 106 0 0 1 347.8 345 Z" fill="#f97316"/>
+  <path d="M256 292 L330 335" stroke="#7c2d12" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="256" cy="292" r="24" fill="#7c2d12"/>
+</svg>
