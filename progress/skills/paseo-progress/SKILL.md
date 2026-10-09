@@ -39,6 +39,16 @@ Other sessions may add tickets (or steps) to the same run. When a command's outp
 
 A working ticket turns stuck on its own once it goes longer than its estimate without an update: a status, stage or note change, or activity tagged to it. When a ticket will run long, keep updating its stage, or raise its estimate with `--estimate`.
 
+A subagent records the work you hand it. Paseo shows you as idle while you wait on it, so its updates are the only sign the work is still going; after 15 minutes without one, the dashboard warns that the work may have stopped. Mark the ticket working, then put this in the subagent's prompt with this worktree's absolute path and the ticket id filled in:
+
+```text
+Record progress on the Paseo dashboard as you work:
+- at each new stage: cd <worktree> && paseo-progress ticket update T03 --stage <stage>
+- between stages:    cd <worktree> && paseo-progress ticker set "<what you are doing now>"
+```
+
+The `cd` puts the updates on this worktree's dashboard even when the subagent works in another checkout. When the subagent reports back, mark the ticket done.
+
 ## 3. Ask questions, and work around them
 
 When a decision belongs to the user, ask it, then park everything the answer affects:
