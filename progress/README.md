@@ -26,7 +26,7 @@ The first time a run starts in a worktree whose Progress panel has never been op
 paseo plugin add npm:@stevecastaneda/paseo-progress
 ```
 
-Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path progress`.
+Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/progress`.
 
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
@@ -124,3 +124,10 @@ npm run dev
 ```
 
 `npm run dev` type-checks and tests the plugin, then points Paseo at this folder. The tests run the agent's commands in a throwaway worktree and read back the dashboard the panel would get.
+
+## Changelog
+
+### 0.3.1
+
+- Installs again with npm 12. Installing failed with `npm ci` asking for a `package-lock.json`, because npm 12 no longer reads the lockfile this plugin shipped ([#53](https://github.com/stevecastaneda/paseo-plugins/issues/53)). The plugin no longer runs its own install step; Paseo's npm install already brings in what it needs.
+- Install from npm or Paseo's plugin registry. Installing straight from GitHub no longer works.

@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-progress",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A live progress dashboard per worktree for Paseo, drawn from a file agents write with the paseo-progress command.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -23,7 +23,6 @@
   },
   "files": [
     "paseo-plugin.json",
-    "npm-shrinkwrap.json",
     "dist/",
     "index.client.tsx",
     "index.server.ts",
@@ -42,6 +41,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test \"*/*.test.ts\"",
     "dev": "node ../scripts/dev.mjs",
+    "check:install": "node ../scripts/check-install.mjs",
     "build:cli": "rm -rf dist && tsc -p tsconfig.cli.json",
     "prepack": "npm run build:cli",
     "postpack": "rm -rf dist"
