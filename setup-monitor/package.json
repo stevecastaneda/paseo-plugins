@@ -1,7 +1,7 @@
 {
   "name": "@stevecastaneda/paseo-setup-monitor",
-  "version": "0.4.2",
-  "description": "Live worktree setup progress and logs in Paseo Explorer.",
+  "version": "0.4.3",
+  "description": "Live worktree setup progress and logs from a button in the Paseo top bar.",
   "license": "MIT",
   "author": "Steve Castaneda",
   "repository": {
