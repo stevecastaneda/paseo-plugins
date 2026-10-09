@@ -39,6 +39,10 @@ and popover share that result instead of making separate requests.
 
 ## Changelog
 
+### 0.4.3
+
+- The package description now says setup progress lives in a top-bar button. It used to say Explorer, where the plugin showed it before 0.4.0.
+
 ### 0.4.2
 
 - The plugin's page in Paseo's plugin store now uses the plugin's own description instead of text the store copied from paseo.cafe.

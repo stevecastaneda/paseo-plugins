@@ -5,7 +5,7 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 | Plugin | What it adds |
 | --- | --- |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/time-since/icon.png" alt="" width="24" height="24" align="center"> [time-since](time-since/README.md) | Elapsed time since the last chat message, shown above the composer. |
-| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/setup-monitor/icon.png" alt="" width="24" height="24" align="center"> [setup-monitor](setup-monitor/README.md) | Live worktree setup progress and logs in Explorer. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/setup-monitor/icon.png" alt="" width="24" height="24" align="center"> [setup-monitor](setup-monitor/README.md) | Live worktree setup progress and logs from a top-bar button. |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/workspace-links/icon.png" alt="" width="24" height="24" align="center"> [workspace-links](workspace-links/README.md) | Quick access to workspace URLs from a JSON file. |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/history/icon.png" alt="" width="24" height="24" align="center"> [history](history/README.md) | Inspect chat messages, tools, and raw session records from a composer pill. |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/progress/icon.png" alt="" width="24" height="24" align="center"> [progress](progress/README.md) | A live progress dashboard per worktree, drawn from a file agents write with the `paseo-progress` command. |
@@ -32,9 +32,9 @@ paseo plugin add npm:@stevecastaneda/paseo-time-since
 
 ## setup-monitor
 
-Live view of `worktree.setup` from `paseo.json`. While that script runs, Setup opens in Explorer so the chat tab stays selected. A composer pill shows progress and failure.
+Live view of `worktree.setup` from `paseo.json`. A button in the workspace top bar shows a spinner and elapsed time while setup runs, then a check or an alert. Click it for each command's status, duration and log.
 
-<img src="setup-monitor/explorer.png" alt="setup-monitor in Explorer" width="451">
+<img src="setup-monitor/popover.png" alt="The setup button in the workspace top bar with its popover open while setup runs" width="446">
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-setup-monitor
