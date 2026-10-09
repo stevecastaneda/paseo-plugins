@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-time-since",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Elapsed time since the last chat message, shown above the Paseo composer.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -22,6 +22,7 @@
   },
   "files": [
     "paseo-plugin.json",
+    "OVERVIEW.md",
     "index.client.tsx",
     "index.server.ts",
     "client/",
