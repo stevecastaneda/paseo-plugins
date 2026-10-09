@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/progress/icon.png" alt="" width="64" height="64">
+
 # Progress
 
 A plugin for Paseo 0.9 and later that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.

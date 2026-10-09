@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/time-since/icon.png" alt="" width="64" height="64">
+
 # time-since
 
 Paseo 0.9 composer pill that ticks elapsed time since the last `user_message` or `assistant_message` in the agent thread.
