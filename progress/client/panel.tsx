@@ -36,8 +36,9 @@ export function ProgressPanel(props: PluginWorkspacePanelProps) {
 function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: PluginWorkspacePanelProps) {
   const colors = theme.colors;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
-  // Paseo marks the workspace running while any of its agents is, including a parent
-  // waiting on subagents that record nothing themselves.
+  // Paseo marks the workspace running while any of its agents is. Since 0.11 a Claude
+  // agent waiting on background subagents counts as idle, so those subagents record
+  // progress themselves (see the skill).
   const agentRunning = useWorkspace(workspaceId, (workspace) => workspace.status === "running") ?? false;
   const query = useDashboard(host.id, workspaceId, directory);
   const result = query.data ?? null;
