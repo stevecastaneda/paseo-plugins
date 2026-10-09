@@ -2,6 +2,8 @@
 
 A small Paseo plugin (0.9 or later) that reads `workspace-links.json` from the active workspace and puts those URLs on the Links trigger. Press the composer pill or header button to see each link's name with its URL underneath, then choose one to open it in your browser, or copy its URL. The settings button in the popover (or **Add links** when the file is empty or missing) opens the setup panel in Explorer. The Command Center item **Workspace Links** opens that panel too.
 
+![The Links popover with seven links, five showing a green running dot, and a copy button on the hovered row](popover.png)
+
 The trigger stays available when the workspace has no links yet, so the setup guide is always one click away. The panel never opens automatically.
 
 Under **Show as**, switch between the composer pill and a workspace header button. Header buttons can hide the **Links** label. Changes apply to all workspaces on the connected host and persist across restarts. The composer pill is the default.
@@ -66,6 +68,11 @@ clients pick up saved options when they next load the options or reload the
 plugin.
 
 ## Changelog
+
+### 0.5.2
+
+- The plugin's page in Paseo now explains that Paseo checks the status dots on the computer where the workspace runs, so a green `localhost` link may still not open on your phone.
+- A screenshot of the Links popover, with its status dots and copy button, at the top of this README.
 
 ### 0.5.1
 
