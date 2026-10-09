@@ -127,6 +127,10 @@ npm run dev
 
 ## Changelog
 
+### 0.3.2
+
+- The plugin's page in Paseo's plugin store now uses the plugin's own description instead of text the store copied from paseo.cafe.
+
 ### 0.3.1
 
 - Installs again with npm 12. Installing failed with `npm ci` asking for a `package-lock.json`, because npm 12 no longer reads the lockfile this plugin shipped ([#53](https://github.com/stevecastaneda/paseo-plugins/issues/53)). The plugin no longer runs its own install step; Paseo's npm install already brings in what it needs.
