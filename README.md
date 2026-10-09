@@ -12,7 +12,7 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 
 ## Install
 
-Turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want. Each plugin is published to npm as `@stevecastaneda/paseo-<plugin>`. To install from GitHub instead, use `paseo plugin add stevecastaneda/paseo-plugins --path <plugin>`.
+Turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want. Each plugin is published to npm as `@stevecastaneda/paseo-<plugin>`. Each one is also in Paseo's plugin registry, so `paseo plugin add stevecastaneda/<plugin>` works too.
 
 Plugin code is trusted and unsandboxed. Server code runs as the daemon user. Client code runs inside Paseo.
 
@@ -111,4 +111,4 @@ Switching copies keeps what a plugin saved in `~/.paseo/plugin-data/`.
 
 Each plugin versions itself in that directory's `package.json`, starting at `0.1.0`. Paseo Cafe uses that field as the update identity, so bump it whenever you ship a change to that plugin. Sibling plugins and the git tag on this repository do not count.
 
-Do not cut a GitHub Release for the whole repo. A plugin update is: increment the version in that plugin's `package.json` and `npm-shrinkwrap.json`, merge to `main`, then run `npm publish` in the plugin's folder. Cafe's next scan picks it up. The lockfile is named `npm-shrinkwrap.json` because npm doesn't publish `package-lock.json`, and Paseo runs `npm ci` inside npm installs too. `paseo plugin update` still pulls the tracked git branch.
+Do not cut a GitHub Release for the whole repo. A plugin update is: increment the version in that plugin's `package.json` and `package-lock.json`, run `npm run check:install` in the plugin's folder, merge to `main`, then run `npm publish` there. Cafe's next scan picks it up. `check:install` packs the plugin and installs it the way Paseo installs from npm, with your npm and with the latest npm. The manifests have no `build` step because Paseo's npm install already brings in each plugin's dependencies. `paseo plugin update` still pulls the tracked git branch.

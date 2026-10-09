@@ -18,7 +18,7 @@ Paseo 0.9 or later. Enable plugins in **Settings → Plugins**, then:
 paseo plugin add npm:@stevecastaneda/paseo-time-since
 ```
 
-Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path time-since`.
+Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/time-since`.
 
 From a local checkout:
 
@@ -46,3 +46,10 @@ value changes.
 
 Saved options apply immediately in the current client. Other connected clients
 pick them up when they next load the options or reload the plugin.
+
+## Changelog
+
+### 0.3.1
+
+- Installs again with npm 12. Installing failed with `npm ci` asking for a `package-lock.json`, because npm 12 no longer reads the lockfile this plugin shipped ([#53](https://github.com/stevecastaneda/paseo-plugins/issues/53)). The plugin no longer runs its own install step; Paseo's npm install already brings in what it needs.
+- Install from npm or Paseo's plugin registry. Installing straight from GitHub no longer works.

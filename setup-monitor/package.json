@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-setup-monitor",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Live worktree setup progress and logs in Paseo Explorer.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -22,7 +22,6 @@
   },
   "files": [
     "paseo-plugin.json",
-    "npm-shrinkwrap.json",
     "index.client.tsx",
     "index.server.ts",
     "client/",
@@ -37,7 +36,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test \"*/*.test.ts\"",
-    "dev": "node ../scripts/dev.mjs"
+    "dev": "node ../scripts/dev.mjs",
+    "check:install": "node ../scripts/check-install.mjs"
   },
   "devDependencies": {
     "@getpaseo/plugin": "^0.9.2",

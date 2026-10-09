@@ -14,7 +14,7 @@ Under **Show as**, switch between the composer pill and a workspace header butto
 paseo plugin add npm:@stevecastaneda/paseo-workspace-links
 ```
 
-From Paseo's plugin registry: `paseo plugin add stevecastaneda/workspace-links`. Or from GitHub: `paseo plugin add github:stevecastaneda/paseo-plugins:workspace-links`.
+From Paseo's plugin registry: `paseo plugin add stevecastaneda/workspace-links`.
 
 Enable plugins under **Settings → Plugins** on the Paseo host.
 
@@ -53,7 +53,7 @@ paseo plugin reload workspace-links
 
 Enable plugins in Paseo's settings. In PowerShell, use `(Get-Location).Path` in place of `"$PWD"` if needed.
 
-The package manifest is required for the Paseo plugin's SDK and development types. Installing from Git runs `npm ci --omit=dev` to fetch `@getpaseo/client`, whose types the plugin imports. Nothing from it runs in the plugin.
+The package manifest is required for the Paseo plugin's SDK and development types. Paseo's npm install fetches `@getpaseo/client`, whose types the plugin imports. Nothing from it runs in the plugin.
 
 ## Updates
 
@@ -66,6 +66,11 @@ clients pick up saved options when they next load the options or reload the
 plugin.
 
 ## Changelog
+
+### 0.5.1
+
+- Installs again with npm 12. Installing failed with `npm ci` asking for a `package-lock.json`, because npm 12 no longer reads the lockfile this plugin shipped ([#53](https://github.com/stevecastaneda/paseo-plugins/issues/53)). The plugin no longer runs its own install step; Paseo's npm install already brings in what it needs.
+- Install from npm or Paseo's plugin registry. Installing straight from GitHub no longer works.
 
 ### 0.5.0
 
