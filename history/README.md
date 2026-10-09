@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/history/icon.png" alt="" width="64" height="64">
+
 # History
 
 A **History** composer pill with Paseo’s built-in Gallery Vertical End icon opens a dialog for inspecting a chat's saved history.

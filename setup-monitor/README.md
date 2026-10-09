@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/setup-monitor/icon.png" alt="" width="64" height="64">
+
 # setup-monitor
 
 Paseo 0.9 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.

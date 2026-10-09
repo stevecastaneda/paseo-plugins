@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/workspace-links/icon.png" alt="" width="64" height="64">
+
 # Workspace Links
 
 A small Paseo plugin (0.9 or later) that reads `workspace-links.json` from the active workspace and puts those URLs on the Links trigger. Press the composer pill or header button to see each link's name with its URL underneath, then choose one to open it in your browser, or copy its URL. The settings button in the popover (or **Add links** when the file is empty or missing) opens the setup panel in Explorer. The Command Center item **Workspace Links** opens that panel too.
