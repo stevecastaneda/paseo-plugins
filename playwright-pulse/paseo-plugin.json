@@ -1,0 +1,9 @@
+{
+  "id": "playwright-pulse",
+  "name": "Playwright Pulse",
+  "description": "A live dashboard in Paseo for a worktree's Playwright test run.",
+  "icon": "icon.png",
+  "requirements": {
+    "paseo": ">=0.11.0"
+  }
+}

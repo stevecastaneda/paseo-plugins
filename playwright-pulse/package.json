@@ -1,0 +1,57 @@
+{
+  "name": "@stevecastaneda/paseo-playwright-pulse",
+  "version": "0.1.0",
+  "description": "A live dashboard in Paseo for a worktree's Playwright test run.",
+  "license": "MIT",
+  "author": "Steve Castaneda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
+    "directory": "playwright-pulse"
+  },
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/playwright-pulse#readme",
+  "keywords": [
+    "paseo",
+    "paseo-plugin",
+    "playwright",
+    "e2e",
+    "testing",
+    "dashboard"
+  ],
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=23.6.0"
+  },
+  "files": [
+    "paseo-plugin.json",
+    "OVERVIEW.md",
+    "index.client.tsx",
+    "index.server.ts",
+    "client/",
+    "server/",
+    "shared/",
+    "icon.png",
+    "tsconfig.json",
+    "!**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"*/*.test.ts\"",
+    "dev": "node ../scripts/dev.mjs",
+    "check:install": "node ../scripts/check-install.mjs"
+  },
+  "devDependencies": {
+    "@getpaseo/client": "^0.11.2",
+    "@getpaseo/plugin": "^0.11.2",
+    "@tanstack/react-query": "^5.90.11",
+    "@types/node": "^20.9.0",
+    "@types/react": "~19.2.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "^5.9.3",
+    "zod": "^4.4.3"
+  }
+}

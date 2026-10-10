@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Playwright pulse: a cyan browser window with a heartbeat line, on dark cyan. Tailwind cyan-200/400/500/900/950. Store icon; icon.png is this file rendered at 512 px. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#164e63"/>
+      <stop offset="1" stop-color="#083344"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.25" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <rect x="96" y="120" width="320" height="272" rx="40" fill="#06b6d4"/>
+  <rect x="120" y="180" width="272" height="188" rx="20" fill="#083344"/>
+  <circle cx="140" cy="150" r="11" fill="#cffafe"/>
+  <circle cx="174" cy="150" r="11" fill="#cffafe" fill-opacity="0.7"/>
+  <circle cx="208" cy="150" r="11" fill="#cffafe" fill-opacity="0.45"/>
+  <path d="M148 282 L202 282 L228 226 L262 334 L292 262 L310 282 L364 282" fill="none" stroke="#22d3ee" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
