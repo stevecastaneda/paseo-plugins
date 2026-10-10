@@ -4,9 +4,12 @@
 
 A live dashboard in Paseo for the Playwright test run in a worktree. You see the run as it happens: the test running now and its current step, how far through the run it is, and each failure with its error, screenshot, video and trace.
 
+<img src="images/1-panel.png" alt="The Pulse panel during a run, with a failure pinned above the tests running now" width="432">
+
+<img src="images/2-folders.png" alt="The Folders tab, showing each folder's progress and failures" width="428"> <img src="images/3-slowest.png" alt="The Slowest tab, showing the five longest tests against their timeouts" width="432">
+
 ## What it shows
 
-- **Sidebar:** the top of Paseo's sidebar lists each workspace with a run going, so you see runs from any workspace. Each row fits on one line: an icon for the run's state (running, passed, failed or stopped), the workspace name, then the failure count and progress (`✕1 12/40`). Press a row to open that workspace's panel. **Playwright Pulse Options** in the Command Center turns the list off. Phones don't show the list, because Paseo's sidebar would cover the panel. The header pill shows the run there.
 - **Header pill:** while a workspace's tests run, its header shows a pill with the count so far (`Tests 12/40`, or `1 failed · 12/40` with a red spinner once a test fails). It stays for two minutes after the run ends with the result. Press it to open the panel.
 - **Header:** whether the run is starting up, running, passed, failed or interrupted, with a clock, the command that started it, and a progress bar split into passed, failed, skipped and stopped.
 - **Stop:** ends a live run the way Ctrl+C in its terminal would: Playwright stops the running test, runs teardown and shuts its web servers. The first press asks to confirm; if the run hasn't ended 8 seconds later, the button offers to force it.
@@ -74,6 +77,11 @@ Set `PLAYWRIGHT_PULSE=0` to turn the reporter off for one run.
 Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tested with Playwright 1.63.
 
 ## Changelog
+
+### 0.1.1
+
+- The list of test runs at the top of Paseo's sidebar is gone, along with the Playwright Pulse Options panel that turned it off. The header pill still shows a workspace's run while it goes. Press it to open the panel.
+- The README now has screenshots of the panel and its Folders and Slowest tabs.
 
 ### 0.1.0
 

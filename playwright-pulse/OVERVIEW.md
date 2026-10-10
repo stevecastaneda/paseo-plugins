@@ -1,6 +1,6 @@
 Playwright Pulse shows a worktree's Playwright test run live, inside Paseo. You see the test running now and its current step, how far through the run you are, and each failure with its error, screenshot, video and trace. Needs Paseo 0.11 or later.
 
-While tests run, the workspace header shows a pill with the count so far. The top of Paseo's sidebar lists every workspace with a run going, so you see runs from any workspace. Press either one to open the Pulse panel. **Playwright Pulse Options** in the Command Center turns the sidebar list off.
+While tests run, the workspace header shows a pill with the count so far. Press it to open the Pulse panel.
 
 The panel gives each worker a row with its test's live step and how much of the test's timeout it has used. The rows keep a fixed size, so the panel doesn't jump while you read. Failures stay pinned at the top, one at a time, with the failing step and the code around it. Buttons preview the screenshot, open the video or the trace, or copy the error. A Stop button ends the run the way Ctrl+C would. Below that, tabs break the run down by folder and list the slowest tests, and an estimate shows the time left.
 

@@ -147,30 +147,24 @@ export function runBrief(run: RunSnapshot): RunBrief {
 export const PILL_LINGER_MS = 2 * 60_000;
 
 export type PillTone = "running" | "failing" | "passed" | "failed" | "stopped";
-// `label` stands alone in a header pill; `status` sits beside the
-// workspace's name in the sidebar, so it drops "Tests".
-// `label` is the header pill's text. The sidebar, short of room, shows the
-// tone as its icon and only the numbers: `progress` while the run goes, and
-// how many tests `failed`.
-export type PillView = { label: string; tone: PillTone; progress: string | null; failed: number };
+export type PillView = { label: string; tone: PillTone };
 
 // What the header pill says, or null when it shouldn't show. The spinner
 // turns red once a test fails.
 export function pillView(brief: RunBrief | null, nowMs: number): PillView | null {
   if (!brief) return null;
-  if (brief.status === "starting") return { label: "Tests starting", tone: "running", progress: null, failed: 0 };
+  if (brief.status === "starting") return { label: "Tests starting", tone: "running" };
   if (brief.status === "running") {
     // Paseo caps a header button at 160px, so failures lead and "Tests" goes:
     // if the label is cut short, it's the count that's lost.
-    const progress = `${brief.done}/${brief.total}`;
     return brief.failed
-      ? { label: `${brief.failed} failed · ${progress}`, tone: "failing", progress, failed: brief.failed }
-      : { label: `Tests ${progress}`, tone: "running", progress, failed: 0 };
+      ? { label: `${brief.failed} failed · ${brief.done}/${brief.total}`, tone: "failing" }
+      : { label: `Tests ${brief.done}/${brief.total}`, tone: "running" };
   }
   if (!brief.endedAt || nowMs - Date.parse(brief.endedAt) > PILL_LINGER_MS) return null;
-  if (brief.status === "passed") return { label: "Tests passed", tone: "passed", progress: null, failed: 0 };
-  if (brief.status === "interrupted") return { label: "Tests stopped", tone: "stopped", progress: null, failed: 0 };
-  return { label: brief.failed ? `${brief.failed} failed` : "Tests failed", tone: "failed", progress: null, failed: brief.failed };
+  if (brief.status === "passed") return { label: "Tests passed", tone: "passed" };
+  if (brief.status === "interrupted") return { label: "Tests stopped", tone: "stopped" };
+  return { label: brief.failed ? `${brief.failed} failed` : "Tests failed", tone: "failed" };
 }
 
 // The failure on show: the one picked, while it's still a failure, else the
