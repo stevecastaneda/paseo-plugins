@@ -77,9 +77,11 @@ paseo plugin add npm:@stevecastaneda/paseo-progress
 
 ## playwright-pulse
 
-A live dashboard for a worktree's Playwright test run. It shows the tests running now and their steps, each failure with its screenshot, video and trace, and the time left. A header pill and a list at the top of Paseo's sidebar show runs from any workspace. Playwright reports to it through a reporter you add to `playwright.config.ts`.
+A live dashboard for a worktree's Playwright test run. It shows the tests running now and their steps, each failure with its screenshot, video and trace, and the time left. A pill in the workspace header shows the run while it goes. Playwright reports to it through a reporter you add to `playwright.config.ts`.
 
 See [Playwright Pulse](playwright-pulse/README.md) for the reporter setup.
+
+<img src="playwright-pulse/images/1-panel.png" alt="The Pulse panel during a run, with a failure pinned above the tests running now" width="400">
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-playwright-pulse

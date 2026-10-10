@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-playwright-pulse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A live dashboard in Paseo for a worktree's Playwright test run.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -30,6 +30,7 @@
     "client/",
     "server/",
     "shared/",
+    "images/",
     "icon.png",
     "tsconfig.json",
     "!**/*.test.ts"
