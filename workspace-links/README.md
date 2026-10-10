@@ -57,7 +57,7 @@ paseo plugin reload workspace-links
 
 Enable plugins in Paseo's settings. In PowerShell, use `(Get-Location).Path` in place of `"$PWD"` if needed.
 
-The package manifest is required for the Paseo plugin's SDK and development types. Paseo's npm install fetches `@getpaseo/client`, whose types the plugin imports. Nothing from it runs in the plugin.
+`npm install` fetches the Paseo plugin SDK and other packages used only for development. The published plugin has no dependencies.
 
 ## Updates
 
@@ -70,6 +70,10 @@ clients pick up saved options when they next load the options or reload the
 plugin.
 
 ## Changelog
+
+### 0.5.3
+
+- Installing the plugin no longer downloads any other npm packages. The plugin used to install `@getpaseo/client` just for its types; it now gets them from the plugin SDK that Paseo already provides.
 
 ### 0.5.2
 

@@ -44,6 +44,10 @@ After edits, run the checks and `paseo plugin reload history`.
 
 ## Changelog
 
+### 0.4.3
+
+- Installing the plugin no longer downloads any npm packages. The markdown library History uses, `marked` 17.0.1, now ships inside History's own package. `@getpaseo/client` was installed just for its types; the plugin now gets them from the plugin SDK that Paseo already provides.
+
 ### 0.4.2
 
 - The plugin's page in Paseo's plugin store now uses the plugin's own description instead of text the store copied from paseo.cafe.

@@ -51,6 +51,10 @@ pick them up when they next load the options or reload the plugin.
 
 ## Changelog
 
+### 0.3.3
+
+- Installing the plugin no longer downloads any other npm packages. The plugin used to install `@getpaseo/client` just for its types; it now gets them from the plugin SDK that Paseo already provides.
+
 ### 0.3.2
 
 - The plugin's page in Paseo's plugin store now uses the plugin's own description instead of text the store copied from paseo.cafe.

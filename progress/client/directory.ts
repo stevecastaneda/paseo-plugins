@@ -1,10 +1,24 @@
-import type { OwnedSubscription, SubscriptionObserver } from "@getpaseo/client";
+import type { getPaseoClient } from "@getpaseo/plugin/client";
+
+// Paseo's client types are read through the plugin SDK, which Paseo provides.
+// Importing them from @getpaseo/client would make Paseo require that package
+// installed alongside the plugin, even though only its types are used.
+type PaseoApi = ReturnType<typeof getPaseoClient>;
+type Handler<Subscribe> = Subscribe extends (handler: infer H) => unknown ? H : never;
+export type PaseoAgentUpdate = Parameters<Handler<PaseoApi["agents"]["subscribe"]>>[0];
+export type PaseoWorkspaceUpdate = Parameters<Handler<PaseoApi["workspaces"]["subscribe"]>>[0];
+type Message = Parameters<
+  Parameters<NonNullable<Awaited<ReturnType<PaseoApi["agents"]["list"]>>["subscription"]>["subscribe"]>[0]["update"]
+>[0];
+type OwnedSubscription<T> = {
+  subscribe(observer: { snapshot(snapshot: T): void; update(message: Message): void; error?(error: unknown): void }): () => void;
+  release(): Promise<void>;
+};
 
 type Page = {
   entries: unknown[];
   pageInfo: { hasMore: boolean; nextCursor?: string | null };
 };
-type Message = Parameters<SubscriptionObserver<unknown>["update"]>[0];
 
 // Paseo 0.9 returns an owned subscription from list({ subscribe: {} }). It
 // delivers the first page as a snapshot, again after every reconnect, then the
