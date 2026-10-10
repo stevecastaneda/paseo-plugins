@@ -1,4 +1,3 @@
-import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import type {
   PluginButton,
   PluginButtonContentProps,
@@ -7,7 +6,7 @@ import type {
   PluginClientContext,
 } from "@getpaseo/plugin/client";
 import { useWorkspace } from "@getpaseo/plugin/client";
-import { observeDirectory } from "./directory";
+import { observeDirectory, type PaseoAgentUpdate, type PaseoWorkspaceUpdate } from "./directory";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useLinks } from "./links-query";
 import { LinksPopover } from "./popover";

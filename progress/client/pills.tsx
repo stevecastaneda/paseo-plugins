@@ -1,11 +1,10 @@
-import type { PaseoAgentUpdate, PaseoWorkspaceUpdate } from "@getpaseo/client";
 import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { type AttentionResult, getAttention } from "../shared/rpc";
 import { isIdle, type Pill, pillFor } from "./pill-state";
-import { observeDirectory } from "./directory";
+import { observeDirectory, type PaseoAgentUpdate, type PaseoWorkspaceUpdate } from "./directory";
 import { onPanelOpened } from "./panel-opened";
 import { IconSwap } from "./motion";
 import { Spinner } from "./spinner";

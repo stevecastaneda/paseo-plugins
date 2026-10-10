@@ -41,7 +41,7 @@ dir="$(paseo plugin ls progress --json | node -pe 'JSON.parse(require("fs").read
 node "$([ -f "$dir/dist/server/cli.js" ] && echo "$dir/dist/server/cli.js" || echo "$dir/server/cli.ts")" install-launcher [path]
 ```
 
-If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches. The npm package carries the command compiled to JavaScript in `dist/`, because Node won't run TypeScript from `node_modules`.
+If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches. The npm package carries the command as one JavaScript file in `dist/`, built with esbuild when publishing, because Node won't run TypeScript from `node_modules`. That file includes zod (MIT), so installing the plugin downloads no other packages.
 
 ## Where progress is kept
 
@@ -130,6 +130,10 @@ npm run dev
 `npm run dev` type-checks and tests the plugin, then points Paseo at this folder. The tests run the agent's commands in a throwaway worktree and read back the dashboard the panel would get.
 
 ## Changelog
+
+### 0.3.4
+
+- Installing the plugin no longer downloads any other npm packages. The `paseo-progress` command is now built into a single file that includes zod. The plugin used to install `@getpaseo/client` just for its types; it now gets them from the plugin SDK that Paseo already provides.
 
 ### 0.3.3
 
