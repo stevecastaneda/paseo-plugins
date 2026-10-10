@@ -59,16 +59,16 @@ test("running tests keep their row; a new test takes the first free one", () => 
 test("the header pill shows while tests run and briefly after", () => {
   const now = Date.parse("2026-10-05T12:00:00.000Z");
   const live = runBrief(run([pulseTest({ status: "passed" }), pulseTest({ status: "running" })], { total: 40 }));
-  assert.deepEqual(pillView(live, now), { label: "Tests 1/40", tone: "running" });
+  assert.deepEqual(pillView(live, now), { label: "Tests 1/40", tone: "running", progress: "1/40", failed: 0 });
   const failing = runBrief(run([pulseTest({ status: "failed" })], { total: 40 }));
-  assert.deepEqual(pillView(failing, now), { label: "1 failed · 1/40", tone: "failing" });
+  assert.deepEqual(pillView(failing, now), { label: "1 failed · 1/40", tone: "failing", progress: "1/40", failed: 1 });
   const ended = runBrief(run([pulseTest({ status: "failed" })], { status: "failed", endedAt: "2026-10-05T11:59:00.000Z" }));
-  assert.deepEqual(pillView(ended, now), { label: "1 failed", tone: "failed" });
+  assert.deepEqual(pillView(ended, now), { label: "1 failed", tone: "failed", progress: null, failed: 1 });
   assert.equal(pillView(ended, now + PILL_LINGER_MS), null);
   assert.equal(pillView(null, now), null);
   // Killed without an end: it ended at its last write.
   const killed = runBrief(run([], { status: "interrupted", updatedAt: "2026-10-05T11:59:30.000Z" }));
-  assert.deepEqual(pillView(killed, now), { label: "Tests stopped", tone: "stopped" });
+  assert.deepEqual(pillView(killed, now), { label: "Tests stopped", tone: "stopped", progress: null, failed: 0 });
 });
 
 test("failures show one at a time, cycling, and stay put as new ones arrive", () => {

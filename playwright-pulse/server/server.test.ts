@@ -10,6 +10,7 @@ import { locateRun, pruneRuns, readRun, runForPanel, type RunLocation } from "./
 import { LATEST_FILE_NAME, runFile } from "./pulse-reporter.mjs";
 import { stopRun } from "./stop.ts";
 import { handleGetBriefs } from "./pulse.ts";
+import { createSettingsStore } from "./settings.ts";
 
 const SOURCE = "// Written by the playwright-pulse Paseo plugin.\nexport default class {}\n";
 
@@ -230,4 +231,15 @@ test("pruning leaves a folder alone unless it's plainly a gone worktree's runs",
   assert.deepEqual(await pruneRuns(home), []);
   assert.equal(existsSync(join(elsewhere.directory, LATEST_FILE_NAME)), true);
   assert.equal(readFileSync(join(crowded.directory, "notes.txt"), "utf8"), "mine");
+});
+
+test("keeps the options in one file, starting from the defaults", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "pulse-settings-")), "plugin-data", "playwright-pulse", "settings.json");
+  const store = createSettingsStore(file);
+  assert.deepEqual(await store.get(), { sidebar: true });
+  assert.deepEqual(await store.update({ sidebar: false }), { sidebar: false });
+  assert.deepEqual(await createSettingsStore(file).get(), { sidebar: false });
+  // A file written before an option existed reads with that option's default.
+  writeFileSync(file, "{}\n");
+  assert.deepEqual(await store.get(), { sidebar: true });
 });

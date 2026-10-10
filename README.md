@@ -9,7 +9,7 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/workspace-links/icon.png" alt="" width="24" height="24" align="center"> [workspace-links](workspace-links/README.md) | Quick access to workspace URLs from a JSON file. |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/history/icon.png" alt="" width="24" height="24" align="center"> [history](history/README.md) | Inspect chat messages, tools, and raw session records from a composer pill. |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/progress/icon.png" alt="" width="24" height="24" align="center"> [progress](progress/README.md) | A live progress dashboard per worktree, drawn from a file agents write with the `paseo-progress` command. |
-| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/playwright-pulse/icon.png" alt="" width="24" height="24" align="center"> [playwright-pulse](playwright-pulse/README.md) | A live sidebar dashboard for the Playwright test run in a worktree: the running test and step, failures with screenshots and traces. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/playwright-pulse/icon.png" alt="" width="24" height="24" align="center"> [playwright-pulse](playwright-pulse/README.md) | A live dashboard for a worktree's Playwright test run, with each failure's screenshot, video and trace. |
 
 ## Install
 
@@ -75,6 +75,16 @@ See [Progress](progress/README.md) for the commands and the launcher setup.
 paseo plugin add npm:@stevecastaneda/paseo-progress
 ```
 
+## playwright-pulse
+
+A live dashboard for a worktree's Playwright test run. It shows the tests running now and their steps, each failure with its screenshot, video and trace, and the time left. A header pill and a list at the top of Paseo's sidebar show runs from any workspace. Playwright reports to it through a reporter you add to `playwright.config.ts`.
+
+See [Playwright Pulse](playwright-pulse/README.md) for the reporter setup.
+
+```bash
+paseo plugin add npm:@stevecastaneda/paseo-playwright-pulse
+```
+
 ## Local development
 
 Paseo runs each plugin from one folder on your machine. `npm run dev` makes Paseo run the plugin from the folder you're in. You need Node.js 22.18 or later.
@@ -82,7 +92,7 @@ Paseo runs each plugin from one folder on your machine. `npm run dev` makes Pase
 **1. Point Paseo at your copy.** From the plugin's folder in your checkout or worktree:
 
 ```bash
-cd time-since   # or setup-monitor, workspace-links, history, or progress
+cd time-since   # or setup-monitor, workspace-links, history, progress, or playwright-pulse
 npm install     # first time in this copy, and after pulling dependency changes
 npm run dev
 ```

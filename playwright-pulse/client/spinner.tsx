@@ -1,7 +1,7 @@
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, Animated, Easing, Platform, View } from "react-native";
-import { nativeDriver } from "./motion";
+import { nativeDriver, useReducedMotion } from "./motion";
 
 // The system spinner, sized to sit beside a line of text. iOS draws it only
 // at 20pt, so it's scaled into the slot there.
@@ -12,6 +12,26 @@ export function Spinner({ color, size = 12 }: { color: string; size?: number }) 
         ? <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: size / 20 }] }} />
         : <ActivityIndicator size={size} color={color} />}
     </View>
+  );
+}
+
+// Lucide's open circle, turning: the same size and stroke as the check and
+// cross beside it in Paseo's sidebar, where the system spinner reads heavier.
+// Held still when motion is reduced; the gap in the ring still says "working".
+export function LucideSpinner({ color, size }: { color: string; size: number }) {
+  const reduced = useReducedMotion();
+  const turn = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced) return;
+    const loop = Animated.loop(Animated.timing(turn, { toValue: 1, duration: 1000, easing: Easing.linear, useNativeDriver: nativeDriver() }));
+    loop.start();
+    return () => loop.stop();
+  }, [reduced, turn]);
+  const rotate = turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  return (
+    <Animated.View accessibilityLabel="Working" style={{ width: size, height: size, transform: [{ rotate }] }}>
+      <Icon name="LoaderCircle" size={size} color={color} />
+    </Animated.View>
   );
 }
 
