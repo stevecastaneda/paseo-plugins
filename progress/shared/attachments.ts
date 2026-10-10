@@ -1,14 +1,16 @@
-// Anything the user can open from the dashboard: a deliverable ("D3") or a
-// file on a question ("Q7.2", counting from 1). The panel lists them and the
-// server finds them by the same reference, so both read it from here.
-import type { Dashboard, Deliverable, Question } from "./dashboard.ts";
+// Anything the user can open from the dashboard: a deliverable ("D3"), a file
+// on a question ("Q7.2", counting from 1), or a ticket's source ("T03.source").
+// The panel lists them and the server finds them by the same reference, so both
+// read it from here.
+import type { Dashboard, Deliverable, Question, Ticket } from "./dashboard.ts";
+import type { FileLink } from "./events.ts";
 
 export interface Attachment {
   ref: string;
   title: string;
   path?: string;
   url?: string;
-  // What the agent said a deliverable is. Question files don't have one.
+  // What the agent said a deliverable is. Other attachments don't have one.
   kind?: Deliverable["kind"];
 }
 
@@ -16,13 +18,16 @@ export function deliverableAttachment(deliverable: Deliverable): Attachment {
   return { ref: deliverable.id, title: deliverable.title, path: deliverable.path, url: deliverable.url, kind: deliverable.kind };
 }
 
+function fileAttachment(ref: string, file: FileLink): Attachment {
+  return { ref, title: file.label ?? (file.path ?? file.url ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "", path: file.path, url: file.url };
+}
+
 export function questionAttachments(question: Question): Attachment[] {
-  return question.files.map((file, index) => ({
-    ref: `${question.id}.${index + 1}`,
-    title: file.label ?? (file.path ?? file.url ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "",
-    path: file.path,
-    url: file.url,
-  }));
+  return question.files.map((file, index) => fileAttachment(`${question.id}.${index + 1}`, file));
+}
+
+export function ticketSourceAttachment(ticket: Ticket): Attachment | null {
+  return ticket.source ? fileAttachment(`${ticket.id}.source`, ticket.source) : null;
 }
 
 // The attachment a reference names, or null when it names nothing.
@@ -31,6 +36,11 @@ export function findAttachment(dashboard: Dashboard, ref: string): Attachment | 
   if (question) {
     const found = [...dashboard.questions.open, ...dashboard.questions.answered].find((candidate) => candidate.id === question[1]);
     return (found && questionAttachments(found).find((attachment) => attachment.ref === ref)) ?? null;
+  }
+  const ticket = ref.match(/^(.+)\.source$/);
+  if (ticket) {
+    const found = dashboard.tickets.find((candidate) => candidate.id === ticket[1]);
+    return found ? ticketSourceAttachment(found) : null;
   }
   const deliverable = dashboard.deliverables.find((candidate) => candidate.id === ref);
   return deliverable ? deliverableAttachment(deliverable) : null;

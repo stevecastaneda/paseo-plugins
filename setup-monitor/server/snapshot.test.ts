@@ -6,13 +6,11 @@ import {
   completedDurationMs,
   formatDuration,
   headline,
-  lastUsefulLogLine,
-  liveLog,
-  pillLabel,
+  buttonLabel,
   processCarriageReturns,
   relativeCwd,
   shortCommand,
-  shouldShowPill,
+  shouldShowButton,
   statusIconName,
   trimLog,
   trimSnapshot,
@@ -77,43 +75,30 @@ test("shortCommand prefers the package-manager verb", () => {
   assert.equal(shortCommand("npm run db:migrate"), "npm run db:migrate");
 });
 
-test("lastUsefulLogLine walks up from the end and skips junk", () => {
-  assert.equal(lastUsefulLogLine(""), null);
-  assert.equal(
-    lastUsefulLogLine("Syncing with origin...\nInstalling dependencies...\n"),
-    "Installing dependencies...",
-  );
-  assert.equal(lastUsefulLogLine(`${"x".repeat(200)}\nadded 12 packages`), "added 12 packages");
-});
-
 test("statusIconName maps terminal states", () => {
   assert.equal(statusIconName("running"), "Package");
-  assert.equal(statusIconName("completed"), "Check");
-  assert.equal(statusIconName("failed"), "X");
+  assert.equal(statusIconName("completed"), "CircleCheck");
+  assert.equal(statusIconName("failed"), "CircleAlert");
 });
 
-test("pillLabel hides completed setup and names a live install", () => {
-  assert.equal(shouldShowPill(null), false);
-  assert.equal(pillLabel(null, 12_000), null);
-  assert.equal(
-    pillLabel(snapshot({ status: "completed", commands: [command({ command: "npm ci", status: "completed" })] }), 12_000),
-    null,
-  );
-  assert.equal(
-    pillLabel(snapshot({ status: "failed", error: "boom" }), 12_000),
-    "setup failed",
-  );
-  assert.equal(
-    pillLabel(
-      snapshot({
-        status: "running",
-        log: "Installing dependencies...",
-        commands: [command({ command: "./scripts/worktree-setup.sh", status: "running", log: "Installing dependencies..." })],
-      }),
-      72_000,
-    ),
-    "Installing dependencies... 1m 12s",
-  );
+test("a finished setup stays until dismissed, and only if this session saw it run", () => {
+  const done = snapshot({ status: "completed", commands: [command({ command: "npm ci", status: "completed" })] });
+  const failed = snapshot({ status: "failed", error: "boom" });
+  const running = snapshot({ status: "running" });
+  assert.equal(shouldShowButton(null), false);
+  assert.equal(shouldShowButton(running, { sawRunning: false, dismissed: true }), true);
+  assert.equal(shouldShowButton(done, { sawRunning: true, dismissed: false }), true);
+  assert.equal(shouldShowButton(done, { sawRunning: false, dismissed: false }), false, "old worktrees stay quiet");
+  assert.equal(shouldShowButton(done, { sawRunning: true, dismissed: true }), false);
+  assert.equal(shouldShowButton(failed, { sawRunning: false, dismissed: false }), true);
+  assert.equal(shouldShowButton(failed, { sawRunning: false, dismissed: true }), false);
+});
+
+test("buttonLabel stays short", () => {
+  assert.equal(buttonLabel(null, 12_000), null);
+  assert.equal(buttonLabel(snapshot({ status: "failed", error: "boom" }), 12_000), "Setup failed");
+  assert.equal(buttonLabel(snapshot({ status: "running" }), 72_000), "Setup 1m 12s");
+  assert.equal(buttonLabel(snapshot({ status: "completed" }), 72_000), "Setup 1m 12s");
 });
 
 test("headline and commandLabel describe the current step", () => {
@@ -134,19 +119,6 @@ test("headline and commandLabel describe the current step", () => {
     commandLabel(command({ command: "npm install", cwd: "/repo/api", status: "running" }), "/repo"),
     "npm install in api",
   );
-});
-
-test("liveLog prefers the running command's output", () => {
-  const running = snapshot({
-    status: "running",
-    log: "overall",
-    commands: [
-      command({ index: 1, command: "npm ci", status: "completed", log: "done" }),
-      command({ index: 2, command: "npm install", cwd: "/repo/api", status: "running", log: "fetching tarball" }),
-    ],
-  });
-  assert.equal(liveLog(running), "fetching tarball");
-  assert.equal(completedDurationMs(running.detail.commands), 0);
 });
 
 test("trimSnapshot keeps the tail of oversized logs", () => {

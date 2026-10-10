@@ -12,7 +12,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
-import { formatEstimate, formatMinutes, formatWorkDone } from "../shared/format.ts";
+import { formatEstimate, formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
@@ -20,6 +20,7 @@ import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
+import { parseWriteUp, writeUpExcerpt } from "../shared/write-up.ts";
 
 // Real repos in these tests; the user's own git config stays out of them.
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
@@ -46,9 +47,13 @@ async function worktree(t: TestContext) {
     store,
     output,
     at(minute: number) { clock = minute; },
-    async run(...argv: string[]) {
+    run(...argv: string[]) {
+      return this.runAs(undefined, ...argv);
+    },
+    // Run as the Paseo agent with this id.
+    async runAs(agentId: string | undefined, ...argv: string[]) {
       output.length = 0;
-      const code = await runCli(argv, { cwd: directory, now: () => minutes(clock), out: (line) => output.push(line) });
+      const code = await runCli(argv, { cwd: directory, now: () => minutes(clock), out: (line) => output.push(line), agentId });
       return { code, text: output.join("\n") };
     },
     // Read at the current clock, or at a given minute.
@@ -102,7 +107,7 @@ test("finish closes the run only once everything is settled, and keeps it on the
   assert.equal((await w.run("finish", "Nothing yet")).code, 1, "no run to finish");
   await w.run("start", "Export");
   await w.run("ticket", "add", "Ticket 01", "--estimate", "30");
-  await w.run("question", "ask", "Format", "CSV or JSON?", "--default", "CSV");
+  await w.run("question", "ask", "Format", "CSV or JSON?", "--recommend", "CSV");
   await w.run("stuck", "set", "Staging is down");
   const refused = await w.run("finish", "Shipped");
   assert.equal(refused.code, 1);
@@ -140,7 +145,7 @@ test("a ticket's story: its stages with durations, and what belongs to it exactl
   w.at(15);
   await w.run("activity", "add", "Untagged, while T01 worked");
   assert.match((await w.run("activity", "add", "Tagged to T01", "--ticket", "t01")).text, /^Logged A3 on T01: /);
-  await w.run("question", "ask", "Delimiter", "Comma or tab?", "--default", "Comma", "--ticket", "T01");
+  await w.run("question", "ask", "Delimiter", "Comma or tab?", "--recommend", "Comma", "--ticket", "T01");
   await w.run("deliverable", "add", "Sample", "https://example.com/sample.csv", "--ticket", "T01");
   assert.equal((await w.run("activity", "add", "Bad tag", "--ticket", "T09")).code, 1, "an unknown ticket is refused");
   w.at(25);
@@ -309,7 +314,7 @@ test("a workspace below the worktree root reads the root's progress and attachme
   const run = (...argv: string[]) => runCli(argv, { cwd: workspace, now: () => minutes(0), out: () => {} });
   assert.equal(await run("start", "From the app"), 0);
   assert.equal(await run("deliverable", "add", "Review", "../../reports/review.md"), 0);
-  assert.equal(await run("question", "ask", "Pick", "Which?", "--option", "A=One", "--option", "B=Two", "--default", "A"), 0);
+  assert.equal(await run("question", "ask", "Pick", "Which?", "--option", "A=One", "--option", "B=Two", "--recommend", "A"), 0);
   const context = { paseo: {} as PluginHandlerContext["paseo"] };
   const input = { workspaceId: "ws-1", workspaceDirectory: workspace };
 
@@ -353,7 +358,7 @@ test("the pill check returns only counts and run state", async (t) => {
   const input = { workspaceId: "ws-1", workspaceDirectory: w.directory };
   assert.deepEqual(await handleGetAttention(input, context), { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false });
   await w.run("start", "Run");
-  await w.run("question", "ask", "Spacing", "Tighter?", "--option", "A=Yes | tighter", "--option", "B=No | as is", "--default", "A");
+  await w.run("question", "ask", "Spacing", "Tighter?", "--option", "A=Yes | tighter", "--option", "B=No | as is", "--recommend", "A");
   assert.deepEqual(await handleGetAttention(input, context), { configured: true, questions: 1, stuck: 0, runOpen: true, panelOpened: false });
 });
 
@@ -434,6 +439,135 @@ test("the command runs as a script and stamps the real time", async (t) => {
   assert.ok(updatedAt >= before - 1000 && updatedAt <= Date.now() + 1000);
 });
 
+test("each event records the Paseo agent that wrote it, from PASEO_AGENT_ID", async (t) => {
+  const w = await worktree(t);
+  const cli = fileURLToPath(new URL("./cli.ts", import.meta.url));
+  const run = (env: NodeJS.ProcessEnv, ...argv: string[]) => promisify(execFile)(process.execPath, [cli, ...argv], { cwd: w.directory, env });
+  const { PASEO_AGENT_ID: _, ...outside } = process.env;
+  await run({ ...process.env, PASEO_AGENT_ID: "agent-a" }, "start", "Run");
+  await run(outside, "ticker", "set", "From a terminal");
+  const lines = (await readFile(join(w.store, "progress.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(lines.map((line) => line.by), ["agent-a", undefined]);
+});
+
+test("an agent hears about tickets another session added, once, on its next command", async (t) => {
+  const w = await worktree(t);
+  await w.runAs("a", "start", "Run");
+  await w.runAs("a", "ticket", "add", "Ticket 01: Mine", "--estimate", "30");
+  assert.doesNotMatch((await w.runAs("a", "ticket", "update", "T01", "--status", "working")).text, /Another session/, "its own tickets are not news");
+
+  await w.runAs("b", "ticket", "add", "Ticket 02: Theirs", "--estimate", "20");
+  await w.run("ticket", "add", "Ticket 03: From a terminal", "--estimate", "20");
+  await w.runAs("b", "ticket", "add", "Ticket 04: Already done", "--estimate", "20", "--status", "done");
+  await w.runAs("b", "ticket", "add", "Ticket 05: Removed again", "--estimate", "20");
+  await w.runAs("b", "ticket", "remove", "T05");
+
+  const shown = await w.runAs("a", "show");
+  assert.match(shown.text, /Another session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket\.$/);
+  const told = await w.runAs("a", "ticker", "set", "Building");
+  assert.equal(told.text, "Ticker: Building\n\nAnother session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket.");
+  assert.equal((await w.runAs("a", "ticker", "set", "Still building")).text, "Ticker: Still building", "each alert shows once");
+
+  await w.runAs("b", "ticket", "add", "Ticket 06: One more", "--estimate", "20");
+  assert.match((await w.runAs("a", "ticket", "update", "T01", "--stage", "Review")).text, /added a ticket since your last update:\n  T06  Ticket 06: One more\nIt is part of this run: work it in order after your current ticket\.$/);
+});
+
+test("an agent new to the run, a command outside Paseo, and a new run hear nothing", async (t) => {
+  const w = await worktree(t);
+  await w.runAs("a", "start", "Run", "--item-label", "Step");
+  await w.runAs("a", "ticket", "add", "First", "--estimate", "30");
+  assert.doesNotMatch((await w.runAs("b", "ticker", "set", "Joining")).text, /Another session/, "b reads show first");
+  assert.doesNotMatch((await w.runAs("b", "show")).text, /Another session/);
+  await w.runAs("b", "ticket", "add", "Second", "--estimate", "30");
+  assert.doesNotMatch((await w.run("ticker", "set", "From a terminal")).text, /Another session/);
+  assert.doesNotMatch((await w.runAs("a", "start", "Next run", "--item-label", "Step")).text, /Another session/);
+  await w.runAs("b", "ticket", "add", "Third", "--estimate", "30");
+  assert.match((await w.runAs("a", "ticker", "set", "Back")).text, /Another session added a step since your last update:\n  T01  Third\nIt is part of this run: work it in order after your current step\.$/);
+});
+
+test("a ticket links to where it's written up: a file in the worktree or a link, changed or cleared later", async (t) => {
+  const w = await worktree(t);
+  await mkdir(join(w.directory, "specs"));
+  await writeFile(join(w.directory, "specs", "01-login.md"), "# Login\n");
+  await w.run("start", "Run");
+  assert.equal((await w.run("ticket", "add", "Ticket 01: Login", "--estimate", "30", "--source", "specs/01-login.md")).text, "Added T01: Ticket 01: Login (30 min), source specs/01-login.md");
+  await w.run("ticket", "add", "Ticket 02: Reset", "--estimate", "20", "--source", "https://linear.app/acme/issue/ENG-12=ENG-12");
+  await w.run("ticket", "add", "Ticket 03: No write-up", "--estimate", "20");
+  let { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, { url: "https://linear.app/acme/issue/ENG-12", label: "ENG-12" }, undefined]);
+  assert.deepEqual(findAttachment(dashboard, "T01.source"), { ref: "T01.source", title: "01-login.md", path: "specs/01-login.md", url: undefined });
+  assert.equal(findAttachment(dashboard, "T03.source"), null);
+  assert.match((await w.run("show")).text, /T01 .*Ticket 01: Login\n      Source: specs\/01-login.md\n.*T02 .*\n      Source: https:\/\/linear.app\/acme\/issue\/ENG-12 \(ENG-12\)\n.*T03 .*No write-up(\n|$)/);
+
+  assert.deepEqual(await previewDeliverable(w.directory, "T01.source"), { kind: "text", text: "# Login\n", bytes: 8, truncated: false });
+
+  assert.equal((await w.run("ticket", "update", "T03", "--source", "specs/01-login.md=Shared spec")).text, "Updated T03: source specs/01-login.md");
+  await w.run("ticket", "update", "T02", "--source", "");
+  ({ dashboard } = await w.dashboard());
+  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, undefined, { path: "specs/01-login.md", label: "Shared spec" }]);
+});
+
+test("a write-up reads as headings, paragraphs, list items and code, and its excerpt drops the title", () => {
+  const blocks = parseWriteUp([
+    "# Ticket 01: Login",
+    "",
+    "Let people sign in with **email** and a [magic link](https://x.y).",
+    "It wraps onto",
+    "two lines.",
+    "",
+    "## Acceptance",
+    "- [ ] Sends the `link`",
+    "  within a minute",
+    "  1. Nested _step_",
+    "---",
+    "```",
+    "npm test",
+    "```",
+  ].join("\n"));
+  assert.deepEqual(blocks, [
+    { kind: "heading", level: 1, spans: [{ text: "Ticket 01: Login" }] },
+    { kind: "paragraph", spans: [{ text: "Let people sign in with email and a magic link. It wraps onto two lines." }] },
+    { kind: "heading", level: 2, spans: [{ text: "Acceptance" }] },
+    { kind: "item", marker: "☐", depth: 0, spans: [{ text: "Sends the " }, { text: "link", code: true }, { text: " within a minute" }] },
+    { kind: "item", marker: "1.", depth: 1, spans: [{ text: "Nested step" }] },
+    { kind: "code", text: "npm test" },
+  ]);
+  const short = writeUpExcerpt(blocks, 90);
+  assert.equal(short.blocks[0].kind, "paragraph", "the title is the ticket's own, so it's left out");
+  assert.equal(short.blocks.length, 2);
+  assert.equal(short.more, true);
+  assert.equal(writeUpExcerpt(blocks).more, false);
+});
+
+test("each ticket and the ticker remember the agent that last wrote them", async (t) => {
+  const w = await worktree(t);
+  await w.runAs("a", "start", "Run");
+  await w.runAs("a", "ticket", "add", "One", "--estimate", "30");
+  await w.run("ticket", "add", "Two", "--estimate", "30");
+  await w.runAs("b", "ticket", "update", "T01", "--status", "working");
+  await w.run("ticket", "update", "T01", "--stage", "Review");
+  await w.runAs("b", "ticker", "set", "Reviewing");
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.agentId), ["b", undefined]);
+  assert.equal(dashboard.ticker?.by, "b");
+});
+
+test("plain steps, with no write-ups, stages or Paseo agent, still get a dialog with a time bar and nothing missing", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Clean up the garage", "--item-label", "Step");
+  await w.run("ticket", "add", "Sort the shelves", "--estimate", "30");
+  await w.run("ticket", "update", "T01", "--status", "working");
+  await w.run("ticker", "set", "Sorting tools");
+  w.at(12);
+  const { dashboard } = await w.dashboard();
+  const [step] = dashboard.tickets;
+  assert.equal(step.source, undefined, "no write-up section");
+  assert.equal(step.agentId, undefined, "no agent row");
+  assert.equal(dashboard.ticker?.by, undefined, "the status line goes by the one working step");
+  assert.deepEqual(ticketStory(step, { deliverables: [], questions: [], activity: [] }, minutes(12).getTime()).timeline.map(({ label, minutes }) => ({ label, minutes })),
+    [{ label: "Added", minutes: 0 }, { label: "Working", minutes: 12 }], "one working span for the time bar");
+});
+
 async function screenshotRun(t: TestContext) {
   const w = await worktree(t);
   await w.run("start", "Loan Options");
@@ -505,6 +639,9 @@ test("a run whose tickets are all done or skipped never turns stale", async (t) 
 });
 
 test("display helpers format durations and hours the way the panel shows them", () => {
+  const morning = new Date(2026, 9, 5, 2, 8).toISOString();
+  assert.equal(formatTimeOfDay(morning, new Date(2026, 9, 5, 23, 0).getTime()), "2:08 AM", "same day: just the time");
+  assert.equal(formatTimeOfDay(morning, new Date(2026, 9, 6, 9, 0).getTime()), "Oct 5, 2:08 AM", "another day: the date too");
   assert.equal(formatMinutes(0.5), "<1 min");
   assert.equal(formatMinutes(12), "12 min");
   assert.equal(formatMinutes(602), "10 h 2 min");
@@ -580,20 +717,20 @@ test("blocked tickets and flagged blockers are stuck until cleared", async (t) =
   assert.match((await w.run("stuck", "set", "Again")).text, /^Flagged S2/, "ids are not reused");
 });
 
-test("questions are asked with lettered options and a default, then answered by reference", async (t) => {
+test("questions carry the agent's recommendation and wait for the answer, then are answered by reference", async (t) => {
   const w = await screenshotRun(t);
   const ask = await w.run("question", "ask", "Row spacing", "Should we even out the spacing?",
     "--option", "A=Even it out | Cards look balanced",
     "--option", "b=Leave it | No change",
-    "--default", "b",
+    "--recommend", "a",
     "--background", "13px left, 20px right.",
     "--file", ".scratch/shots/row.png=Before",
     "--raised-by", "Ticket 01 design review");
-  assert.deepEqual(ask, { code: 0, text: "Asked Q1 (Row spacing). Default: B" });
-  assert.equal((await w.run("question", "ask", "PDF check", "Do the PDFs match the page?", "--default", "Your check", "--waits")).text, "Asked Q2 (PDF check). Default: Your check (waiting for the answer)");
+  assert.deepEqual(ask, { code: 0, text: "Asked Q1 (Row spacing). You recommend A. Build no option before the answer: work only on what it doesn't affect, and if nothing else is left, stop and wait." });
+  await w.run("question", "ask", "PDF check", "Do the PDFs match the page?", "--recommend", "Looks right");
   let { dashboard } = await w.dashboard();
   assert.equal(headlineText(dashboard), "2 of 4 tickets done, 2 questions waiting for you");
-  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.default, question.waits]), [["Q1", "B", false], ["Q2", "Your check", true]]);
+  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.recommended]), [["Q1", "A"], ["Q2", "Looks right"]]);
   assert.deepEqual(dashboard.questions.open[0].options[1], { letter: "B", label: "Leave it", consequence: "No change" });
   assert.deepEqual(dashboard.questions.open[0].files, [{ path: ".scratch/shots/row.png", label: "Before" }]);
 
@@ -601,31 +738,46 @@ test("questions are asked with lettered options and a default, then answered by 
   ({ dashboard } = await w.dashboard());
   assert.equal(dashboard.questions.open[0].background, "Walkthrough: 13px left, 20px right.");
   assert.deepEqual(dashboard.questions.open[0].files.map((file) => file.label), ["Before", "After"]);
-  assert.equal(dashboard.questions.open[0].default, "B", "updates keep the default");
+  assert.equal(dashboard.questions.open[0].recommended, "A", "updates keep the recommendation");
   assert.match((await w.run("question", "update", "Q1")).text, /Nothing to change/);
+  assert.match((await w.run("question", "proceed", "Q1")).text, /Unknown command/, "there's no going ahead without the answer");
+
   w.at(20);
-  assert.equal((await w.run("question", "answer", "q1", "b", "--words", "Leave it alone.")).text, "Answered Q1: B (same as the default)");
+  assert.equal((await w.run("question", "answer", "q1", "b", "--words", "Leave it alone.")).text, "Answered Q1: B (not your recommendation, A). Build it now.");
   w.at(21);
-  assert.equal((await w.run("question", "answer", "Q2", "Looks right")).text, "Answered Q2: Looks right (differs from default Your check: change course)");
+  assert.equal((await w.run("question", "answer", "Q2", "Looks right")).text, "Answered Q2: Looks right (as you recommended). Build it now.");
   ({ dashboard } = await w.dashboard());
   assert.deepEqual(dashboard.questions.open, []);
   assert.deepEqual(dashboard.questions.answered.map((question) => question.id), ["Q2", "Q1"], "most recent answer first");
-  assert.deepEqual(dashboard.questions.answered[1].answer, { choice: "B", words: "Leave it alone.", changedCourse: false, at: minutes(20).toISOString() });
+  assert.deepEqual(dashboard.questions.answered[1].answer, { choice: "B", words: "Leave it alone.", changedCourse: undefined, at: minutes(20).toISOString() });
   assert.equal(headlineText(dashboard), "2 of 4 tickets done");
+});
+
+test("questions from before recommendations show their default as the pick, and keep a changed course", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), ...event });
+  await appendFile(join(w.store, "progress.jsonl"), [
+    line({ type: "question.ask", id: "Q1", title: "Old", question: "Old?", default: "Yes", waits: true }),
+    line({ type: "question.answer", id: "Q1", choice: "No", changedCourse: true }),
+  ].join("\n") + "\n");
+  const { dashboard } = await w.dashboard();
+  assert.equal(dashboard.issues.length, 0);
+  assert.deepEqual(dashboard.questions.answered.map((question) => [question.recommended, question.answer?.changedCourse]), [["Yes", true]]);
 });
 
 test("question references are never reused and bad questions are refused", async (t) => {
   const w = await screenshotRun(t);
-  await w.run("question", "ask", "One", "First?", "--default", "Yes");
+  await w.run("question", "ask", "One", "First?", "--recommend", "Yes");
   assert.equal((await w.run("question", "remove", "Q1")).text, "Removed Q1 (One)");
-  assert.match((await w.run("question", "ask", "Two", "Second?", "--default", "Yes")).text, /^Asked Q2/);
+  assert.match((await w.run("question", "ask", "Two", "Second?", "--recommend", "Yes")).text, /^Asked Q2/);
   await w.run("start", "Next run");
-  assert.match((await w.run("question", "ask", "Three", "Third?", "--default", "Yes")).text, /^Asked Q3/, "references stay unique across runs");
+  assert.match((await w.run("question", "ask", "Three", "Third?", "--recommend", "Yes")).text, /^Asked Q3/, "references stay unique across runs");
   const cases: Array<[string[], RegExp]> = [
-    [["question", "ask", "T", "Q?", "--option", "A=One", "--option", "B=Two", "--default", "C"], /--default must be one of the option letters: A, B/],
-    [["question", "ask", "T", "Q?", "--option", "A=One", "--option", "a=Again", "--default", "A"], /Option A is given twice/],
-    [["question", "ask", "T", "Q?", "--option", "One", "--default", "A"], /--option must look like/],
-    [["question", "ask", "T", "Q?"], /Missing --default/],
+    [["question", "ask", "T", "Q?", "--option", "A=One", "--option", "B=Two", "--recommend", "C"], /--recommend must be one of the option letters: A, B/],
+    [["question", "ask", "T", "Q?"], /Missing --recommend \(the option you would pick\)/],
+    [["question", "ask", "T", "Q?", "--option", "A=One", "--option", "a=Again", "--recommend", "A"], /Option A is given twice/],
+    [["question", "ask", "T", "Q?", "--option", "One", "--recommend", "A"], /--option must look like/],
     [["question", "answer", "Q9", "A"], /No question Q9 in this run/],
     [["question", "remove", "Q1"], /No question Q1/],
   ];
@@ -634,7 +786,7 @@ test("question references are never reused and bad questions are refused", async
     assert.equal(result.code, 1, argv.join(" "));
     assert.match(result.text, message);
   }
-  await w.run("question", "ask", "Four", "Pick?", "--option", "A=One", "--option", "B=Two", "--default", "A");
+  await w.run("question", "ask", "Four", "Pick?", "--option", "A=One", "--option", "B=Two", "--recommend", "A");
   assert.match((await w.run("question", "answer", "Q4", "C")).text, /Q4 has options A, B, not C/);
 });
 
@@ -712,7 +864,7 @@ test("bad lines are skipped and named while the rest of the dashboard renders", 
 
 test("a new run shows a fresh dashboard while the old history stays in the file", async (t) => {
   const w = await screenshotRun(t);
-  await w.run("question", "ask", "Old", "Old question?", "--default", "Yes");
+  await w.run("question", "ask", "Old", "Old question?", "--recommend", "Yes");
   w.at(30);
   await w.run("start", "Second run");
   const { dashboard } = await w.dashboard();
@@ -753,7 +905,7 @@ test("a lock left behind by a crashed command is taken over", async (t) => {
 test("show prints the dashboard as text for the agent", async (t) => {
   const w = await screenshotRun(t);
   await w.run("ticket", "update", "T03", "--stage", "Fixes");
-  await w.run("question", "ask", "Row spacing", "Even out the spacing?", "--option", "A=Yes", "--option", "B=No", "--default", "B");
+  await w.run("question", "ask", "Row spacing", "Even out the spacing?", "--option", "A=Yes", "--option", "B=No", "--recommend", "B");
   await w.run("deliverable", "add", "Screenshots", ".scratch/shots/", "--ticket", "T03");
   await w.run("activity", "add", "Ticket 03 moved to Fixes.");
   const { code, text } = await runShow(w, 617);
@@ -766,7 +918,7 @@ test("show prints the dashboard as text for the agent", async (t) => {
     "POSSIBLY STALE: no update for 10 h 17 min.",
     "Ticket 03 (no update for longer than its 2 h estimate)",
     "T03  Working, Fixes stage  2 h  Ticket 03",
-    "Q1 (Row spacing): Even out the spacing? Default B",
+    "Q1 (Row spacing): Even out the spacing? You recommended B",
     "      B) No",
     "D1  Screenshots: .scratch/shots/, Ticket 03",
     "A1  Ticket 03 moved to Fixes.",
@@ -842,7 +994,7 @@ test("every screen gives an attachment the same icon, and SVGs preview only wher
   const w = await screenshotRun(t);
   await w.run("deliverable", "add", "Findings", "notes/findings.md", "--kind", "report");
   await w.run("deliverable", "add", "Logo", "art/logo.svg");
-  await w.run("question", "ask", "Logo", "Which logo?", "--default", "A", "--file", "art/logo.svg=Current");
+  await w.run("question", "ask", "Logo", "Which logo?", "--recommend", "A", "--file", "art/logo.svg=Current");
   const { dashboard } = await readProgress(w.store);
   const report = findAttachment(dashboard, dashboard.deliverables.find((entry) => entry.title === "Findings")!.id)!;
   assert.equal(attachmentIcon(report), "FileChartColumn", "the recorded kind wins over the extension, wherever the deliverable is listed");
@@ -890,7 +1042,7 @@ test("question attachments take paths or links, and open and preview like delive
   await mkdir(join(w.directory, "shots"), { recursive: true });
   const png = Buffer.from("89504e470d0a1a0a", "hex");
   await writeFile(join(w.directory, "shots", "before.png"), png);
-  await w.run("question", "ask", "Header", "Which header?", "--option", "A=Old", "--option", "B=New", "--default", "A",
+  await w.run("question", "ask", "Header", "Which header?", "--option", "A=Old", "--option", "B=New", "--recommend", "A",
     "--file", "shots/before.png=Before", "--file", "https://example.com/preview?id=7&tab=2=Live preview", "--file", "https://example.com/?q=1");
   const { dashboard } = await readProgress(w.store);
   assert.deepEqual(dashboard.questions.open[0].files, [

@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/history/icon.png" alt="" width="64" height="64">
+
 # History
 
 A **History** composer pill with Paseo’s built-in Gallery Vertical End icon opens a dialog for inspecting a chat's saved history.
@@ -24,7 +26,7 @@ Enable plugins in **Settings → Plugins**, then:
 paseo plugin add npm:@stevecastaneda/paseo-history
 ```
 
-Or from GitHub: `paseo plugin add stevecastaneda/paseo-plugins --path history`.
+Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 
 ## Local install
 
@@ -39,3 +41,18 @@ paseo plugin install "$PWD"
 ```
 
 After edits, run the checks and `paseo plugin reload history`.
+
+## Changelog
+
+### 0.4.3
+
+- Installing the plugin no longer downloads any npm packages. The markdown library History uses, `marked` 17.0.1, now ships inside History's own package. `@getpaseo/client` was installed just for its types; the plugin now gets them from the plugin SDK that Paseo already provides.
+
+### 0.4.2
+
+- The plugin's page in Paseo's plugin store now uses the plugin's own description instead of text the store copied from paseo.cafe.
+
+### 0.4.1
+
+- Installs again with npm 12. Installing failed with `npm ci` asking for a `package-lock.json`, because npm 12 no longer reads the lockfile this plugin shipped ([#53](https://github.com/stevecastaneda/paseo-plugins/issues/53)). The plugin no longer runs its own install step; Paseo's npm install already brings in what it needs.
+- Install from npm or Paseo's plugin registry. Installing straight from GitHub no longer works.

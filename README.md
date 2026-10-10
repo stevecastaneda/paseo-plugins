@@ -4,16 +4,16 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 
 | Plugin | What it adds |
 | --- | --- |
-| [time-since](time-since/README.md) | Elapsed time since the last chat message, shown above the composer. |
-| [setup-monitor](setup-monitor/README.md) | Live worktree setup progress and logs in Explorer. |
-| [workspace-links](workspace-links/README.md) | Quick access to workspace URLs from a JSON file. |
-| [history](history/README.md) | Inspect chat messages, tools, and raw session records from a composer pill. |
-| [progress](progress/README.md) | A live progress dashboard per worktree, drawn from a file agents write with the `paseo-progress` command. |
-| [playwright-pulse](playwright-pulse/README.md) | A live sidebar dashboard for the Playwright test run in a worktree: the running test and step, failures with screenshots and traces. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/time-since/icon.png" alt="" width="24" height="24" align="center"> [time-since](time-since/README.md) | Elapsed time since the last chat message, shown above the composer. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/setup-monitor/icon.png" alt="" width="24" height="24" align="center"> [setup-monitor](setup-monitor/README.md) | Live worktree setup progress and logs from a top-bar button. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/workspace-links/icon.png" alt="" width="24" height="24" align="center"> [workspace-links](workspace-links/README.md) | Quick access to workspace URLs from a JSON file. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/history/icon.png" alt="" width="24" height="24" align="center"> [history](history/README.md) | Inspect chat messages, tools, and raw session records from a composer pill. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/progress/icon.png" alt="" width="24" height="24" align="center"> [progress](progress/README.md) | A live progress dashboard per worktree, drawn from a file agents write with the `paseo-progress` command. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/playwright-pulse/icon.png" alt="" width="24" height="24" align="center"> [playwright-pulse](playwright-pulse/README.md) | A live sidebar dashboard for the Playwright test run in a worktree: the running test and step, failures with screenshots and traces. |
 
 ## Install
 
-Turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want. Each plugin is published to npm as `@stevecastaneda/paseo-<plugin>`. To install from GitHub instead, use `paseo plugin add stevecastaneda/paseo-plugins --path <plugin>`.
+Turn on **Settings → Plugins → Enable plugins** on the Paseo daemon host. Run the install command below for each plugin you want. Each plugin is published to npm as `@stevecastaneda/paseo-<plugin>`. Each one is also in Paseo's plugin registry, so `paseo plugin add stevecastaneda/<plugin>` works too.
 
 Plugin code is trusted and unsandboxed. Server code runs as the daemon user. Client code runs inside Paseo.
 
@@ -33,9 +33,9 @@ paseo plugin add npm:@stevecastaneda/paseo-time-since
 
 ## setup-monitor
 
-Live view of `worktree.setup` from `paseo.json`. While that script runs, Setup opens in Explorer so the chat tab stays selected. A composer pill shows progress and failure.
+Live view of `worktree.setup` from `paseo.json`. A button in the workspace top bar shows a spinner and elapsed time while setup runs, then a check or an alert. Click it for each command's status, duration and log.
 
-<img src="setup-monitor/explorer.png" alt="setup-monitor in Explorer" width="451">
+<img src="setup-monitor/popover.png" alt="The setup button in the workspace top bar with its popover open while setup runs" width="446">
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-setup-monitor
@@ -112,4 +112,4 @@ Switching copies keeps what a plugin saved in `~/.paseo/plugin-data/`.
 
 Each plugin versions itself in that directory's `package.json`, starting at `0.1.0`. Paseo Cafe uses that field as the update identity, so bump it whenever you ship a change to that plugin. Sibling plugins and the git tag on this repository do not count.
 
-Do not cut a GitHub Release for the whole repo. A plugin update is: increment the version in that plugin's `package.json` and `npm-shrinkwrap.json`, merge to `main`, then run `npm publish` in the plugin's folder. Cafe's next scan picks it up. The lockfile is named `npm-shrinkwrap.json` because npm doesn't publish `package-lock.json`, and Paseo runs `npm ci` inside npm installs too. `paseo plugin update` still pulls the tracked git branch.
+Do not cut a GitHub Release for the whole repo. A plugin update is: increment the version in that plugin's `package.json` and `package-lock.json`, run `npm run check:install` in the plugin's folder, merge to `main`, then run `npm publish` there. Cafe's next scan picks it up. `check:install` packs the plugin and installs it the way Paseo installs from npm, with your npm and with the latest npm. The manifests have no `build` step because Paseo's npm install already brings in each plugin's dependencies. `paseo plugin update` still pulls the tracked git branch.

@@ -8,7 +8,6 @@ import { PressableRow } from "./row";
 import { ShowMoreRow, usePaged } from "./show-more";
 import { PressScale } from "./motion";
 import { StackedDialog } from "./dialog-stack";
-import { useNarrow } from "./narrow";
 import { raised } from "./surfaces";
 import { When } from "./when";
 
@@ -43,13 +42,12 @@ export interface AttachmentContext {
   navigation?: PluginWorkspacePanelProps["navigation"];
 }
 
-export function QuestionsSection({ colors, questions, answered, now, compact, context }: {
+export function QuestionsSection({ colors, questions, answered, now, context }: {
   colors: Colors;
   questions: Question[];
   // So a question answered while its dialog is open shows the answer instead of vanishing.
   answered: Question[];
   now: number;
-  compact: boolean;
   context: AttachmentContext;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -62,9 +60,6 @@ export function QuestionsSection({ colors, questions, answered, now, compact, co
         <View style={{ borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
           <Text style={{ color: colors.accentForeground, fontSize: 11, lineHeight: 16 }}>{questions.length} waiting</Text>
         </View>
-        <Text style={{ flexBasis: compact ? "100%" : undefined, flex: compact ? undefined : 1, textAlign: compact ? "left" : "right", color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-          Work continues on each default until you answer, except where it waits. Press a question to see its choices and copy an answer.
-        </Text>
       </View>
       {questions.map((question, index) => (
         <QuestionRow key={question.id} colors={colors} question={question} first={index === 0}
@@ -124,7 +119,7 @@ function AnswerSummary({ colors, question, now }: { colors: Colors; question: Qu
         {chosen ? ` ${chosen.label}.` : ""}
         {answer.words ? <Text style={{ color: colors.foregroundMuted }}> “{answer.words}”</Text> : null}
         <Text style={{ color: colors.foregroundMuted }}>
-          {answer.changedCourse ? ` Differs from the default (${question.default}), so work changes course.` : " Same as the default, so no change of course."}
+          {answer.changedCourse ? " The agent had already built another option, so work changed course." : ""}
         </Text>
       </Text>
       <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
@@ -141,14 +136,14 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
   onOpen(): void;
   onCopy(): void;
 }) {
-  // Narrow: the badge goes under the question, so the question keeps the row's width.
-  const narrow = useNarrow();
-  const badge = <DefaultBadge colors={colors} value={question.default} waits={question.waits} />;
   return (
     <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
       <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={onCopy} hitSlop={6}
         outerStyle={{ alignSelf: "flex-start", marginTop: 1 }}
         style={({ pressed }) => ({
+          // One width for every id, so the questions beside them start on one edge.
+          minWidth: 34,
+          alignItems: "center",
           paddingHorizontal: 6,
           borderRadius: 999,
           backgroundColor: pressed ? colors.surface2 : colors.surface1,
@@ -158,11 +153,7 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
       </PressScale>
       <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={`${question.id} choices`} onPress={onOpen}
         style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 4, margin: -4, padding: 4 }}>
-        <View style={{ flex: 1, minWidth: 0, gap: 6, alignItems: "flex-start" }}>
-          <Text style={{ alignSelf: "stretch", color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
-          {narrow ? badge : null}
-        </View>
-        {narrow ? null : badge}
+        <Text style={{ flex: 1, minWidth: 0, color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
         {/* Optical: centers the 14px chevron on the 19px first line. */}
         <View style={{ paddingTop: 2.5 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
       </PressableRow>
@@ -181,9 +172,9 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
 }) {
   return (
     <View style={{ gap: 10 }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-        <Text style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 20 }}>{question.question}</Text>
-        {!question.answer ? <DefaultBadge colors={colors} value={question.default} waits={question.waits} /> : null}
+      <View style={{ gap: 2 }}>
+        <Text style={{ color: colors.foreground, fontSize: 14, lineHeight: 20 }}>{question.question}</Text>
+        {!question.answer ? <QuestionState colors={colors} question={question} /> : null}
       </View>
       {question.answer ? <AnswerSummary colors={colors} question={question} now={now} /> : null}
       <QuestionDetail colors={colors} question={question} now={now} onSurface1 onCopy={onCopy} onOpenAttachment={onOpenAttachment} />
@@ -192,15 +183,10 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
   );
 }
 
-// A question that waits shows its default in amber: the agent is not acting on it.
-export function DefaultBadge({ colors, value, waits }: { colors: Colors; value: string; waits: boolean }) {
-  return (
-    <View style={{ flexDirection: "row", borderWidth: 1, borderColor: waits ? colors.statusWarning : colors.accent, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
-      <Text style={{ color: waits ? colors.statusWarning : colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-        Default <Text style={{ color: waits ? colors.statusWarning : colors.foreground, fontWeight: "600" }}>{value}</Text>{waits ? ", waits for you" : ""}
-      </Text>
-    </View>
-  );
+// The agent's pick, under an open question that has no lettered options to tag.
+export function QuestionState({ colors, question }: { colors: Colors; question: Question }) {
+  if (question.options.length || !question.recommended) return null;
+  return <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>Recommended: <Text style={{ color: colors.foreground }}>{question.recommended}</Text></Text>;
 }
 
 // `onSurface1` when drawn on a surface1 background (Paseo's dialogs), so the
@@ -217,10 +203,11 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
   return (
     <View style={{ gap: 8, paddingTop: 2 }}>
       {question.options.map((option) => {
-        const isDefault = option.letter === question.default;
-        // Once answered, the border marks the choice made; before that, the default.
+        const recommended = option.letter === question.recommended;
+        // Once answered, the border marks the choice made; before that, the agent's recommendation.
         const chosen = question.answer?.choice === option.letter;
-        const borderColor = question.answer ? (chosen ? colors.statusSuccess : colors.border) : isDefault ? colors.accent : colors.border;
+        const borderColor = question.answer ? (chosen ? colors.statusSuccess : colors.border) : recommended ? colors.accent : colors.border;
+        const settled = Boolean(question.answer);
         return (
           <View key={option.letter} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 8, borderRadius: 12, borderWidth: 1, borderColor }}>
             <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", width: 14 }}>{option.letter}</Text>
@@ -228,7 +215,7 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
               <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
                 {option.label}
                 {chosen ? <Text style={{ color: colors.statusSuccess }}>  Your answer</Text> : null}
-                {isDefault ? <Text style={{ color: question.answer ? colors.foregroundMuted : colors.accent }}>  Default</Text> : null}
+                {recommended ? <Text style={{ color: settled ? colors.foregroundMuted : colors.accent }}>  Recommended</Text> : null}
               </Text>
               {option.consequence ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{option.consequence}</Text> : null}
             </View>

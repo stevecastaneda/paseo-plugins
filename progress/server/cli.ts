@@ -4,9 +4,9 @@ import { realpathSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { isSettled, type Dashboard, type NextIds } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, TICKET_STATUSES } from "../shared/events.ts";
-import { appendProgress, InvalidEvent, readProgress, type EventDraft } from "./progress-file.ts";
+import { isSettled, type Dashboard, type NextIds, type Ticket } from "../shared/dashboard.ts";
+import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent } from "../shared/events.ts";
+import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
 import { findStore, saveRunCopy } from "./store.ts";
@@ -18,6 +18,8 @@ export interface CliOptions {
   cwd: string;
   now?: () => Date;
   out?: (line: string) => void;
+  // The Paseo agent running the command, recorded on each event it writes.
+  agentId?: string;
 }
 
 class UsageError extends Error {}
@@ -136,6 +138,30 @@ function unfinishedWork(dashboard: Dashboard): string[] {
   ].filter(Boolean);
 }
 
+// Tickets another session added since this agent last wrote to the run, still
+// to do. Nothing until the agent has written to the run: it reads `show` first.
+function addedByOthers(events: ProgressEvent[], dashboard: Dashboard, agentId: string | undefined): Ticket[] {
+  if (!agentId) return [];
+  const since = events.findLastIndex((event) => event.by === agentId);
+  if (since === -1) return [];
+  const added = new Set(events.slice(since + 1).flatMap((event) => (event.type === "ticket.add" && event.by !== agentId ? [event.id] : [])));
+  return dashboard.tickets.filter((ticket) => added.has(ticket.id) && !isSettled(ticket));
+}
+
+function addedByOthersText(tickets: Ticket[], dashboard: Dashboard): string {
+  if (!tickets.length) return "";
+  const label = (dashboard.run?.itemLabel ?? "Ticket").toLowerCase();
+  const one = tickets.length === 1;
+  // Starts with a blank line, to follow the command's own output.
+  return [
+    "",
+    "",
+    `Another session added ${one ? `a ${label}` : `${tickets.length} ${label}s`} since your last update:`,
+    ...tickets.map((ticket) => `  ${ticket.id}  ${ticket.title}`),
+    `${one ? "It is" : "They are"} part of this run: work ${one ? "it" : "them"} in order after your current ${label}.`,
+  ].join("\n");
+}
+
 const commands: Record<string, Command> = {
   start: {
     usage: `start "<title>" [--subtitle <text>] [--item-label <word>]`,
@@ -161,26 +187,27 @@ const commands: Record<string, Command> = {
     },
   },
   "ticket add": {
-    usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--waits-for <id>]`,
-    summary: "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker.",
-    options: { estimate: { type: "string" }, status: { type: "string" }, "waits-for": { type: "string" } },
-    run({ positionals, values, state }) {
+    usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
+    summary: "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker. --source is where the ticket is written up, like its spec file or issue link.",
+    options: { estimate: { type: "string" }, status: { type: "string" }, "waits-for": { type: "string" }, source: { type: "string" } },
+    run({ positionals, values, state, cwd, root }) {
       const waitsFor = values["waits-for"] === undefined ? undefined : existingTicket(state, stringOption(values["waits-for"])).id;
       const title = required(positionals[0], "ticket title");
       const estimateMin = minutesOption(values.estimate, "estimate");
       if (estimateMin === undefined) throw new UsageError("Missing --estimate <minutes>.");
+      const source = values.source === undefined ? undefined : parseFile(String(values.source), cwd, root);
       const id = state.nextIds.ticket;
       return {
-        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor },
-        message: `Added ${id}: ${title} (${estimateMin} min)${waitsFor ? `, waits for ${waitsFor}` : ""}`,
+        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor, source },
+        message: `Added ${id}: ${title} (${estimateMin} min)${waitsFor ? `, waits for ${waitsFor}` : ""}${source ? `, source ${source.path ?? source.url}` : ""}`,
       };
     },
   },
   "ticket update": {
-    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>]`,
-    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that.`,
-    options: { status: { type: "string" }, stage: { type: "string" }, title: { type: "string" }, estimate: { type: "string" }, note: { type: "string" }, "waits-for": { type: "string" } },
-    run({ positionals, values, state }) {
+    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
+    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that. --source is where the ticket is written up ("" clears it).`,
+    options: { status: { type: "string" }, stage: { type: "string" }, title: { type: "string" }, estimate: { type: "string" }, note: { type: "string" }, "waits-for": { type: "string" }, source: { type: "string" } },
+    run({ positionals, values, state, cwd, root }) {
       const ticket = existingTicket(state, positionals[0]);
       const rawWaitsFor = values["waits-for"] === undefined ? undefined : String(values["waits-for"]).trim();
       const waitsFor = rawWaitsFor === undefined || rawWaitsFor === "" ? rawWaitsFor : existingTicket(state, rawWaitsFor).id;
@@ -199,10 +226,12 @@ const commands: Record<string, Command> = {
         stage: stringOption(values.stage),
         note: stringOption(values.note),
         waitsFor,
+        source: values.source === undefined ? undefined : String(values.source).trim() === "" ? "" as const : parseFile(String(values.source), cwd, root),
       };
       const changes = Object.entries(event).filter(([key, value]) => key !== "type" && key !== "id" && value !== undefined);
-      if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, or --waits-for.");
-      return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${value}`).join(", ")}` };
+      if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, --waits-for, or --source.");
+      const shown = (value: unknown) => (typeof value === "object" ? (value as FileLink).path ?? (value as FileLink).url : value);
+      return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${shown(value)}`).join(", ")}` };
     },
   },
   "ticket remove": {
@@ -214,12 +243,11 @@ const commands: Record<string, Command> = {
     },
   },
   "question ask": {
-    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --default <letter or word> [--waits] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
-    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...). Keep working on the default until it is answered, unless --waits: then the default is only a suggestion and you wait.",
+    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --recommend <letter or word> [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
+    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...). --recommend is the option you would pick. Build no option before the answer: work only on what the question doesn't affect, and if nothing else is left, stop and wait.",
     options: {
       option: { type: "string", multiple: true },
-      default: { type: "string" },
-      waits: { type: "boolean" },
+      recommend: { type: "string" },
       background: { type: "string" },
       file: { type: "string", multiple: true },
       "raised-by": { type: "string" },
@@ -233,12 +261,12 @@ const commands: Record<string, Command> = {
       const letters = options.map((option) => option.letter);
       const duplicate = letters.find((letter, index) => letters.indexOf(letter) !== index);
       if (duplicate) throw new UsageError(`Option ${duplicate} is given twice.`);
-      let fallback = required(stringOption(values.default), "--default");
+      let recommend = required(stringOption(values.recommend), "--recommend (the option you would pick)");
       if (options.length) {
-        if (!/^[A-Za-z]$/.test(fallback) || !letters.includes(fallback.toUpperCase())) {
-          throw new UsageError(`--default must be one of the option letters: ${letters.join(", ")}.`);
+        if (!/^[A-Za-z]$/.test(recommend) || !letters.includes(recommend.toUpperCase())) {
+          throw new UsageError(`--recommend must be one of the option letters: ${letters.join(", ")}.`);
         }
-        fallback = fallback.toUpperCase();
+        recommend = recommend.toUpperCase();
       }
       const id = state.nextIds.question;
       return {
@@ -248,14 +276,13 @@ const commands: Record<string, Command> = {
           title,
           question,
           options: options.length ? options : undefined,
-          default: fallback,
-          waits: values.waits === true ? true : undefined,
+          recommend,
           background: stringOption(values.background),
           files: listOption(values.file).length ? listOption(values.file).map((raw) => parseFile(raw, cwd, root)) : undefined,
           raisedBy: stringOption(values["raised-by"]),
           ticket: ticket?.id,
         },
-        message: `Asked ${id} (${title}). Default: ${fallback}${values.waits === true ? " (waiting for the answer)" : ""}`,
+        message: `Asked ${id} (${title}). You recommend ${recommend}. Build no option before the answer: work only on what it doesn't affect, and if nothing else is left, stop and wait.`,
       };
     },
   },
@@ -271,10 +298,10 @@ const commands: Record<string, Command> = {
         choice = choice.toUpperCase();
         if (letters.length && !letters.includes(choice)) throw new UsageError(`${question.id} has options ${letters.join(", ")}, not ${choice}.`);
       }
-      const changedCourse = choice.toLowerCase() !== question.default.toLowerCase();
+      const asRecommended = choice.toLowerCase() === question.recommended.toLowerCase();
       return {
-        event: { type: "question.answer", id: question.id, choice, words: stringOption(values.words), changedCourse },
-        message: `Answered ${question.id}: ${choice}${changedCourse ? ` (differs from default ${question.default}: change course)` : " (same as the default)"}`,
+        event: { type: "question.answer", id: question.id, choice, words: stringOption(values.words) },
+        message: `Answered ${question.id}: ${choice}${asRecommended ? " (as you recommended)" : ` (not your recommendation, ${question.recommended})`}. Build it now.`,
       };
     },
   },
@@ -466,7 +493,9 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     if (first === "show") {
       const root = findRoot(options.cwd);
       const store = await findStore(root);
-      out(`Worktree: ${root}\n\n${dashboardText((await readProgress(store.directory, now())).dashboard, now().getTime())}`);
+      const { dashboard } = await readProgress(store.directory, now());
+      const added = addedByOthersText(addedByOthers(await readLatestRun(store.directory), dashboard, options.agentId), dashboard);
+      out(`Worktree: ${root}\n\n${dashboardText(dashboard, now().getTime())}${added}`);
       return 0;
     }
     const target = resolve(options.cwd, (argv[1] ?? DEFAULT_LAUNCHER).replace(/^~(?=$|\/)/, homedir()));
@@ -499,7 +528,8 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
       }
       const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root });
-      return { event, result: message };
+      const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
+      return { event: { ...event, by: options.agentId }, result: `${message}${added}` };
     }, (text) => saveRunCopy(root, text));
     out(message);
     return 0;
@@ -522,7 +552,7 @@ function isMain(): boolean {
 }
 
 if (isMain()) {
-  runCli(process.argv.slice(2), { cwd: process.cwd() }).then(
+  runCli(process.argv.slice(2), { cwd: process.cwd(), agentId: process.env.PASEO_AGENT_ID || undefined }).then(
     (code) => { process.exitCode = code; },
     (error) => {
       console.error(error instanceof Error ? error.message : error);
