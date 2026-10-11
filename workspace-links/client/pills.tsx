@@ -21,7 +21,7 @@ function LinksIcon(props: PluginButtonIconProps) {
   const directory = useWorkspace(props.workspaceId, (workspace) => workspace.directory);
   useLinks(props.host.id, props.workspaceId, directory);
   const size = props.context === "workspace" ? 14 : props.size;
-  return <Icon name="Link" size={size} color={props.color} />;
+  return <Icon name="Link2" size={size} color={props.color} />;
 }
 
 let settings: ShortcutSettings = { ...defaultShortcut };

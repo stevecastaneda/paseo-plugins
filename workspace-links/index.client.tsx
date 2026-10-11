@@ -8,7 +8,7 @@ export default function contribute(client: PluginClientContext) {
   client.addWorkspacePanel({
     id: "links",
     title: "Links",
-    icon: "ExternalLink",
+    icon: "Link2",
     context: "workspace",
     locations: ["workspace", "explorer"],
     Component: LinksPanel,
@@ -16,7 +16,7 @@ export default function contribute(client: PluginClientContext) {
   client.addCommandCenterItem({
     id: "open-links",
     title: "Workspace Links",
-    icon: "ExternalLink",
+    icon: "Link2",
     keywords: ["browser", "url"],
     context: "workspace",
     onSelect({ openPanel }) {

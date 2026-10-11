@@ -167,7 +167,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
     <View style={{ paddingHorizontal: 12, paddingTop: isEmpty ? 20 : 4, paddingBottom: 16, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         {isEmpty ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Icon name="Link" size={18} color={colors.foregroundMuted} />
+            <Icon name="Link2" size={18} color={colors.foregroundMuted} />
             <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "500" }}>Add your first link</Text>
           </View>
         ) : null}
@@ -175,7 +175,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
           {result?.configured ? "Add URLs to " : "Create "}<Text style={{ color: colors.foreground }}>workspace-links.json</Text> in the workspace root for your app, tools, or docs.
         </Text>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          Edit it by hand or generate it during setup, then refresh.
+          Edit it by hand or generate it during setup. This panel picks up changes on its&nbsp;own.
         </Text>
         <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 6, overflow: "hidden" }}>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: exampleExpanded }}
@@ -207,17 +207,6 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
       style={{ flex: 1, backgroundColor: colors.surface0 }}
       contentContainerStyle={{ paddingBottom: 16 }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 12, paddingRight: 6, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <Text accessibilityRole="header" style={{ flex: 1, color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>
-          Workspace Links
-        </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Refresh links"
-          accessibilityState={{ disabled: loading }} disabled={loading}
-          hitSlop={8} onPress={() => { setError(null); void linksQuery.refetch(); }}
-          style={({ pressed }) => ({ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 4, backgroundColor: pressed ? colors.surface1 : colors.surface0, opacity: loading ? 0.5 : 1 })}>
-          <Icon name="RefreshCw" size={14} color={colors.foregroundMuted} />
-        </Pressable>
-      </View>
       {loading ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading links" style={{ padding: 12 }} /> : null}
       {error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>{error}</Text>
@@ -320,7 +309,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
       </View>
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 12, paddingVertical: 10 }}>
         <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          {shortcutSaving ? "Saving..." : `All workspaces on ${host.label} · Auto-save`}
+          {shortcutSaving ? "Saving…" : `All workspaces on ${host.label} · Auto-save`}
         </Text>
       </View>
       {result && !isEmpty ? (

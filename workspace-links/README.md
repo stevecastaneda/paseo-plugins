@@ -34,7 +34,7 @@ Put this file at the workspace root:
 ]
 ```
 
-Use fixed URLs or have your existing setup/dev script generate this same file with the workspace's current URLs. Gitignore it if it contains workspace-specific values. The Links popover rereads the file on its own. Click **Refresh** in the panel if that list still looks stale. The plugin does not execute scripts.
+Use fixed URLs or have your existing setup/dev script generate this same file with the workspace's current URLs. Gitignore it if it contains workspace-specific values. The popover and the panel reread the file every two seconds while they are open, so there is nothing to refresh. The plugin does not execute scripts.
 
 Links open on the **device you're using**, the same way Paseo opens its own links: your default browser in the desktop app, a new tab in the web app, or the phone's browser in the mobile app.
 
@@ -47,14 +47,22 @@ Only HTTP(S) URLs are supported, with up to 100 links. Missing configuration, em
 ## Updates
 
 Workspace and agent changes arrive through subscriptions rather than repeated
-list requests. Links controls refresh their list every two seconds while
-displayed. **Refresh** in the panel also updates the list immediately.
+list requests. The Links popover and panel reread the file every two seconds
+while they are open.
 
 Placement changes apply immediately in the current client. Other connected
 clients pick up saved options when they next load the options or reload the
 plugin.
 
 ## Changelog
+
+### 1.0.0
+
+- Version 1.0. Nothing you use changes. From now on, a new first number means an update breaks something, a new middle number means a new feature, and a new last number means a fix.
+- The button, the Explorer tab, the Command Center entry and the empty states all use the same flat chain icon now. The tab and Command Center used an open-in-browser arrow, and the button a slanted chain.
+- The Links panel no longer opens with a "Workspace Links" bar and a Refresh button. The panel already rereads `workspace-links.json` every two seconds, so the button did nothing you'd notice.
+- The setup guide says the panel picks up changes on its own, instead of asking you to refresh.
+- New screenshot of the Links panel in this README.
 
 ### 0.6.0
 
