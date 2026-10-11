@@ -124,6 +124,16 @@ Switching copies keeps what a plugin saved in `~/.paseo/plugin-data/`.
 
 ## Versioning
 
-Each plugin versions itself in that directory's `package.json`, starting at `0.1.0`. Paseo Cafe uses that field as the update identity, so bump it whenever you ship a change to that plugin. Sibling plugins and the git tag on this repository do not count.
+Each plugin versions itself in that directory's `package.json`. npm and the Paseo plugin store use that field to tell releases apart, so bump it whenever you ship a change to that plugin. Sibling plugins and the git tag on this repository do not count.
 
-Do not cut a GitHub Release for the whole repo. A plugin update is: increment the version in that plugin's `package.json` and `package-lock.json`, run `npm run check:install` in the plugin's folder, merge to `main`, then run `npm publish` there. Cafe's next scan picks it up. `check:install` packs the plugin and installs it the way Paseo installs from npm, with your npm and with the latest npm. The manifests have no `build` step because Paseo's npm install already brings in each plugin's dependencies. `paseo plugin update` still pulls the tracked git branch.
+Versions follow [semver](https://semver.org). Each plugin moves from 0.x to `1.0.0` at its next release. From then on:
+
+| The change | Bump | Example |
+| --- | --- | --- |
+| Breaks something for people already using the plugin: drops a Paseo version, removes a feature or setting, moves saved data | First number | `1.4.2` to `2.0.0` |
+| Adds a feature | Middle number | `1.4.2` to `1.5.0` |
+| Fixes a bug, or changes only the README or store page | Last number | `1.4.2` to `1.4.3` |
+
+A change that never reaches users, such as dev dependencies, tests or lockfiles, needs no bump.
+
+Do not cut a GitHub Release for the whole repo. A plugin update is: increment the version in that plugin's `package.json` and `package-lock.json`, run `npm run check:install` in the plugin's folder, merge to `main`, then run `npm publish` there. The store's update bot checks npm twice a day and opens an update for a store maintainer to review. `check:install` packs the plugin and installs it the way Paseo installs from npm, with your npm and with the latest npm. The manifests have no `build` step because Paseo's npm install already brings in each plugin's dependencies. `paseo plugin update` still pulls the tracked git branch.
