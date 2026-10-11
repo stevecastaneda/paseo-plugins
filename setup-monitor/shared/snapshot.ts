@@ -67,6 +67,19 @@ export function failedCommand(commands: readonly SetupCommand[]): SetupCommand |
   return commands.find((command) => command.status === "failed") ?? null;
 }
 
+/**
+ * Whether a failed setup's error only repeats what its failed step shows.
+ * Paseo's message is "Worktree setup command failed: <command>" and then the
+ * command's error output, which the step's log already ends with.
+ */
+export function errorRepeatsLog(error: string, command: SetupCommand | null): boolean {
+  if (command?.status !== "failed" || !command.log.trim()) return false;
+  const [first = "", ...rest] = error.trim().split("\n");
+  if (!first.startsWith("Worktree setup command failed:")) return false;
+  const details = rest.join("\n").trim();
+  return !details || processCarriageReturns(command.log).includes(details);
+}
+
 export function completedDurationMs(commands: readonly SetupCommand[]): number {
   let total = 0;
   for (const command of commands) {
@@ -76,9 +89,9 @@ export function completedDurationMs(commands: readonly SetupCommand[]): number {
 }
 
 /**
- * Running setup always shows. A finished one stays, with its check or alert,
- * until it is dismissed; a success only shows if this session watched it run,
- * so worktrees set up long ago stay quiet.
+ * Running setup always shows. A finished or blocked one stays, with its check
+ * or alert, until it is dismissed; a success only shows if this session
+ * watched it run, so worktrees set up long ago stay quiet.
  */
 export function shouldShowButton(
   snapshot: SetupSnapshot | null,
@@ -86,13 +99,13 @@ export function shouldShowButton(
 ): boolean {
   if (snapshot?.status === "running") return true;
   if (seen.dismissed) return false;
-  if (snapshot?.status === "failed") return true;
+  if (snapshot?.status === "failed" || snapshot?.status === "blocked") return true;
   return snapshot?.status === "completed" && seen.sawRunning;
 }
 
 export function statusIconName(status: SetupStatus): "CircleCheck" | "CircleAlert" | "Package" {
   if (status === "completed") return "CircleCheck";
-  if (status === "failed") return "CircleAlert";
+  if (status === "failed" || status === "blocked") return "CircleAlert";
   return "Package";
 }
 
@@ -100,10 +113,12 @@ export function statusIconName(status: SetupStatus): "CircleCheck" | "CircleAler
 export function buttonLabel(snapshot: SetupSnapshot | null, elapsedMs: number): string | null {
   if (!snapshot) return null;
   if (snapshot.status === "failed") return "Setup failed";
+  if (snapshot.status === "blocked") return "Setup blocked";
   return `Setup ${formatDuration(elapsedMs)}`;
 }
 
 export function headline(snapshot: SetupSnapshot): string {
+  if (snapshot.status === "blocked") return "Setup was not run";
   if (snapshot.status === "failed") {
     return snapshot.error?.trim() || "Setup failed";
   }
@@ -113,6 +128,12 @@ export function headline(snapshot: SetupSnapshot): string {
   }
   const running = runningCommand(snapshot.detail.commands);
   return running ? shortCommand(running.command) : "Setting up worktree";
+}
+
+// Paseo's words for a blocked setup, from its own Setup panel.
+export function blockedExplanation(snapshot: SetupSnapshot): string {
+  const from = snapshot.blockedSource?.headRepository;
+  return `This PR comes from ${from ? `${from}, ` : ""}a different repository. Its setup and scripts could run code you have not reviewed.`;
 }
 
 export function commandLabel(command: SetupCommand, worktreePath: string): string {
@@ -128,10 +149,12 @@ export function statusColor(
     accent: string;
     statusSuccess: string;
     statusDanger: string;
+    statusWarning: string;
     foregroundMuted: string;
   },
 ): string {
   if (status === "running") return colors.accent;
+  if (status === "blocked") return colors.statusWarning;
   if (status === "completed") return colors.statusSuccess;
   if (status === "failed") return colors.statusDanger;
   return colors.foregroundMuted;

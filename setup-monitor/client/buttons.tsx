@@ -9,7 +9,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useSyncExternalStore } from "react";
 import { ActivityIndicator } from "react-native";
 import type { SetupSnapshot } from "../shared/setup";
-import { getSetupStatus } from "../shared/setup";
+import { getSetupStatus, runSetup } from "../shared/setup";
 import {
   buttonLabel,
   completedDurationMs,
@@ -50,9 +50,11 @@ export function contributeClient(client: PluginClientContext) {
         color={
           snapshot?.status === "failed"
             ? theme.colors.statusDanger
-            : snapshot?.status === "completed"
-              ? theme.colors.statusSuccess
-              : color
+            : snapshot?.status === "blocked"
+              ? theme.colors.statusWarning
+              : snapshot?.status === "completed"
+                ? theme.colors.statusSuccess
+                : color
         }
       />
     );
@@ -68,6 +70,11 @@ export function contributeClient(client: PluginClientContext) {
         onDismiss={() => {
           close();
           dismiss(workspaceId);
+        }}
+        onRunSetup={async () => {
+          const { error } = await client.rpc(runSetup, { workspaceId });
+          if (!error) void refreshWorkspace(workspaceId);
+          return error;
         }}
       />
     );
@@ -103,14 +110,23 @@ export function contributeClient(client: PluginClientContext) {
     publishButtons();
   };
 
-  const rememberSnapshot = (workspaceId: string, snapshot: SetupSnapshot | null) => {
+  const rememberSnapshot = (workspaceId: string, snapshot: SetupSnapshot | null, runningForMs: number | null) => {
     if (JSON.stringify(snapshots.get(workspaceId)) !== JSON.stringify(snapshot)) {
       snapshots.set(workspaceId, snapshot);
       for (const listener of snapshotListeners.get(workspaceId) ?? []) listener();
     }
     if (snapshot?.status === "running") {
+      // The server's clock survives reloads and new windows. Sent as time
+      // running rather than a start time, so a device whose clock differs from
+      // the daemon host's still counts right.
+      const since = runningForMs === null ? null : Date.now() - runningForMs;
+      const current = runningSince.get(workspaceId);
+      if (since !== null && (current === undefined || Math.abs(current - since) > 2_000)) {
+        runningSince.set(workspaceId, since);
+      } else if (current === undefined) {
+        runningSince.set(workspaceId, Date.now());
+      }
       // A rerun shows again even after the last result was dismissed.
-      if (!runningSince.has(workspaceId)) runningSince.set(workspaceId, Date.now());
       sawRunning.add(workspaceId);
       dismissed.delete(workspaceId);
       tookMs.delete(workspaceId);
@@ -165,9 +181,9 @@ export function contributeClient(client: PluginClientContext) {
     const request = {};
     pending.set(workspaceId, request);
     try {
-      const { snapshot } = await client.rpc(getSetupStatus, { workspaceId });
+      const { snapshot, runningForMs } = await client.rpc(getSetupStatus, { workspaceId });
       if (stopped || !worktreeIds.has(workspaceId) || pending.get(workspaceId) !== request) return;
-      rememberSnapshot(workspaceId, snapshot);
+      rememberSnapshot(workspaceId, snapshot, runningForMs);
       publishButtons();
     } catch { /* Retry on the next status refresh. */ }
     finally { if (pending.get(workspaceId) === request) pending.delete(workspaceId); }

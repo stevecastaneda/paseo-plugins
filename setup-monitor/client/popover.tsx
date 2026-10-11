@@ -13,6 +13,9 @@ import {
 } from "react-native";
 import type { SetupCommand, SetupSnapshot, SetupStatus } from "../shared/setup";
 import {
+  blockedExplanation,
+  completedDurationMs,
+  errorRepeatsLog,
   failedCommand,
   formatDuration,
   headline,
@@ -36,6 +39,7 @@ function StatusIcon({ status, colors }: { status: SetupStatus; colors: Colors })
   if (status === "completed") {
     return <Icon name="CircleCheck" size={14} color={colors.statusSuccess} />;
   }
+  if (status === "blocked") return <Icon name="CircleAlert" size={14} color={colors.statusWarning} />;
   return <Icon name="CircleAlert" size={14} color={colors.statusDanger} />;
 }
 
@@ -51,17 +55,22 @@ export function SetupPopover({
   snapshot,
   runningSinceMs,
   onDismiss,
+  onRunSetup,
 }: {
   theme: PluginTheme;
   snapshot: SetupSnapshot | null;
   runningSinceMs: number | null;
   onDismiss(): void;
+  /** Runs a blocked setup; resolves with an error message, or null once it starts. */
+  onRunSetup(): Promise<string | null>;
 }) {
   const { colors } = theme;
   const [nowMs, setNowMs] = useState(() => Date.now());
   // null follows the running command; a press pins the log to that command.
   const [pinned, setPinned] = useState<number | null>(null);
   const logRef = useRef<ScrollView>(null);
+  const [starting, setStarting] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
   const running = snapshot?.status === "running";
 
   useEffect(() => {
@@ -98,6 +107,8 @@ export function SetupPopover({
   }
 
   const elapsedMs = running && runningSinceMs ? Math.max(0, nowMs - runningSinceMs) : 0;
+  // The running step's own time: all of setup so far, less the finished steps.
+  const stepElapsedMs = Math.max(0, elapsedMs - completedDurationMs(commands));
   // The command line below names the step, so the title only says where setup is.
   const title =
     snapshot.status === "failed"
@@ -105,10 +116,12 @@ export function SetupPopover({
       : snapshot.status === "running"
         ? "Setting up worktree"
         : headline(snapshot);
+  // The failed step's row and log already say what Paseo's error says.
   const showError =
     snapshot.status === "failed" &&
     Boolean(snapshot.error?.trim()) &&
-    (!selected || selected.status === "failed");
+    (!selected || selected.status === "failed") &&
+    !errorRepeatsLog(snapshot.error ?? "", failedCommand(commands));
 
   return (
     <View style={styles.root}>
@@ -126,10 +139,54 @@ export function SetupPopover({
             </Text>
           ) : null}
         </View>
-        {elapsedMs > 0 ? <Text style={styles.duration}>{formatDuration(elapsedMs)}</Text> : null}
+        {/* The clock while setup runs; Dismiss once it's done. Up here, Dismiss
+            stays in view when a long result makes the popover scroll. */}
+        {running ? (
+          elapsedMs > 0 ? <Text style={styles.duration}>{formatDuration(elapsedMs)}</Text> : null
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={onDismiss}
+            style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
+              styles.dismiss,
+              hovered || pressed ? styles.dismissActive : null,
+            ]}
+          >
+            <Text style={styles.dismissLabel}>Dismiss</Text>
+          </Pressable>
+        )}
       </View>
 
-      {commands.length > 1 ? (
+      {snapshot.status === "blocked" ? (
+        <>
+          <Text style={styles.explain} selectable>{blockedExplanation(snapshot)}</Text>
+          {runError ? <Text style={styles.error} selectable>{runError}</Text> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ busy: starting }}
+            disabled={starting}
+            onPress={async () => {
+              setStarting(true);
+              setRunError(null);
+              try {
+                setRunError(await onRunSetup());
+              } catch (error) {
+                setRunError(error instanceof Error ? error.message : String(error));
+              } finally {
+                setStarting(false);
+              }
+            }}
+            style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
+              styles.run,
+              starting ? styles.runBusy : hovered || pressed ? styles.runActive : null,
+            ]}
+          >
+            <Text style={styles.runLabel}>{starting ? "Starting setup…" : "Run setup"}</Text>
+          </Pressable>
+        </>
+      ) : null}
+
+      {snapshot.status !== "blocked" && commands.length > 1 ? (
         <View style={styles.commands}>
           {commands.map((command) => {
             const isSelected = command.index === selectedIndex;
@@ -137,7 +194,7 @@ export function SetupPopover({
               typeof command.durationMs === "number"
                 ? formatDuration(command.durationMs)
                 : command.status === "running" && elapsedMs > 0
-                  ? formatDuration(elapsedMs)
+                  ? formatDuration(stepElapsedMs)
                   : null;
             return (
               <Pressable
@@ -170,7 +227,7 @@ export function SetupPopover({
         </Text>
       ) : null}
 
-      {snapshot.status === "completed" && commands.length === 0 && !log ? (
+      {snapshot.status === "blocked" ? null : snapshot.status === "completed" && commands.length === 0 && !log ? (
         <Text style={styles.muted}>No setup commands ran in this worktree.</Text>
       ) : (
         <View style={styles.logGroup}>
@@ -187,18 +244,6 @@ export function SetupPopover({
         </View>
       )}
 
-      {running ? null : (
-        <Pressable
-          accessibilityRole="button"
-          onPress={onDismiss}
-          style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
-            styles.dismiss,
-            hovered || pressed ? styles.dismissActive : null,
-          ]}
-        >
-          <Text style={styles.dismissLabel}>Dismiss</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -268,7 +313,7 @@ function makeStyles(colors: Colors) {
       fontFamily: MONO,
     } satisfies TextStyle,
     dismiss: {
-      alignSelf: "flex-end",
+      flexShrink: 0,
       height: 28,
       paddingHorizontal: 12,
       justifyContent: "center",
@@ -280,5 +325,17 @@ function makeStyles(colors: Colors) {
     dismissActive: { backgroundColor: colors.surface2 } satisfies ViewStyle,
     dismissLabel: { color: colors.foreground, fontSize: 13, fontWeight: "500" } satisfies TextStyle,
     error: { color: colors.statusDanger, fontSize: 12, lineHeight: 18 } satisfies TextStyle,
+    explain: { color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 } satisfies TextStyle,
+    run: {
+      alignSelf: "flex-end",
+      height: 28,
+      paddingHorizontal: 12,
+      justifyContent: "center",
+      borderRadius: 6,
+      backgroundColor: colors.accent,
+    } satisfies ViewStyle,
+    runActive: { opacity: 0.85 } satisfies ViewStyle,
+    runBusy: { opacity: 0.6 } satisfies ViewStyle,
+    runLabel: { color: colors.accentForeground, fontSize: 13, fontWeight: "500" } satisfies TextStyle,
   };
 }

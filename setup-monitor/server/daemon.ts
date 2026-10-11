@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SetupSnapshot } from "../shared/setup.ts";
 import { setupSnapshotSchema } from "../shared/setup.ts";
-import { trimSnapshot } from "../shared/snapshot.ts";
+import { completedDurationMs, trimSnapshot } from "../shared/snapshot.ts";
 
 export interface DaemonPort {
   send(frame: string): void;
@@ -64,99 +64,138 @@ export function parsePaseoFrame(raw: unknown): ParsedFrame | null {
   return null;
 }
 
+// A connection that doesn't say it understands "blocked" gets a blocked setup
+// as a failure with this message instead.
+const BLOCKED_AS_FAILED = "Workspace setup is blocked pending approval";
+
 function parseSnapshot(value: unknown): SetupSnapshot | null {
   const parsed = setupSnapshotSchema.safeParse(value);
-  return parsed.success ? trimSnapshot(parsed.data) : null;
+  if (!parsed.success) return null;
+  const snapshot = parsed.data;
+  if (snapshot.status === "failed" && snapshot.error?.startsWith(BLOCKED_AS_FAILED)) {
+    return trimSnapshot({ ...snapshot, status: "blocked", error: null });
+  }
+  return trimSnapshot(snapshot);
+}
+
+interface RequestOptions {
+  timeoutMs?: number;
+  createRequestId?: () => string;
+}
+
+// Sends one session request to the daemon and resolves with the payload of its
+// response, matched by request id.
+function requestFromDaemon(
+  port: DaemonPort,
+  message: { type: string; workspaceId: string },
+  responseType: string,
+  timeoutMessage: string,
+  options?: RequestOptions,
+): Promise<Record<string, unknown>> {
+  const timeoutMs = options?.timeoutMs ?? 8_000;
+  const requestId = (options?.createRequestId ?? (() => `setup-monitor-${randomUUID()}`))();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (finish: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribe();
+      finish();
+    };
+    const unsubscribe = port.onMessage((raw) => {
+      const frame = parsePaseoFrame(raw);
+      if (!frame || !frame.payload || typeof frame.payload !== "object") return;
+      const payload = frame.payload as Record<string, unknown>;
+      if (payload.requestId !== requestId) return;
+      if (frame.type === responseType) settle(() => resolve(payload));
+      else if (frame.type === "rpc_error") {
+        const error = typeof payload.error === "string" && payload.error.length > 0 ? payload.error : "RPC error";
+        settle(() => reject(new Error(error)));
+      }
+    });
+    const timer = setTimeout(() => settle(() => reject(new Error(timeoutMessage))), timeoutMs);
+    try {
+      port.send(JSON.stringify({ type: "session", message: { ...message, requestId } }));
+    } catch (error) {
+      settle(() => reject(error instanceof Error ? error : new Error(String(error))));
+    }
+  });
+}
+
+function requireWorkspaceId(workspaceId: unknown): asserts workspaceId is string {
+  if (typeof workspaceId !== "string" || workspaceId.length === 0) {
+    throw new TypeError("workspaceId must be a non-empty string");
+  }
 }
 
 export function createSetupStatusFetcher(
   port: DaemonPort,
-  options?: { timeoutMs?: number; createRequestId?: () => string },
+  options?: RequestOptions,
 ): (workspaceId: string) => Promise<SetupSnapshot | null> {
-  const timeoutMs = options?.timeoutMs ?? 8_000;
-  const createRequestId = options?.createRequestId ?? (() => `setup-monitor-${randomUUID()}`);
-
-  return (workspaceId: string): Promise<SetupSnapshot | null> => {
-    if (typeof workspaceId !== "string" || workspaceId.length === 0) {
-      throw new TypeError("workspaceId must be a non-empty string");
-    }
-
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let unsubscribe: (() => void) | undefined;
-
-      const cleanup = () => {
-        if (timer !== undefined) {
-          clearTimeout(timer);
-          timer = undefined;
-        }
-        if (unsubscribe) {
-          try {
-            unsubscribe();
-          } catch {
-            // Listener already gone.
-          }
-          unsubscribe = undefined;
-        }
-      };
-
-      const settleOk = (snapshot: SetupSnapshot | null) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resolve(snapshot);
-      };
-
-      const settleErr = (error: Error) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        reject(error);
-      };
-
-      const requestId = createRequestId();
-      unsubscribe = port.onMessage((raw) => {
-        const frame = parsePaseoFrame(raw);
-        if (!frame || !frame.payload || typeof frame.payload !== "object") return;
-        const payload = frame.payload as { requestId?: unknown; snapshot?: unknown; error?: unknown };
-        if (payload.requestId !== requestId) return;
-        if (frame.type === "workspace_setup_status_response") {
-          settleOk(parseSnapshot(payload.snapshot));
-          return;
-        }
-        if (frame.type === "rpc_error") {
-          const message =
-            typeof payload.error === "string" && payload.error.length > 0
-              ? payload.error
-              : "RPC error";
-          settleErr(new Error(message));
-        }
-      });
-
-      timer = setTimeout(() => {
-        settleErr(new Error("Timed out waiting for workspace setup status"));
-      }, timeoutMs);
-
-      const outbound = JSON.stringify({
-        type: "session",
-        message: {
-          type: "workspace_setup_status_request",
-          workspaceId,
-          requestId,
-        },
-      });
-
-      try {
-        port.send(outbound);
-      } catch (error) {
-        settleErr(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
+  return async (workspaceId: string): Promise<SetupSnapshot | null> => {
+    requireWorkspaceId(workspaceId);
+    const payload = await requestFromDaemon(
+      port,
+      { type: "workspace_setup_status_request", workspaceId },
+      "workspace_setup_status_response",
+      "Timed out waiting for workspace setup status",
+      options,
+    );
+    return parseSnapshot(payload.snapshot);
   };
 }
 
-export function createSetupProgressCache(port: DaemonPort): {
+// Runs a blocked setup, as Paseo's own Setup panel does once you approve it.
+export function createSetupRunner(
+  port: DaemonPort,
+  options?: RequestOptions,
+): (workspaceId: string) => Promise<{ started: boolean; error: string | null }> {
+  return async (workspaceId: string) => {
+    requireWorkspaceId(workspaceId);
+    const payload = await requestFromDaemon(
+      port,
+      { type: "workspace.setup.run.request", workspaceId },
+      "workspace.setup.run.response",
+      "Timed out waiting for setup to start",
+      options,
+    );
+    return {
+      started: payload.started === true,
+      error: typeof payload.error === "string" && payload.error.length > 0 ? payload.error : null,
+    };
+  };
+}
+
+/**
+ * When each worktree's setup started. The server keeps it, so every window and
+ * every reload shows the same clock. Paseo's snapshot has no start time, so the
+ * clock starts the first time the server sees setup running; if that's partway
+ * through (the plugin restarted), the finished steps count as time already run.
+ */
+export function createSetupClock(): {
+  observe(workspaceId: string, snapshot: SetupSnapshot | null, nowMs: number): void;
+  runningForMs(workspaceId: string, nowMs: number): number | null;
+} {
+  const startedAt = new Map<string, number>();
+  return {
+    observe(workspaceId, snapshot, nowMs) {
+      if (snapshot?.status !== "running") startedAt.delete(workspaceId);
+      else if (!startedAt.has(workspaceId)) {
+        startedAt.set(workspaceId, nowMs - completedDurationMs(snapshot.detail.commands));
+      }
+    },
+    runningForMs(workspaceId, nowMs) {
+      const start = startedAt.get(workspaceId);
+      return start === undefined ? null : Math.max(0, nowMs - start);
+    },
+  };
+}
+
+export function createSetupProgressCache(
+  port: DaemonPort,
+  onSnapshot?: (workspaceId: string, snapshot: SetupSnapshot) => void,
+): {
   get(workspaceId: string): SetupSnapshot | null | undefined;
   set(workspaceId: string, snapshot: SetupSnapshot | null): void;
   stop(): void;
@@ -171,14 +210,18 @@ export function createSetupProgressCache(port: DaemonPort): {
       status?: unknown;
       detail?: unknown;
       error?: unknown;
+      blockedSource?: unknown;
     };
     if (typeof payload.workspaceId !== "string" || payload.workspaceId.length === 0) return;
     const snapshot = parseSnapshot({
       status: payload.status,
       detail: payload.detail,
       error: payload.error ?? null,
+      blockedSource: payload.blockedSource,
     });
-    if (snapshot) cache.set(payload.workspaceId, snapshot);
+    if (!snapshot) return;
+    cache.set(payload.workspaceId, snapshot);
+    onSnapshot?.(payload.workspaceId, snapshot);
   });
   return {
     get(workspaceId: string) {
@@ -211,8 +254,20 @@ export async function readFreshSetupStatus(
 }
 
 const runtimePort = defaultPort;
-const runtimeCache = createSetupProgressCache(runtimePort);
+const runtimeClock = createSetupClock();
+const runtimeCache = createSetupProgressCache(runtimePort, (workspaceId, snapshot) =>
+  runtimeClock.observe(workspaceId, snapshot, Date.now()),
+);
 const runtimeFetch = createSetupStatusFetcher(runtimePort);
+const runtimeRun = createSetupRunner(runtimePort);
+
+export async function handleRunSetup(input: { workspaceId: string }): Promise<{ started: boolean; error: string | null }> {
+  try {
+    return await runtimeRun(input.workspaceId);
+  } catch (error) {
+    return { started: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
 
 export async function readSetupStatus(workspaceId: string): Promise<SetupSnapshot | null> {
   return readFreshSetupStatus(runtimeFetch, runtimeCache, workspaceId);
@@ -221,16 +276,21 @@ export async function readSetupStatus(workspaceId: string): Promise<SetupSnapsho
 export async function handleGetSetupStatus(input: { workspaceId: string }): Promise<{
   snapshot: SetupSnapshot | null;
   error: string | null;
+  runningForMs: number | null;
 }> {
   if (typeof process.send !== "function") {
-    return { snapshot: null, error: "Plugin process has no daemon channel" };
+    return { snapshot: null, error: "Plugin process has no daemon channel", runningForMs: null };
   }
   try {
-    return { snapshot: await readSetupStatus(input.workspaceId), error: null };
+    const snapshot = await readSetupStatus(input.workspaceId);
+    const now = Date.now();
+    runtimeClock.observe(input.workspaceId, snapshot, now);
+    return { snapshot, error: null, runningForMs: runtimeClock.runningForMs(input.workspaceId, now) };
   } catch (error) {
     return {
       snapshot: null,
       error: error instanceof Error ? error.message : String(error),
+      runningForMs: null,
     };
   }
 }

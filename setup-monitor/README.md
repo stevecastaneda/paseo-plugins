@@ -4,12 +4,12 @@
 
 Paseo 0.11 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.
 
-- A button in the workspace top bar from the moment the worktree opens, before you've sent a message: a spinner and elapsed time while setup runs, then a green check or a red alert. It stays until you dismiss it from the popover.
-- Click it for a popover: each setup command with its status and duration, a live log, and the failure reason if it failed. Click a command to see its log.
+- A button in the workspace top bar from the moment the worktree opens, before you've sent a message: a spinner and elapsed time while setup runs, then a green check or a red alert. It turns amber when Paseo holds setup back for a pull request from another repository. It stays until you dismiss it from the popover.
+- Click it for a popover: each setup command with its status and duration, a live log, and the failure reason if it failed. Click a command to see its log. For a held-back setup, the popover explains why and has a Run setup button.
 
 <img src="images/button.png" alt="The setup button in the workspace top bar, with a spinner and the time setup has been running" width="111">
 
-<img src="images/popover.png" alt="The setup popover while setup runs: install and migrations done, the seed step running with its live log" width="316"> <img src="images/popover-failed.png" alt="The setup popover after a migration failed, with the error and that command's log" width="421">
+<img src="images/popover.png" alt="The setup popover while setup runs: install and migrations done, the seed step running with its live log" width="316"> <img src="images/popover-failed.png" alt="The setup popover after a migration failed, with that command's log ending in the error" width="421">
 
 ## Install
 
@@ -29,6 +29,16 @@ active. Each workspace has at most one pending status request, and its button
 and popover share that result instead of making separate requests.
 
 ## Changelog
+
+### 1.0.0
+
+- Version 1.0. From now on, a new first number means an update breaks something, a new middle number means a new feature, and a new last number means a fix.
+- The setup timer counts from when setup started, in every window. It used to start over at 0s when you reloaded or opened another window.
+- The running command's row shows how long that command has run. It used to show the time for all of setup.
+- **Dismiss** is in the popover's header now, so a long failure can't push it out of view.
+- When a command fails, its error shows once, at the end of its log. It used to show in red above the log as well.
+- Paseo holds back setup for a pull request from another repository until you choose to run it. Setup Monitor used to show nothing then. Now its button turns amber, and the popover says where the pull request comes from and has a **Run setup** button.
+- New screenshots in this README.
 
 ### 0.5.0
 

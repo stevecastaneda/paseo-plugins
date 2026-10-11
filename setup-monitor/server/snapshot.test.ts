@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SetupCommand, SetupSnapshot } from "../shared/setup.ts";
 import {
+  blockedExplanation,
+  errorRepeatsLog,
   commandLabel,
   completedDurationMs,
   formatDuration,
@@ -134,4 +136,31 @@ test("trimSnapshot keeps the tail of oversized logs", () => {
   assert.equal(trimmed.detail.commands[0]?.log.length, 8_000);
   assert.equal(trimmed.detail.truncated, true);
   assert.equal(trimLog("short"), "short");
+});
+
+test("a failed setup's error is hidden when its step's log already shows it", () => {
+  const failed = (log: string): SetupCommand => ({ index: 2, command: "./scripts/db-migrate.sh", cwd: "/repo", log, status: "failed", exitCode: 1 });
+  const error = 'Worktree setup command failed: ./scripts/db-migrate.sh\nerror: column "currency" contains null values';
+  assert.equal(errorRepeatsLog(error, failed('Running 6 migrations\nerror: column "currency" contains null values\n')), true);
+  assert.equal(errorRepeatsLog("Worktree setup command failed: ./scripts/db-migrate.sh", failed("exit 1\n")), true, "nothing past the command's name");
+  assert.equal(errorRepeatsLog(error, failed("")), false, "no log to show it");
+  assert.equal(errorRepeatsLog(error, failed("something else\n")), false, "the log doesn't have it");
+  assert.equal(errorRepeatsLog("Failed to create worktree: branch exists", failed("x\n")), false, "not a command's error");
+  assert.equal(errorRepeatsLog(error, null), false);
+});
+
+test("a blocked setup shows its own button and Paseo's explanation", () => {
+  const blocked: SetupSnapshot = {
+    status: "blocked",
+    error: null,
+    blockedSource: { headRepository: "acme-contrib/billing-api" },
+    detail: { type: "worktree_setup", worktreePath: "/repo", branchName: "feat", log: "", commands: [] },
+  };
+  assert.equal(shouldShowButton(blocked), true, "shows even if this session never saw it run");
+  assert.equal(shouldShowButton(blocked, { sawRunning: false, dismissed: true }), false);
+  assert.equal(buttonLabel(blocked, 0), "Setup blocked");
+  assert.equal(headline(blocked), "Setup was not run");
+  assert.equal(statusIconName("blocked"), "CircleAlert");
+  assert.match(blockedExplanation(blocked), /^This PR comes from acme-contrib\/billing-api, a different repository\./);
+  assert.match(blockedExplanation({ ...blocked, blockedSource: undefined }), /^This PR comes from a different repository\./);
 });
