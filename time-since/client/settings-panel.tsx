@@ -27,16 +27,10 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
       style={{ flex: 1, backgroundColor: colors.surface0 }}
       contentContainerStyle={{ paddingBottom: 16 }}
     >
-      <View style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>
-          Time Since
-        </Text>
-      </View>
-
-      {!settings && query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading options" /> : null}
+      {!settings && query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading options" style={{ padding: 12 }} /> : null}
       {query.isError ? (
         <View style={{ gap: 8, padding: 12 }}>
-          <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>
+          <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
             Could not load options. Try again.
           </Text>
           <Pressable accessibilityRole="button" onPress={() => void query.refetch()} style={{ paddingVertical: 10 }}>
@@ -49,7 +43,7 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
         <>
           {([
             ["showIcon", "Show clock icon"],
-            ["showAgo", 'Show "ago" suffix'],
+            ["showAgo", "Show “ago” suffix"],
           ] as const).map(([key, label]) => (
             <Pressable
               key={key}
@@ -89,15 +83,20 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
           ))}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 12, paddingVertical: 12 }}>
             <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>Preview</Text>
-            <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface1, borderColor: colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-              {settings.showIcon ? <Icon name="Clock" size={14} color={colors.foregroundMuted} /> : null}
+            {/* Paseo's composer pill: 32 tall, 16 radius, 12 px sides, 8 px gap, a 14 px icon in a 16 px box. */}
+            <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 32, backgroundColor: colors.surface1, borderColor: colors.border, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 4 }}>
+              {settings.showIcon ? (
+                <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
+                  <Icon name="Clock" size={14} color={colors.foregroundMuted} />
+                </View>
+              ) : null}
               <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>4m 12s{settings.showAgo ? " ago" : ""}</Text>
             </View>
           </View>
         </>
       ) : null}
       <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 12, paddingTop: 4 }}>
-        {mutation.isPending ? "Saving..." : `All workspaces on ${host.label} · Auto-save`}
+        {mutation.isPending ? "Saving…" : `All workspaces on ${host.label} · Auto-save`}
       </Text>
       {mutation.isError ? (
         <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>

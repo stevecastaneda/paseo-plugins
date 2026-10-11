@@ -40,6 +40,14 @@ pick them up when they next load the options or reload the plugin.
 
 ## Changelog
 
+### 1.0.0
+
+- Version 1.0. Nothing you use changes. From now on, a new first number means an update breaks something, a new middle number means a new feature, and a new last number means a fix.
+- The preview in Time Since Options is the same size and shape as the real pill above the message box. It used to be a smaller pill.
+- Time Since Options no longer starts with a faint "Time Since" heading. The tab already names the panel.
+- While the options load, the spinner no longer touches the tab bar. If they fail to load, the error lines up with its Retry button.
+- New screenshot of Time Since Options in this README.
+
 ### 0.4.0
 
 - Needs Paseo 0.11 or later. The plugin now carries its own icon and screenshots, and Paseo 0.9 and 0.10 refuse to load a plugin that does. On an older Paseo, the version you already have keeps working.

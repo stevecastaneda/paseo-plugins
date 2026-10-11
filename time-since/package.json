@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-time-since",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Elapsed time since the last chat message, shown above the Paseo composer.",
   "license": "MIT",
   "author": "Steve Castaneda",
