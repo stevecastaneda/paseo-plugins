@@ -25,7 +25,7 @@ Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds
 
 Open **Time Since Options** in Command Center to customize the clock icon and optional `ago` suffix. See the [plugin README](time-since/README.md) for details.
 
-<img src="time-since/composer-pill.png" alt="time-since composer pill" width="336">
+<img src="time-since/images/composer-pill.png" alt="The Time Since pill reading 3m 11s, between the task count and the diff pill above the message box" width="600">
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-time-since
@@ -35,7 +35,7 @@ paseo plugin add npm:@stevecastaneda/paseo-time-since
 
 Live view of `worktree.setup` from `paseo.json`. A button in the workspace top bar shows a spinner and elapsed time while setup runs, then a check or an alert. Click it for each command's status, duration and log.
 
-<img src="setup-monitor/popover.png" alt="The setup button in the workspace top bar with its popover open while setup runs" width="446">
+<img src="setup-monitor/images/popover.png" alt="The setup popover while setup runs: install and migrations done, the seed step running with its live log" width="316">
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-setup-monitor
@@ -49,7 +49,7 @@ Links open on the **device you're using**: your default browser in the desktop a
 
 See [Workspace Links](workspace-links/README.md) for configuration.
 
-<img src="workspace-links/explorer.png" alt="workspace-links in Explorer" width="890">
+<img src="workspace-links/images/popover.png" alt="The Links popover with seven links, five showing a green running dot, and a copy button on the hovered row" width="280">
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-workspace-links

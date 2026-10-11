@@ -28,7 +28,7 @@
     "client/",
     "server/",
     "shared/",
-    "composer-pill.png",
+    "images/",
     "tsconfig.json",
     "!**/*.test.ts"
   ],

@@ -4,7 +4,7 @@
 
 A plugin for Paseo 0.9 and later that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.
 
-<img src="images/1-panel.png" alt="The Progress panel in Explorer" width="400">
+<img src="images/1-panel.png" alt="The Progress panel in Explorer" width="440">
 
 The dashboard shows:
 
@@ -16,7 +16,11 @@ The dashboard shows:
 - **Questions:** each with a permanent reference (Q1, Q2, ...), lettered options, and the option the agent recommends. The agent builds nothing a question affects until you answer; it works on other things meanwhile, and stops when nothing else is left. Press a question to open it in a dialog, then press **Copy Q2 B** to copy `Q2 (title): B` for your reply. Files and links the agent attached (`--file`) open like deliverables: images and text files preview in Paseo (with **Back** to the question), links open in Paseo's browser, and other files open in their default app. From the pill's popover, the preview opens over the popover, which stays open so you can go back to it. Answers stay listed under the same reference.
 - **Activity**, **Answered** questions and **Deliverables** (press one to open it), sharing one card with a tab for each; the panel remembers the tab you picked. Each shows the newest 10, with **Show 10 older** below
 
+<img src="images/2-ticket.png" alt="A ticket's story: its status, time against the estimate, the agent on it, and its timeline" width="400"> <img src="images/3-question.png" alt="A question waiting for an answer, with lettered options, the agent's recommendation and Copy buttons" width="400">
+
 The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. When questions are waiting or something is stuck, a pill above the message box shows it (`3 questions · 1 stuck`). Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
+
+<img src="images/4-pill.png" alt="The pill above the message box, showing two questions waiting" width="600">
 
 On phones, where Paseo has no Explorer pane, Progress opens as a tab of its own, and the pill stays above the message box while a run is open so there's always a way in. SVG files preview on desktop; on phones they open on the daemon host.
 

@@ -6,7 +6,7 @@ A live dashboard in Paseo for the Playwright test run in a worktree. You see the
 
 <img src="images/1-panel.png" alt="The Pulse panel during a run, with a failure pinned above the tests running now" width="432">
 
-<img src="images/2-folders.png" alt="The Folders tab, showing each folder's progress and failures" width="428"> <img src="images/3-slowest.png" alt="The Slowest tab, showing the five longest tests against their timeouts" width="432">
+<img src="images/2-folders.png" alt="The Folders tab, showing each folder's progress and failures" width="408"> <img src="images/3-slowest.png" alt="The Slowest tab, showing the five longest tests against their timeouts" width="408">
 
 ## What it shows
 

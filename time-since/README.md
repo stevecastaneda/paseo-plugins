@@ -8,9 +8,13 @@ It sits in the track above the composer. The plugin's server records when each a
 
 Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds. Hidden while a turn is running. Press the pill to open a popover with the absolute timestamp.
 
+<img src="images/composer-pill.png" alt="The Time Since pill reading 3m 11s, between the task count and the diff pill above the message box" width="600">
+
+<img src="images/popover.png" alt="The pill's popover, showing the date and time of the last message" width="600">
+
 Open **Time Since Options** in Command Center to show or hide the clock icon and add an optional `ago` suffix, such as `4m 12s ago`. The panel includes a preview. Changes apply to all workspaces on the connected host and persist across restarts. The icon starts on and the suffix starts off.
 
-![time-since composer pill](composer-pill.png)
+<img src="images/options.png" alt="Time Since Options in the Explorer: Show clock icon on, Show &quot;ago&quot; suffix off, and a preview of the pill" width="320">
 
 ## Install
 

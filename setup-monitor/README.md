@@ -7,7 +7,9 @@ Paseo 0.9 live view of worktree setup. Paseo already tracks `worktree.setup` fro
 - A button in the workspace top bar from the moment the worktree opens, before you've sent a message: a spinner and elapsed time while setup runs, then a green check or a red alert. It stays until you dismiss it from the popover.
 - Click it for a popover: each setup command with its status and duration, a live log, and the failure reason if it failed. Click a command to see its log.
 
-<img src="popover.png" alt="The setup button in the workspace top bar with its popover open while setup runs" width="446">
+<img src="images/button.png" alt="The setup button in the workspace top bar, with a spinner and the time setup has been running" width="111">
+
+<img src="images/popover.png" alt="The setup popover while setup runs: install and migrations done, the seed step running with its live log" width="316"> <img src="images/popover-failed.png" alt="The setup popover after a migration failed, with the error and that command's log" width="421">
 
 ## Install
 
