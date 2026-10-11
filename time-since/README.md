@@ -26,20 +26,15 @@ paseo plugin add npm:@stevecastaneda/paseo-time-since
 
 Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/time-since`.
 
-From a local checkout:
+## Local development
 
-```bash
+```sh
+cd time-since
 npm install
-npm run typecheck
-paseo plugin install /absolute/path/to/time-since
+npm run dev
 ```
 
-After source changes:
-
-```bash
-npm run typecheck
-paseo plugin reload time-since
-```
+`npm run dev` type-checks and tests the plugin, then points Paseo at this folder. [CONTRIBUTING.md](https://github.com/stevecastaneda/paseo-plugins/blob/main/CONTRIBUTING.md) covers switching Paseo back to your main copy and releasing.
 
 ## Updates
 

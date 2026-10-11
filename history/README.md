@@ -32,19 +32,15 @@ paseo plugin add npm:@stevecastaneda/paseo-history
 
 Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 
-## Local install
-
-With plugins enabled in Paseo:
+## Local development
 
 ```sh
 cd history
 npm install
-npm run typecheck
-npm test
-paseo plugin install "$PWD"
+npm run dev
 ```
 
-After edits, run the checks and `paseo plugin reload history`.
+`npm run dev` type-checks and tests the plugin, then points Paseo at this folder. [CONTRIBUTING.md](https://github.com/stevecastaneda/paseo-plugins/blob/main/CONTRIBUTING.md) covers switching Paseo back to your main copy and releasing.
 
 ## Changelog
 
