@@ -66,10 +66,11 @@ function RunningTest({ colors, test, now }: { colors: Colors; test: PulseTest | 
           {test?.retry ? <Badge colors={colors} color={colors.statusWarning} label={`Retry ${test.retry}`} /> : null}
           {test ? <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatClock(elapsed)}</Text> : null}
         </View>
-        {/* The describe blocks give way first, so the file and line stay readable. */}
+        {/* The describe blocks give way first, so the file and line stay readable.
+            The space after the last "›" can't break, or the screen drops it. */}
         <View style={{ flexDirection: "row", minWidth: 0 }}>
           {test?.titlePath.length ? (
-            <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test.titlePath.join(" › ")}{" › "}</Text>
+            <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test.titlePath.join(" › ")}{" ›\u00a0"}</Text>
           ) : null}
           <Text numberOfLines={1} style={{ flexShrink: 0, maxWidth: "100%", color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test ? `${test.file}:${test.line}` : " "}</Text>
         </View>

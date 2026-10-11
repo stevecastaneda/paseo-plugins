@@ -78,6 +78,14 @@ Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tes
 
 ## Changelog
 
+### 1.0.0
+
+- Version 1.0. Nothing you use changes. From now on, a new first number means an update breaks something, a new middle number means a new feature, and a new last number means a fix.
+- Running tests read `Search › e2e/catalog/search.spec.ts:29` again. The space after the last `›` had gone missing.
+- The failure preview skips blank lines, so Playwright's usual message shows both Expected and Received without pressing **Show all and the code**.
+- The Playwright project a run uses, like `chromium`, shows as a grey tag after the command instead of on a line of its own. A run with several projects gets one tag each.
+- New screenshot of the panel in this README.
+
 ### 0.1.2
 
 - The plugin store now takes the screenshots from each release, so they match the version you install.

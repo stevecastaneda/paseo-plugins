@@ -155,6 +155,12 @@ test("shows the command as typed", () => {
 test("previews the first lines of an error", () => {
   assert.deepEqual(errorPreview("a\nb\nc\nd\ne\n"), { text: "a\nb\nc\nd", more: true });
   assert.deepEqual(errorPreview("only line\n\n"), { text: "only line", more: false });
+  const playwright = "Error: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('total')\nExpected: \"$5\"\nReceived: \"$6\"\n\nCall log:";
+  assert.deepEqual(errorPreview(playwright), {
+    text: "Error: expect(locator).toHaveText(expected) failed\nLocator: getByTestId('total')\nExpected: \"$5\"\nReceived: \"$6\"",
+    more: true,
+  }, "blank lines don't use up the preview");
+  assert.deepEqual(errorPreview("a\n\nb"), { text: "a\nb", more: false }, "nothing more to show than blank lines");
 });
 
 test("sorts attachments into screenshot, video and trace", () => {

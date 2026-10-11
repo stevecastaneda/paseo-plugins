@@ -115,9 +115,10 @@ export function commandLine(args: string[]): string {
   return ["playwright test", ...quoted].join(" ");
 }
 
-// The first lines of an error, and whether there's more.
+// The first lines of an error, and whether there's more. Blank lines don't
+// count, so Playwright's usual message shows both Expected and Received.
 export function errorPreview(message: string, lines = 4): { text: string; more: boolean } {
-  const all = message.replace(/\s+$/, "").split("\n");
+  const all = message.split("\n").filter((line) => line.trim());
   return { text: all.slice(0, lines).join("\n"), more: all.length > lines };
 }
 

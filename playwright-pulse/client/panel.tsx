@@ -179,16 +179,22 @@ function Header({ colors, run, tally, now, workspaceId, workspaceDirectory }: { 
           </Text>
           {live ? <StopButton colors={colors} runId={run.id} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory} /> : null}
         </View>
-        <Text selectable numberOfLines={2} style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 11, lineHeight: 16 }}>
-          {commandLine(run.args)}
-        </Text>
+        {/* The command, then a tag per Playwright project, the way Playwright's
+            HTML report tags each test. */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 }}>
+          <Text selectable numberOfLines={2} style={{ flexShrink: 1, color: colors.foregroundMuted, fontFamily: mono(), fontSize: 11, lineHeight: 16 }}>
+            {commandLine(run.args)}
+          </Text>
+          {run.projects.map((project) => (
+            <View key={project} style={{ maxWidth: "100%", paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>
+              <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, fontWeight: "500" }}>{project}</Text>
+            </View>
+          ))}
+        </View>
         {!live ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             {run.status === "interrupted" && !run.endedAt ? "Stopped" : "Ended"} {formatAgo(run.endedAt ?? run.updatedAt, now)}
-            {run.projects.length ? ` · ${run.projects.join(", ")}` : ""}
           </Text>
-        ) : run.projects.length ? (
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{run.projects.join(", ")}</Text>
         ) : null}
       </View>
       {run.status !== "starting" && tally.total > 0 ? <ProgressBar colors={colors} tally={tally} live={live} left={timeLeft(run, now)} /> : null}
