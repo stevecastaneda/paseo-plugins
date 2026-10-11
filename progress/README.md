@@ -131,6 +131,10 @@ npm run dev
 
 ## Changelog
 
+### 0.3.5
+
+- The plugin's page in Paseo's plugin store now says that pressing **Open** in a preview opens the file in an app on the computer running the Paseo daemon, even from your phone.
+
 ### 0.3.4
 
 - Installing the plugin no longer downloads any other npm packages. The `paseo-progress` command is now built into a single file that includes zod. The plugin used to install `@getpaseo/client` just for its types; it now gets them from the plugin SDK that Paseo already provides.
