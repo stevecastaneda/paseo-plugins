@@ -8,12 +8,12 @@ import { Spinner, StalledPulse, WaitingDot } from "./spinner";
 import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
-import { When } from "./when";
+import { unbroken, When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, ScrollView, Text, View } from "react-native";
 import { finishedToFold, isFinished, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import type { TicketStatus } from "../shared/events";
-import { formatEstimate, formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
+import { formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
 import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
 import { STATUS_LABEL } from "./status-badge";
@@ -119,7 +119,7 @@ function StatusLine({ icon, children }: { icon: React.ReactNode; children: React
   );
 }
 
-// Re-renders on an interval so "x min ago" keeps counting between polls.
+// Re-renders on an interval so "11m ago" keeps counting between polls.
 function useNow(intervalMs: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -204,7 +204,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
           {/* Optical: centers the 14px icon on the first 18px line. */}
           <View style={{ paddingTop: 2 }}><Icon name="TriangleAlert" size={14} color={colors.statusWarning} /></View>
           <Text style={{ flex: 1, color: colors.statusWarning, fontSize: 12, lineHeight: 18 }}>
-            Possibly stale. No update for {formatMinutes(minutesSince(dashboard.updatedAt, now))}. The work may have stopped, so working items show a warning until the next update.
+            Possibly stale. No update for {unbroken(formatMinutes(minutesSince(dashboard.updatedAt, now)))}. The work may have stopped, so working items show a warning until the next update.
           </Text>
         </View>
       ) : null}</Presence>
@@ -389,7 +389,7 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{item.title}</Text>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {item.kind === "overdue" ? `No update for longer than its ${formatMinutes(item.estimateMin)} estimate. Last update ` : null}
+            {item.kind === "overdue" ? `No update for longer than its ${unbroken(formatMinutes(item.estimateMin))} estimate. Last update ` : null}
             {item.kind === "blocked" ? `Blocked${item.note ? `: ${item.note}` : ""}${narrow ? ", " : ". Since "}` : null}
             {item.kind === "manual" ? `${item.ticketId ? `${item.reason}. ` : ""}Flagged ` : null}
             <When colors={colors} iso={item.since} now={now} />
@@ -448,7 +448,7 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
       {/* Narrow ticket rows drop their chevron, so this total would sit off their estimate column. */}
       {narrow ? null : <>
         <View style={{ width: 12 }} />
-        <Text style={{ minWidth: 40, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatEstimate(estimateMin) : ""}</Text>
+        <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatMinutes(estimateMin) : ""}</Text>
       </>}
       <View style={{ paddingTop: 2 }}>
         <IconSwap swapKey={chevron} size={14}><Icon name={chevron} size={14} color={colors.foregroundMuted} /></IconSwap>
@@ -490,11 +490,11 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
         ) : null}
         {ticket.note ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{ticket.note}</Text> : null}
       </View>
-      {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. The estimate slot fits "45 min" and "10.5 h"; longer ones grow rather than clip. */}
+      {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. The estimate slot fits "45m" up to "9h 45m"; longer ones grow rather than clip. */}
       <View accessibilityLabel={deliverables ? (deliverables === 1 ? "Has a deliverable" : `Has ${deliverables} deliverables`) : undefined} style={{ width: 12, height: 18, justifyContent: "center" }}>
         {deliverables ? <Icon name="Package" size={12} color={colors.foregroundMuted} /> : null}
       </View>
-      <Text style={{ minWidth: 40, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatEstimate(ticket.estimateMin)}</Text>
+      <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatMinutes(ticket.estimateMin)}</Text>
       {narrow ? null : <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>}
     </PressableRow>
   );

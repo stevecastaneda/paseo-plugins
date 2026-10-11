@@ -3,30 +3,22 @@
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// Durations in the compact style the other plugins and most dashboards use:
+// "45m", "2h", "2h 15m". Minutes are whole, so estimates read exactly as set.
 export function formatMinutes(totalMin: number): string {
   const whole = Math.max(0, Math.floor(totalMin));
-  if (whole < 1) return "<1 min";
+  if (whole < 1) return "<1m";
   const hours = Math.floor(whole / 60);
   const minutes = whole % 60;
-  if (!hours) return `${minutes} min`;
-  return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
+  if (!hours) return `${minutes}m`;
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
-// A ticket's estimate, the way people say one: "45 min" under an hour, then
-// hours to one decimal: "1 h", "1.5 h", "2.1 h".
-export function formatEstimate(totalMin: number): string {
-  if (totalMin < 60) return formatMinutes(totalMin);
-  return `${Math.round(totalMin / 6) / 10} h`;
-}
-
-// Estimated work done out of the total, in the units people estimate in:
-// "5 of 10 min", "1 h 30 min of 2 h". Under an hour on both sides, the unit is
-// said once.
-// Once everything is done, how long it really took instead: "1 h 20 min".
+// Estimated work done out of the total: "5m of 10m", "1h 30m of 2h".
+// Once everything is done, how long it really took instead: "1h 20m".
 export function formatWorkDone(doneMin: number, totalMin: number, tookMin?: number): string {
   if (tookMin !== undefined) return formatMinutes(tookMin);
-  if (totalMin < 60 && doneMin >= 1) return `${Math.floor(doneMin)} of ${formatMinutes(totalMin)}`;
-  return `${doneMin < 1 ? "0 min" : formatMinutes(doneMin)} of ${formatMinutes(totalMin)}`;
+  return `${doneMin < 1 ? "0m" : formatMinutes(doneMin)} of ${formatMinutes(totalMin)}`;
 }
 
 export function formatClock(iso: string): string {

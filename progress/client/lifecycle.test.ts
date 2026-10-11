@@ -88,7 +88,9 @@ test("one rule decides what the pill shows, its icon, and whether pressing it op
   const phone = { phone: true };
   const cases: Array<[string, unknown, { phone: boolean }, unknown]> = [
     ["no progress file", { ...report(2, 1, true, false), configured: false }, desktop, null],
-    ["questions and stuck", report(2, 1, true, true), desktop, { mode: "attention", label: "2 questions · 1 stuck", icon: "stuck" }],
+    ["questions and stuck", report(2, 1, true, true), desktop, { mode: "attention", label: "2Q · 1 stuck", icon: "stuck" }],
+    ["questions only keep the full word", report(12, 0, true, true), desktop, { mode: "attention", label: "12 questions", icon: "questions" }],
+    ["stuck only", report(0, 2, true, true), desktop, { mode: "attention", label: "2 stuck", icon: "stuck" }],
     ["one question, even after the run closed", report(1, 0, false, true), desktop, { mode: "attention", label: "1 question", icon: "questions" }],
     ["a new run's panel never opened", report(0, 0, true, false), desktop, { mode: "started", label: "Progress", icon: "started" }],
     ["panel opened, desktop has Explorer", report(0, 0, true, true), desktop, null],
@@ -121,7 +123,7 @@ test("an agent's composer shows a pill while its workspace has questions waiting
   assert.equal(active().length, 2, "one pill per agent in a workspace that needs attention");
   const pill = active().find((entry) => entry.agentId === "a");
   assert.equal(pill?.placement, "composer");
-  assert.equal(pill?.button.label, "2 questions · 1 stuck");
+  assert.equal(pill?.button.label, "2Q · 1 stuck");
   assert.equal(pill?.button.behavior.kind, "popover", "the pill opens a popover with the questions");
   // The popover's Open Progress button opens the panel in Explorer.
   pill?.button.behavior.Content({ workspaceId: "w", close() {} }).props.openPanel();

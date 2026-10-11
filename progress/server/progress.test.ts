@@ -12,7 +12,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
-import { formatEstimate, formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
+import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
@@ -227,7 +227,7 @@ test("a worktree without a progress file reads as not configured", async (t) => 
 test("tickets added and updated by the agent show up with ids, statuses, and the headline", async (t) => {
   const w = await worktree(t);
   assert.deepEqual(await w.run("start", "Loan Options", "--subtitle", "Frozen links"), { code: 0, text: "Started run: Loan Options" });
-  assert.equal((await w.run("ticket", "add", "Ticket 01: Saved table", "--estimate", "120")).text, "Added T01: Ticket 01: Saved table (120 min)");
+  assert.equal((await w.run("ticket", "add", "Ticket 01: Saved table", "--estimate", "120")).text, "Added T01: Ticket 01: Saved table (2h)");
   await w.run("ticket", "add", "Ticket 02: Copy Link", "--estimate", "150");
   await w.run("ticket", "add", "Ticket 03: Frozen links", "--estimate", "120");
   await w.run("ticket", "add", "Ticket 04: Time zones", "--estimate", "75");
@@ -490,7 +490,7 @@ test("a ticket links to where it's written up: a file in the worktree or a link,
   await mkdir(join(w.directory, "specs"));
   await writeFile(join(w.directory, "specs", "01-login.md"), "# Login\n");
   await w.run("start", "Run");
-  assert.equal((await w.run("ticket", "add", "Ticket 01: Login", "--estimate", "30", "--source", "specs/01-login.md")).text, "Added T01: Ticket 01: Login (30 min), source specs/01-login.md");
+  assert.equal((await w.run("ticket", "add", "Ticket 01: Login", "--estimate", "30", "--source", "specs/01-login.md")).text, "Added T01: Ticket 01: Login (30m), source specs/01-login.md");
   await w.run("ticket", "add", "Ticket 02: Reset", "--estimate", "20", "--source", "https://linear.app/acme/issue/ENG-12=ENG-12");
   await w.run("ticket", "add", "Ticket 03: No write-up", "--estimate", "20");
   let { dashboard } = await w.dashboard();
@@ -581,11 +581,11 @@ async function screenshotRun(t: TestContext) {
   return w;
 }
 
-test("progress matches the reference dashboard: 58%, 4 h 30 min of 7 h 45 min", async (t) => {
+test("progress matches the reference dashboard: 58%, 4h 30m of 7h 45m", async (t) => {
   const w = await screenshotRun(t);
   const { progress } = (await w.dashboard()).dashboard;
   assert.equal(progress.percent, 58);
-  assert.equal(formatWorkDone(progress.doneMin, progress.totalMin), "4 h 30 min of 7 h 45 min");
+  assert.equal(formatWorkDone(progress.doneMin, progress.totalMin), "4h 30m of 7h 45m");
   assert.deepEqual(
     progress.segments.map(({ id, estimateMin, status }) => `${id}:${estimateMin}:${status}`),
     ["T01:120:done", "T02:150:done", "T03:120:working", "T04:75:not_started"],
@@ -627,7 +627,7 @@ test("once every ticket is done, the dashboard says how long the run really took
   await w.run("ticket", "update", "T03", "--status", "skipped");
   const { progress } = (await w.dashboard(200)).dashboard;
   assert.equal(progress.tookMin, 85, "from the start to the last ticket settling, not to now");
-  assert.match((await w.run("show")).text, /100% of estimated work done, took 1 h 25 min/);
+  assert.match((await w.run("show")).text, /100% of estimated work done, took 1h 25m/);
 });
 
 test("a run whose tickets are all done or skipped never turns stale", async (t) => {
@@ -642,20 +642,16 @@ test("display helpers format durations and hours the way the panel shows them", 
   const morning = new Date(2026, 9, 5, 2, 8).toISOString();
   assert.equal(formatTimeOfDay(morning, new Date(2026, 9, 5, 23, 0).getTime()), "2:08 AM", "same day: just the time");
   assert.equal(formatTimeOfDay(morning, new Date(2026, 9, 6, 9, 0).getTime()), "Oct 5, 2:08 AM", "another day: the date too");
-  assert.equal(formatMinutes(0.5), "<1 min");
-  assert.equal(formatMinutes(12), "12 min");
-  assert.equal(formatMinutes(602), "10 h 2 min");
-  assert.equal(formatMinutes(120), "2 h");
-  assert.equal(formatEstimate(45), "45 min", "estimates under an hour stay in minutes");
-  assert.equal(formatEstimate(60), "1 h");
-  assert.equal(formatEstimate(66), "1.1 h");
-  assert.equal(formatEstimate(90), "1.5 h");
-  assert.equal(formatEstimate(150), "2.5 h");
-  assert.equal(formatWorkDone(10, 10), "10 of 10 min", "under an hour, the unit is said once");
-  assert.equal(formatWorkDone(0, 45), "0 min of 45 min");
-  assert.equal(formatWorkDone(30, 120), "30 min of 2 h");
-  assert.equal(formatWorkDone(90, 120), "1 h 30 min of 2 h");
-  assert.equal(formatWorkDone(120, 120, 95), "1 h 35 min", "once done, the real time replaces the estimate");
+  assert.equal(formatMinutes(0.5), "<1m");
+  assert.equal(formatMinutes(12), "12m");
+  assert.equal(formatMinutes(602), "10h 2m");
+  assert.equal(formatMinutes(120), "2h");
+  assert.equal(formatMinutes(66), "1h 6m", "estimates read exactly as set");
+  assert.equal(formatWorkDone(10, 10), "10m of 10m");
+  assert.equal(formatWorkDone(0, 45), "0m of 45m");
+  assert.equal(formatWorkDone(30, 120), "30m of 2h");
+  assert.equal(formatWorkDone(90, 120), "1h 30m of 2h");
+  assert.equal(formatWorkDone(120, 120, 95), "1h 35m", "once done, the real time replaces the estimate");
 });
 
 test("a working ticket shows its stage and when that stage started", async (t) => {
@@ -914,10 +910,10 @@ test("show prints the dashboard as text for the agent", async (t) => {
   for (const expected of [
     "Loan Options",
     "2 of 4 tickets done, 1 question waiting for you, 1 stuck",
-    "58% of estimated work done, 4 h 30 min of 7 h 45 min",
-    "POSSIBLY STALE: no update for 10 h 17 min.",
-    "Ticket 03 (no update for longer than its 2 h estimate)",
-    "T03  Working, Fixes stage  2 h  Ticket 03",
+    "58% of estimated work done, 4h 30m of 7h 45m",
+    "POSSIBLY STALE: no update for 10h 17m.",
+    "Ticket 03 (no update for longer than its 2h estimate)",
+    "T03  Working, Fixes stage  2h  Ticket 03",
     "Q1 (Row spacing): Even out the spacing? You recommended B",
     "      B) No",
     "D1  Screenshots: .scratch/shots/, Ticket 03",

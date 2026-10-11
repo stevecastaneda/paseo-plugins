@@ -11,6 +11,7 @@ import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
 import { findStore, saveRunCopy } from "./store.ts";
 import { dashboardText } from "../shared/show.ts";
+import { formatMinutes } from "../shared/format.ts";
 import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
 
@@ -199,7 +200,7 @@ const commands: Record<string, Command> = {
       const id = state.nextIds.ticket;
       return {
         event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor, source },
-        message: `Added ${id}: ${title} (${estimateMin} min)${waitsFor ? `, waits for ${waitsFor}` : ""}${source ? `, source ${source.path ?? source.url}` : ""}`,
+        message: `Added ${id}: ${title} (${formatMinutes(estimateMin)})${waitsFor ? `, waits for ${waitsFor}` : ""}${source ? `, source ${source.path ?? source.url}` : ""}`,
       };
     },
   },

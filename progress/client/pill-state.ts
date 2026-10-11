@@ -17,8 +17,10 @@ export function pillFor(report: AttentionResult | undefined, where: { phone: boo
   if (!report?.configured) return null;
   const { questions, stuck } = report;
   if (questions || stuck) {
+    // Paseo cuts composer pills off at 160 px, so when something is stuck
+    // too, the questions shorten to "2Q" to leave room for "1 stuck".
     const parts = [];
-    if (questions) parts.push(`${questions} ${questions === 1 ? "question" : "questions"}`);
+    if (questions) parts.push(stuck ? `${questions}Q` : `${questions} ${questions === 1 ? "question" : "questions"}`);
     if (stuck) parts.push(`${stuck} stuck`);
     return { mode: "attention", label: parts.join(" · "), icon: stuck ? "stuck" : "questions" };
   }
