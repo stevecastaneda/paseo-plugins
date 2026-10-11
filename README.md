@@ -59,6 +59,8 @@ paseo plugin add npm:@stevecastaneda/paseo-workspace-links
 
 A composer pill that opens the chat’s saved history: messages, tools, and the raw session records. Supports Codex, Claude Code, and OpenCode. See [History](history/README.md) for details.
 
+<img src="history/images/1-conversation.png" alt="The History dialog in Conversation view, showing the first turn of a chat" width="400">
+
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-history
 ```

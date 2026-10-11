@@ -4,7 +4,11 @@
 
 A **History** composer pill with Paseo’s built-in Gallery Vertical End icon opens a dialog for inspecting a chat's saved history.
 
-The default **Conversation** view groups saved records into turns and displays user and assistant messages. Use the footer’s up/down arrows to scroll to the previous or next loaded turn. Tags reveal tools, reasoning, context, and other events. Each message has **Copy message** and an expandable **Raw** view with **Copy JSON**. **Raw source** shows the original JSONL records and their file path.
+<img src="images/1-conversation.png" alt="The History dialog in Conversation view, showing the first turn of a chat" width="400">
+
+The default **Conversation** view groups saved records into turns and displays user and assistant messages. Use the footer’s up/down arrows to scroll to the previous or next loaded turn. Tags reveal tools, reasoning, context, and other events. Each message has **Copy message** and an expandable **Raw** view with **Copy JSON**. **Source** shows the original JSONL records and their file path.
+
+<img src="images/2-tags.png" alt="A turn's Tools tag open, listing each tool call and its result" width="400"> <img src="images/3-source.png" alt="The Source view, showing the log's file path and its JSONL records" width="400">
 
 Messages render Markdown, including headings, emphasis, lists, links, and tables. Code blocks scroll horizontally and have a **Copy code** action. **Copy message** keeps the original Markdown. Internal citation metadata is hidden in the readable view and preserved in Raw; HTML stays plain text. Web links open normally, while local file links copy their destination. Images appear as labeled links rather than loading remote files.
 
@@ -14,7 +18,7 @@ The dialog automatically reads past introductory context to show conversation me
 
 Supports **Codex**, **Claude Code**, and **OpenCode**. Custom providers in `~/.paseo/config.json` that extend one of them, such as `"extends": "claude"`, work too. History is read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). When a provider sets either variable in its `env`, History reads that folder instead of the daemon's setting, so each Claude Code profile shows its own sessions. Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected externally.
 
-OpenCode uses its [session export command](https://opencode.ai/docs/cli/#export), with external plugins disabled (`--pure`). It requires an OpenCode version supporting that flag on the daemon's `PATH` (verified with 1.18.18). The export runs with the daemon's environment plus the provider's `env`, so OpenCode and XDG overrides in either one apply. Raw source shows the export command and JSONL-formatted session metadata and complete message records, preserving their parts and metadata. Export requests are limited to 64 MiB and 30 seconds. Each page checks the exported content; if the session changes while paging, use **Refresh** to reread it. Text, file labels, tool inputs/results/errors, and reasoning are recognized; unknown parts remain in Raw.
+OpenCode uses its [session export command](https://opencode.ai/docs/cli/#export), with external plugins disabled (`--pure`). It requires an OpenCode version supporting that flag on the daemon's `PATH` (verified with 1.18.18). The export runs with the daemon's environment plus the provider's `env`, so OpenCode and XDG overrides in either one apply. **Source** shows the export command and JSONL-formatted session metadata and complete message records, preserving their parts and metadata. Export requests are limited to 64 MiB and 30 seconds. Each page checks the exported content; if the session changes while paging, use **Refresh** to reread it. Text, file labels, tool inputs/results/errors, and reasoning are recognized; unknown parts remain in Raw.
 
 The viewer shows what the harness saved, which can differ from Paseo's displayed chat. Tool results and mirrored transport events stay behind tags rather than appearing as additional conversation messages.
 
