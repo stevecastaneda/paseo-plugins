@@ -1,6 +1,12 @@
 {
   "id": "setup-monitor",
+  "icon": "icon.png",
+  "media": [
+    "images/popover.png",
+    "images/popover-failed.png",
+    "images/button.png"
+  ],
   "requirements": {
-    "paseo": ">=0.9.0"
+    "paseo": ">=0.11.0"
   }
 }

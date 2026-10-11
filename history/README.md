@@ -48,6 +48,12 @@ After edits, run the checks and `paseo plugin reload history`.
 
 ## Changelog
 
+### 0.5.0
+
+- Needs Paseo 0.11 or later. The plugin now carries its own icon and screenshots, and Paseo 0.9 and 0.10 refuse to load a plugin that does. On an older Paseo, the version you already have keeps working.
+- The plugin store now takes the icon and screenshots from each release, so they match the version you install.
+- New screenshots in this README.
+
 ### 0.4.4
 
 - History now opens chats from custom providers that extend Claude Code, Codex or OpenCode, such as `"claude-my": { "extends": "claude" }` in `~/.paseo/config.json`. Before, these chats showed "Raw history is not supported for claude-my yet" ([#66](https://github.com/stevecastaneda/paseo-plugins/issues/66)).

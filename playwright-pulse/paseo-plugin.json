@@ -3,6 +3,11 @@
   "name": "Playwright Pulse",
   "description": "A live dashboard in Paseo for a worktree's Playwright test run.",
   "icon": "icon.png",
+  "media": [
+    "images/1-panel.png",
+    "images/2-folders.png",
+    "images/3-slowest.png"
+  ],
   "requirements": {
     "paseo": ">=0.11.0"
   }

@@ -1,4 +1,12 @@
 {
   "id": "history",
-  "requirements": { "paseo": ">=0.9.0" }
+  "icon": "icon.png",
+  "media": [
+    "images/1-conversation.png",
+    "images/2-tags.png",
+    "images/3-source.png"
+  ],
+  "requirements": {
+    "paseo": ">=0.11.0"
+  }
 }

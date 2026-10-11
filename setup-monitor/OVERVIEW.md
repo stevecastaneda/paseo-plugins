@@ -1,4 +1,4 @@
-Setup Monitor shows your worktree's setup commands while they run, so a long dependency install is no longer silent. These are the commands under `worktree.setup` in `paseo.json`. Needs Paseo 0.9 or later.
+Setup Monitor shows your worktree's setup commands while they run, so a long dependency install is no longer silent. These are the commands under `worktree.setup` in `paseo.json`. Needs Paseo 0.11 or later.
 
 While setup runs, a button in the workspace header shows a spinner and a timer, even before the worktree has an agent. Click it for a popover with the live log. When setup has more than one command, each gets a row with its status and how long it took. Click a row to see that command's log.
 

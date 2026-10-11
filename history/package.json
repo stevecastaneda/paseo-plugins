@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-history",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "Inspect chat messages, tools, and raw session records from a composer pill in Paseo.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -28,6 +28,8 @@
     "client/",
     "server/",
     "shared/",
+    "images/",
+    "icon.png",
     "tsconfig.json",
     "!**/*.test.ts"
   ],

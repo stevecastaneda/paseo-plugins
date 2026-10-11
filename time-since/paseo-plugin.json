@@ -1,6 +1,12 @@
 {
   "id": "time-since",
+  "icon": "icon.png",
+  "media": [
+    "images/composer-pill.png",
+    "images/popover.png",
+    "images/options.png"
+  ],
   "requirements": {
-    "paseo": ">=0.9.0"
+    "paseo": ">=0.11.0"
   }
 }

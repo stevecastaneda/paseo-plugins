@@ -78,6 +78,11 @@ Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tes
 
 ## Changelog
 
+### 0.1.2
+
+- The plugin store now takes the screenshots from each release, so they match the version you install.
+- New screenshots in this README.
+
 ### 0.1.1
 
 - The list of test runs at the top of Paseo's sidebar is gone, along with the Playwright Pulse Options panel that turned it off. The header pill still shows a workspace's run while it goes. Press it to open the panel.

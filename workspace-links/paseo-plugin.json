@@ -1,6 +1,11 @@
 {
   "id": "workspace-links",
+  "icon": "icon.png",
+  "media": [
+    "images/popover.png",
+    "images/explorer.png"
+  ],
   "requirements": {
-    "paseo": ">=0.9.0"
+    "paseo": ">=0.11.0"
   }
 }

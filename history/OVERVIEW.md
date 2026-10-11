@@ -1,4 +1,4 @@
-History adds a History pill to the message composer. It opens the session log that Codex, Claude Code or OpenCode saved for the chat, which can differ from what Paseo shows. Needs Paseo 0.9 or later.
+History adds a History pill to the message composer. It opens the session log that Codex, Claude Code or OpenCode saved for the chat, which can differ from what Paseo shows. Needs Paseo 0.11 or later.
 
 The Conversation view groups the log into turns and shows your messages and the agent's replies. Tags under each turn open its tool calls, reasoning, context and other events, and Raw shows every record in the turn. The Source view lists the original records and the log's file path. You can copy any message as Markdown, or copy its raw JSON.
 
