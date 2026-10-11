@@ -12,9 +12,9 @@ Recognized task notifications show their status, summary, and Markdown result im
 
 The dialog automatically reads past introductory context to show conversation messages. Use **More** to continue through the history. Related records merge into their turn as they load. **Refresh** rereads from the beginning. The last loaded turn may have more records until the file is fully loaded. Files are never rewritten.
 
-Supports **Codex**, **Claude Code**, and **OpenCode**. History is read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected externally.
+Supports **Codex**, **Claude Code**, and **OpenCode**. Custom providers in `~/.paseo/config.json` that extend one of them, such as `"extends": "claude"`, work too. History is read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). When a provider sets either variable in its `env`, History reads that folder instead of the daemon's setting, so each Claude Code profile shows its own sessions. Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected externally.
 
-OpenCode uses its [session export command](https://opencode.ai/docs/cli/#export), with external plugins disabled (`--pure`). It requires an OpenCode version supporting that flag on the daemon's `PATH` (verified with 1.18.18), and inherits the daemon's OpenCode/XDG environment. Raw source shows the export command and JSONL-formatted session metadata and complete message records, preserving their parts and metadata. Export requests are limited to 64 MiB and 30 seconds. Each page checks the exported content; if the session changes while paging, use **Refresh** to reread it. Text, file labels, tool inputs/results/errors, and reasoning are recognized; unknown parts remain in Raw.
+OpenCode uses its [session export command](https://opencode.ai/docs/cli/#export), with external plugins disabled (`--pure`). It requires an OpenCode version supporting that flag on the daemon's `PATH` (verified with 1.18.18). The export runs with the daemon's environment plus the provider's `env`, so OpenCode and XDG overrides in either one apply. Raw source shows the export command and JSONL-formatted session metadata and complete message records, preserving their parts and metadata. Export requests are limited to 64 MiB and 30 seconds. Each page checks the exported content; if the session changes while paging, use **Refresh** to reread it. Text, file labels, tool inputs/results/errors, and reasoning are recognized; unknown parts remain in Raw.
 
 The viewer shows what the harness saved, which can differ from Paseo's displayed chat. Tool results and mirrored transport events stay behind tags rather than appearing as additional conversation messages.
 
@@ -43,6 +43,11 @@ paseo plugin install "$PWD"
 After edits, run the checks and `paseo plugin reload history`.
 
 ## Changelog
+
+### 0.4.4
+
+- History now opens chats from custom providers that extend Claude Code, Codex or OpenCode, such as `"claude-my": { "extends": "claude" }` in `~/.paseo/config.json`. Before, these chats showed "Raw history is not supported for claude-my yet" ([#66](https://github.com/stevecastaneda/paseo-plugins/issues/66)).
+- History reads logs from the folder a provider sets with `CLAUDE_CONFIG_DIR` or `CODEX_HOME` in its own `env`. It used to check only the daemon's environment, so a Claude Code profile with its own config folder showed "No raw log found for this session".
 
 ### 0.4.3
 

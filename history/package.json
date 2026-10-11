@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-history",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Inspect chat messages, tools, and raw session records from a composer pill in Paseo.",
   "license": "MIT",
   "author": "Steve Castaneda",

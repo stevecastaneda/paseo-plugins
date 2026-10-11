@@ -7,12 +7,12 @@ const exec = promisify(execFile);
 
 // Export lets OpenCode resolve its own storage, including XDG overrides, without
 // depending on its internal database schema. Never invoke a shell or a model.
-export async function readOpenCodeHistory(sessionId: string, offset: number, source?: string) {
+export async function readOpenCodeHistory(sessionId: string, offset: number, source?: string, env?: NodeJS.ProcessEnv) {
   if (!/^ses_[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid OpenCode session ID.");
   let stdout: string;
   try {
     ({ stdout } = await exec("opencode", ["export", sessionId, "--pure"], {
-      encoding: "utf8", timeout: 30_000, maxBuffer: 64 * 1024 * 1024,
+      encoding: "utf8", timeout: 30_000, maxBuffer: 64 * 1024 * 1024, env,
     }));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
