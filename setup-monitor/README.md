@@ -21,16 +21,6 @@ Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/setup-monitor`
 
 Turn on **Settings → Plugins → Enable plugins** on the daemon first.
 
-## Local development
-
-```sh
-cd setup-monitor
-npm install
-npm run dev
-```
-
-`npm run dev` type-checks and tests the plugin, then points Paseo at this folder. [CONTRIBUTING.md](https://github.com/stevecastaneda/paseo-plugins/blob/main/CONTRIBUTING.md) covers switching Paseo back to your main copy and releasing.
-
 ## Updates
 
 Workspace and agent changes arrive through subscriptions rather than repeated

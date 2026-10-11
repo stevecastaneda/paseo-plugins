@@ -26,16 +26,6 @@ paseo plugin add npm:@stevecastaneda/paseo-time-since
 
 Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/time-since`.
 
-## Local development
-
-```sh
-cd time-since
-npm install
-npm run dev
-```
-
-`npm run dev` type-checks and tests the plugin, then points Paseo at this folder. [CONTRIBUTING.md](https://github.com/stevecastaneda/paseo-plugins/blob/main/CONTRIBUTING.md) covers switching Paseo back to your main copy and releasing.
-
 ## Updates
 
 Agent changes arrive through a subscription rather than repeated list requests.

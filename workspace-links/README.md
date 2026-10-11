@@ -44,18 +44,6 @@ The status dots are checked from the machine running Paseo, so a `localhost` lin
 
 Only HTTP(S) URLs are supported, with up to 100 links. Missing configuration, empty lists, and invalid files have visible panel states.
 
-## Local development
-
-```sh
-cd workspace-links
-npm install
-npm run dev
-```
-
-`npm run dev` type-checks and tests the plugin, then points Paseo at this folder. [CONTRIBUTING.md](https://github.com/stevecastaneda/paseo-plugins/blob/main/CONTRIBUTING.md) covers switching Paseo back to your main copy and releasing.
-
-`npm install` fetches the Paseo plugin SDK and other packages used only for development. The published plugin has no dependencies.
-
 ## Updates
 
 Workspace and agent changes arrive through subscriptions rather than repeated

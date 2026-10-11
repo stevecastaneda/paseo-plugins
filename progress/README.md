@@ -123,16 +123,6 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Previews cover images up to 10 MB and the first 256 KB of a text file. Other files open in their default app.
 - Stale warnings and overdue times use the daemon host's clock.
 
-## Local development
-
-```sh
-cd progress
-npm install
-npm run dev
-```
-
-`npm run dev` type-checks and tests the plugin, then points Paseo at this folder. The tests run the agent's commands in a throwaway worktree and read back the dashboard the panel would get. [CONTRIBUTING.md](https://github.com/stevecastaneda/paseo-plugins/blob/main/CONTRIBUTING.md) covers switching Paseo back to your main copy and releasing.
-
 ## Changelog
 
 ### 0.4.0
