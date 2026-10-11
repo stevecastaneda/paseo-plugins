@@ -55,6 +55,15 @@ const IMAGE_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
 };
 
+// What Paseo's desktop app (Chromium) plays. A .mov plays when it holds H.264;
+// one that doesn't shows the player's error, and Open still works.
+const VIDEO_TYPES: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+};
+
 // Plain text shown as-is in the preview dialog, and opened in the browser on
 // the host. HTML is left to the browser either way.
 const TEXT_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt", ".log", ".json", ".jsonl", ".yaml", ".yml", ".csv"]);
@@ -68,18 +77,24 @@ export function imageMimeType(path: string): string | null {
   return IMAGE_TYPES[extension(path) ?? ""] ?? null;
 }
 
-export function previewKind(path: string): "image" | "text" | null {
+// The video type of a path by its extension, or null when it isn't a video.
+export function videoMimeType(path: string): string | null {
+  return VIDEO_TYPES[extension(path) ?? ""] ?? null;
+}
+
+export function previewKind(path: string): "image" | "video" | "text" | null {
   if (imageMimeType(path)) return "image";
+  if (videoMimeType(path)) return "video";
   return TEXT_EXTENSIONS.has(extension(path) ?? "") ? "text" : null;
 }
 
-// Whether the preview dialog can show it. Only a browser draws SVG: Paseo's
-// desktop app can, the phone apps' image view can't, so there an SVG opens on
+// Whether the preview dialog can show it. Only a browser draws SVG and plays
+// video: Paseo's desktop app can, the phone apps can't, so there they open on
 // the host like any other file.
 export function canPreview(attachment: Attachment, where: { browser: boolean }): boolean {
   if (!attachment.path) return false;
   const kind = previewKind(attachment.path);
-  if (kind === "image" && extension(attachment.path) === ".svg") return where.browser;
+  if (kind === "video" || (kind === "image" && extension(attachment.path) === ".svg")) return where.browser;
   return kind !== null;
 }
 
@@ -98,7 +113,7 @@ export function attachmentIcon(attachment: Attachment): string {
   if (attachment.url) return "Globe";
   if (!attachment.path) return "File";
   const kind = previewKind(attachment.path);
-  return kind === "image" ? "Image" : kind === "text" ? "FileText" : /[\/]$/.test(attachment.path) ? "Folder" : "File";
+  return kind === "image" ? "Image" : kind === "video" ? "Video" : kind === "text" ? "FileText" : /[\/]$/.test(attachment.path) ? "Folder" : "File";
 }
 
 // The short name people recognize: a file or folder's own name, or a link's site.

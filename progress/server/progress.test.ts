@@ -2,7 +2,7 @@
 // dashboard the panel would get.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -16,7 +16,7 @@ import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
-import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, previewDeliverable } from "./open.ts";
+import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
@@ -1019,7 +1019,7 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "text", text: "# Notes", bytes: 7, truncated: false });
   await writeFile(join(w.directory, "shots", "page.html"), "<h1>Hi</h1>");
   await w.run("deliverable", "add", "Page", "shots/page.html");
-  await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image or text file/, "HTML is left to the browser");
+  await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image, video or text file/, "HTML is left to the browser");
   await assert.rejects(previewDeliverable(w.directory, "D3"), /too large to preview/);
   await assert.rejects(previewDeliverable(w.directory, "D4"), /no longer exists|outside this worktree/);
   const longLog = "x".repeat(MAX_PREVIEW_TEXT_BYTES + 10);
@@ -1031,6 +1031,37 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   assert.deepEqual(await previewDeliverable(w.directory, "D7"), { kind: "text", text: "", bytes: 0, truncated: false });
   assert.equal(imageMimeType("a/b.jpeg"), "image/jpeg");
   assert.equal(imageMimeType("report.html"), null);
+});
+
+test("a video previews as its type and size, then arrives in pieces", async (t) => {
+  const w = await screenshotRun(t);
+  await mkdir(join(w.directory, "clips"), { recursive: true });
+  const clip = Buffer.alloc(VIDEO_PIECE_BYTES + 10, 7);
+  clip[0] = 1;
+  clip[VIDEO_PIECE_BYTES] = 2;
+  await writeFile(join(w.directory, "clips", "demo.MOV"), clip);
+  await writeFile(join(w.directory, "clips", "huge.mp4"), Buffer.alloc(0));
+  await truncate(join(w.directory, "clips", "huge.mp4"), MAX_PREVIEW_VIDEO_BYTES + 1);
+  await writeFile(join(w.directory, "clips", "home.png"), Buffer.from("89504e470d0a1a0a", "hex"));
+  await w.run("deliverable", "add", "Demo", "clips/demo.MOV");
+  await w.run("deliverable", "add", "Huge", "clips/huge.mp4");
+  await w.run("deliverable", "add", "Home", "clips/home.png");
+  const { dashboard } = await readProgress(w.store);
+  const demo = findAttachment(dashboard, "D1")!;
+  assert.equal(dashboard.deliverables.find((entry) => entry.title === "Demo")!.kind, "file");
+  assert.equal(attachmentIcon(demo), "Video");
+  assert.equal(canPreview(demo, { browser: true }), true);
+  assert.equal(canPreview(demo, { browser: false }), false, "the phone apps have no video player");
+  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "video", mimeType: "video/quicktime", bytes: clip.length });
+  const first = await readDeliverablePiece(w.directory, "D1", 0);
+  const second = await readDeliverablePiece(w.directory, "D1", VIDEO_PIECE_BYTES);
+  assert.equal(first.bytes, clip.length);
+  assert.deepEqual(Buffer.concat([Buffer.from(first.data, "base64"), Buffer.from(second.data, "base64")]), clip);
+  assert.deepEqual(await readDeliverablePiece(w.directory, "D1", clip.length), { data: "", bytes: clip.length }, "past the end is empty, not an error");
+  await assert.rejects(previewDeliverable(w.directory, "D2"), /too large to preview/);
+  await assert.rejects(readDeliverablePiece(w.directory, "D2", 0), /too large to preview/);
+  await assert.rejects(readDeliverablePiece(w.directory, "D3", 0), /isn't a video/, "pieces are only for videos");
+  await assert.rejects(readDeliverablePiece(w.directory, "D9", 0), /No local deliverable D9/);
 });
 
 test("question attachments take paths or links, and open and preview like deliverables", async (t) => {

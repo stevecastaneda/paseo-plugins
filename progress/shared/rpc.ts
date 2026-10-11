@@ -124,7 +124,8 @@ export const openDeliverable = defineRpc({
   output: z.object({ opened: z.string() }),
 });
 
-// An image or text file's contents, for the preview dialog.
+// An image or text file's contents, for the preview dialog. A video comes back
+// as its type and size only; its bytes follow in pieces (readDeliverablePiece).
 export const previewDeliverable = defineRpc({
   name: "progress.deliverable.preview",
   input: z.object({
@@ -135,6 +136,20 @@ export const previewDeliverable = defineRpc({
   }),
   output: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("image"), dataUri: z.string(), bytes: z.number() }),
+    z.object({ kind: z.literal("video"), mimeType: z.string(), bytes: z.number() }),
     z.object({ kind: z.literal("text"), text: z.string(), bytes: z.number(), truncated: z.boolean() }),
   ]),
+});
+
+// One piece of a video from `offset`, base64, with the file's size so the client
+// knows when it has it all.
+export const readDeliverablePiece = defineRpc({
+  name: "progress.deliverable.piece",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+    ref: z.string().min(1),
+    offset: z.number().int().min(0),
+  }),
+  output: z.object({ data: z.string(), bytes: z.number() }),
 });

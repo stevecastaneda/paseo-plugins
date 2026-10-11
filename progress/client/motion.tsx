@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Platform, Pressable, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, type PressableProps, type StyleProp, type View, type ViewStyle } from "react-native";
 
 // Read at render time, not import time. The native driver can't run on web,
 // and web is the only place filter blur renders.
@@ -35,6 +35,8 @@ export function useLastPresent<T>(value: T | null): T | null {
 // A button that scales to 0.96 while pressed. `static` turns the scale off.
 export function PressScale({ static: isStatic, style, outerStyle, children, ...props }: Omit<PressableProps, "style" | "children"> & {
   static?: boolean;
+  // Reaches the pressable itself, e.g. to focus it.
+  ref?: React.Ref<View>;
   // Layout for the pressable itself, e.g. alignSelf; `style` is what scales.
   outerStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle> | ((state: { pressed: boolean; hovered: boolean }) => StyleProp<ViewStyle>);

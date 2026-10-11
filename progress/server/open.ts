@@ -4,7 +4,7 @@ import { open, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { findAttachment, imageMimeType, previewKind } from "../shared/attachments.ts";
+import { findAttachment, imageMimeType, previewKind, videoMimeType } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { findStore } from "./store.ts";
@@ -68,8 +68,15 @@ export const MAX_PREVIEW_BYTES = 10 * 1024 * 1024;
 // Text past this is cut off in the preview; the full file is a click away.
 export const MAX_PREVIEW_TEXT_BYTES = 256 * 1024;
 
+// A video travels in pieces, so it's capped by what the app can hold, not the socket.
+export const MAX_PREVIEW_VIDEO_BYTES = 200 * 1024 * 1024;
+
+// Small enough that one piece doesn't hold up the agent output sharing the socket.
+export const VIDEO_PIECE_BYTES = 4 * 1024 * 1024;
+
 export type Preview =
   | { kind: "image"; dataUri: string; bytes: number }
+  | { kind: "video"; mimeType: string; bytes: number }
   | { kind: "text"; text: string; bytes: number; truncated: boolean };
 
 // An image (as a data URI) or a text file's contents, so any client (desktop
@@ -77,8 +84,12 @@ export type Preview =
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
   const { path, target } = await resolveAttachment(directory, id, "previewed");
   const kind = previewKind(target);
-  if (!kind) throw new Error(`${path} isn't an image or text file, so it can't be previewed.`);
+  if (!kind) throw new Error(`${path} isn't an image, video or text file, so it can't be previewed.`);
   const { size } = await stat(target);
+  if (kind === "video") {
+    if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));
+    return { kind, mimeType: videoMimeType(target)!, bytes: size };
+  }
   if (kind === "text") {
     // Read only what's shown, so a huge log doesn't load whole.
     const file = await open(target);
@@ -89,9 +100,31 @@ export async function previewDeliverable(directory: string, id: string): Promise
       await file.close();
     }
   }
-  if (size > MAX_PREVIEW_BYTES) throw new Error(`${path} is ${Math.round(size / 1024 / 1024)} MB, too large to preview.`);
+  if (size > MAX_PREVIEW_BYTES) throw new Error(tooLarge(path, size));
   const data = await readFile(target);
   return { kind, dataUri: `data:${imageMimeType(target)};base64,${data.toString("base64")}`, bytes: size };
+}
+
+function tooLarge(path: string, size: number): string {
+  return `${path} is ${Math.round(size / 1024 / 1024)} MB, too large to preview.`;
+}
+
+// One piece of a video, from `offset`. Resolved by reference each time, like the
+// preview, so a piece can only come from a video the agent recorded.
+export async function readDeliverablePiece(directory: string, id: string, offset: number): Promise<{ data: string; bytes: number }> {
+  const { path, target } = await resolveAttachment(directory, id, "previewed");
+  if (previewKind(target) !== "video") throw new Error(`${path} isn't a video.`);
+  const file = await open(target);
+  try {
+    const { size } = await file.stat();
+    if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));
+    const length = Math.max(0, Math.min(VIDEO_PIECE_BYTES, size - offset));
+    if (!length) return { data: "", bytes: size };
+    const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(length), position: offset });
+    return { data: buffer.subarray(0, bytesRead).toString("base64"), bytes: size };
+  } finally {
+    await file.close();
+  }
 }
 
 export async function handlePreviewDeliverable(
@@ -99,6 +132,13 @@ export async function handlePreviewDeliverable(
   _context: PluginHandlerContext,
 ) {
   return previewDeliverable(input.workspaceDirectory, input.ref);
+}
+
+export async function handleReadDeliverablePiece(
+  input: { workspaceId: string; workspaceDirectory: string; ref: string; offset: number },
+  _context: PluginHandlerContext,
+) {
+  return readDeliverablePiece(input.workspaceDirectory, input.ref, input.offset);
 }
 
 export async function handleOpenDeliverable(

@@ -27,7 +27,7 @@ Record each change as it happens, on the ticket's id from `show` (T01, T02, ...)
 | --- | --- |
 | You start a ticket | `ticket update T03 --status working --stage Build` |
 | You move to the next stage | `ticket update T03 --stage Review`, then `Fixes`, then `Verify` |
-| Something reviewable lands (a screenshot folder, a report, a preview URL) | `deliverable add "<what it shows>" <path or URL> --ticket T03` |
+| Something reviewable lands (a screenshot folder, a screen recording, a report, a preview URL) | `deliverable add "<what it shows>" <path or URL> --ticket T03` |
 | A milestone the user would want in the story | `activity add "<one line>" --ticket T03` |
 | Between bigger events | `ticker set "<what you are doing right now>"` |
 | The ticket is finished | `ticket update T03 --status done`, then start the next one |
@@ -66,7 +66,7 @@ paseo-progress question ask "<short title>" "<the question, in one or two senten
 - Build no option before the user answers, not even the one you recommend. The point of asking is that the user decides before the work is done.
 - Keep working on whatever the question doesn't affect: other tickets, or other parts of this one. If nothing else is left, stop, tell the user in chat which questions you're waiting on, and leave the run open.
 - When the user replies ("Q7 A", or in their own words), run `question answer Q7 A --words "<their words>"`, then build what they chose.
-- When a question is about how something looks, attach the screenshot, mockup or preview link with `--file`. The user opens it from the question: images preview in Paseo, links open in its browser. Add more later with `question update Q7 --file <path>=<what it shows>`.
+- When a question is about how something looks, attach the screenshot, mockup or preview link with `--file`. The user opens it from the question: images and videos preview in Paseo, links open in its browser. Add more later with `question update Q7 --file <path>=<what it shows>`.
 - When the user asks about a question, answer in chat and also put the explanation on the question with `question update Q7 --background "<text>"`, so the dashboard carries it too.
 - `question remove Q7` withdraws a question that no longer applies.
 
