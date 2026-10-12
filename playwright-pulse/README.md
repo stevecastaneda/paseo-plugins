@@ -78,6 +78,10 @@ Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tes
 
 ## Changelog
 
+### 1.1.1
+
+- The plugin store page now links to [Setup](#setup), which has the config to add to `playwright.config.ts`.
+
 ### 1.1.0
 
 - The Running now heading shows how many workers are busy, like `3 of 4 busy`. Each worker gets a dot that fills while it runs a test, so you can watch workers go idle as a run winds down. Past 12 workers, or 8 in a narrow panel, the heading drops the dots and keeps the words.
