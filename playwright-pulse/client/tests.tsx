@@ -3,7 +3,7 @@ import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { PulseTest, RunSnapshot } from "../shared/run";
-import { folders, assignSlots, attachmentKind, isLive, slowest, type Folder, errorPreview, failureMessage, formatClock, formatDuration, isFailure, testWhere, timeoutShare, runningSlotCount, shownFailure, stepFailure, verdict, verdictNote, type AttachmentKind, type Counts } from "../shared/view";
+import { folders, assignSlots, attachmentKind, isLive, slowest, type Folder, errorPreview, failureMessage, formatClock, formatDuration, isFailure, testWhere, timeoutShare, runningSlotCount, workerCount, MAX_WORKER_DOTS, MAX_WORKER_DOTS_NARROW, shownFailure, stepFailure, verdict, verdictNote, type AttachmentKind, type Counts } from "../shared/view";
 import { IconSwap, PressScale } from "./motion";
 import { mono } from "./mono";
 import { useNarrow } from "./narrow";
@@ -38,13 +38,37 @@ export function RunningSection({ colors, run, now }: { colors: Colors; run: RunS
   const running = run.tests.filter((test) => test.status === "running");
   const slots = useRef<(string | null)[]>([]);
   slots.current = assignSlots(slots.current, running.map((test) => test.id), runningSlotCount(run, running.length));
+  const narrow = useNarrow();
   return (
     <Card colors={colors}>
-      <SectionTitle colors={colors} icon="Play" title="Running now" />
+      <SectionTitle colors={colors} icon="Play" title="Running now">
+        <WorkerCount colors={colors} count={workerCount(slots.current, narrow ? MAX_WORKER_DOTS_NARROW : MAX_WORKER_DOTS)} />
+      </SectionTitle>
       {slots.current.map((id, index) => (
         <RunningTest key={index} colors={colors} test={running.find((test) => test.id === id) ?? null} now={now} />
       ))}
     </Card>
+  );
+}
+
+// How many workers are running a test, on the right of the heading: a dot per
+// row below, in the same order, filled while that row's test runs.
+function WorkerCount({ colors, count }: { colors: Colors; count: ReturnType<typeof workerCount> }) {
+  return (
+    <>
+      <View style={{ flex: 1 }} />
+      <View accessible accessibilityLabel={count.spoken} style={{ flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {count.dots ? (
+          <View style={{ flexDirection: "row", gap: 3 }}>
+            {count.dots.map((busy, index) => (
+              <View key={index} style={{ width: 7, height: 7, borderRadius: 3.5, borderWidth: 1.5,
+                borderColor: busy ? colors.accent : colors.foregroundMuted, backgroundColor: busy ? colors.accent : "transparent", opacity: busy ? 1 : 0.6 }} />
+            ))}
+          </View>
+        ) : null}
+        <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{count.label}</Text>
+      </View>
+    </>
   );
 }
 

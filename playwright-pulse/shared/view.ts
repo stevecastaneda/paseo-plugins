@@ -289,6 +289,24 @@ export function assignSlots(previous: readonly (string | null)[], running: reado
   return slots;
 }
 
+// More workers than this and the heading drops its dots for the words alone,
+// so it fits beside "Running now".
+export const MAX_WORKER_DOTS = 12;
+export const MAX_WORKER_DOTS_NARROW = 8;
+
+// The running card's heading: how many of its rows have a test, with a dot per
+// row in the same order, filled while that row's worker runs a test. One worker
+// gets no dots: its row already says whether it's busy.
+export function workerCount(slots: readonly (string | null)[], maxDots = MAX_WORKER_DOTS): { label: string; spoken: string; dots: boolean[] | null } {
+  if (slots.length === 1) return { label: "1 worker", spoken: "1 worker", dots: null };
+  const busy = slots.filter((id) => id !== null).length;
+  return {
+    label: `${busy} of ${slots.length} busy`,
+    spoken: `${busy} of ${slots.length} workers busy`,
+    dots: slots.length <= maxDots ? slots.map((id) => id !== null) : null,
+  };
+}
+
 // A running test's share of its timeout, 0 to 1, or null without one.
 export function timeoutShare(test: PulseTest, nowMs: number): number | null {
   if (!test.timeout || !test.startedAt) return null;

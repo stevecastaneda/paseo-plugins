@@ -161,7 +161,9 @@ export default class PulseReporter {
     this.snapshot.status = "running";
     this.snapshot.testsStartedAt = iso();
     this.snapshot.total = tests.length;
-    this.snapshot.workers = config.workers;
+    // The number Playwright's terminal shows ("using 4 workers"). It's less
+    // than the config allows when the run has too few tests to keep them busy.
+    this.snapshot.workers = config.metadata?.actualWorkers ?? config.workers;
     this.snapshot.projects = [...new Set(tests.map((test) => test.parent?.project()?.name).filter(Boolean))];
     // How many tests each file will run, in run order, so the panel can show
     // progress for parts of the suite that haven't started yet.

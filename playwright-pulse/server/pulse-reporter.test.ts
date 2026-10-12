@@ -75,6 +75,18 @@ test("tracks a passing test with its live step and context", async () => {
   assert.deepEqual(done.recentSteps, [{ title: "Click", subtitle: "getByTestId('save')", duration: 120 }]);
 });
 
+test("counts the workers Playwright's terminal says it's using", () => {
+  // Eight allowed, but one file's tests only keep one busy: "using 1 worker".
+  const { root, reporter, read } = setup();
+  reporter.onBegin({ workers: 8, metadata: { actualWorkers: 1 } }, { allTests: () => [fakeTest(root, "t1", "User edits a lead")] });
+  assert.equal(read().workers, 1);
+
+  // Playwright versions that don't say fall back to the config's number.
+  const older = setup();
+  older.reporter.onBegin({ workers: 4, metadata: {} }, { allTests: () => [fakeTest(older.root, "t1", "User edits a lead")] });
+  assert.equal(older.read().workers, 4);
+});
+
 test("keeps a failure's error, failing step and files, without terminal colors", () => {
   const { root, reporter, read } = setup();
   const one = fakeTest(root, "t1", "User saves a scenario", "unexpected");

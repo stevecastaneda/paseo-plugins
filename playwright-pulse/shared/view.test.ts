@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PulseTest, RunSnapshot } from "./run.ts";
-import { PILL_LINGER_MS, folderLabel, folders, formatTimeLeft, slowest, timeLeft, assignSlots, shownFailure, stepFailure, pillView, runBrief, attachmentKind, commandLine, counts, runningSlotCount, errorPreview, failureMessage, verdict, verdictNote, formatAgo, formatClock, formatDuration, runElapsed, testWhere, timeoutShare } from "./view.ts";
+import { PILL_LINGER_MS, folderLabel, folders, formatTimeLeft, slowest, timeLeft, assignSlots, shownFailure, stepFailure, pillView, runBrief, attachmentKind, commandLine, counts, runningSlotCount, workerCount, errorPreview, failureMessage, verdict, verdictNote, formatAgo, formatClock, formatDuration, runElapsed, testWhere, timeoutShare } from "./view.ts";
 
 function pulseTest(overrides: Partial<PulseTest>): PulseTest {
   return { id: "t", title: "User edits a lead", titlePath: [], file: "e2e/a.spec.ts", line: 3, project: "", status: "passed", retry: 0, timeout: 60_000, attachments: [], ...overrides };
@@ -54,6 +54,17 @@ test("running tests keep their row; a new test takes the first free one", () => 
   const run = { workers: 4, total: 2 } as RunSnapshot;
   assert.equal(runningSlotCount(run, 0), 2);
   assert.equal(runningSlotCount({ ...run, total: 40 }, 1), 4);
+});
+
+test("the running card's heading counts busy workers, a dot per row", () => {
+  // In row order, filled while that row's worker runs a test.
+  assert.deepEqual(workerCount(["a", null, "b", "c"]), { label: "3 of 4 busy", spoken: "3 of 4 workers busy", dots: [true, false, true, true] });
+  // One worker: its row already says whether it's busy.
+  assert.deepEqual(workerCount([null]), { label: "1 worker", spoken: "1 worker", dots: null });
+  // Too many to dot: the words alone.
+  const many = Array.from({ length: 16 }, (_, index) => (index < 10 ? `t${index}` : null));
+  assert.deepEqual(workerCount(many), { label: "10 of 16 busy", spoken: "10 of 16 workers busy", dots: null });
+  assert.equal(workerCount(many.slice(0, 10), 8).dots, null);
 });
 
 test("the header pill shows while tests run and briefly after", () => {

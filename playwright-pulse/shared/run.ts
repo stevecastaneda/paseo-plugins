@@ -56,6 +56,7 @@ export type RunSnapshot = {
   updatedAt: string;
   total: number;
   projects: string[];
+  // How many workers Playwright says it is using, as its terminal shows.
   workers: number;
   // How many tests each file will run, from the start of the run.
   plan?: { file: string; count: number }[];

@@ -14,7 +14,7 @@ A live dashboard in Paseo for the Playwright test run in a worktree. You see the
 - **Header:** whether the run is starting up, running, passed, failed or interrupted, with a clock, the command that started it, and a progress bar split into passed, failed, skipped and stopped.
 - **Stop:** ends a live run the way Ctrl+C in its terminal would: Playwright stops the running test, runs teardown and shuts its web servers. The first press asks to confirm; if the run hasn't ended 8 seconds later, the button offers to force it.
 - **Starting up:** while Playwright boots web servers and runs global setup, before the first test.
-- **Running now:** one row per worker, each a fixed size so the panel doesn't jump while you read: the test's title and file, its live step (`Click  getByTestId('save')`, inside its `test.step` or hook), the last few steps, and how much of its timeout it has used.
+- **Running now:** one row per worker, each a fixed size so the panel doesn't jump while you read: the test's title and file, its live step (`Click  getByTestId('save')`, inside its `test.step` or hook), the last few steps, and how much of its timeout it has used. The heading counts the busy workers, like `3 of 4 busy`, and gives each worker a dot that fills while it runs a test.
 - **Failures:** pinned above the running tests and the rest, with the error, the failing step, the code around it, and buttons to preview the screenshot, open the video, open the trace in Playwright's trace viewer, or copy the error.
 - **Time left:** an estimate from the run's pace so far, once a few tests have finished.
 - **Folders and Slowest tabs:** one card, two tabs (the same tabs as Progress's history card).
@@ -77,6 +77,12 @@ Set `PLAYWRIGHT_PULSE=0` to turn the reporter off for one run.
 Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tested with Playwright 1.63.
 
 ## Changelog
+
+### 1.1.0
+
+- The Running now heading shows how many workers are busy, like `3 of 4 busy`. Each worker gets a dot that fills while it runs a test, so you can watch workers go idle as a run winds down. Past 12 workers, or 8 in a narrow panel, the heading drops the dots and keeps the words.
+- The worker count now matches the `using 4 workers` line Playwright prints. Pulse used to show the most workers your config allows, so a small run could show empty rows for workers Playwright never started.
+- New screenshot of the panel in this README.
 
 ### 1.0.0
 
