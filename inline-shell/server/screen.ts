@@ -333,6 +333,7 @@ export function jsonBytes(value: unknown): number {
 // The longest suffix of `lines` whose JSON stays within `maxBytes` (UTF-8 bytes of
 // JSON.stringify). A single line bigger than the whole budget is cut from its front.
 export function fitLines(lines: readonly Line[], maxBytes: number): Line[] {
+  if (lines.length === 0 || maxBytes <= 4) return [];
   let used = 2;
   let start = lines.length;
   while (start > 0) {

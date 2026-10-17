@@ -26,12 +26,12 @@ export const LIMITS = {
   exitFlushMs: 500,
   shutdownPublishMs: 1_000,
   shutdownKillWaitMs: 400,
-  publishRetryMs: [1_000, 5_000, 30_000],
+  publishRetryMs: [1_000, 5_000, 30_000] as readonly number[],
   quietNoteMs: 10_000,
   inputHintMs: 8_000,
   report: { maxLines: 300, headLines: 20, maxChars: 24_000, lineClamp: 2_000 },
   uiStoreEntries: 50,
-  pollBackoffMs: [500, 1_000, 2_000, 4_000],
-} as const;
+  pollBackoffMs: [500, 1_000, 2_000, 4_000] as readonly number[],
+};
 
-export type Limits = typeof LIMITS;
+export type Limits = Readonly<typeof LIMITS>;
