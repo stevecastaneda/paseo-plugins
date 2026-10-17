@@ -95,7 +95,7 @@ test("Send to Claude is filled for a Claude-suggested run and for a failure, qui
   const ok = describe(run({ kind: "ok", ...ended }), T0, { agent: "Claude" });
   assert.deepEqual(ids(ok), ["copy", "rerun", "send"]);
   assert.equal(ok.actions[2].label, "Send to Claude");
-  assert.equal(describe(run({ kind: "ok", ...ended }), T0).actions[2].label, "Send to the agent");
+  assert.equal(describe(run({ kind: "ok", ...ended }), T0).actions[2].label, "Send to agent");
   assert.equal(primary(ok), null);
   const claudes = describe(run({ kind: "ok", ...ended }, { origin: "claude" }), T0);
   assert.deepEqual(ids(claudes), ["send", "copy", "rerun"]);

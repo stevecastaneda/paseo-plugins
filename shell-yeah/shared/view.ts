@@ -119,7 +119,8 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
 
   const elapsed = formatDuration(phase.endedAt - phase.startedAt);
   const sendIsPrimary = run.sentAt === null && (run.origin === "claude" || phase.kind === "failed");
-  const send = action("send", run.sentAt === null ? `Send to ${agent}` : "Send again", sendIsPrimary);
+  // A button drops the article: "Send to agent", not "Send to the agent".
+  const send = action("send", run.sentAt === null ? `Send to ${agent.replace(/^the /, "")}` : "Send again", sendIsPrimary);
   const actions = sendIsPrimary ? [send, action("copy", "Copy"), action("rerun", "Rerun")] : [action("copy", "Copy"), action("rerun", "Rerun"), send];
   const notes: Presentation["notes"] = [
     run.sentAt === null ? { icon: "eye-off", text: `${capitalize(agent)} can't see this` } : { icon: "eye", text: `Sent to ${agent} ${formatClock(run.sentAt)}` },

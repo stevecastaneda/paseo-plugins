@@ -10,6 +10,7 @@ Plugins for [Paseo](https://paseo.sh). Each plugin lives in its own directory an
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/history/icon.png" alt="" width="24" height="24" align="center"> [history](history/README.md) | Inspect chat messages, tools, and raw session records from a composer pill. |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/progress/icon.png" alt="" width="24" height="24" align="center"> [progress](progress/README.md) | A live progress dashboard per worktree, drawn from a file agents write with the `paseo-progress` command. |
 | <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/playwright-pulse/icon.png" alt="" width="24" height="24" align="center"> [playwright-pulse](playwright-pulse/README.md) | A live dashboard for a worktree's Playwright test run, with each failure's screenshot, video and trace. |
+| <img src="https://raw.githubusercontent.com/stevecastaneda/paseo-plugins/main/shell-yeah/icon.png" alt="" width="24" height="24" align="center"> [shell-yeah](shell-yeah/README.md) | `/sh` runs a command as you, with live output in the chat that the agent sees only if you send it. Commands the agent hands you get a Run button. |
 
 ## Install
 
@@ -87,6 +88,18 @@ See [Playwright Pulse](playwright-pulse/README.md) for the reporter setup.
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-playwright-pulse
+```
+
+## shell-yeah
+
+Type `/sh` and a command in the message box to run it yourself, in the agent's folder, with live output in the chat. The agent sees the output only if you press **Send**. Short output goes whole. Long output goes as a summary, plus the full log saved for the agent to search. When an agent needs you to run something, like a login or a publish that needs your 2FA code, the command shows up under its reply with a **Run** button. The card gives it a plain-words title and warns you when it's hard to undo.
+
+See [Shell Yeah](shell-yeah/README.md) for details.
+
+<img src="shell-yeah/images/1-failed.png" alt="A /sh npm test card that failed: colored test output, Exit 1, and Send to Claude" width="600">
+
+```bash
+paseo plugin add npm:@stevecastaneda/paseo-shell-yeah
 ```
 
 ## Contributing
