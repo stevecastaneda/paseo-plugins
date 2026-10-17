@@ -1,0 +1,8 @@
+{
+  "id": "inline-shell",
+  "name": "Inline Shell",
+  "description": "Type /sh and a command to run it as you, in the agent's folder, with live output in the chat. Claude sees it only if you send it.",
+  "requirements": {
+    "paseo": ">=0.11.0"
+  }
+}
