@@ -297,7 +297,7 @@ test("markSent publishes the row again with the time; recent lists running runs 
   const live = await run(h.registry, "sleep 30");
   h.registry.markSent(done.runId);
   await until(() => h.rows(done.runId).some((row) => row.sentAt !== null));
-  assert.deepEqual(h.registry.recent(5).map((row) => row.runId), [live, done.runId]);
+  assert.deepEqual(h.registry.recent(5).map(({ row }) => row.runId), [live, done.runId]);
   await h.registry.shutdown();
 });
 

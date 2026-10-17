@@ -1,5 +1,6 @@
 import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
-import { agentOf, attachItems, proposeFromReply, sendToClaude, sendVia, withHandoffPrompt } from "./server/claude.ts";
+import { agentOf, attachItems, proposeFromReply, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
+import { createLogStore, defaultLogRoot } from "./server/logs.ts";
 import { createRunRegistry } from "./server/runs.ts";
 import { attachSearch, dismiss, fullOutput, scan, send, start, stop, tail } from "./shared/rpc.ts";
 import { RUN_KIND, RUN_VERSION } from "./shared/row.ts";
@@ -19,13 +20,16 @@ export default function contribute(server: PluginServerContext) {
     env: process.env,
   });
   const sendCounts = new Map<string, number>();
+  const logs = createLogStore({ root: defaultLogRoot() });
+  const saved: AttachDeps["saved"] = new Map();
+  void logs.prune().catch(() => undefined);
 
   server.handle(start, (input, ctx) => (bind(ctx), runs.start(input)));
   server.handle(stop, ({ runId, force }, ctx) => (bind(ctx), runs.stop(runId, force), { ok: true as const }));
   server.handle(tail, ({ runId, lines, since, waitMs }, ctx) => (bind(ctx), runs.tail(runId, lines, since, waitMs)));
   server.handle(fullOutput, ({ runId }) => runs.fullText(runId));
-  server.handle(send, (input, ctx) => (bind(ctx), sendToClaude({ runs, agent: agentOf(ctx.paseo), send: sendVia(ctx.paseo), sendCounts }, input)));
-  server.handle(attachSearch, ({ query }) => ({ items: attachItems(runs, query) }));
+  server.handle(send, (input, ctx) => (bind(ctx), sendToClaude({ runs, logs, agent: agentOf(ctx.paseo), send: sendVia(ctx.paseo), sendCounts }, input)));
+  server.handle(attachSearch, async ({ query }) => ({ items: await attachItems({ runs, logs, saved }, query) }));
   server.handle(dismiss, (input, ctx) => (bind(ctx), runs.dismiss(input).then(() => ({ ok: true as const }))));
 
   // `/sh` with no command: look at Claude's latest reply again, this time counting plain shell blocks.
@@ -54,6 +58,9 @@ export default function contribute(server: PluginServerContext) {
     if (event.outcome.kind !== "completed") return;
     await proposeFromReply({ registry: runs, agentId: event.agent.id, cwd: event.agent.cwd, timeline: event.timeline, turnId: event.turnId, mode: "marked" });
   });
+
+  // An archived chat is done with: its saved logs go with it. Archiving a workspace archives its chats.
+  server.on("agent.archived", ({ agent }) => logs.forget(agent.id));
 
   return () => runs.shutdown();
 }

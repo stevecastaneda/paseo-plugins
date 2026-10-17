@@ -33,7 +33,7 @@ test("polls only while the merged phase is running and something is mounted, and
   const r = row();
   const detach = s.store.attach(r);
   assert.equal(s.calls.length, 1);
-  assert.deepEqual(s.plain(s.calls[0].input), { runId: "run-1", lines: 16, since: 1, waitMs: 100 });
+  assert.deepEqual(s.plain(s.calls[0].input), { runId: "run-1", lines: 300, since: 1, waitMs: 100 });
   await s.answer({ state: "unchanged", rev: 1 });
   assert.equal(s.calls.length, 1, "unchanged: polls again");
   await s.answer({ state: "view", view: view(2) });
@@ -63,7 +63,7 @@ test("unmounting stops the loop; remounting keeps the last reply and the expande
   const reattach = s.store.attach(r);
   assert.equal(s.store.entry("run-1").expanded, true);
   assert.equal(s.store.resolve(r).output.lines.length, 2, "remount keeps the last reply");
-  assert.equal(s.calls[0].input.lines, 300, "an expanded row asks for more lines");
+  assert.equal(s.calls[0].input.lines, 300, "every row asks for its full scrollback");
   s.store.setActive(false);
   await s.answer({ state: "unchanged", rev: 2 });
   assert.equal(s.calls.length, 0, "inactive app: the loop parks");
@@ -116,16 +116,15 @@ test("errors back off 0.5, 1, 2, 4 s and recover; the clock offset corrects a sk
   assert.ok([...s.h.timers.values()].some((t) => t.delay === 500), "a success resets the backoff");
 });
 
-test("toggling expanded discards the in-flight answer and polls again from scratch with more lines", async () => {
+test("toggling the taller box only changes the flag; the poll in flight still lands", async () => {
   const s = setup();
   const r = row();
   s.store.attach(r);
-  const inFlight = s.calls.shift()!;
   s.store.setExpanded("run-1", true);
-  inFlight.resolve(s.plain({ state: "view", view: view(9, { output: { lines: ["stale"], total: 1 } }) }));
-  await s.h.flush();
-  assert.equal(s.store.resolve(r).rev, 1, "the answer to the old request is dropped");
-  assert.deepEqual(s.plain(s.calls[0].input), { runId: "run-1", lines: 300, since: null, waitMs: 100 });
+  assert.equal(s.calls.length, 1, "no second request");
+  await s.answer({ state: "view", view: view(9) });
+  assert.equal(s.store.resolve(r).rev, 9);
+  assert.equal(s.store.entry("run-1").expanded, true);
 });
 
 test("the store keeps the 50 most recent runs that nothing is showing", () => {

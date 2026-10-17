@@ -144,7 +144,7 @@ export function Badge({ kind, tone, colors }: { kind: BadgeKind; tone: Tone; col
 
 export type ButtonTone = "primary" | "quiet" | "danger" | "danger-filled";
 
-export function Button({ icon, label, reserveLabel, tone, onPress, busy = false, disabled = false, compact, iconOnly = false, colors, accessibilityLabel }: {
+export function Button({ icon, label, reserveLabel, tone, onPress, busy = false, disabled = false, compact, iconOnly = false, floating = false, colors, accessibilityLabel }: {
   icon: string;
   label: string;
   // A longer label this button can switch to ("Copied"), so the switch doesn't shift its neighbors.
@@ -155,6 +155,8 @@ export function Button({ icon, label, reserveLabel, tone, onPress, busy = false,
   disabled?: boolean;
   compact: boolean;
   iconOnly?: boolean;
+  // Lifted with the card's ring, for a button that sits over content.
+  floating?: boolean;
   colors: ThemeColors;
   accessibilityLabel: string;
 }) {
@@ -172,11 +174,12 @@ export function Button({ icon, label, reserveLabel, tone, onPress, busy = false,
       disabled={disabled || busy}
       onPress={onPress}
       style={({ hovered }) => ({
+        ...(floating ? raised(colors) : null),
         height,
         minWidth: height,
         borderRadius: 6,
-        paddingLeft: showLabel ? 8 : 0,
-        paddingRight: showLabel ? 10 : 0,
+        paddingStart: showLabel ? 8 : 0,
+        paddingEnd: showLabel ? 10 : 0,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",

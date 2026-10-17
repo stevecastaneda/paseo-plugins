@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import contribute from "../index.server.ts";
+import { createLogStore, defaultLogRoot } from "./logs.ts";
 import { PLUGIN_ID, type RunRow } from "../shared/row.ts";
 import {
   HANDOFF_PROMPT, MAYBE_SENT, PERMISSION_PENDING, RUN_GONE, attachItems, commandsAlreadyShown, formatReport, latestAssistantText,
@@ -10,6 +14,9 @@ import {
 
 const T0 = 1_700_000_000_000;
 const ESC = "\x1b";
+// The server entry saves logs under the home folder; keep them out of the real one.
+process.env.HOME = mkdtempSync(join(tmpdir(), "shell-yeah-home-"));
+const numbered = (n: number) => Array.from({ length: n }, (_, i) => `line ${i + 1}`);
 
 function row(overrides: Partial<RunRow> = {}): RunRow {
   return { runId: "run000000001", rev: 3, origin: "user", command: "npm test", cwd: "/Users/steve/repo", phase: { kind: "failed", startedAt: T0, endedAt: T0 + 12_400, exitCode: 1, signal: null, message: null }, output: { lines: ["PASS a", "FAIL b"], total: 2 }, sentAt: null, ...overrides };
@@ -33,6 +40,11 @@ test("marked scanning finds `sh run` and `run` fences, `! cmd` spans and all-ban
   const found = scanProposals(reply, "marked");
   assert.deepEqual(found, ["gh auth login --web", "npm publish", "ls -la", "git status"]);
   assert.deepEqual(scanProposals(reply.replace("Too many: ", ""), "marked").length, 4, "capped at four");
+});
+
+test("a suggested block keeps its title comment, which the shell skips when it runs", () => {
+  assert.deepEqual(scanProposals(fence("sh run", "# Log in to GitHub in your browser\ngh auth login --web"), "marked"), ["# Log in to GitHub in your browser\ngh auth login --web"]);
+  assert.match(HANDOFF_PROMPT, /```sh run\n# Log in to GitHub in your browser\ngh auth login --web\n```/);
 });
 
 test("any-mode scanning also takes plain shell fences, with console prompts reduced to their commands", () => {
@@ -96,7 +108,7 @@ test("a rescan proposes only commands that have no run row after the latest repl
 
 test("the report reads like Claude Code's own ! transcript, names the folder and result, and always carries the tip", () => {
   const report = formatReport(row());
-  assert.equal(report.visible, "Output of `npm test` (exit 1, 12s, 2 lines)");
+  assert.equal(report.visible, "Output of `npm test` (exit 1, 12s)\u00a0· 2 lines attached");
   assert.match(report.text, /^<bash-input>npm test<\/bash-input>\n<bash-stdout>PASS a\nFAIL b<\/bash-stdout>\n/);
   assert.match(report.text, /in \/Users\/steve\/repo, outside your sandbox: exit 1 after 12s\./);
   assert.match(report.text, /Tip: .*```sh run/);
@@ -105,12 +117,35 @@ test("the report reads like Claude Code's own ! transcript, names the folder and
   assert.ok(!styled.text.includes(ESC) && styled.text.includes("red plain"), "styles never reach Claude");
 });
 
-test("the report states what it omitted, counting lines the daemon no longer holds", () => {
-  const lines = Array.from({ length: 500 }, (_, i) => `line ${i}`);
-  const report = formatReport(row({ output: { lines, total: 12_350 } }));
-  assert.match(report.text, /line 19\n\[… 12,050 lines omitted …\]\nline 220\n/);
-  assert.ok(report.text.includes("line 499"));
-  assert.equal(report.visible, "Output of `npm test` (exit 1, 12s, 12,350 lines)");
+test("output that fits goes whole; longer output goes as a summary with error-looking lines and the saved log's path", () => {
+  const whole = formatReport(row({ output: { lines: numbered(200), total: 200 } }));
+  assert.match(whole.visible, /· all 200 lines attached$/);
+  assert.equal(whole.logPath, null);
+  assert.ok(whole.text.includes("line 1\nline 2\n") && whole.text.includes("line 200</bash-stdout>"));
+
+  const lines = numbered(500);
+  lines[249] = "Error: boom";
+  lines[300] = "Tests: 0 failed, 12 passed";
+  const report = formatReport(row({ output: { lines, total: 500 } }), T0, "/logs/a/npm-test-run000000001.log");
+  assert.match(report.text, /<bash-stdout>line 1\n(line \d+\n){9}\[… lines 11–440 not shown …\]\nline 441\n/);
+  assert.ok(report.text.includes("line 500</bash-stdout>"));
+  assert.match(report.text, /look like errors, by line number:\n250: Error: boom\nFull log: \/logs\/a\/npm-test-run000000001\.log\n/);
+  assert.ok(!report.text.includes("0 failed"), "a line saying nothing failed isn't an error");
+  assert.match(report.text, /The output is 500 lines, too long to send whole, so this is a summary: the first 10 lines, the last 60, and lines that look like errors\. Read or grep the full log/);
+  assert.equal(report.visible, "Output of `npm test` (exit 1, 12s)\u00a0· summary attached, full 500-line log saved for the agent");
+  assert.equal(report.logPath, "/logs/a/npm-test-run000000001.log");
+
+  const cut = formatReport(row({ output: { lines, total: 12_350 } }), T0, "/l.log");
+  assert.match(cut.text, /The first 11,850 lines weren't kept, so the log starts at line 11,851 of the output\./);
+  assert.match(cut.visible, /· summary attached, last 500 of 12,350 lines saved for the agent$/);
+  const unsaved = formatReport(row({ output: { lines, total: 500 } }), T0, null);
+  assert.ok(!unsaved.text.includes("Full log:"));
+  assert.match(unsaved.text, /The full log couldn't be saved, so this summary is all there is\./);
+  assert.match(unsaved.visible, /· summary of 500 lines attached$/);
+
+  const longCommand = formatReport(row({ command: "for i in $(seq 1 400); do printf 'step %s\\n' \"$i\"; sleep 0.03; done" }));
+  const shown = longCommand.visible.match(/^Output of `(.*)` \(/)![1];
+  assert.ok(shown.length <= 48 && shown.endsWith("…") && shown.startsWith("for i in $(seq 1 400)"), "a long command is cut to one short line");
   const long = formatReport(row({ output: { lines: ["x".repeat(5_000)], total: 1 } }));
   assert.ok(long.text.includes("x".repeat(2_000) + "…"), "each line is clamped");
 });
@@ -126,11 +161,20 @@ test("the result sentence covers still running, stopped, interrupted, killed and
   assert.match(at({ kind: "ok", startedAt: T0, endedAt: T0 + 500 }).text, /exit 0 after 0\.5s/);
 });
 
-function sendHarness(state: AgentState, opts: { held?: RunRow | null; fail?: string } = {}) {
+function sendHarness(state: AgentState, opts: { held?: RunRow | null; fail?: string; saveFails?: boolean } = {}) {
   const sent: Array<{ agentId: string; text: string; opts: Parameters<SendDeps["send"]>[2] }> = [];
   const marked: string[] = [];
+  const saves: Array<{ agentId: string; runId: string; text: string }> = [];
   const deps: SendDeps = {
     runs: { snapshot: () => (opts.held === undefined ? row() : opts.held), markSent: (id) => { marked.push(id); } },
+    logs: {
+      save: async ({ agentId, runId, text }) => {
+        if (opts.saveFails) throw new Error("disk full");
+        saves.push({ agentId, runId, text });
+        return `/logs/${agentId}/${runId}.log`;
+      },
+      prune: async () => undefined,
+    },
     agent: async () => state,
     send: async (agentId, text, options) => {
       if (opts.fail) throw new Error(opts.fail);
@@ -138,13 +182,13 @@ function sendHarness(state: AgentState, opts: { held?: RunRow | null; fail?: str
     },
     sendCounts: new Map(),
   };
-  return { deps, sent, marked };
+  return { deps, sent, marked, saves };
 }
 
 test("Send starts a turn when Claude is idle and steers when it is busy; the visible line is short and the report is the attachment", async () => {
   const idle = sendHarness({ status: "idle", pendingPermissions: 0 });
   assert.deepEqual(await sendToClaude(idle.deps, { agentId: "a", runId: "run000000001" }), { delivery: "turn" });
-  assert.equal(idle.sent[0].text, "Output of `npm test` (exit 1, 12s, 2 lines)");
+  assert.equal(idle.sent[0].text, "Output of `npm test` (exit 1, 12s)\u00a0· 2 lines attached");
   assert.equal(idle.sent[0].opts.activeTurnBehavior, undefined);
   assert.match(idle.sent[0].opts.attachmentText, /<bash-input>npm test<\/bash-input>/);
   assert.deepEqual(idle.marked, ["run000000001"]);
@@ -177,6 +221,25 @@ test("every press is its own message; a receipt conflict reads as 'may already h
   await assert.rejects(sendToClaude(other.deps, { agentId: "a", runId: "run000000001" }), { message: "network down" });
 });
 
+test("Send saves the full log only for output too long to send whole, never while refusing, and a failed save still sends the summary", async () => {
+  const idle = { status: "idle" as const, pendingPermissions: 0 };
+  const short = sendHarness(idle);
+  await sendToClaude(short.deps, { agentId: "a", runId: "run000000001" });
+  assert.equal(short.saves.length, 0);
+  const held = row({ output: { lines: numbered(500), total: 500 } });
+  const long = sendHarness(idle, { held });
+  await sendToClaude(long.deps, { agentId: "a", runId: "run000000001" });
+  assert.deepEqual(long.saves, [{ agentId: "a", runId: "run000000001", text: numbered(500).map((l) => `${l}\n`).join("") }]);
+  assert.match(long.sent[0].opts.attachmentText, /\nFull log: \/logs\/a\/run000000001\.log\n/);
+  assert.match(long.sent[0].text, /full 500-line log saved for the agent$/);
+  const waiting = sendHarness({ status: "running", pendingPermissions: 1 }, { held });
+  await assert.rejects(sendToClaude(waiting.deps, { agentId: "a", runId: "run000000001" }), { message: PERMISSION_PENDING });
+  assert.equal(waiting.saves.length, 0);
+  const broken = sendHarness(idle, { held, saveFails: true });
+  await sendToClaude(broken.deps, { agentId: "a", runId: "run000000001" });
+  assert.match(broken.sent[0].text, /summary of 500 lines attached$/);
+});
+
 test("a run the daemon no longer holds is sent from the row the user sees, or refused plainly", async () => {
   const gone = sendHarness({ status: "idle", pendingPermissions: 0 }, { held: null });
   await sendToClaude(gone.deps, { agentId: "a", runId: "run000000001", fallback: row({ command: "ls" }) });
@@ -184,15 +247,16 @@ test("a run the daemon no longer holds is sent from the row the user sees, or re
   await assert.rejects(sendToClaude(gone.deps, { agentId: "a", runId: "run000000001" }), { message: RUN_GONE });
 });
 
-test("attach items: running first, filtered by command or folder, each with the report as its text and a file URL", () => {
+test("attach items: running first, filtered by command or folder, each with the report as its text and a file URL", async () => {
   const now = T0 + 60_000;
   const rows = [
     row({ runId: "r-old", command: "npm test", cwd: "/w/app", phase: { kind: "ok", startedAt: T0 - 120_000, endedAt: T0 - 100_000 } }),
     row({ runId: "r-live", command: "yarn build", cwd: "/w/web", phase: { kind: "running", startedAt: T0, stopRequestedAt: null } }),
     row({ runId: "r-new", command: "git status", cwd: "/w/app", phase: { kind: "ok", startedAt: T0, endedAt: T0 + 1_000 } }),
   ];
-  const recent = (limit: number) => [rows[1], rows[2], rows[0]].slice(0, limit);
-  const all = attachItems({ recent }, "", now);
+  const runs = { recent: (limit: number) => [rows[1], rows[2], rows[0]].slice(0, limit).map((r) => ({ agentId: "a", row: r })), snapshot: () => null };
+  const deps = { runs, logs: { save: async () => assert.fail("short output saves nothing"), prune: async () => undefined }, saved: new Map() };
+  const all = await attachItems(deps, "", now);
   assert.deepEqual(all.map((i) => i.id), ["r-live:3", "r-new:3", "r-old:3"]);
   assert.equal(all[0].title, "yarn build · still running, 1m 00s so far");
   assert.equal(all[1].subtitle, "just now · app");
@@ -200,8 +264,26 @@ test("attach items: running first, filtered by command or folder, each with the 
   assert.equal(all[0].resourceType, "command-output");
   assert.equal(new URL(all[0].url).pathname, "/w/web");
   assert.equal(all[1].text, formatReport(rows[2], now).text);
-  assert.deepEqual(attachItems({ recent }, "APP", now).map((i) => i.id), ["r-new:3", "r-old:3"]);
-  assert.deepEqual(attachItems({ recent }, "yarn", now).map((i) => i.id), ["r-live:3"]);
+  assert.deepEqual((await attachItems(deps, "APP", now)).map((i) => i.id), ["r-new:3", "r-old:3"]);
+  assert.deepEqual((await attachItems(deps, "yarn", now)).map((i) => i.id), ["r-live:3"]);
+});
+
+test("a long run in the attach menu saves its full log once per revision, from everything the daemon kept", async () => {
+  const store = createLogStore({ root: mkdtempSync(join(tmpdir(), "shell-yeah-logs-")) });
+  let saves = 0;
+  let current = row({ runId: "r-long", output: { lines: numbered(300), total: 1_000 } });
+  const runs = {
+    recent: () => [{ agentId: "a", row: current }],
+    snapshot: (_id: string, lines: number) => ({ ...current, output: { lines: numbered(1_000).slice(-lines), total: 1_000 } }),
+  };
+  const deps = { runs, logs: { save: (input: Parameters<typeof store.save>[0]) => (saves++, store.save(input)), prune: store.prune }, saved: new Map() };
+  const [first] = await attachItems(deps, "");
+  await attachItems(deps, "npm");
+  assert.equal(saves, 1, "typing in the menu doesn't rewrite the log");
+  assert.match(first.text, /Full log: .*\/a\/npm-test-r-long\.log\n/);
+  current = { ...current, rev: 4 };
+  await attachItems(deps, "");
+  assert.equal(saves, 2, "new output saves it again");
 });
 
 // The server entry wired to a fake Paseo: only timeline appends and prompt edits are observed.
@@ -284,5 +366,17 @@ test("dismiss publishes a dismissed row from the card's own data", async () => {
   await s.handlers.get("shell-yeah.dismiss")!({ agentId: "a", runId: "p-abcdefabcdef", command: "rm -rf build", cwd: "/w" }, s.ctx);
   assert.equal(s.appended[0].data.phase.kind, "dismissed");
   assert.equal(s.appended[0].data.command, "rm -rf build");
+  await s.cleanup();
+});
+
+test("archiving a chat deletes the logs saved for it", async () => {
+  const s = fakeServer();
+  const store = createLogStore({ root: defaultLogRoot() });
+  const kept = await store.save({ agentId: "agent-2", runId: "r2", command: "ls", text: "x\n" });
+  const gone = await store.save({ agentId: "agent-1", runId: "r1", command: "ls", text: "x\n" });
+  await s.hooks.get("agent.archived")!({ agent: { id: "agent-1" }, archivedAt: new Date(T0).toISOString() }, s.ctx);
+  assert.equal(existsSync(gone), false);
+  assert.equal(existsSync(kept), true);
+  assert.deepEqual(readdirSync(defaultLogRoot()), ["agent-2"]);
   await s.cleanup();
 });

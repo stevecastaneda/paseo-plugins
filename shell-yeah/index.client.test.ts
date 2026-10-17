@@ -81,7 +81,7 @@ test("a failure to start names the command, since the composer already cleared i
   h.responses["shell-yeah.start"] = Promise.reject(new Error("Folder not found: /w/proj"));
   const long = "x".repeat(80);
   await assert.rejects(h.slashCommands[0].onSubmit({ args: long, agent, rpc: h.client.rpc }), (error: Error) => {
-    assert.equal(error.message, `Couldn't run "${"x".repeat(57)}...": Folder not found: /w/proj`);
+    assert.equal(error.message, `Couldn't run "${"x".repeat(47)}…": Folder not found: /w/proj`);
     return true;
   });
 });

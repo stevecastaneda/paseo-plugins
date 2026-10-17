@@ -112,9 +112,8 @@ export function createLiveStore(deps: LiveStoreDeps): LiveStore {
         const token = e.token;
         const since = e.refresh ? null : (e.view?.rev ?? e.row.rev);
         e.refresh = false;
-        const lines = e.expanded ? limits.expandedLines : limits.peekFetchLines;
         try {
-          const result = await deps.rpc({ runId: e.row.runId, lines, since, waitMs: limits.tailWaitMs });
+          const result = await deps.rpc({ runId: e.row.runId, lines: limits.scrollbackLines, since, waitMs: limits.tailWaitMs });
           failures = 0;
           if (token !== e.token) continue;
           if (result.state === "view") {
@@ -165,10 +164,7 @@ export function createLiveStore(deps: LiveStoreDeps): LiveStore {
       const e = entry(runId);
       if (e.expanded === expanded) return;
       e.expanded = expanded;
-      e.token++;
-      e.refresh = true;
       notify(e);
-      kick(e);
     },
     setFollowing(runId, following) {
       const e = entry(runId);

@@ -35,7 +35,7 @@ export interface RunRegistry {
   snapshot(runId: string, lines: number): RunRow | null;
   fullText(runId: string): { text: string; complete: boolean } | null;
   // Running first, then newest. For the attach menu.
-  recent(limit: number): RunRow[];
+  recent(limit: number): Array<{ agentId: string; row: RunRow }>;
   markSent(runId: string): void;
   // A proposal card. Dropped if a run with that id already exists.
   propose(agentId: string, row: RunRow): Promise<void>;
@@ -169,7 +169,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   }
 
   function publishRun(run: Run, retry: boolean): Promise<void> {
-    return publishRow(run.agentId, fitRow(rowOf(run, limits.expandedLines)), retry);
+    return publishRow(run.agentId, fitRow(rowOf(run, limits.scrollbackLines)), retry);
   }
 
   // ---- the state machine ----
@@ -375,7 +375,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       return [...runs.values()]
         .sort((a, b) => Number(b.phase.kind === "running") - Number(a.phase.kind === "running") || startedAt(b) - startedAt(a))
         .slice(0, limit)
-        .map((run) => rowOf(run, limits.expandedLines));
+        .map((run) => ({ agentId: run.agentId, row: rowOf(run, limits.scrollbackLines) }));
     },
 
     markSent(runId) {

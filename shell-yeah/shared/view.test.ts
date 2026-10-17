@@ -25,6 +25,20 @@ test("a proposal is a dashed card with Run filled, plus Copy and Dismiss", () =>
   assert.match(describe(run({ kind: "proposed" }, { origin: "claude" }), T0).notes[0].text, /^The agent sees/);
 });
 
+test("a suggestion shows the agent's title over the command, and warns when the command is hard to undo", () => {
+  const titled = describe(run({ kind: "proposed" }, { origin: "claude", command: "# Clean the build folder\nsudo rm -rf dist", output: { lines: [], total: 0 } }), T0);
+  assert.equal(titled.title, "Clean the build folder");
+  assert.equal(titled.script, "sudo rm -rf dist");
+  assert.equal(titled.warning, "Runs as administrator (sudo) and deletes files");
+  const plain = describe(run({ kind: "proposed" }, { origin: "claude", command: "gh auth login --web", output: { lines: [], total: 0 } }), T0);
+  assert.deepEqual([plain.title, plain.script, plain.warning], [null, "gh auth login --web", null]);
+  const three = describe(run({ kind: "proposed" }, { origin: "claude", command: "sudo rm -rf x && git push -f", output: { lines: [], total: 0 } }), T0);
+  assert.equal(three.warning, "Runs as administrator (sudo), deletes files and force-pushes");
+  // Once it runs, the card is a receipt: the command without its title, and no warning.
+  const ran = describe(run({ kind: "ok", ...ended }, { origin: "claude", command: "# Clean the build folder\nsudo rm -rf dist" }), T0);
+  assert.deepEqual([ran.title, ran.script, ran.warning, ran.foldable], [null, "sudo rm -rf dist", null, false]);
+});
+
 test("a running row shows a ticking timer, a line count, and Stop", () => {
   const p = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["x"], total: 214 }, lastOutputAt: T0 + 5_000 }), T0 + 6_000);
   assert.equal(p.tone, "active");
@@ -99,16 +113,20 @@ test("Send to Claude is filled for a Claude-suggested run and for a failure, qui
 
 test("truncated output gets a scissors note; empty output gets no well", () => {
   const cut = { output: { lines: Array(412).fill("x"), total: 12_408 } };
-  assert.deepEqual(describe(run({ kind: "ok", ...ended }, cut), T0).notes[1], { icon: "scissors", text: "Last 8 of 12,408 lines" });
-  assert.deepEqual(describe(run({ kind: "ok", ...ended }, cut), T0, { expanded: true }).notes[1], { icon: "scissors", text: "Last 412 of 12,408 lines" });
-  assert.deepEqual(describe(run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, cut), T0).notes[1], { icon: "scissors", text: "Last 14 of 12,408 lines" });
-  assert.equal(describe(run({ kind: "ok", ...ended }, { output: { lines: Array(5).fill("x"), total: 5 } }), T0).notes.length, 1);
+  assert.deepEqual(describe(run({ kind: "ok", ...ended }, cut), T0).notes[1], { icon: "scissors", text: "Last 412 of 12,408 lines" });
+  assert.equal(describe(run({ kind: "ok", ...ended }, { output: { lines: Array(60).fill("x"), total: 60 } }), T0).notes.length, 1, "every line is in the box, so nothing is called hidden");
   const collapsed = describe(run({ kind: "ok", ...ended }, cut), T0);
   assert.deepEqual(collapsed.well, { kind: "output", skipped: 11_996 });
   assert.equal(collapsed.foldable, true);
   const padded = describe(run({ kind: "ok", ...ended }, { output: { lines: ["", ...Array(8).fill("x"), ""], total: 10 } }), T0);
-  assert.equal(padded.notes.length, 1, "blank lines at either end are not hidden output");
-  assert.equal(padded.foldable, false);
+  assert.equal(padded.notes.length, 1);
+  assert.equal(padded.foldable, false, "blank lines at either end don't count toward the box height");
+  const tall = describe(run({ kind: "ok", ...ended }, { output: { lines: Array(13).fill("x"), total: 13 } }), T0);
+  assert.equal(tall.foldable, true, "past 12 lines the header arrow can make the box taller");
+  assert.equal(tall.boxLines, 12);
+  const failed = describe(run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, { output: { lines: Array(13).fill("x"), total: 13 } }), T0);
+  assert.equal(failed.boxLines, 14, "a failure's box is taller, so its cause stays in view");
+  assert.equal(failed.foldable, false);
   const empty = describe(run({ kind: "ok", ...ended }, { output: { lines: [], total: 0 } }), T0);
   assert.deepEqual(empty.well, { kind: "empty", text: "No output" });
   assert.equal(empty.foldable, false);
@@ -148,6 +166,7 @@ test("a dismissed proposal is one muted line with no actions", () => {
 });
 
 test("durations read naturally at every scale", () => {
+  assert.equal(formatDuration(40), "<0.1s");
   assert.equal(formatDuration(850), "0.8s");
   assert.equal(formatDuration(9_960), "9.9s");
   assert.equal(formatDuration(59_900), "59s");

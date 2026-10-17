@@ -2,16 +2,11 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { RunRowView } from "./client/run-row.tsx";
 import { commandOutputSource, scan, start } from "./shared/rpc.ts";
 import { RUN_KIND, RUN_VERSION, runRow } from "./shared/row.ts";
-import { errorMessage } from "./shared/text.ts";
+import { errorMessage, shortCommand } from "./shared/text.ts";
 
 // One leading "! " or "$ " that people paste along with the command.
 export function normalizeArgs(args: string): string {
   return args.trim().replace(/^[!$]\s+/, "").trim();
-}
-
-export function shortCommand(command: string): string {
-  const first = command.split("\n")[0];
-  return first.length > 60 ? `${first.slice(0, 57)}...` : first;
 }
 
 export default function contribute(client: PluginClientContext) {

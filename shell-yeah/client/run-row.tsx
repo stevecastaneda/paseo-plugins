@@ -32,7 +32,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const running = run.phase.kind === "running" && run.lostAt === null;
   const now = useNow(running ? 1_000 : null);
   const agent = agentName(useAgent(agentId, (a) => a.provider));
-  const pres = describe(run, now, { expanded: ui.expanded, agent });
+  const pres = describe(run, now, { agent });
   const palette = useMemo(() => makePalette(colors), [colors]);
   const reduced = useReducedMotion();
   const toast = useToast();
@@ -60,8 +60,9 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
           await rpcStop({ runId: run.runId, force: true });
           return;
         case "copy": {
-          const full = await rpcOutput({ runId: run.runId }).catch(() => null);
-          await copyText(full?.text ?? plainText(run.output.lines));
+          // A suggestion has no output yet, so its Copy copies the command.
+          const full = pres.layout === "proposed" ? null : await rpcOutput({ runId: run.runId }).catch(() => null);
+          await copyText(pres.layout === "proposed" ? pres.script : full?.text ?? plainText(run.output.lines));
           setCopied(true);
           setTimeout(() => setCopied(false), 1_200);
           return;
@@ -104,7 +105,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
     return (
       <View testID="shell-yeah-run" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingHorizontal: 12 }}>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>Dismissed · </Text>
-        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 12, lineHeight: 16, flexShrink: 1 }}>{run.command}</Text>
+        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 12, lineHeight: 16, flexShrink: 1 }}>{pres.script}</Text>
       </View>
     );
   }
@@ -113,7 +114,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
     return (
       <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
         <View testID="shell-yeah-run" style={{ borderRadius: 12, backgroundColor: mix(colors.surface0, colors.surface1, 0.6), borderWidth: 1, borderStyle: "dashed", borderColor: withAlpha(colors.foregroundMuted, 0.35), overflow: "hidden" }}>
-          <Header pres={pres} run={run} colors={colors} expanded={false} wrap onToggle={() => {}} />
+          <ProposalHeader pres={pres} colors={colors} />
           <Footer pres={pres} colors={colors} compact={compact} actions={actions} />
         </View>
       </Enter>
@@ -123,19 +124,20 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   return (
     <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
       <Card colors={colors} tone={pres.tone} running={running} seenLive={ui.seenLive} reduced={reduced}>
-        <Header pres={pres} run={run} colors={colors} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)} />
+        <Header pres={pres} colors={colors} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)} />
         {pres.well?.kind === "output" ? (
           <OutputWell
             lines={run.output.lines}
             skipped={pres.well.skipped}
             palette={palette}
             colors={colors}
-            mode={ui.expanded ? "expanded" : "peek"}
+            tall={ui.expanded}
+            rows={pres.boxLines}
+            compact={compact}
             running={running}
             following={ui.following}
             onFollowingChange={ui.setFollowing}
-            peekLines={pres.peekLines}
-            commandLines={run.command.split("\n")}
+            commandLines={pres.script.split("\n")}
             reduced={reduced}
           />
         ) : pres.well?.kind === "message" ? (
@@ -194,9 +196,38 @@ function Card({ children, colors, tone, running, seenLive, reduced }: { children
   );
 }
 
-function Header({ pres, run, colors, expanded, wrap = false, onToggle }: { pres: Presentation; run: ReturnType<typeof useResolvedRun>; colors: ThemeColors; expanded: boolean; wrap?: boolean; onToggle(): void }) {
-  const [first, ...more] = run.command.split("\n");
-  const rest = wrap ? [] : more;
+// A suggestion: the agent's title, the whole command it would run, and a warning when
+// that command is hard to undo. The first line's height sets where the badge and status sit.
+function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeColors }) {
+  const firstLine = pres.title ? 20 : 18;
+  const command = (
+    <Text selectable style={{ fontFamily: mono(), fontSize: pres.title ? 12 : 13, lineHeight: 18, fontWeight: pres.title ? "400" : "600", color: colors.foreground }}>
+      <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
+      {pres.script}
+    </Text>
+  );
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 10, paddingHorizontal: 12 }}>
+      <View style={{ marginTop: (firstLine - 20) / 2 }}>
+        <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        {pres.title ? <Text selectable style={{ fontSize: 14, lineHeight: 20, fontWeight: "600", color: colors.foreground }}>{pres.title}</Text> : null}
+        {command}
+        {pres.warning ? (
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 1 }}>
+            <View style={{ paddingTop: 3 }}><Icon name="TriangleAlert" size={12} color={colors.statusWarning} /></View>
+            <Text style={{ color: colors.statusWarning, fontSize: 12, lineHeight: 18, flexShrink: 1 }}>{pres.warning}</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={{ marginTop: (firstLine - 16) / 2, color: toneColor(pres.tone, colors), fontSize: 12, lineHeight: 16 }}>{pres.label}</Text>
+    </View>
+  );
+}
+
+function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colors: ThemeColors; expanded: boolean; onToggle(): void }) {
+  const [first, ...rest] = pres.script.split("\n");
   const [hovered, setHovered] = useState(false);
   const rotate = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   useEffect(() => {
@@ -210,9 +241,9 @@ function Header({ pres, run, colors, expanded, wrap = false, onToggle }: { pres:
   const content = (hovered: boolean) => (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
       <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-      <Text selectable={wrap} numberOfLines={expanded || wrap ? undefined : 1} style={{ flex: 1, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
+      <Text numberOfLines={expanded ? undefined : 1} style={{ flex: 1, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
         <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
-        {wrap ? run.command : first}
+        {first}
       </Text>
       {rest.length > 0 ? <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
       {status}
@@ -244,7 +275,7 @@ function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors
   return (
     <View style={{ padding: 6, gap: 6 }}>
       <View style={compact ? { gap: 8 } : { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1, paddingLeft: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1, paddingStart: 6 }}>
           {notes.map((note) => (
             <View key={note.text} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
               <Icon name={NOTE_ICON[note.icon]} size={12} color={colors.foregroundMuted} />
@@ -255,7 +286,7 @@ function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors
         <View style={compact ? { alignSelf: "flex-end" } : { marginStart: "auto" }}>{actions}</View>
       </View>
       {pres.hint ? (
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, paddingLeft: 6, paddingBottom: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, paddingStart: 6, paddingBottom: 2 }}>
           <View style={{ paddingTop: 3 }}><Icon name="Info" size={12} color={colors.foregroundMuted} /></View>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, flexShrink: 1 }}>{pres.hint}</Text>
         </View>
@@ -268,7 +299,9 @@ function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors
 function Elapsed({ from, prefix }: { from: number; prefix: string }) {
   const elapsed = Date.now() - from;
   const now = useNow(elapsed < 10_000 ? 100 : 1_000);
-  return <>{prefix}{formatDuration(Math.max(0, now - from))}</>;
+  // A stopwatch starts at 0.0s; "<0.1s" is for runs that are already over.
+  const ms = Math.max(0, now - from);
+  return <>{prefix}{ms < 100 ? "0.0s" : formatDuration(ms)}</>;
 }
 
 function useNow(intervalMs: number | null): number {

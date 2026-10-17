@@ -1,5 +1,5 @@
 import { LIMITS } from "./limits.ts";
-import { basename } from "./text.ts";
+import { basename, risksOf, splitTitle } from "./text.ts";
 import { lineText, type Line, type LiveView, type Phase, type RunRow } from "./row.ts";
 
 export type Tone = "muted" | "active" | "success" | "danger" | "warning";
@@ -32,6 +32,12 @@ export type Well =
 export interface Presentation {
   // proposed: dashed card with the full command. card: the receipt. dismissed: one muted line.
   layout: "proposed" | "card" | "dismissed";
+  // The agent's one-line summary of a command it suggested; null for everything else.
+  title: string | null;
+  // The command as shown and copied, without its title line.
+  script: string;
+  // On a suggestion that does something hard to undo: what, in plain words.
+  warning: string | null;
   tone: Tone;
   badge: Badge;
   // "Done", "Exit 1", "Killed (SIGKILL)", "Stopped", "Interrupted", "Couldn't start", "Stopping", "" while running.
@@ -43,8 +49,8 @@ export interface Presentation {
   // In order, left to right. At most one is primary.
   actions: Action[];
   foldable: boolean;
-  // How many lines the collapsed well shows.
-  peekLines: number;
+  // Rows the output box shows before it scrolls.
+  boxLines: number;
   // Left footer chips, most specific first; at most two.
   notes: Array<{ icon: NoteIcon; text: string }>;
   // At most one, below the notes.
@@ -67,27 +73,28 @@ export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export function describe(run: ResolvedRun, now: number, opts: { expanded?: boolean; agent?: string } = {}): Presentation {
+export function describe(run: ResolvedRun, now: number, opts: { agent?: string } = {}): Presentation {
   const agent = opts.agent ?? "the agent";
   const phase = effectivePhase(run);
-  const peekLines = phase.kind === "failed" ? LIMITS.failedPeekLines : LIMITS.peekLines;
   const { lines, total } = run.output;
   const skipped = Math.max(0, total - lines.length);
+  const boxLines = phase.kind === "failed" ? LIMITS.failedBoxLines : LIMITS.boxLines;
   const visible = trimBlankEnds(lines, skipped === 0).length;
-  const shown = opts.expanded ? visible : peekWindow(lines, skipped === 0, peekLines).length;
-  const foldable = visible > peekLines || skipped > 0 || run.command.includes("\n") || run.command.length > LIMITS.headerCommandChars;
+  const { title, script } = splitTitle(run.command);
+  const foldable = visible > boxLines || script.includes("\n") || script.length > LIMITS.headerCommandChars;
   const outputText = lines.map(lineText).join("\n");
+  const shown = { title: null, script, warning: null };
 
   if (phase.kind === "proposed") {
     return {
-      layout: "proposed", tone: "muted", badge: "play", label: `Suggested by ${agent}`, elapsed: null, timerFrom: null,
+      layout: "proposed", title, script, warning: warningFor(risksOf(script)), tone: "muted", badge: "play", label: `Suggested by ${agent}`, elapsed: null, timerFrom: null,
       actions: [action("run", "Run", true), action("copy", "Copy"), action("dismiss", "Dismiss")],
-      foldable: false, peekLines, hint: null, well: null,
+      foldable: false, boxLines, hint: null, well: null,
       notes: [{ icon: "eye-off", text: `${capitalize(agent)} sees the output only if you send it` }, { icon: "folder", text: basename(run.cwd) }],
     };
   }
   if (phase.kind === "dismissed") {
-    return { layout: "dismissed", tone: "muted", badge: "x", label: "Dismissed", elapsed: null, timerFrom: null, actions: [], foldable: false, peekLines, notes: [], hint: null, well: null };
+    return { layout: "dismissed", ...shown, tone: "muted", badge: "x", label: "Dismissed", elapsed: null, timerFrom: null, actions: [], foldable: false, boxLines, notes: [], hint: null, well: null };
   }
   if (phase.kind === "running") {
     const stopping = phase.stopRequestedAt !== null;
@@ -97,13 +104,13 @@ export function describe(run: ResolvedRun, now: number, opts: { expanded?: boole
     const wantsInput = INPUT_PATTERNS.test(outputText) || (silentFor >= LIMITS.inputHintMs && /[:?]$/.test(lastLine));
     const quiet = silentFor >= LIMITS.quietNoteMs ? ` · quiet for ${Math.floor(silentFor / 1000)}s` : "";
     return {
-      layout: "card", tone: "active", badge: "spinner",
+      layout: "card", ...shown, tone: "active", badge: "spinner",
       label: stopping ? "Stopping" : "",
       elapsed: null,
       timerFrom: phase.startedAt - run.clockOffset,
       actions: forceReady ? [action("force-stop", "Force stop", true)] : stopping ? [{ ...action("stop", "Stopping…", true), disabled: true }] : [action("stop", "Stop", true)],
       foldable,
-      peekLines,
+      boxLines,
       notes: [{ icon: "clock", text: total === 0 ? "No output yet" : `${formatCount(total)} ${total === 1 ? "line" : "lines"}${quiet}` }],
       hint: wantsInput ? NO_KEYBOARD_HINT : null,
       well: total === 0 ? null : { kind: "output", skipped },
@@ -117,11 +124,11 @@ export function describe(run: ResolvedRun, now: number, opts: { expanded?: boole
   const notes: Presentation["notes"] = [
     run.sentAt === null ? { icon: "eye-off", text: `${capitalize(agent)} can't see this` } : { icon: "eye", text: `Sent to ${agent} ${formatClock(run.sentAt)}` },
   ];
-  if (shown < visible || skipped > 0) notes.push({ icon: "scissors", text: `Last ${formatCount(shown)} of ${formatCount(total)} lines` });
+  if (skipped > 0) notes.push({ icon: "scissors", text: `Last ${formatCount(lines.length)} of ${formatCount(total)} lines` });
   const notFound = (phase.kind === "failed" && phase.exitCode === 127) || /command not found/i.test(outputText);
   const hint = notFound ? NO_SHELL_FILES_HINT : INPUT_PATTERNS.test(outputText) ? NO_KEYBOARD_HINT : null;
 
-  const base = { layout: "card" as const, elapsed, timerFrom: null, actions, foldable, peekLines, notes, hint };
+  const base = { layout: "card" as const, ...shown, elapsed, timerFrom: null, actions, foldable, boxLines, notes, hint };
   const well: Well | null = phase.kind === "failed" && phase.message !== null
     ? { kind: "message", text: phase.message }
     : total === 0 ? { kind: "empty", text: "No output" } : { kind: "output", skipped };
@@ -136,6 +143,13 @@ export function describe(run: ResolvedRun, now: number, opts: { expanded?: boole
     case "interrupted":
       return { ...base, tone: "warning", badge: "unplug", label: "Interrupted", well, notes: [...notes, { icon: "info" as const, text: "Stopped when the plugin restarted" }].slice(0, 2) };
   }
+}
+
+// "Deletes files and runs as administrator (sudo)"
+function warningFor(risks: string[]): string | null {
+  if (risks.length === 0) return null;
+  const last = risks[risks.length - 1];
+  return capitalize(risks.length === 1 ? last : `${risks.slice(0, -1).join(", ")} and ${last}`);
 }
 
 // A running row the daemon no longer knows about ended when the poll said so.
@@ -161,15 +175,11 @@ export function trimBlankEnds(lines: readonly Line[], atStart: boolean): readonl
   return from === 0 && to === lines.length ? lines : lines.slice(from, to);
 }
 
-// The lines the collapsed well shows: the last `peekLines` after trimming, never starting blank.
-export function peekWindow(lines: readonly Line[], atStart: boolean, peekLines: number): readonly Line[] {
-  const trimmed = trimBlankEnds(lines, atStart);
-  return trimmed.length <= peekLines ? trimmed : trimBlankEnds(trimmed.slice(-peekLines), true);
-}
-
-// Same format as playwright-pulse: "0.8s", "9.9s", "12s", "1m 05s", "1h 02m".
+// Same format as playwright-pulse: "0.8s", "9.9s", "12s", "1m 05s", "1h 02m", with
+// "<0.1s" for the instant ones, where "0.0s" would read as if nothing ran.
 export function formatDuration(ms: number): string {
   const safe = Math.max(0, ms);
+  if (safe < 100) return "<0.1s";
   if (safe < 10_000) return `${(Math.floor(safe / 100) / 10).toFixed(1)}s`;
   const seconds = Math.floor(safe / 1000);
   if (seconds < 60) return `${seconds}s`;
