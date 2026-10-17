@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Shell Yeah: a lime >_ with a block cursor and faint scanlines, like an old green-screen terminal. Tailwind lime-300/400/500/900/950. Store icon; icon.png is this file rendered at 512 px. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#365314"/>
+      <stop offset="1" stop-color="#1a2e05"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.25" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="bloom" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g fill="#bef264" opacity="0.07">
+    <rect y="40" width="512" height="6"/><rect y="72" width="512" height="6"/><rect y="104" width="512" height="6"/><rect y="136" width="512" height="6"/><rect y="168" width="512" height="6"/><rect y="200" width="512" height="6"/><rect y="232" width="512" height="6"/><rect y="264" width="512" height="6"/><rect y="296" width="512" height="6"/><rect y="328" width="512" height="6"/><rect y="360" width="512" height="6"/><rect y="392" width="512" height="6"/><rect y="424" width="512" height="6"/><rect y="456" width="512" height="6"/>
+  </g>
+  <g transform="translate(13 0)">
+    <g filter="url(#bloom)" opacity="0.55">
+      <path d="M124 168 L228 256 L124 344" fill="none" stroke="#84cc16" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="262" y="292" width="128" height="60" rx="10" fill="#84cc16"/>
+    </g>
+    <path d="M124 168 L228 256 L124 344" fill="none" stroke="#bef264" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="262" y="292" width="128" height="60" rx="10" fill="#a3e635"/>
+  </g>
+</svg>
