@@ -18,7 +18,7 @@ export default function contribute(client: PluginClientContext) {
   const stops = [
     client.addSlashCommand({
       name: "sh",
-      description: "Run a shell command here. Claude only sees the output if you send it.",
+      description: "Run a shell command here. The agent sees the output only if you send it.",
       argumentHint: "<command>",
       context: "agent",
       async onSubmit({ args, agent, rpc }) {

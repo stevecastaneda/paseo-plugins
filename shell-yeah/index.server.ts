@@ -37,7 +37,7 @@ export default function contribute(server: PluginServerContext) {
     await ref.refresh();
     if (!ref.cwd) throw new Error("Paseo doesn't have this agent loaded.");
     const { found, proposed } = await proposeFromReply({ registry: runs, agentId, cwd: ref.cwd, timeline: page.entries.map((entry) => entry.item), turnId: null, mode: "any" });
-    if (found === 0) throw new Error("Claude's last reply has no commands. Type /sh and a command to run one.");
+    if (found === 0) throw new Error("The last reply has no commands to run. Type /sh and a command to run one.");
     if (proposed === 0) throw new Error("Those commands are already in the chat.");
     return { found: proposed };
   });

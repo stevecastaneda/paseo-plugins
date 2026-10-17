@@ -9,7 +9,7 @@ import { commandEnv, createRunRegistry, type RunRegistry } from "./runs.ts";
 import { jsonBytes } from "./screen.ts";
 
 const AGENT = "agent-1";
-const dir = () => mkdtempSync(join(tmpdir(), "inline-shell-"));
+const dir = () => mkdtempSync(join(tmpdir(), "shell-yeah-"));
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function until(check: () => boolean, ms = 10_000): Promise<void> {
@@ -110,10 +110,10 @@ test("commandEnv keeps the user's PATH and git color, and does not override a gi
 
 test("a missing folder is a failed row with a plain reason, published once, and nothing runs", async () => {
   const h = harness();
-  const id = await run(h.registry, "echo hi", "/nonexistent/folder/for/inline-shell");
+  const id = await run(h.registry, "echo hi", "/nonexistent/folder/for/shell-yeah");
   const row = await ended(h.registry, id);
   assert.equal(row.phase.kind, "failed");
-  assert.equal((row.phase as { message: string }).message, "Folder not found: /nonexistent/folder/for/inline-shell");
+  assert.equal((row.phase as { message: string }).message, "Folder not found: /nonexistent/folder/for/shell-yeah");
   assert.deepEqual(h.phases(id), ["failed"]);
   await h.registry.shutdown();
 });

@@ -108,6 +108,11 @@ export function IconSwap({ swapKey, size, children }: { swapKey: string; size: n
   );
 }
 
+// A play triangle's visual center sits left of its box; one pixel right centers it.
+function Nudge({ children }: { children: React.ReactNode }) {
+  return <View style={{ transform: [{ translateX: 1 }] }}>{children}</View>;
+}
+
 // The system spinner, sized to sit beside a line of text. iOS draws it only at 20pt.
 export function Spinner({ color, size = 12 }: { color: string; size?: number }) {
   return (
@@ -125,23 +130,25 @@ const BADGE_ICON: Record<Exclude<BadgeKind, "spinner">, string> = { play: "Play"
 export function Badge({ kind, tone, colors }: { kind: BadgeKind; tone: Tone; colors: ThemeColors }) {
   const color = toneColor(tone, colors);
   const light = isLight(colors) ?? false;
-  const glyph = kind === "spinner" ? <Spinner color={colors.accent} size={14} /> : <Icon name={BADGE_ICON[kind]} size={12} color={color} />;
+  const glyph = kind === "spinner" ? <Spinner color={colors.accent} size={12} /> : kind === "play" ? <Nudge><Icon name="Play" size={12} color={color} /></Nudge> : <Icon name={BADGE_ICON[kind]} size={12} color={color} />;
   return (
     <View style={[
       { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-      kind === "spinner" ? null : { backgroundColor: withAlpha(color, light ? 0.12 : 0.14) },
+      { backgroundColor: withAlpha(color, light ? 0.12 : 0.14) },
       kind === "play" ? { borderWidth: 1, borderStyle: "dashed", borderColor: withAlpha(color, 0.6), backgroundColor: "transparent" } : null,
     ]}>
-      <IconSwap swapKey={kind} size={kind === "spinner" ? 14 : 12}>{glyph}</IconSwap>
+      <IconSwap swapKey={kind} size={12}>{glyph}</IconSwap>
     </View>
   );
 }
 
 export type ButtonTone = "primary" | "quiet" | "danger" | "danger-filled";
 
-export function Button({ icon, label, tone, onPress, busy = false, disabled = false, compact, iconOnly = false, colors, accessibilityLabel }: {
+export function Button({ icon, label, reserveLabel, tone, onPress, busy = false, disabled = false, compact, iconOnly = false, colors, accessibilityLabel }: {
   icon: string;
   label: string;
+  // A longer label this button can switch to ("Copied"), so the switch doesn't shift its neighbors.
+  reserveLabel?: string;
   tone: ButtonTone;
   onPress(): void;
   busy?: boolean;
@@ -152,9 +159,10 @@ export function Button({ icon, label, tone, onPress, busy = false, disabled = fa
   accessibilityLabel: string;
 }) {
   const filled = tone === "primary" || tone === "danger-filled";
-  const background = tone === "primary" ? colors.accent : tone === "danger-filled" ? colors.statusDanger : "transparent";
+  const background = tone === "primary" ? colors.accent : tone === "danger-filled" ? colors.statusDanger : colors.surface2;
   const foreground = tone === "primary" ? colors.accentForeground : tone === "danger-filled" ? colors.surface0 : tone === "danger" ? colors.statusDanger : colors.foreground;
   const height = compact ? 36 : 28;
+  const labelStyle = { color: foreground, fontSize: 12, lineHeight: 16, fontWeight: filled ? ("600" as const) : ("500" as const) };
   const showLabel = !iconOnly || filled;
   return (
     <PressScale
@@ -167,16 +175,24 @@ export function Button({ icon, label, tone, onPress, busy = false, disabled = fa
         height,
         minWidth: height,
         borderRadius: 6,
-        paddingHorizontal: showLabel ? 10 : 0,
+        paddingLeft: showLabel ? 8 : 0,
+        paddingRight: showLabel ? 10 : 0,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap: 6,
-        backgroundColor: filled ? background : hovered && !disabled ? colors.surface2 : "transparent",
-        opacity: disabled ? 0.5 : 1,
+        backgroundColor: filled || !hovered || disabled ? background : colors.border,
+        opacity: disabled ? 0.5 : filled && hovered ? 0.88 : 1,
       })}>
-      {busy ? <Spinner color={foreground} size={14} /> : <Icon name={icon} size={14} color={foreground} />}
-      {showLabel ? <Text style={{ color: foreground, fontSize: 12, lineHeight: 16, fontWeight: filled ? "600" : "500" }}>{label}</Text> : null}
+      <IconSwap swapKey={busy ? "busy" : icon} size={14}>
+        {busy ? <Spinner color={foreground} size={14} /> : icon === "Play" ? <Nudge><Icon name={icon} size={14} color={foreground} /></Nudge> : <Icon name={icon} size={14} color={foreground} />}
+      </IconSwap>
+      {showLabel ? (
+        <View>
+          {reserveLabel ? <Text accessible={false} importantForAccessibility="no" style={[labelStyle, { opacity: 0 }]}>{reserveLabel}</Text> : null}
+          <Text style={[labelStyle, reserveLabel ? { position: "absolute", left: 0, right: 0, top: 0, textAlign: "center" } : null]}>{label}</Text>
+        </View>
+      ) : null}
     </PressScale>
   );
 }

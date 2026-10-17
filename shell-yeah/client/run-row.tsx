@@ -1,4 +1,4 @@
-import { useRpc, type PluginTimelineItemProps } from "@getpaseo/plugin/client";
+import { useAgent, useRpc, type PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, Text, View, type LayoutChangeEvent } from "react-native";
@@ -6,13 +6,13 @@ import { basename, errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
 import { dismiss, fullOutput, send, start, stop, tail } from "../shared/rpc.ts";
-import { describe, formatDuration, statusText, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
+import { agentName, capitalize, describe, formatDuration, statusText, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
-import { makePalette, withAlpha, type ThemeColors } from "./palette.ts";
-import { Badge, Button, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
+import { makePalette, mix, withAlpha, type ThemeColors } from "./palette.ts";
+import { Badge, Button, IconSwap, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
 
-const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info" };
+const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder" };
 const ACTION_ICON: Record<Action["id"], string> = { run: "Play", dismiss: "X", stop: "Square", "force-stop": "SquareX", copy: "Copy", rerun: "RotateCw", send: "Send" };
 const ENTER_WITHIN_MS = 2_000;
 
@@ -31,7 +31,8 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const ui = useRunUi(row.runId, rpcTail);
   const running = run.phase.kind === "running" && run.lostAt === null;
   const now = useNow(running ? 1_000 : null);
-  const pres = describe(run, now);
+  const agent = agentName(useAgent(agentId, (a) => a.provider));
+  const pres = describe(run, now, { expanded: ui.expanded, agent });
   const palette = useMemo(() => makePalette(colors), [colors]);
   const reduced = useReducedMotion();
   const toast = useToast();
@@ -67,7 +68,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
         }
         case "send": {
           const { delivery } = await rpcSend({ agentId, runId: run.runId, fallback: row });
-          toast.show(delivery === "steered" ? "Added to Claude's current turn" : "Sent to Claude", { variant: "success" });
+          toast.show(delivery === "steered" ? `Added to ${agent}'s current turn` : `Sent to ${agent}`, { variant: "success" });
           return;
         }
       }
@@ -79,12 +80,13 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   }
 
   const actions = (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
       {pres.actions.map((action) => (
         <Button
           key={action.id}
           icon={action.id === "copy" && copied ? "Check" : ACTION_ICON[action.id]}
           label={action.id === "copy" && copied ? "Copied" : action.label}
+          reserveLabel={action.id === "copy" ? "Copied" : undefined}
           tone={buttonTone(action)}
           onPress={() => void act(action)}
           busy={busy === action.id}
@@ -100,7 +102,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
 
   if (pres.layout === "dismissed") {
     return (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingHorizontal: 8 }}>
+      <View testID="shell-yeah-run" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingHorizontal: 12 }}>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>Dismissed · </Text>
         <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 12, lineHeight: 16, flexShrink: 1 }}>{run.command}</Text>
       </View>
@@ -110,18 +112,8 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   if (pres.layout === "proposed") {
     return (
       <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
-        <View style={{ borderRadius: 12, backgroundColor: withAlpha(colors.surface1, 0.6), borderWidth: 1, borderStyle: "dashed", borderColor: withAlpha(colors.foregroundMuted, 0.35), overflow: "hidden" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40 }}>
-            <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-            <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "500" }}>Claude suggests running this</Text>
-            <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, maxWidth: "40%" }}>{basename(run.cwd)}</Text>
-          </View>
-          <View style={{ marginHorizontal: 6, marginBottom: 6, borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: withAlpha(colors.border, 0.6), paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text selectable style={{ fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
-              <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
-              {run.command}
-            </Text>
-          </View>
+        <View testID="shell-yeah-run" style={{ borderRadius: 12, backgroundColor: mix(colors.surface0, colors.surface1, 0.6), borderWidth: 1, borderStyle: "dashed", borderColor: withAlpha(colors.foregroundMuted, 0.35), overflow: "hidden" }}>
+          <Header pres={pres} run={run} colors={colors} expanded={false} wrap onToggle={() => {}} />
           <Footer pres={pres} colors={colors} compact={compact} actions={actions} />
         </View>
       </Enter>
@@ -142,12 +134,12 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
             running={running}
             following={ui.following}
             onFollowingChange={ui.setFollowing}
-            peekLines={LIMITS.peekLines}
+            peekLines={pres.peekLines}
             commandLines={run.command.split("\n")}
             reduced={reduced}
           />
         ) : pres.well?.kind === "message" ? (
-          <View style={{ marginHorizontal: 6, marginBottom: 6, borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: withAlpha(colors.border, 0.6), paddingVertical: 8, paddingHorizontal: 10 }}>
+          <View style={{ marginHorizontal: 6, borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: withAlpha(colors.border, 0.6), paddingVertical: 8, paddingHorizontal: 10 }}>
             <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: 18, color: colors.foreground }}>{pres.well.text}</Text>
           </View>
         ) : null}
@@ -186,12 +178,12 @@ function Card({ children, colors, tone, running, seenLive, reduced }: { children
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
   const barWidth = Math.round(width * 0.28);
   return (
-    <View onLayout={onLayout} style={[{ borderRadius: 12, backgroundColor: colors.surface1, overflow: "hidden" }, raised(colors)]}>
+    <View testID="shell-yeah-run" onLayout={onLayout} style={[{ borderRadius: 12, backgroundColor: colors.surface1, overflow: "hidden", borderWidth: 1, borderColor: "transparent" }, raised(colors)]}>
       {running ? (
         reduced ? (
-          <View style={{ height: 2, backgroundColor: withAlpha(colors.accent, 0.4) }} />
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1, backgroundColor: withAlpha(colors.accent, 0.4) }} />
         ) : (
-          <View style={{ height: 2 }}>
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1 }}>
             <Animated.View style={{ position: "absolute", top: 0, height: 2, width: barWidth, backgroundColor: withAlpha(colors.accent, 0.9), transform: [{ translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-barWidth, width] }) }] }} />
           </View>
         )
@@ -202,8 +194,9 @@ function Card({ children, colors, tone, running, seenLive, reduced }: { children
   );
 }
 
-function Header({ pres, run, colors, expanded, onToggle }: { pres: Presentation; run: ReturnType<typeof useResolvedRun>; colors: ThemeColors; expanded: boolean; onToggle(): void }) {
-  const [first, ...rest] = run.command.split("\n");
+function Header({ pres, run, colors, expanded, wrap = false, onToggle }: { pres: Presentation; run: ReturnType<typeof useResolvedRun>; colors: ThemeColors; expanded: boolean; wrap?: boolean; onToggle(): void }) {
+  const [first, ...more] = run.command.split("\n");
+  const rest = wrap ? [] : more;
   const [hovered, setHovered] = useState(false);
   const rotate = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   useEffect(() => {
@@ -217,17 +210,19 @@ function Header({ pres, run, colors, expanded, onToggle }: { pres: Presentation;
   const content = (hovered: boolean) => (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
       <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-      <Text numberOfLines={1} style={{ flex: 1, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
+      <Text selectable={wrap} numberOfLines={expanded || wrap ? undefined : 1} style={{ flex: 1, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
         <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
-        {first}
+        {wrap ? run.command : first}
       </Text>
       {rest.length > 0 ? <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
       {status}
-      {pres.foldable ? (
-        <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] }) }] }}>
-          <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
-        </Animated.View>
-      ) : null}
+      <IconSwap swapKey={pres.foldable ? "fold" : "none"} size={14}>
+        {pres.foldable ? (
+          <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] }) }] }}>
+            <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
+          </Animated.View>
+        ) : null}
+      </IconSwap>
     </View>
   );
   if (!pres.foldable) return content(false);
@@ -245,34 +240,34 @@ function Header({ pres, run, colors, expanded, onToggle }: { pres: Presentation;
 }
 
 function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors: ThemeColors; compact: boolean; actions: React.ReactNode }) {
-  const notes = [...pres.notes, ...(pres.well?.kind === "empty" ? [{ icon: "info" as const, text: pres.well.text }] : [])].slice(0, 2);
+  const notes = [...pres.notes, ...(pres.well?.kind === "empty" ? [{ icon: "info" as const, text: pres.well.text }] : [])].slice(0, compact ? 1 : 2);
   return (
-    <View style={{ paddingTop: 6, paddingHorizontal: 8, paddingBottom: 8, gap: 6 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1 }}>
+    <View style={{ padding: 6, gap: 6 }}>
+      <View style={compact ? { gap: 8 } : { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1, paddingLeft: 6 }}>
           {notes.map((note) => (
             <View key={note.text} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
               <Icon name={NOTE_ICON[note.icon]} size={12} color={colors.foregroundMuted} />
-              <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>{compact ? note.text.split(" ").slice(0, 2).join(" ") : note.text}</Text>
+              <Text numberOfLines={compact ? 2 : 1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 1, fontVariant: ["tabular-nums"] }}>{note.text}</Text>
             </View>
           ))}
         </View>
-        {actions}
+        <View style={compact ? { alignSelf: "flex-end" } : { marginStart: "auto" }}>{actions}</View>
       </View>
       {pres.hint ? (
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
-          <View style={{ paddingTop: 2 }}><Icon name="Info" size={12} color={colors.foregroundMuted} /></View>
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>{pres.hint}</Text>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, paddingLeft: 6, paddingBottom: 2 }}>
+          <View style={{ paddingTop: 3 }}><Icon name="Info" size={12} color={colors.foregroundMuted} /></View>
+          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, flexShrink: 1 }}>{pres.hint}</Text>
         </View>
       ) : null}
     </View>
   );
 }
 
-// A live timer in its own Text, ticking every 100 ms under a minute and every second after.
+// A live timer in its own Text, ticking every 100 ms while it shows tenths and every second after.
 function Elapsed({ from, prefix }: { from: number; prefix: string }) {
   const elapsed = Date.now() - from;
-  const now = useNow(elapsed < 60_000 ? 100 : 1_000);
+  const now = useNow(elapsed < 10_000 ? 100 : 1_000);
   return <>{prefix}{formatDuration(Math.max(0, now - from))}</>;
 }
 

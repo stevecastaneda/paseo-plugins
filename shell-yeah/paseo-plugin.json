@@ -1,0 +1,9 @@
+{
+  "id": "shell-yeah",
+  "name": "Shell Yeah",
+  "description": "Type /sh and a command to run it as you, in the agent's folder, with live output in the chat. The agent sees it only if you send it.",
+  "icon": "icon.png",
+  "requirements": {
+    "paseo": ">=0.11.0"
+  }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Shell Yeah: an amber >_ prompt with a spark, on dark amber. Tailwind amber-300/400/500/900/950. Store icon; icon.png is this file rendered at 512 px. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#78350f"/>
+      <stop offset="1" stop-color="#451a03"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.25" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g transform="translate(-12 18)">
+  <path d="M112 186 L210 270 L112 354" fill="none" stroke="#fcd34d" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="244" y="328" width="132" height="52" rx="26" fill="#fbbf24"/>
+  <!-- The spark: a four-point star, and a small one beside it -->
+  <path d="M356 92 Q364 168 432 176 Q364 184 356 260 Q348 184 280 176 Q348 168 356 92 Z" fill="#fcd34d"/>
+  <path d="M424 236 Q428 268 456 272 Q428 276 424 308 Q420 276 392 272 Q420 268 424 236 Z" fill="#f59e0b"/>
+  </g>
+</svg>

@@ -1,15 +1,15 @@
 {
-  "name": "@stevecastaneda/paseo-inline-shell",
+  "name": "@stevecastaneda/paseo-shell-yeah",
   "version": "0.1.0",
-  "description": "Type /sh and a command to run it as you, in the agent's folder, with live output in the chat. Claude sees it only if you send it.",
+  "description": "Type /sh and a command to run it as you, in the agent's folder, with live output in the chat. The agent sees it only if you send it.",
   "license": "MIT",
   "author": "Steve Castaneda",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
-    "directory": "inline-shell"
+    "directory": "shell-yeah"
   },
-  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/inline-shell#readme",
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/shell-yeah#readme",
   "keywords": [
     "paseo",
     "paseo-plugin",

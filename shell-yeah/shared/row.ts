@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PLUGIN_ID = "inline-shell";
+export const PLUGIN_ID = "shell-yeah";
 export const RUN_KIND = "run";
 export const RUN_VERSION = 1;
 

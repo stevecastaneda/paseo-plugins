@@ -12,7 +12,7 @@ type TimelineItem = Timeline[number];
 
 // ---- teaching Claude (new agents) ----
 
-export const HANDOFF_TAG = "inline-shell";
+export const HANDOFF_TAG = "shell-yeah";
 
 export const HANDOFF_PROMPT = `<${HANDOFF_TAG}>
 This chat has a /sh feature: the user can run a shell command as themselves, on their own machine, in your working directory, and watch the output. You do not see that output unless they send it.
@@ -266,7 +266,7 @@ export interface SendDeps {
   sendCounts: Map<string, number>;
 }
 
-export const PERMISSION_PENDING = "Claude is waiting for your approval. Approve or deny that first.";
+export const PERMISSION_PENDING = "The agent is waiting for your approval. Approve or deny that first.";
 export const MAYBE_SENT = "That may already have been sent. Check the chat, then press Send again.";
 export const RUN_GONE = "That run is gone. Copy the output and paste it instead.";
 
@@ -283,7 +283,7 @@ export async function sendToClaude(deps: SendDeps, input: { agentId: string; run
   const n = deps.sendCounts.get(input.runId) ?? 0;
   const report = formatReport(row);
   try {
-    await deps.send(input.agentId, report.visible, { messageId: `inline-shell:${input.runId}:${n}`, ...(steer ? { activeTurnBehavior: "steer" as const } : {}), title: report.title, attachmentText: report.text });
+    await deps.send(input.agentId, report.visible, { messageId: `shell-yeah:${input.runId}:${n}`, ...(steer ? { activeTurnBehavior: "steer" as const } : {}), title: report.title, attachmentText: report.text });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/agent_request_key_conflict|agent_request_outcome_unknown/.test(message)) {

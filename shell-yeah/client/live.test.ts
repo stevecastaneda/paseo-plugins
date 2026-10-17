@@ -33,7 +33,7 @@ test("polls only while the merged phase is running and something is mounted, and
   const r = row();
   const detach = s.store.attach(r);
   assert.equal(s.calls.length, 1);
-  assert.deepEqual(s.plain(s.calls[0].input), { runId: "run-1", lines: 10, since: 1, waitMs: 100 });
+  assert.deepEqual(s.plain(s.calls[0].input), { runId: "run-1", lines: 16, since: 1, waitMs: 100 });
   await s.answer({ state: "unchanged", rev: 1 });
   assert.equal(s.calls.length, 1, "unchanged: polls again");
   await s.answer({ state: "view", view: view(2) });

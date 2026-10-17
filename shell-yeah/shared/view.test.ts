@@ -14,13 +14,15 @@ const ids = (p: ReturnType<typeof describe>) => p.actions.map((a) => a.id);
 const primary = (p: ReturnType<typeof describe>) => p.actions.find((a) => a.primary)?.id ?? null;
 
 test("a proposal is a dashed card with Run filled, plus Copy and Dismiss", () => {
-  const p = describe(run({ kind: "proposed" }, { origin: "claude", output: { lines: [], total: 0 } }), T0);
+  const p = describe(run({ kind: "proposed" }, { origin: "claude", output: { lines: [], total: 0 } }), T0, { agent: "Codex" });
   assert.equal(p.layout, "proposed");
   assert.equal(p.badge, "play");
   assert.deepEqual(ids(p), ["run", "copy", "dismiss"]);
   assert.equal(primary(p), "run");
   assert.equal(p.well, null);
-  assert.match(p.notes[0].text, /Claude won't see/);
+  assert.equal(p.label, "Suggested by Codex");
+  assert.deepEqual(p.notes, [{ icon: "eye-off", text: "Codex sees the output only if you send it" }, { icon: "folder", text: "repo" }]);
+  assert.match(describe(run({ kind: "proposed" }, { origin: "claude" }), T0).notes[0].text, /^The agent sees/);
 });
 
 test("a running row shows a ticking timer, a line count, and Stop", () => {
@@ -33,7 +35,7 @@ test("a running row shows a ticking timer, a line count, and Stop", () => {
   assert.deepEqual(p.notes, [{ icon: "clock", text: "214 lines" }]);
   assert.deepEqual(p.well, { kind: "output", skipped: 213 });
   // Quiet for ten seconds: the note says so.
-  assert.equal(describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["x"], total: 214 }, lastOutputAt: T0 }), T0 + 12_000).notes[0].text, "214 lines · quiet for 12 s");
+  assert.equal(describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["x"], total: 214 }, lastOutputAt: T0 }), T0 + 12_000).notes[0].text, "214 lines · quiet for 12s");
   // A skewed client clock is corrected for the timer and the quiet note.
   const skewed = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { clockOffset: 300_000, lastOutputAt: T0 }), T0 - 300_000 + 1_000);
   assert.equal(skewed.timerFrom, T0 - 300_000);
@@ -44,7 +46,7 @@ test("stop requested: Stopping is disabled for three seconds, then Force stop ta
   const phase: Phase = { kind: "running", startedAt: T0, stopRequestedAt: T0 + 10_000 };
   const stopping = describe(run(phase), T0 + 11_000);
   assert.equal(stopping.label, "Stopping");
-  assert.deepEqual(stopping.actions, [{ id: "stop", label: "Stopping", primary: true, disabled: true }]);
+  assert.deepEqual(stopping.actions, [{ id: "stop", label: "Stopping…", primary: true, disabled: true }]);
   const force = describe(run(phase), T0 + 13_000);
   assert.deepEqual(ids(force), ["force-stop"]);
   assert.equal(primary(force), "force-stop");
@@ -52,11 +54,11 @@ test("stop requested: Stopping is disabled for three seconds, then Force stop ta
 
 test("each ended state has its own label, tone and badge", () => {
   const cases: Array<[Phase, string, string, string]> = [
-    [{ kind: "ok", ...ended }, "Done · 12.4 s", "success", "check"],
-    [{ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, "Exit 1 · 12.4 s", "danger", "x"],
-    [{ kind: "failed", ...ended, exitCode: null, signal: "SIGKILL", message: null }, "Killed (SIGKILL) · 12.4 s", "danger", "x"],
-    [{ kind: "stopped", ...ended, exitCode: 130, signal: null }, "Stopped · 12.4 s", "warning", "square"],
-    [{ kind: "interrupted", ...ended }, "Interrupted · 12.4 s", "warning", "unplug"],
+    [{ kind: "ok", ...ended }, "Done · 12s", "success", "check"],
+    [{ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, "Exit 1 · 12s", "danger", "x"],
+    [{ kind: "failed", ...ended, exitCode: null, signal: "SIGKILL", message: null }, "Killed (SIGKILL) · 12s", "danger", "x"],
+    [{ kind: "stopped", ...ended, exitCode: 130, signal: null }, "Stopped · 12s", "warning", "square"],
+    [{ kind: "interrupted", ...ended }, "Interrupted · 12s", "warning", "unplug"],
   ];
   for (const [phase, status, tone, badge] of cases) {
     const p = describe(run(phase), T0 + 20_000);
@@ -76,8 +78,10 @@ test("a command that never started shows the reason as the well and no duration"
 });
 
 test("Send to Claude is filled for a Claude-suggested run and for a failure, quiet otherwise", () => {
-  const ok = describe(run({ kind: "ok", ...ended }), T0);
+  const ok = describe(run({ kind: "ok", ...ended }), T0, { agent: "Claude" });
   assert.deepEqual(ids(ok), ["copy", "rerun", "send"]);
+  assert.equal(ok.actions[2].label, "Send to Claude");
+  assert.equal(describe(run({ kind: "ok", ...ended }), T0).actions[2].label, "Send to the agent");
   assert.equal(primary(ok), null);
   const claudes = describe(run({ kind: "ok", ...ended }, { origin: "claude" }), T0);
   assert.deepEqual(ids(claudes), ["send", "copy", "rerun"]);
@@ -85,7 +89,7 @@ test("Send to Claude is filled for a Claude-suggested run and for a failure, qui
   const failed = describe(run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }), T0);
   assert.equal(primary(failed), "send");
   // Once sent, nothing is primary and the button offers to send again.
-  const sent = describe(run({ kind: "ok", ...ended }, { origin: "claude", sentAt: T0 + 60_000 }), T0);
+  const sent = describe(run({ kind: "ok", ...ended }, { origin: "claude", sentAt: T0 + 60_000 }), T0, { agent: "Claude" });
   assert.equal(primary(sent), null);
   assert.equal(sent.actions.find((a) => a.id === "send")?.label, "Send again");
   assert.equal(sent.notes[0].icon, "eye");
@@ -94,10 +98,17 @@ test("Send to Claude is filled for a Claude-suggested run and for a failure, qui
 });
 
 test("truncated output gets a scissors note; empty output gets no well", () => {
-  const cut = describe(run({ kind: "ok", ...ended }, { output: { lines: Array(412).fill("x"), total: 12_408 } }), T0);
-  assert.deepEqual(cut.notes[1], { icon: "scissors", text: "Last 412 of 12,408 lines" });
-  assert.deepEqual(cut.well, { kind: "output", skipped: 11_996 });
-  assert.equal(cut.foldable, true);
+  const cut = { output: { lines: Array(412).fill("x"), total: 12_408 } };
+  assert.deepEqual(describe(run({ kind: "ok", ...ended }, cut), T0).notes[1], { icon: "scissors", text: "Last 8 of 12,408 lines" });
+  assert.deepEqual(describe(run({ kind: "ok", ...ended }, cut), T0, { expanded: true }).notes[1], { icon: "scissors", text: "Last 412 of 12,408 lines" });
+  assert.deepEqual(describe(run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, cut), T0).notes[1], { icon: "scissors", text: "Last 14 of 12,408 lines" });
+  assert.equal(describe(run({ kind: "ok", ...ended }, { output: { lines: Array(5).fill("x"), total: 5 } }), T0).notes.length, 1);
+  const collapsed = describe(run({ kind: "ok", ...ended }, cut), T0);
+  assert.deepEqual(collapsed.well, { kind: "output", skipped: 11_996 });
+  assert.equal(collapsed.foldable, true);
+  const padded = describe(run({ kind: "ok", ...ended }, { output: { lines: ["", ...Array(8).fill("x"), ""], total: 10 } }), T0);
+  assert.equal(padded.notes.length, 1, "blank lines at either end are not hidden output");
+  assert.equal(padded.foldable, false);
   const empty = describe(run({ kind: "ok", ...ended }, { output: { lines: [], total: 0 } }), T0);
   assert.deepEqual(empty.well, { kind: "empty", text: "No output" });
   assert.equal(empty.foldable, false);
@@ -124,7 +135,7 @@ test("hints: exit 127 or 'command not found' explains missing aliases; a prompt-
 
 test("a running row the daemon lost reads as interrupted at the moment it was lost", () => {
   const p = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { lostAt: T0 + 41_000 }), T0 + 90_000);
-  assert.equal(statusText(p), "Interrupted · 41.0 s");
+  assert.equal(statusText(p), "Interrupted · 41s");
   assert.equal(p.badge, "unplug");
   assert.equal(p.timerFrom, null);
 });
@@ -137,8 +148,9 @@ test("a dismissed proposal is one muted line with no actions", () => {
 });
 
 test("durations read naturally at every scale", () => {
-  assert.equal(formatDuration(850), "850 ms");
-  assert.equal(formatDuration(59_900), "59.9 s");
-  assert.equal(formatDuration(65_000), "1 m 05 s");
-  assert.equal(formatDuration(3_720_000), "1 h 02 m");
+  assert.equal(formatDuration(850), "0.8s");
+  assert.equal(formatDuration(9_960), "9.9s");
+  assert.equal(formatDuration(59_900), "59s");
+  assert.equal(formatDuration(65_000), "1m 05s");
+  assert.equal(formatDuration(3_720_000), "1h 02m");
 });

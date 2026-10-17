@@ -3,14 +3,15 @@ import { ScrollView } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView as NativeScrollView } from "react-native";
 import type { Line, Segment } from "../shared/row.ts";
-import { formatCount } from "../shared/view.ts";
+import { formatCount, peekWindow, trimBlankEnds } from "../shared/view.ts";
 import type { Palette, ThemeColors } from "./palette.ts";
 import { withAlpha } from "./palette.ts";
 import { mono, nativeDriver } from "./ui.tsx";
 
 export const LINE_HEIGHT = 18;
 const WELL_PADDING_V = 8;
-const EXPANDED_MAX = 26 * LINE_HEIGHT + 2 * WELL_PADDING_V;
+// Padding sits outside the scroller, so a view scrolled to the end never slices a line in half.
+const EXPANDED_MAX = 26 * LINE_HEIGHT;
 const URL = /https?:\/\/[^\s<>"')\]]+/g;
 
 // The output well: one selectable Text so copy and selection work across lines, spans
@@ -30,12 +31,14 @@ export function OutputWell({ lines, skipped, palette, colors, mode, running, fol
   reduced: boolean;
 }) {
   const total = skipped + lines.length;
+  const trimmed = trimBlankEnds(lines, skipped === 0);
+  const shown = mode === "peek" ? peekWindow(lines, skipped === 0, peekLines) : trimmed;
   const seen = useRef(total);
   const fade = useRef(new Animated.Value(1)).current;
-  const freshFrom = running && total > seen.current ? Math.max(0, lines.length - (total - seen.current)) : lines.length;
+  const freshFrom = running && total > seen.current ? Math.max(0, shown.length - (total - seen.current)) : shown.length;
   useEffect(() => {
     seen.current = total;
-    if (freshFrom < lines.length && !reduced) {
+    if (freshFrom < shown.length && !reduced) {
       fade.setValue(0);
       Animated.timing(fade, { toValue: 1, duration: 140, useNativeDriver: nativeDriver() }).start();
     }
@@ -45,18 +48,17 @@ export function OutputWell({ lines, skipped, palette, colors, mode, running, fol
     <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }}>
       {mode === "expanded" && commandLines.length > 1 ? <Text style={{ color: colors.foregroundMuted }}>{commandLines.map((l) => `$ ${l}`).join("\n")}{"\n"}</Text> : null}
       {mode === "expanded" && skipped > 0 ? <Text style={{ color: colors.foregroundMuted }}>{`⋯ ${formatCount(skipped)} earlier lines\n`}</Text> : null}
-      {lines.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === lines.length - 1} />)}
-      {freshFrom < lines.length ? (
+      {shown.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === shown.length - 1} />)}
+      {freshFrom < shown.length ? (
         <Animated.Text style={{ opacity: fade }}>
-          {lines.slice(freshFrom).map((line, i) => <LineSpans key={freshFrom + i} line={line} palette={palette} last={freshFrom + i === lines.length - 1} />)}
+          {shown.slice(freshFrom).map((line, i) => <LineSpans key={freshFrom + i} line={line} palette={palette} last={freshFrom + i === shown.length - 1} />)}
         </Animated.Text>
       ) : null}
     </Text>
   );
 
   const frame = {
-    marginHorizontal: 6,
-    marginBottom: 6,
+    marginHorizontal: 10,
     borderRadius: 6,
     backgroundColor: palette.well,
     borderWidth: 1,
@@ -67,23 +69,21 @@ export function OutputWell({ lines, skipped, palette, colors, mode, running, fol
 
   if (mode === "expanded") {
     return (
-      <View style={frame} {...pmono}>
-        <ExpandedScroll running={running} following={following} onFollowingChange={onFollowingChange} colors={colors} contentKey={total}>
-          <View style={{ paddingVertical: WELL_PADDING_V, paddingHorizontal: 10 }}>{body}</View>
+      <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...pmono}>
+        <ExpandedScroll running={running} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well} contentKey={total}>
+          <View style={{ paddingHorizontal: 10 }}>{body}</View>
         </ExpandedScroll>
       </View>
     );
   }
-  const clipped = lines.length > peekLines;
   return (
-    <View style={[frame, clipped ? { height: peekLines * LINE_HEIGHT + 2 * WELL_PADDING_V, justifyContent: "flex-end" } : null]} {...pmono}>
+    <View style={frame} {...pmono}>
       <View style={{ paddingVertical: WELL_PADDING_V, paddingHorizontal: 10 }}>{body}</View>
-      {clipped ? <TopFade color={palette.well} /> : null}
     </View>
   );
 }
 
-// Three stacked bands of the well color, so the top of a clipped peek fades without gradient support.
+// Three stacked bands of the well color, so the top of a scrolled view fades without gradient support.
 function TopFade({ color }: { color: string }) {
   return (
     <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
@@ -92,16 +92,18 @@ function TopFade({ color }: { color: string }) {
   );
 }
 
-function ExpandedScroll({ children, running, following, onFollowingChange, colors, contentKey }: {
+function ExpandedScroll({ children, running, following, onFollowingChange, colors, fadeColor, contentKey }: {
   children: React.ReactNode;
   running: boolean;
   following: boolean;
   onFollowingChange(v: boolean): void;
   colors: ThemeColors;
+  fadeColor: string;
   contentKey: number;
 }) {
   const ref = useRef<NativeScrollView>(null);
   const [away, setAway] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     if (following) ref.current?.scrollToEnd({ animated: false });
   }, [contentKey, following]);
@@ -109,6 +111,7 @@ function ExpandedScroll({ children, running, following, onFollowingChange, color
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - LINE_HEIGHT;
     setAway(!atBottom);
+    setScrolled(contentOffset.y > 0);
     if (running && atBottom !== following) onFollowingChange(atBottom);
   };
   return (
@@ -116,6 +119,7 @@ function ExpandedScroll({ children, running, following, onFollowingChange, color
       <ScrollView ref={ref} style={{ maxHeight: EXPANDED_MAX }} onScroll={onScroll} scrollEventThrottle={100}>
         {children}
       </ScrollView>
+      {scrolled ? <TopFade color={fadeColor} /> : null}
       {running && away ? (
         <Pressable
           accessibilityRole="button"

@@ -304,7 +304,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     async start(input) {
       const id = input.runId ?? newRunId();
       if (runs.has(id)) return { runId: id };
-      if (process.platform === "win32") throw new Error("Inline Shell doesn't support Windows yet.");
+      if (process.platform === "win32") throw new Error("Shell Yeah doesn't support Windows yet.");
       if (Buffer.byteLength(input.command) > limits.commandBytes) throw new Error("That command is too long to run.");
       if (liveCount() >= limits.maxLive) throw new Error(`${limits.maxLive} commands are already running. Stop one first.`);
       const startedAt = deps.now();
@@ -498,6 +498,8 @@ export function commandEnv(base: NodeJS.ProcessEnv, cwd: string): NodeJS.Process
     PYTHONUNBUFFERED: "1",
     TERM: "xterm-256color",
     COLUMNS: "100",
+    // npm prints its "new version available" banner when it thinks a person is watching.
+    npm_config_update_notifier: "false",
   });
   if (env.GIT_CONFIG_COUNT === undefined) {
     Object.assign(env, { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "color.ui", GIT_CONFIG_VALUE_0: "always" });

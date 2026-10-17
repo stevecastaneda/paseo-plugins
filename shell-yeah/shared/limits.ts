@@ -14,7 +14,11 @@ export const LIMITS = {
   rowTotalBytes: 60 * 1024,
   liveReplyBytes: 128 * 1024,
   peekLines: 8,
-  peekFetchLines: 10,
+  // A failure's cause usually sits a few lines above the summary at the bottom.
+  failedPeekLines: 14,
+  peekFetchLines: 16,
+  // Past this, the one-line header may cut the command off, so the card unfolds to show it whole.
+  headerCommandChars: 80,
   expandedLines: 300,
   proposalsPerReply: 4,
   tailCoalesceMs: 60,

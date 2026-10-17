@@ -19,12 +19,12 @@ test("registers /sh for agents, the run v1 renderer, and the Command output atta
   const stop = h.load("index.client.tsx").default(h.client);
   const [sh] = h.slashCommands;
   assert.deepEqual(plain([sh.name, sh.context, sh.argumentHint]), ["sh", "agent", "<command>"]);
-  assert.match(sh.description, /Claude only sees the output if you send it/);
+  assert.match(sh.description, /The agent sees the output only if you send it/);
   const [renderer] = h.timelineRenderers;
   assert.deepEqual(plain([renderer.kind, renderer.version]), ["run", 1]);
   assert.equal(typeof renderer.Component, "function");
   const [source] = h.attachmentSources;
-  assert.deepEqual(plain([source.id, source.title, source.search.name]), ["command-output", "Command output", "inline-shell.attach.search"]);
+  assert.deepEqual(plain([source.id, source.title, source.search.name]), ["command-output", "Command output", "shell-yeah.attach.search"]);
   stop();
   assert.ok([...h.slashCommands, ...h.timelineRenderers, ...h.attachmentSources].every((entry) => entry.removed));
 });
@@ -53,32 +53,32 @@ test("the renderer's schema accepts a row in every phase and rejects garbage", (
 test("/sh with a command starts it in the agent's folder as the user; a pasted prompt is stripped", async () => {
   const h = clientHarness(directory);
   h.load("index.client.tsx").default(h.client);
-  h.responses["inline-shell.start"] = { runId: "abcdef123456" };
+  h.responses["shell-yeah.start"] = { runId: "abcdef123456" };
   const { onSubmit } = h.slashCommands[0];
   await onSubmit({ args: "npm test", agent, rpc: h.client.rpc });
   await onSubmit({ args: "! git status", agent, rpc: h.client.rpc });
   await onSubmit({ args: "$ ls -la", agent, rpc: h.client.rpc });
   assert.deepEqual(plain(h.requests), [
-    { name: "inline-shell.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "npm test", origin: "user" } },
-    { name: "inline-shell.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "git status", origin: "user" } },
-    { name: "inline-shell.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "ls -la", origin: "user" } },
+    { name: "shell-yeah.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "npm test", origin: "user" } },
+    { name: "shell-yeah.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "git status", origin: "user" } },
+    { name: "shell-yeah.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "ls -la", origin: "user" } },
   ]);
 });
 
 test("/sh alone rescans Claude's latest reply", async () => {
   const h = clientHarness(directory);
   h.load("index.client.tsx").default(h.client);
-  h.responses["inline-shell.scan"] = { found: 1 };
+  h.responses["shell-yeah.scan"] = { found: 1 };
   await h.slashCommands[0].onSubmit({ args: "", agent, rpc: h.client.rpc });
-  assert.deepEqual(plain(h.requests), [{ name: "inline-shell.scan", input: { agentId: "agent-1" } }]);
-  h.responses["inline-shell.scan"] = Promise.reject(new Error("Claude's last reply has no commands. Type /sh and a command to run one."));
+  assert.deepEqual(plain(h.requests), [{ name: "shell-yeah.scan", input: { agentId: "agent-1" } }]);
+  h.responses["shell-yeah.scan"] = Promise.reject(new Error("The last reply has no commands to run. Type /sh and a command to run one."));
   await assert.rejects(h.slashCommands[0].onSubmit({ args: "  ", agent, rpc: h.client.rpc }), /has no commands/);
 });
 
 test("a failure to start names the command, since the composer already cleared it", async () => {
   const h = clientHarness(directory);
   h.load("index.client.tsx").default(h.client);
-  h.responses["inline-shell.start"] = Promise.reject(new Error("Folder not found: /w/proj"));
+  h.responses["shell-yeah.start"] = Promise.reject(new Error("Folder not found: /w/proj"));
   const long = "x".repeat(80);
   await assert.rejects(h.slashCommands[0].onSubmit({ args: long, agent, rpc: h.client.rpc }), (error: Error) => {
     assert.equal(error.message, `Couldn't run "${"x".repeat(57)}...": Folder not found: /w/proj`);
