@@ -1,0 +1,87 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { clientHarness } from "../test-support/client-harness.mjs";
+import type { Phase, RunRow } from "./shared/row.ts";
+
+const directory = fileURLToPath(new URL(".", import.meta.url));
+const T0 = 1_700_000_000_000;
+const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+
+function row(phase: Phase): RunRow {
+  return { runId: "run000000001", rev: 1, origin: "claude", command: "npm test", cwd: "/w", phase, output: { lines: ["a", [["b", "1;31"]]], total: 2 }, sentAt: null };
+}
+
+const agent = { id: "agent-1", cwd: "/w/proj" };
+
+test("registers /sh for agents, the run v1 renderer, and the Command output attachment source", () => {
+  const h = clientHarness(directory);
+  const stop = h.load("index.client.tsx").default(h.client);
+  const [sh] = h.slashCommands;
+  assert.deepEqual(plain([sh.name, sh.context, sh.argumentHint]), ["sh", "agent", "<command>"]);
+  assert.match(sh.description, /Claude only sees the output if you send it/);
+  const [renderer] = h.timelineRenderers;
+  assert.deepEqual(plain([renderer.kind, renderer.version]), ["run", 1]);
+  assert.equal(typeof renderer.Component, "function");
+  const [source] = h.attachmentSources;
+  assert.deepEqual(plain([source.id, source.title, source.search.name]), ["command-output", "Command output", "inline-shell.attach.search"]);
+  stop();
+  assert.ok([...h.slashCommands, ...h.timelineRenderers, ...h.attachmentSources].every((entry) => entry.removed));
+});
+
+test("the renderer's schema accepts a row in every phase and rejects garbage", () => {
+  const h = clientHarness(directory);
+  h.load("index.client.tsx").default(h.client);
+  const { schema } = h.timelineRenderers[0];
+  const phases: Phase[] = [
+    { kind: "proposed" },
+    { kind: "running", startedAt: T0, stopRequestedAt: null },
+    { kind: "running", startedAt: T0, stopRequestedAt: T0 + 5 },
+    { kind: "ok", startedAt: T0, endedAt: T0 + 1 },
+    { kind: "failed", startedAt: T0, endedAt: T0 + 1, exitCode: 1, signal: null, message: null },
+    { kind: "failed", startedAt: T0, endedAt: T0 + 1, exitCode: null, signal: "SIGKILL", message: null },
+    { kind: "failed", startedAt: T0, endedAt: T0, exitCode: null, signal: null, message: "Folder not found: /x" },
+    { kind: "stopped", startedAt: T0, endedAt: T0 + 1, exitCode: 130, signal: null },
+    { kind: "interrupted", startedAt: T0, endedAt: T0 + 1 },
+    { kind: "dismissed" },
+  ];
+  for (const phase of phases) assert.equal(schema.safeParse(plain(row(phase))).success, true, phase.kind);
+  assert.equal(schema.safeParse({ runId: "x", phase: { kind: "flying" } }).success, false);
+  assert.equal(schema.safeParse(plain({ ...row({ kind: "proposed" }), output: { lines: [["bad"]], total: 0 } })).success, false, "a segment needs text and sgr");
+});
+
+test("/sh with a command starts it in the agent's folder as the user; a pasted prompt is stripped", async () => {
+  const h = clientHarness(directory);
+  h.load("index.client.tsx").default(h.client);
+  h.responses["inline-shell.start"] = { runId: "abcdef123456" };
+  const { onSubmit } = h.slashCommands[0];
+  await onSubmit({ args: "npm test", agent, rpc: h.client.rpc });
+  await onSubmit({ args: "! git status", agent, rpc: h.client.rpc });
+  await onSubmit({ args: "$ ls -la", agent, rpc: h.client.rpc });
+  assert.deepEqual(plain(h.requests), [
+    { name: "inline-shell.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "npm test", origin: "user" } },
+    { name: "inline-shell.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "git status", origin: "user" } },
+    { name: "inline-shell.start", input: { agentId: "agent-1", cwd: "/w/proj", command: "ls -la", origin: "user" } },
+  ]);
+});
+
+test("/sh alone rescans Claude's latest reply", async () => {
+  const h = clientHarness(directory);
+  h.load("index.client.tsx").default(h.client);
+  h.responses["inline-shell.scan"] = { found: 1 };
+  await h.slashCommands[0].onSubmit({ args: "", agent, rpc: h.client.rpc });
+  assert.deepEqual(plain(h.requests), [{ name: "inline-shell.scan", input: { agentId: "agent-1" } }]);
+  h.responses["inline-shell.scan"] = Promise.reject(new Error("Claude's last reply has no commands. Type /sh and a command to run one."));
+  await assert.rejects(h.slashCommands[0].onSubmit({ args: "  ", agent, rpc: h.client.rpc }), /has no commands/);
+});
+
+test("a failure to start names the command, since the composer already cleared it", async () => {
+  const h = clientHarness(directory);
+  h.load("index.client.tsx").default(h.client);
+  h.responses["inline-shell.start"] = Promise.reject(new Error("Folder not found: /w/proj"));
+  const long = "x".repeat(80);
+  await assert.rejects(h.slashCommands[0].onSubmit({ args: long, agent, rpc: h.client.rpc }), (error: Error) => {
+    assert.equal(error.message, `Couldn't run "${"x".repeat(57)}...": Folder not found: /w/proj`);
+    return true;
+  });
+});

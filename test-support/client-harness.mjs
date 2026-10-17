@@ -16,6 +16,9 @@ export function clientHarness(pluginDirectory, modules = {}) {
   const panels = [];
   const commandItems = [];
   const openedPanels = [];
+  const slashCommands = [];
+  const timelineRenderers = [];
+  const attachmentSources = [];
   const responses = { 'time-since.last-reply.list': { lastReplyAt: {} } };
   let nextTimer = 0;
   function timer(callback, delay, repeat = false) { const id = ++nextTimer; timers.set(id, { callback, delay, repeat }); return id; }
@@ -31,7 +34,7 @@ export function clientHarness(pluginDirectory, modules = {}) {
     const localRequire = (name) => {
       if (name.startsWith('.')) return load(resolve(dirname(path), name));
       if (Object.hasOwn(modules, name)) return modules[name];
-      if (name === '@getpaseo/plugin') return { defineRpc: (contract) => contract };
+      if (name === '@getpaseo/plugin') return { defineRpc: (contract) => contract, defineAttachmentSource: (source) => source };
       if (name === '@getpaseo/plugin/client') return { openExternalUrl: async (url) => { opened.push(url); } };
       if (name === 'react-native') return { Platform: { OS: 'web' } };
       if (name === '@getpaseo/plugin/client/react-native') return {};
@@ -113,6 +116,9 @@ export function clientHarness(pluginDirectory, modules = {}) {
     addWorkspacePanel(panel) { const entry = { ...panel, removed: false }; panels.push(entry); return () => { entry.removed = true; }; },
     addCommandCenterItem(item) { const entry = { ...item, removed: false }; commandItems.push(entry); return () => { entry.removed = true; }; },
     openPanel(id, options) { openedPanels.push({ id, ...options }); },
+    addSlashCommand(command) { const entry = { ...command, removed: false }; slashCommands.push(entry); return () => { entry.removed = true; }; },
+    addTimelineRenderer(renderer) { const entry = { ...renderer, removed: false }; timelineRenderers.push(entry); return () => { entry.removed = true; }; },
+    addAttachmentSource(source) { const entry = { ...source, removed: false }; attachmentSources.push(entry); return () => { entry.removed = true; }; },
     async rpc(contract, input) {
       requests.push({ name: contract.name, input });
       if (contract.name === 'time-since.settings.get') return { showIcon: true, showAgo: false };
@@ -122,7 +128,7 @@ export function clientHarness(pluginDirectory, modules = {}) {
       throw new Error(`Unexpected RPC ${contract.name}`);
     },
   };
-  return { client, load, agents, workspaces, registrations, requests, watches, opened, panels, commandItems, openedPanels, timers, responses,
+  return { client, load, agents, workspaces, registrations, requests, watches, opened, panels, commandItems, openedPanels, slashCommands, timelineRenderers, attachmentSources, timers, responses,
     async flush() { for (let i = 0; i < 10; i++) await Promise.resolve(); },
     async tick(delay) { for (const [id, timer] of [...timers]) if (timer.delay === delay) { if (!timer.repeat) timers.delete(id); await timer.callback(); } },
   };
