@@ -80,7 +80,10 @@ test("all-mode scanning, for the Run window, also takes unlabeled fences and inl
   assert.equal(scanProposals(many, "all", startsCommand).length, 8, "capped at eight");
 });
 
-test("a word starts a command when it's a builtin, a program on the PATH, or a path to a program from the run's folder", () => {
+// File modes and slash-style paths are how macOS and Linux find programs; Windows has neither.
+const posixTest = process.platform === "win32" ? test.skip : test;
+
+posixTest("a word starts a command when it's a builtin, a program on the PATH, or a path to a program from the run's folder", () => {
   const dir = mkdtempSync(join(tmpdir(), "shell-yeah-path-"));
   const bin = join(dir, "bin");
   mkdirSync(bin);
@@ -90,8 +93,20 @@ test("a word starts a command when it's a builtin, a program on the PATH, or a p
   writeFileSync(join(dir, "scripts", "go.sh"), "#!/bin/sh\n", { mode: 0o755 });
   const starts = commandFinder({ PATH: bin }, dir, "darwin");
   assert.deepEqual(["fakecmd", "notes", "cd", "export", "./scripts/go.sh", "scripts/go.sh", "./scripts/none.sh", "missing"].map(starts), [true, false, true, true, true, true, false, false]);
-  const windows = commandFinder({ PATH: "" }, dir, "win32");
-  assert.deepEqual(["Get-ChildItem", "Remove-Item", "dir", "get-childitem", "Readme"].map(windows), [true, true, true, false, false]);
+});
+
+test("on Windows, cmdlets count, and programs are found through PATHEXT", () => {
+  const cmdlets = commandFinder({ PATH: "" }, tmpdir(), "win32");
+  assert.deepEqual(["Get-ChildItem", "Remove-Item", "dir", "get-childitem", "Readme"].map(cmdlets), [true, true, true, false, false]);
+  if (process.platform !== "win32") return;
+  const dir = mkdtempSync(join(tmpdir(), "shell-yeah-path-"));
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  mkdirSync(join(dir, "scripts"));
+  writeFileSync(join(bin, "fakecmd.cmd"), "@echo off\r\n");
+  writeFileSync(join(dir, "scripts", "go.ps1"), "");
+  const starts = commandFinder({ PATH: bin, PATHEXT: ".COM;.EXE;.BAT;.CMD" }, dir, "win32");
+  assert.deepEqual(["fakecmd", "fakecmd.cmd", ".\\scripts\\go.ps1", "scripts/go.ps1", "missing"].map(starts), [true, true, true, true, false]);
 });
 
 test("the handoff block is added once, after what is already there, and teaches `sh run`", () => {
