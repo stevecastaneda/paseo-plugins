@@ -986,6 +986,28 @@ test("a local deliverable opens on the daemon host by id, only inside the worktr
   assert.equal(opened.length, 1);
 });
 
+test("a folder deliverable previews as its files, each found by the folder's id", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const shots = join(w.directory, "shots");
+  await mkdir(join(shots, "older"), { recursive: true });
+  await writeFile(join(shots, "step 10.md"), "# Ten");
+  await writeFile(join(shots, "step 2.md"), "# Two");
+  await writeFile(join(shots, ".DS_Store"), "");
+  await writeFile(join(shots, "older", "first.md"), "# First");
+  await w.run("deliverable", "add", "Screenshots", "shots/");
+  await w.run("question", "ask", "Pick", "Which one?", "--recommend", "A", "--file", "shots=All of them");
+  const { dashboard } = await w.dashboard();
+  const folder = deliverableAttachment(dashboard.deliverables[0]);
+  assert.equal(canPreview(folder, { browser: false }), true, "pressing a folder opens it in Paseo, not on the computer running Paseo");
+  const listed = await previewDeliverable(w.directory, "D1");
+  assert.deepEqual(listed, {
+    kind: "folder",
+    entries: [{ name: "older", folder: true }, { name: "step 2.md", folder: false }, { name: "step 10.md", folder: false }],
+    truncated: false,
+  }, "folders first, numbers in order, hidden files left out");
+});
+
 test("every screen gives an attachment the same icon, and SVGs preview only where a browser draws them", async (t) => {
   const w = await screenshotRun(t);
   await w.run("deliverable", "add", "Findings", "notes/findings.md", "--kind", "report");
