@@ -30,6 +30,7 @@ type PreviewProps = {
   workspaceId: string;
   workspaceDirectory: string;
   onOpenOnHost(): void;
+  onCopyPath(): void;
   onBack?(): void;
   gallery?: Gallery;
   onOpenEntry(attachment: Attachment, group: Attachment[]): void;
@@ -37,7 +38,7 @@ type PreviewProps = {
 
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
   const fetchPreview = useRpc(previewDeliverable);
   const readPiece = useRpc(readDeliverablePiece);
   const checkHost = useRpc(canOpenOnHost);
@@ -152,15 +153,25 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
         <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
       ) : null}
       {preview.data?.kind === "video" ? <VideoPlayer video={preview.data.video} label={attachment.title} style={mediaStyle} /> : null}
-      {/* The path as a caption under the file, where it has the full width. */}
-      {!preview.isPending && videoLoading ? (
-        <Text style={[caption, { marginTop: -4, fontVariant: ["tabular-nums"] }]}>{videoLoading}</Text>
-      ) : (
-        <Text selectable numberOfLines={1} ellipsizeMode="middle" style={[caption, { marginTop: -4 }]}>
-          {attachment.path}
-        </Text>
-      )}
     </>
+  );
+  // The path as a caption under the file, where it has the full width, with Copy
+  // beside it so it can go into a message without leaving the dialog. A long
+  // file scrolls above it, so it stays in view with the actions.
+  const path = !preview.isPending && videoLoading ? (
+    <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{videoLoading}</Text>
+  ) : (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Text selectable numberOfLines={1} ellipsizeMode="middle" style={[caption, { flex: 1, minWidth: 0 }]}>
+        {attachment.path}
+      </Text>
+      {/* Optical: the 22px button centers on the 17px caption line without growing it. */}
+      <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${attachment.title}`} hitSlop={6} outerStyle={{ marginVertical: -3 }}
+        onPress={onCopyPath}
+        style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
+        <Icon name="Copy" size={14} color={colors.foregroundMuted} />
+      </PressScale>
+    </View>
   );
   // Back on the left, Previous and Next in the middle, Open on the right.
   const actions = (
@@ -177,11 +188,15 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   return long ? (
     <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
+      <View style={{ marginTop: 8 }}>{path}</View>
       {actions}
     </>
   ) : (
     <View style={{ gap: 20 }}>
-      <View style={{ gap: 12 }}>{content}</View>
+      <View style={{ gap: 8 }}>
+        <View style={{ gap: 12 }}>{content}</View>
+        {path}
+      </View>
       {actions}
     </View>
   );

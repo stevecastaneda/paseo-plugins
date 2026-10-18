@@ -80,7 +80,8 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
       <NarrowProvider value={false}>
       {preview ? (
         <PreviewContent colors={colors} attachment={preview.attachment} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
-          onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }} onBack={back}
+          onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }}
+          onCopyPath={() => void opener.copyPath(preview.attachment)} onBack={back}
           gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment }) }} onLong={setPreviewLong}
           onOpenEntry={openAttachment} />
       ) : (
