@@ -270,7 +270,7 @@ test("the install banner shows until the command is installed and reachable", ()
   const { launcherNotice } = h.load("client/launcher.tsx");
   const path = "/Users/s/.local/bin/paseo-progress";
   assert.equal(launcherNotice({ path, state: "missing", onPath: true }).action, "Install command");
-  assert.match(launcherNotice({ path, state: "missing", onPath: true }).text, /isn't installed yet\. Installing adds one file: \/Users\/s\/\.local\/bin\/paseo-progress/);
+  assert.match(launcherNotice({ path, state: "missing", onPath: true }).text, /isn't installed yet\. Installing adds it at \/Users\/s\/\.local\/bin\/paseo-progress/);
   assert.equal(launcherNotice({ path, state: "outdated", onPath: true }).action, "Update command");
   assert.equal(launcherNotice({ path, state: "foreign", onPath: true }).action, undefined, "never offers to replace another file");
   assert.equal(launcherNotice({ path, state: "current", onPath: true }), null);

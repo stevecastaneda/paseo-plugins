@@ -22,7 +22,7 @@ export function skillQueryKey(hostId: string) {
 export function launcherNotice(status: LauncherStatus): { text: string; action?: string } | null {
   switch (status.state) {
     case "missing":
-      return { text: `Agents record progress with the paseo-progress command, which isn't installed yet. Installing adds one file: ${status.path}`, action: "Install command" };
+      return { text: `Agents record progress with the paseo-progress command, which isn't installed yet. Installing adds it at ${status.path}`, action: "Install command" };
     case "outdated":
       return { text: `An older paseo-progress command is installed at ${status.path}.`, action: "Update command" };
     case "foreign":
@@ -34,7 +34,7 @@ export function launcherNotice(status: LauncherStatus): { text: string; action?:
 
 // What the skill banner says, or null when every agent folder has the skill.
 export function skillNotice(status: SkillStatus): { text: string; action?: string } | null {
-  const folders = (state: string) => status.targets.filter((target) => target.state === state).map((target) => target.path.replace(/\/paseo-progress$/, ""));
+  const folders = (state: string) => status.targets.filter((target) => target.state === state).map((target) => target.path.replace(/[\\/]paseo-progress$/, ""));
   const skipped = folders("foreign").length ? ` Something else is already at ${folders("foreign").join(", ")}, so the plugin leaves it alone.` : "";
   switch (status.state) {
     case "missing":

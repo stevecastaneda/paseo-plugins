@@ -1,8 +1,18 @@
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { basename, dirname, join, posix, win32 } from "node:path";
 
 export const PLUGIN_ID = "progress";
+
+// Where Paseo's command may be, in the order tried: an override, the one
+// Paseo names for the agents and plugins it starts, PATH, then the app's
+// default install. The launcher script below carries the same list.
+export function paseoCommands(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string[] {
+  const installed = platform === "win32"
+    ? env.LOCALAPPDATA && win32.join(env.LOCALAPPDATA, "Programs", "Paseo", "resources", "bin", "paseo.cmd")
+    : "/Applications/Paseo.app/Contents/Resources/bin/paseo";
+  return [env.PASEO_BIN, env.PASEO_CLI, "paseo", installed].filter((cli): cli is string => Boolean(cli));
+}
 
 // The launcher never names a plugin folder. Each run asks Paseo which copy of
 // the plugin it is running, so updates and `npm run dev` switches keep working.
@@ -20,11 +30,28 @@ const { spawnSync } = process.getBuiltinModule("node:child_process");
 const { existsSync } = process.getBuiltinModule("node:fs");
 const { join } = process.getBuiltinModule("node:path");
 
+const windows = process.platform === "win32";
+
+function paseoCommands() {
+  const env = process.env;
+  const installed = windows
+    ? env.LOCALAPPDATA && join(env.LOCALAPPDATA, "Programs", "Paseo", "resources", "bin", "paseo.cmd")
+    : "/Applications/Paseo.app/Contents/Resources/bin/paseo";
+  return [env.PASEO_BIN, env.PASEO_CLI, "paseo", installed].filter(Boolean);
+}
+
+// On Windows Paseo's command is paseo.cmd, which Node can start, or find on
+// PATH, only through cmd.exe.
+function askPaseo(cli) {
+  return windows
+    ? spawnSync('"' + cli + '" plugin ls ${PLUGIN_ID} --json', { shell: true, encoding: "utf8" })
+    : spawnSync(cli, ["plugin", "ls", "${PLUGIN_ID}", "--json"], { encoding: "utf8" });
+}
+
 function pluginDirectory() {
   if (process.env.PASEO_PROGRESS_PLUGIN_DIR) return process.env.PASEO_PROGRESS_PLUGIN_DIR;
-  const clis = [process.env.PASEO_BIN, "paseo", "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter(Boolean);
-  for (const cli of clis) {
-    const result = spawnSync(cli, ["plugin", "ls", "${PLUGIN_ID}", "--json"], { encoding: "utf8" });
+  for (const cli of paseoCommands()) {
+    const result = askPaseo(cli);
     if (result.error || result.status !== 0) continue;
     try {
       const plugin = JSON.parse(result.stdout).find((entry) => entry.id === "${PLUGIN_ID}");
@@ -57,31 +84,64 @@ export function defaultLauncherPath(home = homedir()): string {
 
 export type LauncherState = "missing" | "current" | "outdated" | "foreign";
 
-export async function launcherState(path: string): Promise<LauncherState> {
-  const current = await readFile(path, "utf8").catch(() => null);
+type LauncherFile = { path: string; content: string };
+
+// PowerShell and cmd run only files with an extension like .cmd, so on
+// Windows a .cmd file beside the launcher runs it with node.
+function launcherFiles(path: string, platform: NodeJS.Platform): LauncherFile[] {
+  const files = [{ path, content: launcherScript() }];
+  if (platform === "win32") {
+    files.push({ path: `${path}.cmd`, content: `@echo off\r\nrem ${MARKER}. Lets PowerShell and cmd run ${basename(path)}.\r\nnode "%~dp0${basename(path)}" %*\r\nexit /b %errorlevel%\r\n` });
+  }
+  return files;
+}
+
+async function fileState(file: LauncherFile): Promise<LauncherState> {
+  const current = await readFile(file.path, "utf8").catch(() => null);
   if (current === null) return "missing";
-  if (current === launcherScript()) return "current";
+  if (current === file.content) return "current";
   return current.includes(MARKER) ? "outdated" : "foreign";
 }
 
-// Writes the launcher when it is missing or out of date. Never replaces a file
-// something else put there. Returns whether it wrote.
-export async function installLauncher(path: string): Promise<boolean> {
-  const state = await launcherState(path);
-  if (state === "current") return false;
-  if (state === "foreign") throw new Error(`${path} already exists and was not written by this plugin. Move it, or pass another path.`);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, launcherScript());
-  await chmod(path, 0o755);
-  return true;
+async function fileStates(path: string, platform: NodeJS.Platform) {
+  const files = launcherFiles(path, platform);
+  const states = await Promise.all(files.map(fileState));
+  return files.map((file, index) => ({ ...file, state: states[index] }));
+}
+
+// Writes the launcher files that are missing or out of date. Never replaces a
+// file something else put there. Returns whether it wrote.
+export async function installLauncher(path: string, platform: NodeJS.Platform = process.platform): Promise<boolean> {
+  const files = await fileStates(path, platform);
+  const foreign = files.find((file) => file.state === "foreign");
+  if (foreign) throw new Error(`${foreign.path} already exists and was not written by this plugin. Move it, or pass another path.`);
+  let wrote = false;
+  for (const file of files) {
+    if (file.state === "current") continue;
+    await mkdir(dirname(file.path), { recursive: true });
+    await writeFile(file.path, file.content);
+    await chmod(file.path, 0o755);
+    wrote = true;
+  }
+  return wrote;
 }
 
 // For the panel: whether agents on the daemon host can run `paseo-progress`.
-export async function launcherStatus(path = defaultLauncherPath(), pathEnv = process.env.PATH ?? "") {
+// When something else is in the way, path names that file.
+export async function launcherStatus(path = defaultLauncherPath(), pathEnv = process.env.PATH ?? "", platform: NodeJS.Platform = process.platform) {
+  const files = await fileStates(path, platform);
+  const states = files.map((file) => file.state);
+  const foreign = files.find((file) => file.state === "foreign");
+  const state: LauncherState = foreign ? "foreign"
+    : states.every((each) => each === "current") ? "current"
+    : states.every((each) => each === "missing") ? "missing" : "outdated";
+  // Windows paths ignore case and may end in either slash.
+  const paths = platform === "win32" ? win32 : posix;
+  const folder = (dir: string) => platform === "win32" ? dir.replace(/[\\/]+$/, "").toLowerCase() : dir.replace(/\/+$/, "");
   return {
-    path,
-    state: await launcherState(path),
-    onPath: pathEnv.split(delimiter).some((entry) => entry.replace(/\/+$/, "") === dirname(path)),
+    path: foreign?.path ?? path,
+    state,
+    onPath: pathEnv.split(paths.delimiter).some((entry) => folder(entry) === folder(paths.dirname(path))),
   };
 }
 

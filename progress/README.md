@@ -36,7 +36,7 @@ Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/progress`.
 
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
-Then install the `paseo-progress` command agents run. Open **Progress** from Command Center and press **Install command** in the banner. It adds one file, `~/.local/bin/paseo-progress`, on the machine running the Paseo daemon, and the banner disappears once agents can run it. The plugin writes nothing until you press it, and it never replaces a file something else put at that path.
+Then install the `paseo-progress` command agents run. Open **Progress** from Command Center and press **Install command** in the banner. It adds one file, `~/.local/bin/paseo-progress`, on the machine running the Paseo daemon, and the banner disappears once agents can run it. On Windows it also adds `paseo-progress.cmd` next to it, because PowerShell and cmd only run files with an extension like `.cmd`. The plugin writes nothing until you press it, and it never replaces a file something else put at that path.
 
 To install from a terminal instead, or to put the command somewhere else:
 
@@ -46,6 +46,15 @@ node "$([ -f "$dir/dist/server/cli.js" ] && echo "$dir/dist/server/cli.js" || ec
 ```
 
 If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. The command doesn't name a plugin folder: each run asks Paseo (`paseo plugin ls`) which copy of the plugin it is running and runs that copy, so it keeps working after updates and `npm run dev` switches. The npm package carries the command as one JavaScript file in `dist/`, built with esbuild when publishing, because Node won't run TypeScript from `node_modules`. That file includes zod (MIT), so installing the plugin downloads no other packages.
+
+The command, and **Install skill** in the panel, look for Paseo's own command in this order:
+
+1. `PASEO_BIN`, if you set it.
+2. `PASEO_CLI`, which Paseo sets for the agents it starts.
+3. `paseo` on your `PATH`.
+4. The app's default install: `/Applications/Paseo.app/Contents/Resources/bin/paseo` on macOS, `%LOCALAPPDATA%\Programs\Paseo\resources\bin\paseo.cmd` on Windows.
+
+Setting `PASEO_PROGRESS_PLUGIN_DIR` to a plugin folder makes the command run that copy without asking Paseo. Use it only for testing, because an installed plugin's folder changes with every update.
 
 ## Where progress is kept
 
@@ -63,7 +72,7 @@ Earlier versions kept progress in `.scratch/` in each worktree, hidden by a `.sc
 
 ## Agent skill
 
-The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions without stopping, flag stuck work, and finish. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. If Paseo later runs the plugin from somewhere else, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped.
+The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions without stopping, flag stuck work, and finish. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. On Windows the links are junctions, which don't need admin rights or Developer Mode. If Paseo later runs the plugin from somewhere else, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped.
 
 From a terminal instead:
 
@@ -124,6 +133,14 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.3.1
+
+- Progress works on Windows (#84). Before, `paseo-progress` stopped with "The progress plugin is not installed in Paseo", and **Install skill** couldn't find the plugin. On Windows, Paseo's command is `paseo.cmd`, and Node can start a `.cmd` file only through cmd. Both now go through cmd on Windows, and both also check where Paseo installs its command.
+- On Windows, **Install command** also adds `paseo-progress.cmd`, so agents in PowerShell or cmd can run `paseo-progress`, not just those in Git Bash.
+- On Windows, **Install skill** makes junctions instead of symlinks, so it works without admin rights or Developer Mode.
+- The banner no longer says the command's folder is missing from `PATH` on Windows when it's there.
+- If you worked around this by hand, delete your own `paseo-progress.cmd`, then press **Update command**. Also remove `PASEO_PROGRESS_PLUGIN_DIR`, or the command keeps running the folder it names after the plugin updates. Skill links you made yourself keep working, and the panel offers **Update skill** once the plugin folder changes.
 
 ### 1.3.0
 
