@@ -387,6 +387,7 @@ posixTest("without a terminal, typing is refused", { timeout: 15_000 }, async ()
   assert.equal(h.registry.snapshot(id, 1)!.terminal, false);
   assert.throws(() => h.registry.input(id, "x"), /can't take typing/);
   h.registry.stop(id, true);
+  assert.equal((await ended(h.registry, id)).phase.kind, "stopped", "forcing a stop straight away still reads as stopped");
   await h.registry.shutdown();
 });
 

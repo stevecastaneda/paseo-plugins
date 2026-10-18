@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import contribute from "../index.server.ts";
@@ -262,7 +263,7 @@ test("attach items: running first, filtered by command or folder, each with the 
   assert.equal(all[1].subtitle, "just now · app");
   assert.equal(all[2].subtitle, "2 min ago · app");
   assert.equal(all[0].resourceType, "command-output");
-  assert.equal(new URL(all[0].url).pathname, "/w/web");
+  assert.equal(all[0].url, pathToFileURL("/w/web").href);
   assert.equal(all[1].text, formatReport(rows[2], now).text);
   assert.deepEqual((await attachItems(deps, "APP", now)).map((i) => i.id), ["r-new:3", "r-old:3"]);
   assert.deepEqual((await attachItems(deps, "yarn", now)).map((i) => i.id), ["r-live:3"]);
@@ -280,7 +281,7 @@ test("a long run in the attach menu saves its full log once per revision, from e
   const [first] = await attachItems(deps, "");
   await attachItems(deps, "npm");
   assert.equal(saves, 1, "typing in the menu doesn't rewrite the log");
-  assert.match(first.text, /Full log: .*\/a\/npm-test-r-long\.log\n/);
+  assert.match(first.text, /Full log: .*[\\/]a[\\/]npm-test-r-long\.log\n/);
   current = { ...current, rev: 4 };
   await attachItems(deps, "");
   assert.equal(saves, 2, "new output saves it again");

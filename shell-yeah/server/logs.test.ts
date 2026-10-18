@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { test } from "node:test";
 import { createLogStore } from "./logs.ts";
 
@@ -11,8 +11,9 @@ const root = () => mkdtempSync(join(tmpdir(), "shell-yeah-logs-"));
 test("a log is saved in its chat's folder under a name from its command, readable only by the user, and a resend replaces it", async () => {
   const store = createLogStore({ root: root() });
   const path = await store.save({ agentId: "agent-1", runId: "abc123", command: "npm test -- --watch\necho done", text: "one\n" });
-  assert.match(path, /\/agent-1\/npm-test-watch-abc123\.log$/);
-  assert.equal(statSync(path).mode & 0o777, 0o600);
+  assert.match(path, /[\\/]agent-1[\\/]npm-test-watch-abc123\.log$/);
+  // Windows has no Unix file permissions; a log there inherits the user's own folder's access.
+  if (process.platform !== "win32") assert.equal(statSync(path).mode & 0o777, 0o600);
   assert.equal(await store.save({ agentId: "agent-1", runId: "abc123", command: "npm test -- --watch\necho done", text: "two\n" }), path);
   assert.equal(readFileSync(path, "utf8"), "two\n");
 });
@@ -21,8 +22,8 @@ test("ids that aren't plain become hashes, so no id names a path outside the log
   const dir = root();
   const store = createLogStore({ root: dir });
   const path = await store.save({ agentId: "../../etc", runId: "../x", command: "!!!", text: "" });
-  assert.ok(path.startsWith(dir + "/"));
-  assert.match(path, /\/[0-9a-f]{16}\/output-[0-9a-f]{16}\.log$/);
+  assert.ok(path.startsWith(dir + sep));
+  assert.match(path, /[\\/][0-9a-f]{16}[\\/]output-[0-9a-f]{16}\.log$/);
 });
 
 test("prune drops logs older than a week, then the oldest past the size cap, never the newest, and empty chat folders", async () => {

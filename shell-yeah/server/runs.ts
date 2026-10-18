@@ -322,12 +322,15 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       const run = runs.get(runId);
       const proc = run?.proc;
       if (!run || !proc || run.phase.kind !== "running") return;
-      if (force || run.phase.stopRequestedAt !== null) {
+      const again = run.phase.stopRequestedAt !== null;
+      if (!again) {
+        run.phase = { ...run.phase, stopRequestedAt: deps.now() };
+        bump(run);
+      }
+      if (force || again) {
         proc.kill("SIGKILL");
         return;
       }
-      run.phase = { ...run.phase, stopRequestedAt: deps.now() };
-      bump(run);
       proc.interrupt();
       run.escalation = [
         after(limits.stopToTermMs, () => proc.kill("SIGTERM")),
