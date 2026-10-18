@@ -14,7 +14,7 @@ import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPa
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
-import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
+import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
 import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
@@ -964,6 +964,26 @@ test("the launcher is installed only on request, updated when stale, and never r
   assert.equal((await launcherStatus(other)).state, "foreign");
   await assert.rejects(installLauncher(other), /was not written by this plugin/);
   assert.equal(await readFile(other, "utf8"), "#!/bin/sh\necho mine\n");
+});
+
+test("on Windows the launcher gets a .cmd beside it, and Paseo is looked for where it installs", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "progress-windows-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const path = defaultLauncherPath(home);
+  assert.equal(await installLauncher(path, "win32"), true);
+  assert.match(await readFile(`${path}.cmd`, "utf8"), /^@echo off\r\n.*\r\nnode "%~dp0paseo-progress" %\*\r\n/);
+  assert.equal(await installLauncher(path, "win32"), false, "both files are current");
+  await rm(`${path}.cmd`);
+  assert.equal((await launcherStatus(path, "", "win32")).state, "outdated", "a launcher from before the .cmd needs an update");
+  await writeFile(`${path}.cmd`, `@node "%~dp0paseo-progress" %*\r\n`);
+  assert.deepEqual(await launcherStatus(path, "", "win32"), { path: `${path}.cmd`, state: "foreign", onPath: false }, "names the file in the way");
+  await assert.rejects(installLauncher(path, "win32"), /paseo-progress\.cmd already exists/);
+
+  const windowsPath = "C:\\Users\\Jane Doe\\.local\\bin\\paseo-progress";
+  assert.equal((await launcherStatus(windowsPath, "C:\\Windows;c:\\users\\jane doe\\.local\\bin\\", "win32")).onPath, true);
+  assert.deepEqual(paseoCommands({ PASEO_BIN: "bin", PASEO_CLI: "cli", LOCALAPPDATA: "C:\\Users\\J\\AppData\\Local" }, "win32"),
+    ["bin", "cli", "paseo", "C:\\Users\\J\\AppData\\Local\\Programs\\Paseo\\resources\\bin\\paseo.cmd"]);
+  assert.deepEqual(paseoCommands({}, "darwin"), ["paseo", "/Applications/Paseo.app/Contents/Resources/bin/paseo"]);
 });
 
 test("a local deliverable opens on the daemon host by id, only inside the worktree", async (t) => {

@@ -1,0 +1,27 @@
+# On Windows, Paseo's command is paseo.cmd, and Progress has to start it and
+# install its own command differently there. Mac tests can't see that, so this
+# runs the check on Windows when the code that does it changes.
+name: Progress on Windows
+on:
+  pull_request:
+    paths:
+      - progress/server/launcher.ts
+      - progress/server/skill.ts
+      - progress/scripts/windows-check.mjs
+      - .github/workflows/progress-windows.yml
+  workflow_dispatch:
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest Node the plugin supports, and the current one.
+        node: ["22.18", "24"]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm run check:windows
+        working-directory: progress

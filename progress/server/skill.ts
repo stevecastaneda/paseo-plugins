@@ -1,9 +1,9 @@
-import { execFile } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import { lstat, mkdir, readlink, symlink, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { PLUGIN_ID } from "./launcher.ts";
+import { paseoCommands, PLUGIN_ID } from "./launcher.ts";
 
 export const SKILL_NAME = "paseo-progress";
 
@@ -41,7 +41,9 @@ export async function installSkill(paths: string[], pluginDirectory: string): Pr
     if (states[index] !== "missing" && states[index] !== "outdated") continue;
     if (states[index] === "outdated") await unlink(path);
     await mkdir(dirname(path), { recursive: true });
-    await symlink(skillSource(pluginDirectory), path, "dir");
+    // A junction on Windows, where a directory symlink needs admin rights or
+    // Developer Mode. Other systems ignore the type and make a symlink.
+    await symlink(skillSource(pluginDirectory), path, "junction");
     wrote = true;
   }
   return wrote;
@@ -60,10 +62,9 @@ export async function skillStatus(paths: string[], pluginDirectory: string) {
 // The server bundle doesn't know its own folder, so ask Paseo, the same way
 // the launcher does.
 export async function findPluginDirectory(): Promise<string> {
-  const clis = [process.env.PASEO_BIN, "paseo", "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter((cli): cli is string => Boolean(cli));
-  for (const cli of clis) {
+  for (const cli of paseoCommands()) {
     try {
-      const { stdout } = await promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"]);
+      const { stdout } = await askPaseo(cli);
       const plugin = (JSON.parse(stdout) as Array<{ id: string; path?: string }>).find((entry) => entry.id === PLUGIN_ID);
       if (plugin?.path) return plugin.path;
     } catch {
@@ -71,6 +72,14 @@ export async function findPluginDirectory(): Promise<string> {
     }
   }
   throw new Error("Could not ask Paseo where this plugin is installed.");
+}
+
+// On Windows Paseo's command is paseo.cmd, which Node can start, or find on
+// PATH, only through cmd.exe.
+function askPaseo(cli: string) {
+  return process.platform === "win32"
+    ? promisify(exec)(`"${cli}" plugin ls ${PLUGIN_ID} --json`)
+    : promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"]);
 }
 
 export async function handleSkillStatus() {
