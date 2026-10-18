@@ -125,7 +125,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
-### Unreleased
+### 1.2.0
 
 - A folder deliverable opens in Paseo as a list of its files. Press a file to preview it, or a folder inside to list that one; **Back** returns to the list. This works from a phone and when the worktree is on another computer. Before, Progress asked the computer running Paseo to open the folder. On a Linux server with no desktop, that failed with `spawn xdg-open ENOENT`.
 - A folder attached to a question lists its files the same way.
