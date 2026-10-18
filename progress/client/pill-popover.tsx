@@ -7,7 +7,8 @@ import { useDashboard } from "./dashboard-query";
 import { progressPanel } from "./pills";
 import { PressScale } from "./motion";
 import { type Attachment, isPreviewable, useAttachmentOpener } from "./attachments";
-import { PreviewDialog, previewable } from "./preview";
+import { StackedDialog } from "./dialog-stack";
+import { previewable } from "./preview";
 import { QuestionDetail, QuestionState, useCopy } from "./questions";
 import { raised } from "./surfaces";
 
@@ -54,9 +55,8 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
           {query.error ? `Could not read progress: ${query.error.message}` : "Loading…"}
         </Text>
       )}
-      <PreviewDialog colors={colors} attachment={previewing?.attachment ?? null} workspaceId={workspaceId} workspaceDirectory={root}
-        onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)}
-        gallery={previewing ? { items: previewing.group, onSelect: (attachment) => setPreviewing({ ...previewing, attachment }) } : undefined} />
+      <StackedDialog colors={colors} now={Date.now()} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory: root }}
+        root={previewing ? { kind: "preview", ...previewing } : null} />
       <View style={{ paddingTop: touch ? 12 : 8, borderTopWidth: 1, borderTopColor: colors.border }}>
         {/* A full 44pt touch target on phones; desktop keeps the compact button. */}
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}

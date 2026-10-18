@@ -6,7 +6,8 @@ import type { Deliverable } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, deliverableAttachment, shortName, useAttachmentOpener } from "./attachments";
 import { formatAgo } from "../shared/format";
 import { PressScale } from "./motion";
-import { PreviewDialog, previewable } from "./preview";
+import { StackedDialog } from "./dialog-stack";
+import { previewable } from "./preview";
 import { PressableRow } from "./row";
 import { ShowMoreRow, usePaged } from "./show-more";
 
@@ -25,8 +26,8 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
   navigation: Navigation;
 }) {
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
-  // Screenshots preview inside Paseo; links open in its browser; the rest open in their own app.
-  const { open, openOnHost, copyPath } = useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview: setPreviewing });
+  // Screenshots and folders preview inside Paseo; links open in its browser; the rest open in their own app.
+  const { open, copyPath } = useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview: setPreviewing });
   const paged = usePaged(deliverables);
   return (
     <View>
@@ -59,9 +60,8 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
         </PressableRow>
       ))}
       <ShowMoreRow colors={colors} total={deliverables.length} paged={paged} />
-      <PreviewDialog colors={colors} attachment={previewing} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
-        onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void openOnHost(attachment)}
-        gallery={{ items: previewable(deliverables.map(deliverableAttachment)), onSelect: setPreviewing }} />
+      <StackedDialog colors={colors} now={now} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory, navigation }}
+        root={previewing ? { kind: "preview", attachment: previewing, group: previewable(deliverables.map(deliverableAttachment)) } : null} />
     </View>
   );
 }

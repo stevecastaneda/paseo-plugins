@@ -1,10 +1,10 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
-import { open, readFile, realpath, stat } from "node:fs/promises";
+import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { findAttachment, imageMimeType, previewKind, videoMimeType } from "../shared/attachments.ts";
+import { findAttachment, type FolderEntry, imageMimeType, previewKind, videoMimeType } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { findStore } from "./store.ts";
@@ -41,13 +41,18 @@ export const systemOpener: Opener = async (path) => {
 };
 
 // A deliverable or question attachment the agent recorded, found by reference,
-// so the panel can never reach an arbitrary path. Only files inside the
-// worktree resolve.
+// so the panel can never reach an arbitrary path. A file inside a recorded
+// folder is the folder's reference, a slash, and its path in the folder
+// ("D3/older/a.png"). Only files inside the worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
+  const [base, ...rest] = ref.split("/");
+  const inner = rest.join("/");
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
-  const path = findAttachment(dashboard, ref)?.path;
-  if (!path) throw new Error(`No local ${ref.startsWith("Q") ? "attachment" : "deliverable"} ${ref} in this worktree.`);
+  const folder = findAttachment(dashboard, base)?.path;
+  if (!folder) throw new Error(`No local ${base.startsWith("Q") ? "attachment" : "deliverable"} ${base} in this worktree.`);
+  const path = inner ? join(folder, inner) : folder;
+  if (outside(relative(resolve(worktree, folder), resolve(worktree, path)))) throw new Error(`${path} is outside ${folder}, so it was not ${verb}.`);
   const root = await realpath(worktree);
   const target = await realpath(resolve(root, path)).catch(() => null);
   if (!target) throw new Error(`${path} no longer exists.`);
@@ -74,18 +79,24 @@ export const MAX_PREVIEW_VIDEO_BYTES = 200 * 1024 * 1024;
 // Small enough that one piece doesn't hold up the agent output sharing the socket.
 export const VIDEO_PIECE_BYTES = 4 * 1024 * 1024;
 
+// A folder lists this many entries at most; past it the preview says it stopped.
+export const MAX_FOLDER_ENTRIES = 500;
+
 export type Preview =
   | { kind: "image"; dataUri: string; bytes: number }
   | { kind: "video"; mimeType: string; bytes: number }
-  | { kind: "text"; text: string; bytes: number; truncated: boolean };
+  | { kind: "text"; text: string; bytes: number; truncated: boolean }
+  | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
 
-// An image (as a data URI) or a text file's contents, so any client (desktop
-// or phone) can show it without reaching the daemon host's disk.
+// An image (as a data URI), a text file's contents or a folder's entries, so
+// any client (desktop or phone) can show it without reaching the daemon host's disk.
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
   const { path, target } = await resolveAttachment(directory, id, "previewed");
+  const stats = await stat(target);
+  if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(target)) };
   const kind = previewKind(target);
   if (!kind) throw new Error(`${path} isn't an image, video or text file, so it can't be previewed.`);
-  const { size } = await stat(target);
+  const { size } = stats;
   if (kind === "video") {
     if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));
     return { kind, mimeType: videoMimeType(target)!, bytes: size };
@@ -103,6 +114,19 @@ export async function previewDeliverable(directory: string, id: string): Promise
   if (size > MAX_PREVIEW_BYTES) throw new Error(tooLarge(path, size));
   const data = await readFile(target);
   return { kind, dataUri: `data:${imageMimeType(target)};base64,${data.toString("base64")}`, bytes: size };
+}
+
+// Folders first, then by name with numbers in order ("shot 2" before "shot 10").
+// Hidden files are left out, as Finder does.
+async function listFolder(target: string): Promise<{ entries: FolderEntry[]; truncated: boolean }> {
+  const entries: FolderEntry[] = [];
+  for (const entry of await readdir(target, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
+    const linkedFolder = entry.isSymbolicLink() && (await stat(join(target, entry.name)).catch(() => null))?.isDirectory();
+    entries.push({ name: entry.name, folder: entry.isDirectory() || Boolean(linkedFolder) });
+  }
+  entries.sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+  return { entries: entries.slice(0, MAX_FOLDER_ENTRIES), truncated: entries.length > MAX_FOLDER_ENTRIES };
 }
 
 function tooLarge(path: string, size: number): string {

@@ -118,26 +118,27 @@ export const openDeliverable = defineRpc({
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
-    // A deliverable ("D3") or a question attachment ("Q7.2").
+    // A deliverable ("D3"), a question attachment ("Q7.2"), or a file in a folder one ("D3/a.png").
     ref: z.string().min(1),
   }),
   output: z.object({ opened: z.string() }),
 });
 
-// An image or text file's contents, for the preview dialog. A video comes back
+// An image or text file's contents, or a folder's entries, for the preview dialog. A video comes back
 // as its type and size only; its bytes follow in pieces (readDeliverablePiece).
 export const previewDeliverable = defineRpc({
   name: "progress.deliverable.preview",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
-    // A deliverable ("D3") or a question attachment ("Q7.2").
+    // A deliverable ("D3"), a question attachment ("Q7.2"), or a file in a folder one ("D3/a.png").
     ref: z.string().min(1),
   }),
   output: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("image"), dataUri: z.string(), bytes: z.number() }),
     z.object({ kind: z.literal("video"), mimeType: z.string(), bytes: z.number() }),
     z.object({ kind: z.literal("text"), text: z.string(), bytes: z.number(), truncated: z.boolean() }),
+    z.object({ kind: z.literal("folder"), entries: z.array(z.object({ name: z.string(), folder: z.boolean() })), truncated: z.boolean() }),
   ]),
 });
 

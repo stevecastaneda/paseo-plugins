@@ -25,9 +25,9 @@ export function absolutePath(path: string, root: string): string {
 }
 
 // Opens attachments the same way everywhere. Web links go to Paseo's browser
-// (the system browser where there is none); images, videos and text go to `onPreview` when the
-// caller can show the preview dialog; every other local file opens with its
-// default app on the daemon host.
+// (the system browser where there is none); images, videos, text and folders go
+// to `onPreview` when the caller can show the preview dialog; every other local
+// file opens with its default app on the daemon host.
 export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview }: {
   workspaceId: string;
   workspaceDirectory: string;
