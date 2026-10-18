@@ -29,6 +29,8 @@ gh auth login --web
 
 The block becomes a card under your message: your comment as its title, the command, and a Run button. Use it when the command needs the user's login, password, 2FA code or other secret (it runs in a terminal, so the user can answer its prompts); when your sandbox or permissions block it; or when it is something the user should own, like a deploy, a publish or deleting data. Run everything else yourself.
 
+Every command you want the user to run gets its own \`sh run\` block. Never leave one only in a sentence or in inline code, even one you mention in passing. Only the block gives the user a Run button.
+
 One command or one short script per block, after its title comment. No "$" prompt, no other commentary and no sample output inside. Before the block, say in a sentence why it's needed. After the block, stop and wait: don't assume it ran. The user sends you the output if they want you to see it.
 
 If a user message starts with "! " or "/sh " followed by a command, the user meant to run it themselves: reply with only that command in a \`sh run\` block.
@@ -61,18 +63,22 @@ export function latestAssistantText(timeline: Timeline): string {
   return text;
 }
 
-export type ScanMode = "marked" | "any";
+export type ScanMode = "marked" | "any" | "all";
 
 const SHELL_LANGS = new Set(["run", "sh", "bash", "zsh", "shell", "console", "powershell", "pwsh", "ps1"]);
 const INLINE_SPAN = /(?<!`)`([^`\n]+)`(?!`)/g;
 const BANG = /^!\s+(\S[\s\S]*)$/;
+// `sh run` in a sentence names the block label agents are taught, not a command.
+const FENCE_INFO = /^(sh|bash|zsh|shell|console|powershell|pwsh|ps1)\s+run$/i;
 
 // Commands Claude handed over, in document order, deduplicated, at most four.
 //   "marked": fences whose info is `run` or a shell language plus the word `run`,
 //             inline spans that are exactly "! <command>", and fences whose every
 //             line starts with "! ". Never a plain shell block.
 //   "any":    everything in "marked" plus plain shell fences (sh, bash, zsh, shell, console, PowerShell).
-export function scanProposals(text: string, mode: ScanMode): string[] {
+//   "all":    everything in "any" plus fences with no language and inline code that start with a
+//             command (`startsCommand`), for the Run window. At most eight.
+export function scanProposals(text: string, mode: ScanMode, startsCommand: (word: string) => boolean = () => false): string[] {
   const found: string[] = [];
   const add = (raw: string) => {
     const command = normalizeCommand(raw);
@@ -87,7 +93,8 @@ export function scanProposals(text: string, mode: ScanMode): string[] {
         const bangLines = open.body.filter((l) => l.trim() !== "");
         if (open.marked) add(shellBody(open.lang, body));
         else if (bangLines.length > 0 && bangLines.every((l) => /^!\s/.test(l))) add(bangLines.map((l) => l.replace(/^!\s+/, "")).join("\n"));
-        else if (mode === "any" && SHELL_LANGS.has(open.lang)) add(shellBody(open.lang, body));
+        else if (mode !== "marked" && SHELL_LANGS.has(open.lang)) add(shellBody(open.lang, body));
+        else if (mode === "all" && open.lang === "" && looksLikeCommand(shellBody("", body), startsCommand, false)) add(shellBody("", body));
         open = null;
       } else open.body.push(stripIndent(line, open.indent));
       continue;
@@ -102,9 +109,20 @@ export function scanProposals(text: string, mode: ScanMode): string[] {
     for (const match of line.matchAll(INLINE_SPAN)) {
       const bang = BANG.exec(match[1]);
       if (bang) add(bang[1]);
+      else if (mode === "all" && !FENCE_INFO.test(match[1].trim()) && looksLikeCommand(normalizeCommand(match[1]), startsCommand, true)) add(match[1]);
     }
   }
-  return found.slice(0, LIMITS.proposalsPerReply);
+  return found.slice(0, mode === "all" ? LIMITS.suggestionsPerReply : LIMITS.proposalsPerReply);
+}
+
+// Its first line, past any title comment and `NAME=value` settings, starts with a command.
+// Inline code needs a second word too, so `git` named in a sentence isn't offered.
+function looksLikeCommand(command: string, startsCommand: (word: string) => boolean, inline: boolean): boolean {
+  const line = command.split("\n").find((l) => l.trim() !== "" && !l.trimStart().startsWith("#")) ?? "";
+  const words = line.trim().split(/\s+/);
+  if (inline && words.length < 2) return false;
+  const word = words.find((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
+  return word !== undefined && startsCommand(word);
 }
 
 // A console block keeps only its `$ `-prompted lines. Any other shell block loses its

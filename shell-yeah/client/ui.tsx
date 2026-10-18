@@ -14,6 +14,10 @@ const iconCurve = () => Easing.bezier(0.2, 0, 0, 1);
 // Code and commands: the platform's monospace face.
 export const mono = () => (Platform.OS === "ios" ? "Menlo" : Platform.OS === "web" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "monospace");
 
+// On web, Paseo sets the interface font on everything outside a `data-pmono` subtree, so a
+// box of code carries this to keep mono().
+export const codeSurface = () => (isWeb() ? ({ dataSet: { pmono: "" } } as object) : {});
+
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -142,7 +146,8 @@ export function Badge({ kind, tone, colors }: { kind: BadgeKind; tone: Tone; col
   );
 }
 
-export type ButtonTone = "primary" | "quiet" | "danger" | "danger-filled";
+// "ghost" has no fill until hovered, for actions repeated down a list.
+export type ButtonTone = "primary" | "quiet" | "ghost" | "danger" | "danger-filled";
 
 export function Button({ icon, label, reserveLabel, tone, onPress, busy = false, disabled = false, compact, iconOnly = false, floating = false, radius = 6, colors, accessibilityLabel }: {
   icon: string;
@@ -163,7 +168,7 @@ export function Button({ icon, label, reserveLabel, tone, onPress, busy = false,
   accessibilityLabel: string;
 }) {
   const filled = tone === "primary" || tone === "danger-filled";
-  const background = tone === "primary" ? colors.accent : tone === "danger-filled" ? colors.statusDanger : colors.surface2;
+  const background = tone === "primary" ? colors.accent : tone === "danger-filled" ? colors.statusDanger : tone === "ghost" ? "transparent" : colors.surface2;
   const foreground = tone === "primary" ? colors.accentForeground : tone === "danger-filled" ? colors.surface0 : tone === "danger" ? colors.statusDanger : colors.foreground;
   const height = compact ? 36 : 28;
   const labelStyle = { color: foreground, fontSize: 12, lineHeight: 16, fontWeight: filled ? ("600" as const) : ("500" as const) };

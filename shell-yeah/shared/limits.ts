@@ -25,6 +25,7 @@ export const LIMITS = {
   // Lines a card can scroll back through, live and in its row; Copy gets everything kept.
   scrollbackLines: 300,
   proposalsPerReply: 4,
+  suggestionsPerReply: 8,
   tailCoalesceMs: 60,
   tailWaitMs: 1_500,
   tailWaitMaxMs: 2_000,

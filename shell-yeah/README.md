@@ -43,7 +43,7 @@ You can also attach a command's output to your next message: open the attach men
 
 ## Commands from the agent
 
-Agents created after you install the plugin learn one rule: when they want you to run something, they put it alone in a fenced block marked `sh run`, under a one-line comment that says in plain words what it does:
+Agents created after you install the plugin learn one rule: when they want you to run something, they put it alone in a fenced block marked `sh run`, under a one-line comment that says in plain words what it does. The rule also says never to leave a command for you only in a sentence.
 
 ````markdown
 ```sh run
@@ -66,11 +66,19 @@ The card also warns you, in amber, when the command is hard to undo: when it run
 
 Agents that started before the plugin was installed don't know the rule. Type `/sh` on its own and the plugin looks through the last reply for any shell code block and offers each one, up to four.
 
+## The Run pill
+
+Agents still write a command into a sentence now and then: "sign in with `npm login`, then publish with `npm publish`". The **Run** pill above the message box handles those. It opens a small window that lists the commands in the agent's last reply, up to eight, from Run cards, shell code blocks and sentences. Press one to run it as a card in the chat. The pencil puts it in the box first so you can change it. Or paste any command into the box and press Enter. Shift+Enter adds a line.
+
+<img src="images/8-run-window.png" alt="The Run pill's window lists the commands from the agent's reply, including ones written in a sentence, and takes any command you paste" width="380">
+
+Code in a sentence, or in a block with no language, counts when it starts with a program on your PATH, a shell builtin like `cd` or a script in the agent's folder. On Windows, a PowerShell command like `Get-ChildItem` counts too. Code in a sentence also needs a second word, so a passing mention of `git` doesn't show up, and neither does a file name like `package.json`. The window shows the same amber warnings as the cards.
+
 ## Agents
 
 `/sh`, **Copy** and **Rerun** work in any chat, because the plugin runs the command, not the agent. So far I've tested **Send** only with Claude.
 
-Run cards need the agent to know the `sh run` rule. Paseo passes it to new Claude, Codex, OpenCode, Pi and Oh My Pi chats. On Windows, the rule also tells the agent to write PowerShell. Agents Paseo runs over ACP, such as Copilot and Cursor, don't get it; type `/sh` on its own to turn the shell blocks in their last reply into Run cards.
+Run cards need the agent to know the `sh run` rule. Paseo passes it to new Claude, Codex, OpenCode, Pi and Oh My Pi chats. On Windows, the rule also tells the agent to write PowerShell. Agents Paseo runs over ACP, such as Copilot and Cursor, don't get it; type `/sh` on its own to turn the shell blocks in their last reply into Run cards, or open the **Run** pill. The pill works with every agent.
 
 ## Limits
 
@@ -92,4 +100,4 @@ Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.j
 
 ### 1.0.0
 
-- First version: `/sh` with live output, sending output to the agent, attaching it to a message, and Run cards for commands the agent hands you. Each command runs in a terminal of its own, so you can type answers to its prompts, like a 2FA code. Runs on macOS, Linux and Windows, where commands run in PowerShell. Long output goes to the agent as a summary plus a saved log it can search, and saved logs clean up on their own. Cards for suggested commands carry the agent's plain-words title and warn about commands that are hard to undo.
+- First version: `/sh` with live output, sending output to the agent, attaching it to a message, and Run cards for commands the agent hands you. Each command runs in a terminal of its own, so you can type answers to its prompts, like a 2FA code. Runs on macOS, Linux and Windows, where commands run in PowerShell. Long output goes to the agent as a summary plus a saved log it can search, and saved logs clean up on their own. Cards for suggested commands carry the agent's plain-words title and warn about commands that are hard to undo. The **Run** pill lists the commands in the agent's last reply, including ones written in a sentence, and runs any command you paste.

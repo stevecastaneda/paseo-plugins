@@ -1,5 +1,5 @@
 import { accessSync, constants } from "node:fs";
-import { basename, win32 } from "node:path";
+import { basename, posix, win32 } from "node:path";
 
 // The shell that runs a command, with the arguments that hand it the command.
 // macOS and Linux: the user's login shell, non-interactive, so startup files like .zshrc don't load.
@@ -50,4 +50,40 @@ export function encodePowerShell(command: string): string {
     "if (-not $?) { if ($LASTEXITCODE) { exit $LASTEXITCODE }; exit 1 }",
   ].join("\n");
   return Buffer.from(script, "utf16le").toString("base64");
+}
+
+// Words a shell runs without a program on the PATH.
+const BUILTINS = new Set(["cd", "export", "source", ".", "echo", "printf", "set", "unset", "alias", "eval", "exec", "pushd", "popd", "ulimit", "umask", "for", "if", "while"]);
+const POWERSHELL_WORDS = new Set(["cd", "ls", "dir", "cat", "echo", "rm", "cp", "mv", "del", "copy", "move", "mkdir", "type", "cls", "&"]);
+
+// Whether a word starts a command here: a shell builtin, a program on the PATH, or a path to
+// a program, read from the folder the command runs in. On Windows also a cmdlet (Verb-Noun)
+// and PATHEXT programs. Remembers each word, so a long reply costs one lookup per word.
+export function commandFinder(env: NodeJS.ProcessEnv, cwd: string, platform: NodeJS.Platform = process.platform): (word: string) => boolean {
+  const windows = platform === "win32";
+  const path = windows ? win32 : posix;
+  const dirs = (env.PATH ?? env.Path ?? "").split(windows ? ";" : ":").filter(Boolean);
+  const exts = windows ? ["", ...(env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)] : [""];
+  const runnable = (file: string) => {
+    for (const ext of exts) {
+      try {
+        accessSync(file + ext, windows ? constants.F_OK : constants.X_OK);
+        return true;
+      } catch {
+        continue;
+      }
+    }
+    return false;
+  };
+  const seen = new Map<string, boolean>();
+  return (word) => {
+    let found = seen.get(word);
+    if (found !== undefined) return found;
+    if (windows) found = POWERSHELL_WORDS.has(word.toLowerCase()) || /^[A-Z][a-z]+-[A-Z][A-Za-z]+$/.test(word);
+    else found = BUILTINS.has(word);
+    if (!found && /[\\/]/.test(word)) found = runnable(path.resolve(cwd, word));
+    else if (!found) found = dirs.some((dir) => runnable(path.join(dir, word)));
+    seen.set(word, found);
+    return found;
+  };
 }

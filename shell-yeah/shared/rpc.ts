@@ -95,6 +95,13 @@ export const scan = defineRpc({
   output: z.object({ found: z.number().int().nonnegative() }),
 });
 
+// The Run window's list: every command in the agent's latest reply, prose included.
+export const suggest = defineRpc({
+  name: "shell-yeah.suggest",
+  input: z.object({ agentId }),
+  output: z.object({ commands: z.array(z.string()) }),
+});
+
 // Dismiss a proposal card. The card's data is enough; the server holds no proposal state.
 export const dismiss = defineRpc({
   name: "shell-yeah.dismiss",

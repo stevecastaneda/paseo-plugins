@@ -7,7 +7,7 @@ import { LIMITS } from "../shared/limits.ts";
 import { formatCount, trimBlankEnds } from "../shared/view.ts";
 import type { Palette, ThemeColors } from "./palette.ts";
 import { withAlpha } from "./palette.ts";
-import { Button, mono, nativeDriver } from "./ui.tsx";
+import { Button, codeSurface, mono, nativeDriver } from "./ui.tsx";
 
 export const LINE_HEIGHT = 18;
 const WELL_PADDING_V = 8;
@@ -72,12 +72,11 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
     borderColor: withAlpha(colors.border, 0.6),
     overflow: "hidden" as const,
   };
-  const pmono = Platform.OS === "web" ? ({ dataSet: { pmono: "" } } as object) : {};
 
   // Vertical padding sits outside the scroller, so a box scrolled to the end never slices its
   // last line; half a row at the top shows there is more above.
   return (
-    <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...pmono}>
+    <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...codeSurface()}>
       <TailScroll maxHeight={(boxRows(tall ? LIMITS.tallBoxLines : rows, compact, screen.height) + 0.5) * LINE_HEIGHT} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
         <View style={{ paddingHorizontal: 10 }}>{body}</View>
       </TailScroll>
