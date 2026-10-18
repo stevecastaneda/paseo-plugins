@@ -447,7 +447,7 @@ const commands: Record<string, Command> = {
 function rootRelative(target: string, cwd: string, root: string): string {
   const absolute = resolve(cwd, target);
   const inside = relative(root, absolute);
-  const suffix = /[\/]$/.test(target) ? "/" : "";
+  const suffix = /[\/]$/.test(target) || statSync(absolute, { throwIfNoEntry: false })?.isDirectory() ? "/" : "";
   if (!inside) return "./";
   return outside(inside) ? absolute + suffix : inside + suffix;
 }

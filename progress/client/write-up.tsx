@@ -8,6 +8,7 @@ import { previewDeliverable } from "../shared/rpc";
 import { type Block, parseWriteUp, type Span, withoutTitle, writeUpExcerpt } from "../shared/write-up";
 import { type Attachment, attachmentIcon } from "./attachments";
 import { PressableRow } from "./row";
+import { errorText } from "./errors";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -37,7 +38,7 @@ export function WriteUp({ colors, source, workspaceId, workspaceDirectory, onOpe
   return (
     <View style={{ gap: 12, padding: 14, borderRadius: 8, backgroundColor: colors.surface0 }}>
       {shown.length ? <View style={{ gap: 8 }}>{shown.map((block, index) => <BlockView key={index} colors={colors} block={block} first={index === 0} />)}</View> : null}
-      {preview.error ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Couldn't read it here: {preview.error.message}</Text> : null}
+      {preview.error ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Couldn't read it here: {errorText(preview.error, "something went wrong")}</Text> : null}
       {/* The file on the left, opening it whole; expanding in place on the right. */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <TextButton colors={colors} icon={attachmentIcon(source)} label={source.title} accessibilityLabel={`Open ${source.title}`} onPress={() => onOpen(source, [source])} grow />

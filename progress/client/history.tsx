@@ -6,6 +6,7 @@ import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-nati
 import { PressScale } from "./motion";
 import { PressableRow } from "./row";
 import { listFolders, setHistoryFolder } from "../shared/rpc";
+import { errorText } from "./errors";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -27,7 +28,7 @@ export function HistoryRow({ colors, workspaceId, directory, savedTo }: {
       queryClient.invalidateQueries({ queryKey: ["progress", "dashboard"] });
       toast.show(next ? `Each run will be saved to ${next}.` : "Runs will stay on this computer. Files already saved stay in the repo.", { variant: "success" });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not change where runs are saved."),
+    onError: (error) => toast.error(errorText(error, "Could not change where runs are saved.")),
   });
   // While saving, the button that started it says so.
   const busy = mutation.isPending ? (mutation.variables === null ? "stop" : "pick") : null;
@@ -119,7 +120,7 @@ function FolderPicker({ colors, workspaceId, directory, open, start, onClose, on
           {listed.data && !listed.data.folders.length ? (
             <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, paddingHorizontal: 8, paddingVertical: 6 }}>No folders in here.</Text>
           ) : null}
-          {listed.error ? <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, paddingHorizontal: 8 }}>{listed.error.message}</Text> : null}
+          {listed.error ? <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, paddingHorizontal: 8 }}>{errorText(listed.error, "Could not list the folders.")}</Text> : null}
         </ScrollView>
 
         {naming === null ? (

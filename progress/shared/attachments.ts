@@ -88,11 +88,35 @@ export function previewKind(path: string): "image" | "video" | "text" | null {
   return TEXT_EXTENSIONS.has(extension(path) ?? "") ? "text" : null;
 }
 
+export function isFolder(attachment: Attachment): boolean {
+  return attachment.kind === "folder" || /[\\/]$/.test(attachment.path ?? "");
+}
+
+export interface FolderEntry {
+  name: string;
+  folder: boolean;
+}
+
+export function entryRef(folderRef: string, path: string): string {
+  return `${folderRef}/${path}`;
+}
+
+export function splitRef(ref: string): { base: string; inner: string } {
+  const [base, ...rest] = ref.split("/");
+  return { base, inner: rest.join("/") };
+}
+
+export function folderAttachments(folder: Attachment, entries: FolderEntry[]): Attachment[] {
+  const base = folder.path === "./" ? "" : (folder.path ?? "").replace(/[\\/]*$/, "/");
+  return entries.map((entry) => ({ ref: entryRef(folder.ref, entry.name), title: entry.name, path: `${base}${entry.name}${entry.folder ? "/" : ""}` }));
+}
+
 // Whether the preview dialog can show it. Only a browser draws SVG and plays
 // video: Paseo's desktop app can, the phone apps can't, so there they open on
 // the host like any other file.
 export function canPreview(attachment: Attachment, where: { browser: boolean }): boolean {
   if (!attachment.path) return false;
+  if (isFolder(attachment)) return true;
   const kind = previewKind(attachment.path);
   if (kind === "video" || (kind === "image" && extension(attachment.path) === ".svg")) return where.browser;
   return kind !== null;

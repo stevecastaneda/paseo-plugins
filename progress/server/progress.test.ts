@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,8 +16,8 @@ import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
-import { MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
-import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, imageMimeType } from "../shared/attachments.ts";
+import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
+import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 import { parseWriteUp, writeUpExcerpt } from "../shared/write-up.ts";
@@ -801,7 +801,7 @@ test("deliverables are listed newest first with root-relative paths, their ticke
     { id: "D4", path: "/tmp/elsewhere.png", url: undefined, kind: "screenshot", ticketLabel: undefined },
     { id: "D3", path: undefined, url: "https://example.com/preview", kind: "link", ticketLabel: undefined },
     { id: "D2", path: "packages/app/report.html", url: undefined, kind: "report", ticketLabel: undefined },
-    { id: "D1", path: ".scratch/shots", url: undefined, kind: "folder", ticketLabel: "Ticket 03" },
+    { id: "D1", path: ".scratch/shots/", url: undefined, kind: "folder", ticketLabel: "Ticket 03" },
   ]);
   assert.equal((await w.run("deliverable", "remove", "d2")).text, "Removed D2: Review report");
   assert.deepEqual((await w.dashboard()).dashboard.deliverables.map((deliverable) => deliverable.id), ["D4", "D3", "D1"]);
@@ -984,6 +984,84 @@ test("a local deliverable opens on the daemon host by id, only inside the worktr
   await assert.rejects(openDeliverable(w.directory, "D4", opener), /No local deliverable D4/, "web links are not opened on the host");
   await assert.rejects(openDeliverable(w.directory, "D9", opener), /No local deliverable D9/);
   assert.equal(opened.length, 1);
+});
+
+test("a folder deliverable previews as its files, each found by the folder's id", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const shots = join(w.directory, "shots");
+  await mkdir(join(shots, "older"), { recursive: true });
+  await writeFile(join(shots, "step 10.md"), "# Ten");
+  await writeFile(join(shots, "step 2.md"), "# Two");
+  await writeFile(join(shots, ".DS_Store"), "");
+  await writeFile(join(shots, "older", "first.md"), "# First");
+  await w.run("deliverable", "add", "Screenshots", "shots/");
+  await w.run("question", "ask", "Pick", "Which one?", "--recommend", "A", "--file", "shots=All of them");
+  const { dashboard } = await w.dashboard();
+  const folder = deliverableAttachment(dashboard.deliverables[0]);
+  assert.equal(canPreview(folder, { browser: false }), true, "pressing a folder opens it in Paseo, not on the computer running Paseo");
+  const listed = await previewDeliverable(w.directory, "D1");
+  assert.deepEqual(listed, {
+    kind: "folder",
+    entries: [{ name: "older", folder: true }, { name: "step 2.md", folder: false }, { name: "step 10.md", folder: false }],
+    truncated: false,
+  }, "folders first, numbers in order, hidden files left out");
+  const files = folderAttachments(folder, listed.kind === "folder" ? listed.entries : []);
+  assert.deepEqual(files.map((file) => [file.ref, file.path]), [["D1/older", "shots/older/"], ["D1/step 2.md", "shots/step 2.md"], ["D1/step 10.md", "shots/step 10.md"]]);
+  assert.ok(files.every((file) => canPreview(file, { browser: false })), "a folder and its text files preview on any screen");
+  assert.equal(findAttachment(dashboard, "Q1.1")?.path, "shots/", "a folder given without a slash is stored as one, so it lists too");
+  assert.deepEqual(await previewDeliverable(w.directory, "D1/step 2.md"), { kind: "text", text: "# Two", bytes: 5, truncated: false });
+  assert.deepEqual(await previewDeliverable(w.directory, "D1/older"), { kind: "folder", entries: [{ name: "first.md", folder: false }], truncated: false });
+  assert.deepEqual(await previewDeliverable(w.directory, "D1/older/first.md"), { kind: "text", text: "# First", bytes: 7, truncated: false });
+  const opened: string[] = [];
+  await openDeliverable(w.directory, "D1/older/first.md", async (path) => { opened.push(path); });
+  assert.deepEqual(opened, [join(await realpath(w.directory), "shots", "older", "first.md")]);
+});
+
+test("a file inside a folder deliverable can't step out of the folder or the worktree", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await mkdir(join(w.directory, "shots"));
+  await writeFile(join(w.directory, "secret.md"), "# Secret");
+  const away = await mkdtemp(join(tmpdir(), "progress-away-"));
+  t.after(() => rm(away, { recursive: true, force: true }));
+  await writeFile(join(away, "x.md"), "# Away");
+  await symlink(join(away, "x.md"), join(w.directory, "shots", "link.md"));
+  await w.run("deliverable", "add", "Screenshots", "shots/");
+  await assert.rejects(previewDeliverable(w.directory, "D1/../secret.md"), /secret\.md is outside shots\//);
+  await assert.rejects(previewDeliverable(w.directory, `D1/${join(w.directory, "secret.md")}`), /^Error: shots\/.+\/secret\.md no longer exists/, "an absolute path is read inside the folder");
+  await assert.rejects(previewDeliverable(w.directory, "D1/link.md"), /shots\/link\.md is outside this worktree/);
+  await assert.rejects(openDeliverable(w.directory, "D9/a.md", async () => {}), /No local deliverable D9/);
+});
+
+test("a folder with more entries than the preview lists says it stopped", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await mkdir(join(w.directory, "logs"));
+  await Promise.all(Array.from({ length: MAX_FOLDER_ENTRIES + 1 }, (_, index) => writeFile(join(w.directory, "logs", `${index}.log`), "")));
+  await w.run("deliverable", "add", "Logs", "logs/");
+  const listed = await previewDeliverable(w.directory, "D1");
+  assert.equal(listed.kind === "folder" && listed.entries.length, MAX_FOLDER_ENTRIES);
+  assert.equal(listed.kind === "folder" && listed.truncated, true);
+});
+
+test("a Linux server with no desktop says it can't open files, and the preview hides Open", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await writeFile(join(w.directory, "report.pdf"), "%PDF");
+  await w.run("deliverable", "add", "Report", "report.pdf");
+  const bin = await mkdtemp(join(tmpdir(), "progress-bin-"));
+  const empty = await mkdtemp(join(tmpdir(), "progress-empty-"));
+  t.after(() => Promise.all([bin, empty].map((path) => rm(path, { recursive: true, force: true }))));
+  const server = { PATH: empty };
+  await assert.rejects(openDeliverable(w.directory, "D1", hostOpener("linux", server)), { message: `Can't open files on ${hostname()}` });
+  assert.equal(canOpenFiles("linux", server), false, "no desktop and no xdg-open");
+  await writeFile(join(bin, "xdg-open"), "#!/bin/sh\n", { mode: 0o755 });
+  assert.equal(canOpenFiles("linux", { PATH: bin }), false, "xdg-open without a desktop session");
+  assert.equal(canOpenFiles("linux", { PATH: empty, DISPLAY: ":0" }), false, "a desktop session without xdg-open");
+  assert.equal(canOpenFiles("linux", { PATH: bin, WAYLAND_DISPLAY: "wayland-0" }), true);
+  assert.equal(canOpenFiles("darwin", {}), true);
+  assert.equal(canOpenFiles("win32", {}), true);
 });
 
 test("every screen gives an attachment the same icon, and SVGs preview only where a browser draws them", async (t) => {

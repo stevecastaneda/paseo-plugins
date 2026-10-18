@@ -1,42 +1,17 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
-import { Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, Image, Platform, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
-import { type Attachment, attachmentIcon, isPreviewable } from "./attachments";
-import { previewKind } from "../shared/attachments";
-import { previewDeliverable, readDeliverablePiece } from "../shared/rpc";
-import { PressScale, useLastPresent } from "./motion";
+import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
+import { errorText } from "./errors";
+import { folderAttachments, isFolder, previewKind } from "../shared/attachments";
+import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
+import { PressScale } from "./motion";
 import { imageOutline, raised } from "./surfaces";
 import { loadVideo, VideoPlayer } from "./video";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
-
-// An image or text attachment shown in a dialog, with a way out to the host's own app.
-// `onBack` returns to where the preview was opened from, e.g. a question's dialog.
-export function PreviewDialog({ colors, attachment, workspaceId, workspaceDirectory, onClose, onOpenOnHost, backLabel, onBack, gallery }: {
-  colors: Colors;
-  attachment: Attachment | null;
-  workspaceId: string;
-  workspaceDirectory: string;
-  onClose(): void;
-  onOpenOnHost(attachment: Attachment): void;
-  backLabel?: string;
-  onBack?(): void;
-  gallery?: Gallery;
-}) {
-  const open = Boolean(attachment);
-  attachment = useLastPresent(attachment);
-  return (
-    <Modal title={attachment?.title ?? "Preview"} icon={<Icon name={attachment ? attachmentIcon(attachment) : "FileText"} size={16} color={colors.foregroundMuted} />}
-      open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      {attachment ? (
-        <PreviewBody colors={colors} attachment={attachment} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
-          onOpenOnHost={() => { onClose(); onOpenOnHost(attachment); }} backLabel={backLabel} onBack={onBack} gallery={gallery} />
-      ) : <Modal.Content>{null}</Modal.Content>}
-    </Modal>
-  );
-}
 
 // The other previewable files beside this one (a question's images, a ticket's
 // screenshots), for Previous and Next. Only shown when there's more than one.
@@ -45,9 +20,8 @@ export interface Gallery {
   onSelect(attachment: Attachment): void;
 }
 
-// Keeps only what the preview can show, for a Gallery's items.
-export function previewable(group: Attachment[]): Attachment[] {
-  return group.filter(isPreviewable);
+export function galleryFiles(group: Attachment[]): Attachment[] {
+  return group.filter((attachment) => isPreviewable(attachment) && !isFolder(attachment));
 }
 
 type PreviewProps = {
@@ -56,25 +30,23 @@ type PreviewProps = {
   workspaceId: string;
   workspaceDirectory: string;
   onOpenOnHost(): void;
-  backLabel?: string;
   onBack?(): void;
   gallery?: Gallery;
+  onOpenEntry(attachment: Attachment, group: Attachment[]): void;
 };
 
-// The preview dialog's body in its own Modal.Content.
-export function PreviewBody(props: PreviewProps) {
-  const [long, setLong] = useState(false);
-  return <Modal.Content scrollable={!long}><PreviewContent {...props} onLong={setLong} /></Modal.Content>;
-}
-
-// The preview without its Modal.Content, for a dialog that already has one (see
-// StackedDialog): swapping Modal.Content itself would re-present the sheet on phones.
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, backLabel, onBack, gallery, onLong }: PreviewProps & { onLong(long: boolean): void }) {
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
   const fetchPreview = useRpc(previewDeliverable);
   const readPiece = useRpc(readDeliverablePiece);
+  const checkHost = useRpc(canOpenOnHost);
   const queryClient = useQueryClient();
+  const canOpen = useQuery({
+    queryKey: ["progress", "can-open", workspaceId],
+    queryFn: () => checkHost({ workspaceId, workspaceDirectory }),
+    staleTime: Infinity,
+  }).data?.canOpen === true;
   // How much of a video has arrived, for the line under the spinner.
   const loadingKey = (target: Attachment) => ["progress", "preview-loading", workspaceId, target.ref, target.path];
   const previewQuery = (target: Attachment) => ({
@@ -121,8 +93,10 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     if (previewKind(next.path ?? "") !== "video") void queryClient.prefetchQuery(previewQuery(next));
   }, [attachment.ref, items.length]);
   // Previous and Next, wrapping at the ends. Left and right arrows do the same.
-  const step = (offset: number) => gallery?.onSelect(items[(Math.max(0, index) + offset + items.length) % items.length]);
-  useArrowKeys(items.length > 1 ? step : null);
+  const step = (offset: number) => gallery?.onSelect(items[(index + offset + items.length) % items.length]);
+  const inGallery = index >= 0;
+  const canStep = inGallery && items.length > 1;
+  useArrowKeys(canStep ? step : null);
   // Next has focus when the preview opens, so Enter or Space moves on too.
   const nextButton = useRef<View>(null);
   useEffect(() => {
@@ -155,7 +129,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       ) : null}
       {preview.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
-          Could not preview it: {preview.error.message}
+          Could not preview it: {errorText(preview.error, "something went wrong")}
         </Text>
       ) : null}
       {preview.data?.kind === "text" ? (
@@ -165,10 +139,14 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           </Text>
           {preview.data.truncated ? (
             <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingTop: 8 }}>
-              Showing the first 256 KB. Press Open to see the rest in its default app.
+              Showing the first 256 KB.{canOpen ? " Press Open to see the rest in its default app." : ""}
             </Text>
           ) : null}
         </View>
+      ) : null}
+      {preview.data?.kind === "folder" ? (
+        <FolderList colors={colors} folder={attachment} entries={folderAttachments(attachment, preview.data.entries)} truncated={preview.data.truncated}
+          dimmed={stepping} onOpen={onOpenEntry} />
       ) : null}
       {preview.data?.kind === "image" ? (
         <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
@@ -188,11 +166,11 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const actions = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
       <View style={{ flex: 1, alignItems: "flex-start" }}>
-        {onBack ? <BackButton colors={colors} label={backLabel ?? "Back"} onPress={onBack} /> : null}
+        {onBack ? <BackButton colors={colors} onPress={onBack} /> : null}
       </View>
-      {items.length > 1 ? <Stepper colors={colors} index={Math.max(0, index)} count={items.length} onStep={step} nextRef={nextButton} /> : null}
+      {canStep ? <Stepper colors={colors} index={index} count={items.length} onStep={step} nextRef={nextButton} /> : null}
       <View style={{ flex: 1, alignItems: "flex-end" }}>
-        <DialogButton colors={colors} icon="ExternalLink" label="Open" accessibilityLabel="Open in its default app" onPress={onOpenOnHost} />
+        {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label="Open" accessibilityLabel="Open in its default app" onPress={onOpenOnHost} /> : null}
       </View>
     </View>
   );
@@ -214,12 +192,26 @@ const CONTENT_WIDTH = 472;
 // Characters of 12px monospace per line of the text box (10px padding each side).
 const CHARS_PER_LINE = Math.floor((CONTENT_WIDTH - 20) / 7.2);
 
+const FOLDER_ROW_HEIGHT = ATTACHMENT_ROW.lineHeight + ATTACHMENT_ROW.paddingVertical * 2 + ATTACHMENT_ROW.gap;
+
 // Roughly how tall the preview draws, including wrapped lines.
-function estimatedHeight(data: { kind: "image" | "video" } | { kind: "text"; text: string } | undefined, aspectRatio: number, maxMediaHeight: number): number {
+function estimatedHeight(data: { kind: "image" | "video" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
   if (!data) return 0;
+  if (data.kind === "folder") return Math.max(1, data.entries.length + (data.truncated ? 1 : 0)) * FOLDER_ROW_HEIGHT;
   if (data.kind !== "text") return Math.min(CONTENT_WIDTH / aspectRatio, maxMediaHeight);
   const lines = data.text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0);
   return lines * 18 + 20;
+}
+
+function FolderList({ colors, folder, entries, truncated, dimmed, onOpen }: { colors: Colors; folder: Attachment; entries: Attachment[]; truncated: boolean; dimmed: boolean; onOpen(attachment: Attachment, group: Attachment[]): void }) {
+  const caption = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
+  if (!entries.length) return <Text style={caption}>Nothing in {folder.title} yet.</Text>;
+  return (
+    <View style={{ gap: 8, opacity: dimmed ? 0.6 : 1 }}>
+      <AttachmentList colors={colors} attachments={entries} onOpen={onOpen} />
+      {truncated ? <Text style={caption}>Showing the first {entries.length}.</Text> : null}
+    </View>
+  );
 }
 
 // An image's width over its height, or null if it can't be read. Read from the data
@@ -253,8 +245,8 @@ export function DialogButton({ colors, icon, label, accessibilityLabel, onPress,
 }
 
 // Returns to the dialog this one was opened from. For surface1 dialogs.
-export function BackButton({ colors, label, onPress }: { colors: Colors; label: string; onPress(): void }) {
-  return <DialogButton colors={colors} icon="ChevronLeft" label={label} onPress={onPress} outerStyle={{ alignSelf: "flex-start" }} />;
+export function BackButton({ colors, onPress }: { colors: Colors; onPress(): void }) {
+  return <DialogButton colors={colors} icon="ChevronLeft" label="Back" onPress={onPress} outerStyle={{ alignSelf: "flex-start" }} />;
 }
 
 // Previous and next through a gallery, with "2 of 3" between.

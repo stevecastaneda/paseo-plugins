@@ -1,10 +1,11 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
-import { open, readFile, realpath, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
+import { homedir, hostname } from "node:os";
+import { delimiter, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { findAttachment, imageMimeType, previewKind, videoMimeType } from "../shared/attachments.ts";
+import { findAttachment, type FolderEntry, imageMimeType, previewKind, splitRef, videoMimeType } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { findStore } from "./store.ts";
@@ -34,20 +35,32 @@ async function defaultBrowser(): Promise<string | null> {
   }
 }
 
-export const systemOpener: Opener = async (path) => {
-  const browser = process.platform === "darwin" ? await defaultBrowser() : null;
-  const [command, args] = openCommand(path, process.platform, browser);
-  await promisify(execFile)(command, args);
-};
+export function canOpenFiles(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): boolean {
+  if (platform === "darwin" || platform === "win32") return true;
+  if (!env.DISPLAY && !env.WAYLAND_DISPLAY) return false;
+  return (env.PATH ?? "").split(delimiter).some((directory) => directory && existsSync(join(directory, "xdg-open")));
+}
+
+export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): Opener {
+  return async (path) => {
+    if (!canOpenFiles(platform, env)) throw new Error(`Can't open files on ${hostname()}`);
+    const browser = platform === "darwin" ? await defaultBrowser() : null;
+    const [command, args] = openCommand(path, platform, browser);
+    await promisify(execFile)(command, args);
+  };
+}
 
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
+  const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
-  const path = findAttachment(dashboard, ref)?.path;
-  if (!path) throw new Error(`No local ${ref.startsWith("Q") ? "attachment" : "deliverable"} ${ref} in this worktree.`);
+  const folder = findAttachment(dashboard, base)?.path;
+  if (!folder) throw new Error(`No local ${base.startsWith("Q") ? "attachment" : "deliverable"} ${base} in this worktree.`);
+  const path = inner ? join(folder, inner) : folder;
+  if (outside(relative(resolve(worktree, folder), resolve(worktree, path)))) throw new Error(`${path} is outside ${folder}, so it was not ${verb}.`);
   const root = await realpath(worktree);
   const target = await realpath(resolve(root, path)).catch(() => null);
   if (!target) throw new Error(`${path} no longer exists.`);
@@ -74,18 +87,21 @@ export const MAX_PREVIEW_VIDEO_BYTES = 200 * 1024 * 1024;
 // Small enough that one piece doesn't hold up the agent output sharing the socket.
 export const VIDEO_PIECE_BYTES = 4 * 1024 * 1024;
 
+export const MAX_FOLDER_ENTRIES = 500;
+
 export type Preview =
   | { kind: "image"; dataUri: string; bytes: number }
   | { kind: "video"; mimeType: string; bytes: number }
-  | { kind: "text"; text: string; bytes: number; truncated: boolean };
+  | { kind: "text"; text: string; bytes: number; truncated: boolean }
+  | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
 
-// An image (as a data URI) or a text file's contents, so any client (desktop
-// or phone) can show it without reaching the daemon host's disk.
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
   const { path, target } = await resolveAttachment(directory, id, "previewed");
+  const stats = await stat(target);
+  if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(target)) };
   const kind = previewKind(target);
   if (!kind) throw new Error(`${path} isn't an image, video or text file, so it can't be previewed.`);
-  const { size } = await stat(target);
+  const { size } = stats;
   if (kind === "video") {
     if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));
     return { kind, mimeType: videoMimeType(target)!, bytes: size };
@@ -103,6 +119,17 @@ export async function previewDeliverable(directory: string, id: string): Promise
   if (size > MAX_PREVIEW_BYTES) throw new Error(tooLarge(path, size));
   const data = await readFile(target);
   return { kind, dataUri: `data:${imageMimeType(target)};base64,${data.toString("base64")}`, bytes: size };
+}
+
+async function listFolder(target: string): Promise<{ entries: FolderEntry[]; truncated: boolean }> {
+  const entries: FolderEntry[] = [];
+  for (const entry of await readdir(target, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
+    const linkedFolder = entry.isSymbolicLink() && (await stat(join(target, entry.name)).catch(() => null))?.isDirectory();
+    entries.push({ name: entry.name, folder: entry.isDirectory() || Boolean(linkedFolder) });
+  }
+  entries.sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+  return { entries: entries.slice(0, MAX_FOLDER_ENTRIES), truncated: entries.length > MAX_FOLDER_ENTRIES };
 }
 
 function tooLarge(path: string, size: number): string {
@@ -145,5 +172,9 @@ export async function handleOpenDeliverable(
   input: { workspaceId: string; workspaceDirectory: string; ref: string },
   _context: PluginHandlerContext,
 ) {
-  return openDeliverable(input.workspaceDirectory, input.ref, systemOpener);
+  return openDeliverable(input.workspaceDirectory, input.ref, hostOpener(process.platform, process.env));
+}
+
+export async function handleCanOpenOnHost(_input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext) {
+  return { canOpen: canOpenFiles(process.platform, process.env) };
 }

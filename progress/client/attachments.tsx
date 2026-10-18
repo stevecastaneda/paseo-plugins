@@ -3,6 +3,7 @@ import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React from "react";
 import { Platform, Text, View } from "react-native";
 import { type Attachment, attachmentIcon, canPreview, shortName } from "../shared/attachments";
+import { errorText } from "./errors";
 import { PressableRow } from "./row";
 import { openDeliverable } from "../shared/rpc";
 
@@ -24,10 +25,6 @@ export function absolutePath(path: string, root: string): string {
   return path === "./" ? `${base}/` : `${base}/${path}`;
 }
 
-// Opens attachments the same way everywhere. Web links go to Paseo's browser
-// (the system browser where there is none); images, videos and text go to `onPreview` when the
-// caller can show the preview dialog; every other local file opens with its
-// default app on the daemon host.
 export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview }: {
   workspaceId: string;
   workspaceDirectory: string;
@@ -49,7 +46,7 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
       await openOnHostRpc({ workspaceId, workspaceDirectory, ref: attachment.ref });
       toast.show(`Opened ${attachment.title}`, { variant: "success" });
     } catch (error) {
-      await copyPath(attachment, `${error instanceof Error ? error.message : "Could not open it"}. `);
+      await copyPath(attachment, `${errorText(error, "Could not open it")}. `);
     }
   }
   async function open(attachment: Attachment) {
@@ -71,21 +68,23 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
   return { open, openOnHost, copyPath };
 }
 
+export const ATTACHMENT_ROW = { gap: 2, paddingVertical: 3, lineHeight: 17 };
+
 // A question's attachments as pressable rows.
 // Drawn in dialogs and the popover (surface1) unless `onSurface1` is false.
 // `onOpen` also gets the whole list, so a preview can step through its siblings.
 export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true }: { colors: Colors; attachments: Attachment[]; onOpen(attachment: Attachment, group: Attachment[]): void; onSurface1?: boolean }) {
   if (!attachments.length) return null;
   return (
-    <View style={{ gap: 2 }}>
+    <View style={{ gap: ATTACHMENT_ROW.gap }}>
       {attachments.map((attachment) => (
         <PressableRow key={attachment.ref} colors={colors} onSurface1={onSurface1} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={`Open ${attachment.title}`}
           onPress={() => onOpen(attachment, attachments)}
-          style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
+          style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: ATTACHMENT_ROW.paddingVertical, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
           {/* A 14px slot, like a section icon, so the title lines up with the heading above. */}
           <View style={{ width: 14, alignItems: "center" }}><Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} /></View>
           {/* The row is the target, so nothing in it is styled as a link. */}
-          <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foreground, fontSize: 12, lineHeight: 17 }}>{attachment.title}</Text>
+          <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foreground, fontSize: 12, lineHeight: ATTACHMENT_ROW.lineHeight }}>{attachment.title}</Text>
           {shortName(attachment) !== attachment.title ? (
             <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>{shortName(attachment)}</Text>
           ) : <View style={{ flex: 1 }} />}

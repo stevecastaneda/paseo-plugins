@@ -124,6 +124,15 @@ export const openDeliverable = defineRpc({
   output: z.object({ opened: z.string() }),
 });
 
+export const canOpenOnHost = defineRpc({
+  name: "progress.host.can-open",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+  }),
+  output: z.object({ canOpen: z.boolean() }),
+});
+
 // An image or text file's contents, for the preview dialog. A video comes back
 // as its type and size only; its bytes follow in pieces (readDeliverablePiece).
 export const previewDeliverable = defineRpc({
@@ -138,6 +147,7 @@ export const previewDeliverable = defineRpc({
     z.object({ kind: z.literal("image"), dataUri: z.string(), bytes: z.number() }),
     z.object({ kind: z.literal("video"), mimeType: z.string(), bytes: z.number() }),
     z.object({ kind: z.literal("text"), text: z.string(), bytes: z.number(), truncated: z.boolean() }),
+    z.object({ kind: z.literal("folder"), entries: z.array(z.object({ name: z.string(), folder: z.boolean() })), truncated: z.boolean() }),
   ]),
 });
 

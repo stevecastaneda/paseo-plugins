@@ -3,9 +3,8 @@ import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useRef, useState } from "react";
 import type { Dashboard, Question } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, useAttachmentOpener } from "./attachments";
-import { useLastPresent } from "./motion";
 import { NarrowProvider } from "./narrow";
-import { BackButton, PreviewContent, previewable } from "./preview";
+import { BackButton, galleryFiles, PreviewContent } from "./preview";
 import { QuestionView, useCopy } from "./questions";
 import { TicketStoryView } from "./ticket-dialog";
 
@@ -18,35 +17,32 @@ export type Step =
   | { kind: "question"; id: string }
   | { kind: "preview"; attachment: Attachment; group: Attachment[] };
 
-// One dialog for a ticket or a question and everything opened from it. Paseo
-// gives each dialog its own backdrop, so opening a second one darkens the screen
-// while the first fades out; instead the content changes in place, and Back
-// returns to the step before.
-export function StackedDialog({ colors, root, onClose, questions, dashboard, now, live = true, context }: {
+// Paseo gives each dialog its own backdrop, so opening a second one darkens
+// the screen while the first fades out; steps swap content inside this one instead.
+export function StackedDialog({ colors, root, onClose, questions = [], dashboard, now, live = true, context }: {
   colors: Colors;
-  // The ticket or question it opens on; null closes it.
   root: Step | null;
   onClose(): void;
-  questions: Question[];
+  questions?: Question[];
   // Needed only when it opens on a ticket.
   dashboard?: Dashboard;
   now: number;
   live?: boolean;
   context: AttachmentContext;
 }) {
-  // What was opened on top of the root, oldest first. Cleared when a new root opens.
-  const [trail, setTrail] = useState<Step[]>([]);
-  const rootKey = root && root.kind !== "preview" ? `${root.kind}:${root.id}` : null;
-  const [trailFor, setTrailFor] = useState(rootKey);
-  if (trailFor !== rootKey) {
-    setTrailFor(rootKey);
-    if (rootKey) setTrail([]);
+  // Paseo's Modal keeps drawing its content while it fades out, so closing keeps the steps.
+  const [steps, setSteps] = useState<Step[]>(root ? [root] : []);
+  const rootKey = root ? stepKey(root) : null;
+  const [stepsFor, setStepsFor] = useState(rootKey);
+  if (stepsFor !== rootKey) {
+    setStepsFor(rootKey);
+    if (root) setSteps([root]);
   }
   // The list an attachment was opened from, so its preview can step through the rest.
   const group = useRef<Attachment[]>([]);
-  const push = (step: Step) => setTrail((current) => [...current, step]);
-  const replaceTop = (step: Step) => setTrail((current) => [...current.slice(0, -1), step]);
-  const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment, group: previewable(group.current) }) });
+  const push = (step: Step) => setSteps((current) => [...current, step]);
+  const replaceTop = (step: Step) => setSteps((current) => [...current.slice(0, -1), step]);
+  const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment, group: galleryFiles(group.current) }) });
   const openAttachment = (attachment: Attachment, from: Attachment[]) => {
     group.current = from;
     // A link opens elsewhere in Paseo; close first so it isn't left behind the dialog.
@@ -59,12 +55,9 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
     context.navigation!.openAgent({ agentId });
   } : undefined;
   const copy = useCopy();
-  const steps: Step[] = root ? [root, ...trail] : [];
-  // Keep drawing the last step while the dialog fades out.
-  const shown = useLastPresent(steps.length ? { top: steps[steps.length - 1], previous: steps[steps.length - 2] } : null);
-  const back = shown?.previous ? { label: `Back to ${stepName(shown.previous)}`, onPress: () => setTrail((current) => current.slice(0, -1)) } : null;
+  const top = steps.at(-1);
+  const back = steps.length > 1 ? () => setSteps((current) => current.slice(0, -1)) : undefined;
 
-  const top = shown?.top;
   const ticket = top?.kind === "ticket" ? dashboard?.tickets.find((candidate) => candidate.id === top.id) : undefined;
   const question = top?.kind === "question" ? questions.find((candidate) => candidate.id === top.id) : undefined;
   const preview = top?.kind === "preview" ? top : undefined;
@@ -87,8 +80,9 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
       <NarrowProvider value={false}>
       {preview ? (
         <PreviewContent colors={colors} attachment={preview.attachment} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
-          onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }} backLabel={back?.label} onBack={back?.onPress}
-          gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment }) }} onLong={setPreviewLong} />
+          onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }} onBack={back}
+          gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment }) }} onLong={setPreviewLong}
+          onOpenEntry={openAttachment} />
       ) : (
         <>
           {ticket && dashboard ? (
@@ -99,7 +93,7 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
             <QuestionView colors={colors} question={question} now={now}
               onCopy={(letter) => { void copy(question, letter); onClose(); }}
               onOpenAttachment={openAttachment}>
-              {back ? <BackButton colors={colors} label={back.label} onPress={back.onPress} /> : null}
+              {back ? <BackButton colors={colors} onPress={back} /> : null}
             </QuestionView>
           ) : null}
         </>
@@ -110,6 +104,7 @@ export function StackedDialog({ colors, root, onClose, questions, dashboard, now
   );
 }
 
-function stepName(step: Step): string {
-  return step.kind === "preview" ? step.attachment.title : step.id;
+function stepKey(step: Step): string {
+  return step.kind === "preview" ? `preview:${step.attachment.ref}` : `${step.kind}:${step.id}`;
 }
+

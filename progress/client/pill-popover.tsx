@@ -7,8 +7,10 @@ import { useDashboard } from "./dashboard-query";
 import { progressPanel } from "./pills";
 import { PressScale } from "./motion";
 import { type Attachment, isPreviewable, useAttachmentOpener } from "./attachments";
-import { PreviewDialog, previewable } from "./preview";
+import { StackedDialog } from "./dialog-stack";
+import { galleryFiles } from "./preview";
 import { QuestionDetail, QuestionState, useCopy } from "./questions";
+import { errorText } from "./errors";
 import { raised } from "./surfaces";
 
 type Colors = PluginButtonContentProps["theme"]["colors"];
@@ -35,7 +37,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   // Links and other files leave Paseo, so the popover closes for those.
   const [previewing, setPreviewing] = useState<{ attachment: Attachment; group: Attachment[] } | null>(null);
   const group = useRef<Attachment[]>([]);
-  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: root, onPreview: (attachment) => setPreviewing({ attachment, group: previewable(group.current) }) });
+  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: root, onPreview: (attachment) => setPreviewing({ attachment, group: galleryFiles(group.current) }) });
   return (
     <View style={{ width: 360, maxWidth: "100%", gap: 8 }}>
       {dashboard ? (
@@ -51,12 +53,11 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
         </List>
       ) : (
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          {query.error ? `Could not read progress: ${query.error.message}` : "Loading…"}
+          {query.error ? `Could not read progress: ${errorText(query.error, "something went wrong")}` : "Loading…"}
         </Text>
       )}
-      <PreviewDialog colors={colors} attachment={previewing?.attachment ?? null} workspaceId={workspaceId} workspaceDirectory={root}
-        onClose={() => setPreviewing(null)} onOpenOnHost={(attachment) => void opener.openOnHost(attachment)}
-        gallery={previewing ? { items: previewing.group, onSelect: (attachment) => setPreviewing({ ...previewing, attachment }) } : undefined} />
+      <StackedDialog colors={colors} now={Date.now()} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory: root }}
+        root={previewing ? { kind: "preview", ...previewing } : null} />
       <View style={{ paddingTop: touch ? 12 : 8, borderTopWidth: 1, borderTopColor: colors.border }}>
         {/* A full 44pt touch target on phones; desktop keeps the compact button. */}
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}

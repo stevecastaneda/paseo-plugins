@@ -23,6 +23,7 @@ import { TabStrip } from "./tabs";
 import { ShowMoreRow, usePaged } from "./show-more";
 import { notePanelOpened } from "./panel-opened";
 import { NARROW_MAX, NarrowProvider, useNarrow } from "./narrow";
+import { errorText } from "./errors";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -52,7 +53,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
       {query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading progress" style={{ padding: 12 }} /> : null}
       {query.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>
-          Could not read progress: {query.error.message}
+          Could not read progress: {errorText(query.error, "something went wrong")}
         </Text>
       ) : null}
       <LauncherBanner colors={colors} host={host} />
