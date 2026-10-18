@@ -292,7 +292,7 @@ function TypeBox({ runId, colors, well, compact }: { runId: string; colors: Them
     }
   }
   return (
-    <View style={{ marginHorizontal: 6, marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8, height: compact ? 40 : 34, paddingStart: 10, paddingEnd: 3, borderRadius: 6, backgroundColor: well, borderWidth: 1, borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6) }}>
+    <View style={{ marginHorizontal: 10, marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8, height: compact ? 40 : 34, paddingStart: 10, paddingEnd: 3, borderRadius: 6, backgroundColor: well, borderWidth: 1, borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6) }}>
       <Icon name="Keyboard" size={14} color={colors.foregroundMuted} />
       <TextInput
         value={text}

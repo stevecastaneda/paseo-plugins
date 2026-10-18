@@ -63,7 +63,7 @@ export interface Presentation {
 const INPUT_PATTERNS = /password.*:\s*$|passphrase|not a tty|terminal is required|Inappropriate ioctl|input device is not a TTY/im;
 const NO_SHELL_FILES_HINT = "/sh runs your shell without its startup files, so aliases aren't loaded.";
 const NO_KEYBOARD_HINT = "This command wants input, and /sh has no keyboard here. Run it in a terminal tab.";
-const TYPE_HINT = "This command may be waiting for you. Type your answer below and press Enter.";
+const TYPE_HINT = "This command may be waiting for you. Type your answer in the box above and press Enter.";
 
 // Paseo's built-in provider labels (protocol/src/provider-manifest.ts); anything else is "the agent".
 const AGENT_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex", copilot: "Copilot", opencode: "OpenCode", pi: "Pi", omp: "Oh My Pi" };

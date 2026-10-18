@@ -159,7 +159,7 @@ test("in a terminal, a running card has a box to type into, and a prompt points 
   assert.equal(typing.keyboard, true);
   assert.equal(typing.hint, null);
   const prompted = describe(run(running, { terminal: true, output: { lines: ["Enter OTP:"], total: 1 }, lastOutputAt: T0 }), T0 + 9_000);
-  assert.match(prompted.hint ?? "", /Type your answer below/);
+  assert.match(prompted.hint ?? "", /Type your answer in the box above/);
   const stopping = describe(run({ ...running, stopRequestedAt: T0 }, { terminal: true }), T0);
   assert.equal(stopping.keyboard, false, "no typing while it stops");
   const done = describe(run({ kind: "ok", ...ended }, { terminal: true, output: { lines: ["Password:"], total: 1 } }), T0);
