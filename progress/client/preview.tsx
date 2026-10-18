@@ -3,7 +3,7 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, Image, Platform, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
-import { type Attachment, AttachmentList, isPreviewable } from "./attachments";
+import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
 import { folderAttachments, isFolder, previewKind } from "../shared/attachments";
 import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
@@ -20,9 +20,7 @@ export interface Gallery {
   onSelect(attachment: Attachment): void;
 }
 
-// Keeps only the files the preview can show, for a Gallery's items. A folder
-// opens when pressed, never as a step.
-export function previewable(group: Attachment[]): Attachment[] {
+export function galleryFiles(group: Attachment[]): Attachment[] {
   return group.filter((attachment) => isPreviewable(attachment) && !isFolder(attachment));
 }
 
@@ -34,12 +32,9 @@ type PreviewProps = {
   onOpenOnHost(): void;
   onBack?(): void;
   gallery?: Gallery;
-  // A file or folder picked from a folder's list, with the list it came from.
   onOpenEntry(attachment: Attachment, group: Attachment[]): void;
 };
 
-// The preview, for StackedDialog's Modal.Content: swapping Modal.Content itself
-// would re-present the sheet on phones.
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
 export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
@@ -47,7 +42,6 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const readPiece = useRpc(readDeliverablePiece);
   const checkHost = useRpc(canOpenOnHost);
   const queryClient = useQueryClient();
-  // Open is left out where the computer running Paseo can't open files, like a Linux server.
   const canOpen = useQuery({
     queryKey: ["progress", "can-open", workspaceId],
     queryFn: () => checkHost({ workspaceId, workspaceDirectory }),
@@ -100,8 +94,8 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   }, [attachment.ref, items.length]);
   // Previous and Next, wrapping at the ends. Left and right arrows do the same.
   const step = (offset: number) => gallery?.onSelect(items[(index + offset + items.length) % items.length]);
-  // A folder isn't one of the files, so it shows no Previous and Next.
-  const canStep = index >= 0 && items.length > 1;
+  const inGallery = index >= 0;
+  const canStep = inGallery && items.length > 1;
   useArrowKeys(canStep ? step : null);
   // Next has focus when the preview opens, so Enter or Space moves on too.
   const nextButton = useRef<View>(null);
@@ -198,20 +192,17 @@ const CONTENT_WIDTH = 472;
 // Characters of 12px monospace per line of the text box (10px padding each side).
 const CHARS_PER_LINE = Math.floor((CONTENT_WIDTH - 20) / 7.2);
 
-// A folder's rows: 17px lines, 3px padding above and below, 2px apart.
-const FOLDER_ROW_HEIGHT = 25;
+const FOLDER_ROW_HEIGHT = ATTACHMENT_ROW.lineHeight + ATTACHMENT_ROW.paddingVertical * 2 + ATTACHMENT_ROW.gap;
 
 // Roughly how tall the preview draws, including wrapped lines.
 function estimatedHeight(data: { kind: "image" | "video" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
   if (!data) return 0;
-  if (data.kind === "folder") return Math.max(1, data.entries.length) * FOLDER_ROW_HEIGHT + (data.truncated ? 25 : 0);
+  if (data.kind === "folder") return Math.max(1, data.entries.length + (data.truncated ? 1 : 0)) * FOLDER_ROW_HEIGHT;
   if (data.kind !== "text") return Math.min(CONTENT_WIDTH / aspectRatio, maxMediaHeight);
   const lines = data.text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0);
   return lines * 18 + 20;
 }
 
-// What's in a folder, each row opening like any attachment: files preview,
-// folders list their own, and the rest open on the host.
 function FolderList({ colors, folder, entries, truncated, dimmed, onOpen }: { colors: Colors; folder: Attachment; entries: Attachment[]; truncated: boolean; dimmed: boolean; onOpen(attachment: Attachment, group: Attachment[]): void }) {
   const caption = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
   if (!entries.length) return <Text style={caption}>Nothing in {folder.title} yet.</Text>;

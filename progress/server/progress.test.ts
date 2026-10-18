@@ -1045,7 +1045,6 @@ test("a folder with more entries than the preview lists says it stopped", async 
   assert.equal(listed.kind === "folder" && listed.truncated, true);
 });
 
-// The bug: on a Linux server, opening a deliverable failed with "spawn xdg-open ENOENT".
 test("a Linux server with no desktop says it can't open files, and the preview hides Open", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");

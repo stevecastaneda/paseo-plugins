@@ -88,27 +88,32 @@ export function previewKind(path: string): "image" | "video" | "text" | null {
   return TEXT_EXTENSIONS.has(extension(path) ?? "") ? "text" : null;
 }
 
-// What the agent called a folder, or recorded with a trailing slash.
 export function isFolder(attachment: Attachment): boolean {
   return attachment.kind === "folder" || /[\\/]$/.test(attachment.path ?? "");
 }
 
-// One entry of a folder, as the preview lists it.
 export interface FolderEntry {
   name: string;
   folder: boolean;
 }
 
-// A folder's entries as attachments, each found by the folder's reference and
-// its name ("D3/a.png"), so they open and preview like the folder's own files.
-export function folderAttachments(folder: Attachment, entries: FolderEntry[]): Attachment[] {
-  const base = folder.path === "./" ? "" : (folder.path ?? "").replace(/[\\/]*$/, "/");
-  return entries.map((entry) => ({ ref: `${folder.ref}/${entry.name}`, title: entry.name, path: `${base}${entry.name}${entry.folder ? "/" : ""}` }));
+export function entryRef(folderRef: string, path: string): string {
+  return `${folderRef}/${path}`;
 }
 
-// Whether the preview dialog can show it. A folder lists its files anywhere.
-// Only a browser draws SVG and plays video: Paseo's desktop app can, the phone
-// apps can't, so there they open on the host like any other file.
+export function splitRef(ref: string): { base: string; inner: string } {
+  const [base, ...rest] = ref.split("/");
+  return { base, inner: rest.join("/") };
+}
+
+export function folderAttachments(folder: Attachment, entries: FolderEntry[]): Attachment[] {
+  const base = folder.path === "./" ? "" : (folder.path ?? "").replace(/[\\/]*$/, "/");
+  return entries.map((entry) => ({ ref: entryRef(folder.ref, entry.name), title: entry.name, path: `${base}${entry.name}${entry.folder ? "/" : ""}` }));
+}
+
+// Whether the preview dialog can show it. Only a browser draws SVG and plays
+// video: Paseo's desktop app can, the phone apps can't, so there they open on
+// the host like any other file.
 export function canPreview(attachment: Attachment, where: { browser: boolean }): boolean {
   if (!attachment.path) return false;
   if (isFolder(attachment)) return true;

@@ -8,7 +8,7 @@ import { progressPanel } from "./pills";
 import { PressScale } from "./motion";
 import { type Attachment, isPreviewable, useAttachmentOpener } from "./attachments";
 import { StackedDialog } from "./dialog-stack";
-import { previewable } from "./preview";
+import { galleryFiles } from "./preview";
 import { QuestionDetail, QuestionState, useCopy } from "./questions";
 import { errorText } from "./errors";
 import { raised } from "./surfaces";
@@ -37,7 +37,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   // Links and other files leave Paseo, so the popover closes for those.
   const [previewing, setPreviewing] = useState<{ attachment: Attachment; group: Attachment[] } | null>(null);
   const group = useRef<Attachment[]>([]);
-  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: root, onPreview: (attachment) => setPreviewing({ attachment, group: previewable(group.current) }) });
+  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: root, onPreview: (attachment) => setPreviewing({ attachment, group: galleryFiles(group.current) }) });
   return (
     <View style={{ width: 360, maxWidth: "100%", gap: 8 }}>
       {dashboard ? (

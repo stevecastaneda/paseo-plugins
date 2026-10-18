@@ -118,13 +118,12 @@ export const openDeliverable = defineRpc({
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
-    // A deliverable ("D3"), a question attachment ("Q7.2"), or a file in a folder one ("D3/a.png").
+    // A deliverable ("D3") or a question attachment ("Q7.2").
     ref: z.string().min(1),
   }),
   output: z.object({ opened: z.string() }),
 });
 
-// Whether the daemon host can open files in its own apps, for the preview's Open button.
 export const canOpenOnHost = defineRpc({
   name: "progress.host.can-open",
   input: z.object({
@@ -134,14 +133,14 @@ export const canOpenOnHost = defineRpc({
   output: z.object({ canOpen: z.boolean() }),
 });
 
-// An image or text file's contents, or a folder's entries, for the preview dialog. A video comes back
+// An image or text file's contents, for the preview dialog. A video comes back
 // as its type and size only; its bytes follow in pieces (readDeliverablePiece).
 export const previewDeliverable = defineRpc({
   name: "progress.deliverable.preview",
   input: z.object({
     workspaceId: z.string().min(1),
     workspaceDirectory: z.string().min(1),
-    // A deliverable ("D3"), a question attachment ("Q7.2"), or a file in a folder one ("D3/a.png").
+    // A deliverable ("D3") or a question attachment ("Q7.2").
     ref: z.string().min(1),
   }),
   output: z.discriminatedUnion("kind", [

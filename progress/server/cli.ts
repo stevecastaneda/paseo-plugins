@@ -443,8 +443,7 @@ const commands: Record<string, Command> = {
 };
 
 // Stored relative to the worktree root so the panel can resolve it against
-// the workspace directory; paths outside the worktree stay absolute. A folder
-// ends in a slash, so the panel knows to list it.
+// the workspace directory; paths outside the worktree stay absolute.
 function rootRelative(target: string, cwd: string, root: string): string {
   const absolute = resolve(cwd, target);
   const inside = relative(root, absolute);

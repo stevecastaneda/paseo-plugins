@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { Dashboard, Question } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, useAttachmentOpener } from "./attachments";
 import { NarrowProvider } from "./narrow";
-import { BackButton, PreviewContent, previewable } from "./preview";
+import { BackButton, galleryFiles, PreviewContent } from "./preview";
 import { QuestionView, useCopy } from "./questions";
 import { TicketStoryView } from "./ticket-dialog";
 
@@ -17,16 +17,12 @@ export type Step =
   | { kind: "question"; id: string }
   | { kind: "preview"; attachment: Attachment; group: Attachment[] };
 
-// One dialog for a ticket, a question or a preview, and everything opened from
-// it. Paseo gives each dialog its own backdrop, so opening a second one darkens
-// the screen while the first fades out; instead the content changes in place,
-// and Back returns to the step before.
+// Paseo gives each dialog its own backdrop, so opening a second one darkens
+// the screen while the first fades out; steps swap content inside this one instead.
 export function StackedDialog({ colors, root, onClose, questions = [], dashboard, now, live = true, context }: {
   colors: Colors;
-  // The step it opens on; null closes it.
   root: Step | null;
   onClose(): void;
-  // Needed only when it opens on a ticket or a question.
   questions?: Question[];
   // Needed only when it opens on a ticket.
   dashboard?: Dashboard;
@@ -34,8 +30,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
   live?: boolean;
   context: AttachmentContext;
 }) {
-  // Every step from the root, oldest first. A new root starts over; closing
-  // keeps them, so the last one stays drawn while the dialog fades out.
+  // Paseo's Modal keeps drawing its content while it fades out, so closing keeps the steps.
   const [steps, setSteps] = useState<Step[]>(root ? [root] : []);
   const rootKey = root ? stepKey(root) : null;
   const [stepsFor, setStepsFor] = useState(rootKey);
@@ -47,7 +42,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
   const group = useRef<Attachment[]>([]);
   const push = (step: Step) => setSteps((current) => [...current, step]);
   const replaceTop = (step: Step) => setSteps((current) => [...current.slice(0, -1), step]);
-  const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment, group: previewable(group.current) }) });
+  const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment, group: galleryFiles(group.current) }) });
   const openAttachment = (attachment: Attachment, from: Attachment[]) => {
     group.current = from;
     // A link opens elsewhere in Paseo; close first so it isn't left behind the dialog.

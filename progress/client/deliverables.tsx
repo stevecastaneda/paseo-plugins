@@ -7,7 +7,7 @@ import { type Attachment, attachmentIcon, deliverableAttachment, shortName, useA
 import { formatAgo } from "../shared/format";
 import { PressScale } from "./motion";
 import { StackedDialog } from "./dialog-stack";
-import { previewable } from "./preview";
+import { galleryFiles } from "./preview";
 import { PressableRow } from "./row";
 import { ShowMoreRow, usePaged } from "./show-more";
 
@@ -26,7 +26,6 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
   navigation: Navigation;
 }) {
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
-  // Screenshots and folders preview inside Paseo; links open in its browser; the rest open in their own app.
   const { open, copyPath } = useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview: setPreviewing });
   const paged = usePaged(deliverables);
   return (
@@ -61,7 +60,7 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
       ))}
       <ShowMoreRow colors={colors} total={deliverables.length} paged={paged} />
       <StackedDialog colors={colors} now={now} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory, navigation }}
-        root={previewing ? { kind: "preview", attachment: previewing, group: previewable(deliverables.map(deliverableAttachment)) } : null} />
+        root={previewing ? { kind: "preview", attachment: previewing, group: galleryFiles(deliverables.map(deliverableAttachment)) } : null} />
     </View>
   );
 }

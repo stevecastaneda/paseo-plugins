@@ -5,7 +5,7 @@ import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { delimiter, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { findAttachment, type FolderEntry, imageMimeType, previewKind, videoMimeType } from "../shared/attachments.ts";
+import { findAttachment, type FolderEntry, imageMimeType, previewKind, splitRef, videoMimeType } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { findStore } from "./store.ts";
@@ -35,9 +35,6 @@ async function defaultBrowser(): Promise<string | null> {
   }
 }
 
-// Whether this computer can open a file in an app for someone at its screen.
-// A Mac or a Windows PC can. Linux needs a desktop session and xdg-open, which
-// a server reached over ssh doesn't have.
 export function canOpenFiles(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): boolean {
   if (platform === "darwin" || platform === "win32") return true;
   if (!env.DISPLAY && !env.WAYLAND_DISPLAY) return false;
@@ -54,12 +51,10 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
 }
 
 // A deliverable or question attachment the agent recorded, found by reference,
-// so the panel can never reach an arbitrary path. A file inside a recorded
-// folder is the folder's reference, a slash, and its path in the folder
-// ("D3/older/a.png"). Only files inside the worktree resolve.
+// so the panel can never reach an arbitrary path. Only files inside the
+// worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string }> {
-  const [base, ...rest] = ref.split("/");
-  const inner = rest.join("/");
+  const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
   const folder = findAttachment(dashboard, base)?.path;
@@ -92,7 +87,6 @@ export const MAX_PREVIEW_VIDEO_BYTES = 200 * 1024 * 1024;
 // Small enough that one piece doesn't hold up the agent output sharing the socket.
 export const VIDEO_PIECE_BYTES = 4 * 1024 * 1024;
 
-// A folder lists this many entries at most; past it the preview says it stopped.
 export const MAX_FOLDER_ENTRIES = 500;
 
 export type Preview =
@@ -101,8 +95,6 @@ export type Preview =
   | { kind: "text"; text: string; bytes: number; truncated: boolean }
   | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
 
-// An image (as a data URI), a text file's contents or a folder's entries, so
-// any client (desktop or phone) can show it without reaching the daemon host's disk.
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
   const { path, target } = await resolveAttachment(directory, id, "previewed");
   const stats = await stat(target);
@@ -129,8 +121,6 @@ export async function previewDeliverable(directory: string, id: string): Promise
   return { kind, dataUri: `data:${imageMimeType(target)};base64,${data.toString("base64")}`, bytes: size };
 }
 
-// Folders first, then by name with numbers in order ("shot 2" before "shot 10").
-// Hidden files are left out, as Finder does.
 async function listFolder(target: string): Promise<{ entries: FolderEntry[]; truncated: boolean }> {
   const entries: FolderEntry[] = [];
   for (const entry of await readdir(target, { withFileTypes: true })) {
