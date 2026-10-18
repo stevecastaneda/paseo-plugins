@@ -100,22 +100,18 @@ function ptySpawner(pty: PtyModule): Spawner {
       const group = term.pid;
       term.onData(on.data);
       term.onExit(({ exitCode, signal }) => {
-        // Close the terminal as a window would: jobs the command left behind get a hangup.
-        if (!WINDOWS) signalGroup(group, "SIGHUP");
+        // Close the terminal as a window would. On macOS and Linux, jobs the command left
+        // behind get a hangup. On Windows, node-pty keeps the console open until it's killed,
+        // and that also ends whatever is still attached to it.
+        if (WINDOWS) setImmediate(() => closeQuietly(term));
+        else signalGroup(group, "SIGHUP");
         on.exit(signal ? null : exitCode, signal ? signalName(signal) : null);
       });
       return {
         terminal: true,
         write: (text) => term.write(text),
         interrupt: () => term.write("\x03"),
-        kill: (signal) => {
-          if (!WINDOWS) return signalGroup(group, signal);
-          try {
-            term.kill();
-          } catch {
-            // Already closed.
-          }
-        },
+        kill: (signal) => (WINDOWS ? closeQuietly(term) : signalGroup(group, signal)),
       };
     },
   };
@@ -176,6 +172,14 @@ const pipeSpawner: Spawner = {
     };
   },
 };
+
+function closeQuietly(term: Pty): void {
+  try {
+    term.kill();
+  } catch {
+    // Already closed.
+  }
+}
 
 function signalName(signal: number): NodeJS.Signals | null {
   const found = Object.entries(constants.signals).find(([, number]) => number === signal);

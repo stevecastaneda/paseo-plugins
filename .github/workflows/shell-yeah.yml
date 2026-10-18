@@ -13,6 +13,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: shell-yeah
@@ -23,4 +24,5 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      # A per-test timeout, so a hung test fails with its name instead of stalling the job.
+      - run: node --test --test-timeout=120000 "*/*.test.ts" "*.test.ts"

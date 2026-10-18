@@ -283,9 +283,10 @@ posixTest("only so many commands run at once", async () => {
 });
 
 posixTest("tail: unknown for an unseen run, unchanged after the wait, wakes on a burst and on the end", { timeout: 15_000 }, async () => {
-  const h = harness();
+  // A wider coalescing window than the default, so a slow machine still delivers the burst in one reply.
+  const h = harness({ limits: { tailCoalesceMs: 150 } });
   assert.deepEqual(await h.registry.tail("never-seen-0001", 10, null, 0), { state: "unknown" });
-  const id = await run(h.registry, "sleep 0.3; for i in 1 2 3; do echo $i; sleep 0.01; done; sleep 0.3");
+  const id = await run(h.registry, "sleep 0.3; for i in 1 2 3; do echo $i; sleep 0.01; done; sleep 0.6");
   const first = await h.registry.tail(id, 10, null, 0);
   assert.equal(first.state, "view");
   const rev = (first as { view: { rev: number } }).view.rev;
