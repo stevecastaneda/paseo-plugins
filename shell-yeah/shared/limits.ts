@@ -3,6 +3,8 @@
 export const LIMITS = {
   commandChars: 8_000,
   commandBytes: 16 * 1024,
+  // One typed line. A terminal drops what's past 1,024 characters on a line.
+  inputChars: 1_000,
   maxLive: 8,
   keepFinished: 30,
   linesKept: 10_000,

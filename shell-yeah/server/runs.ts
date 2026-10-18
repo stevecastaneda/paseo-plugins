@@ -7,6 +7,7 @@ import { StringDecoder } from "node:string_decoder";
 import { LIMITS, type Limits } from "../shared/limits.ts";
 import type { LiveView, Phase, RunRow } from "../shared/row.ts";
 import { createScreen, fitLines, jsonBytes, looksBinary, type Screen } from "./screen.ts";
+import { findTerminal, markers, probeTerminal, spawnInTerminal, type Terminal } from "./terminal.ts";
 
 export interface RunsDeps {
   // Append-or-replace this run's timeline row (id = runId). Rejects if the agent isn't loaded.
@@ -14,6 +15,8 @@ export interface RunsDeps {
   now(): number;
   env: NodeJS.ProcessEnv;
   limits?: Partial<Limits>;
+  // "auto" runs commands in a real terminal when this machine can; "off" never does.
+  terminal?: "auto" | "off";
 }
 
 export interface StartInput {
@@ -30,6 +33,8 @@ export interface RunRegistry {
   // Idempotent on runId. The row is published before the process exists, so a command is never running invisibly.
   start(input: StartInput): Promise<{ runId: string }>;
   stop(runId: string, force: boolean): void;
+  // Types a line into a running command's terminal, then Enter. Throws when it can't take typing.
+  input(runId: string, text: string): void;
   tail(runId: string, lines: number, since: number | null, waitMs: number): Promise<TailResult>;
   // The row as the daemon sees it now, with up to `lines` lines. Not size-fitted.
   snapshot(runId: string, lines: number): RunRow | null;
@@ -57,6 +62,9 @@ interface Run {
   sentAt: number | null;
   lastOutputAt: number | null;
   child: ChildProcess | null;
+  // Set when the command runs in a real terminal (see terminal.ts). `group` is the process
+  // group inside the terminal; `pgid` above is `script`'s, outside it.
+  readonly terminal: { mark: string; markers: { group: RegExp; end: RegExp }; seen: string; group: number | null; exitCode: number | null } | null;
   // The process group (= the child's pid, since it is a session leader). Kept after exit so
   // a Stop can still reach background jobs the shell left behind.
   pgid: number | null;
@@ -103,6 +111,9 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   }
 
   const sleep = (ms: number) => new Promise<void>((resolve) => after(ms, resolve));
+
+  const found = deps.terminal === "off" ? null : findTerminal(deps.env);
+  const terminalReady: Promise<Terminal | null> = found ? probeTerminal(found, deps.env).then((ok) => (ok ? found : null)) : Promise.resolve(null);
 
   // ---- the one publish path ----
 
@@ -159,7 +170,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   }
 
   function rowOf(run: Run, lines: number): RunRow {
-    return { runId: run.id, rev: run.rev, origin: run.origin, command: run.command, cwd: run.cwd, phase: run.phase, output: run.screen.tail(lines), sentAt: run.sentAt };
+    return { runId: run.id, rev: run.rev, origin: run.origin, command: run.command, cwd: run.cwd, phase: run.phase, output: run.screen.tail(lines), sentAt: run.sentAt, terminal: run.terminal !== null };
   }
 
   function fitRow(row: RunRow): RunRow {
@@ -234,10 +245,12 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     bump(run);
   }
 
-  function launch(run: Run) {
+  function launch(run: Run, terminal: Terminal | null) {
     let child: ChildProcess;
     try {
-      child = spawnShell(run.command, run.cwd, deps.env);
+      child = terminal && run.terminal
+        ? spawnInTerminal(terminal, { command: run.command, cwd: run.cwd, env: commandEnv(deps.env, run.cwd, true), shell: pickShell(deps.env.SHELL), mark: run.terminal.mark })
+        : spawnShell(run.command, run.cwd, deps.env);
     } catch (error) {
       failToStart(run, `Couldn't start a shell: ${message(error)}`);
       return;
@@ -246,10 +259,44 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     run.pgid = child.pid ?? null;
     const out = new StringDecoder("utf8");
     const err = new StringDecoder("utf8");
-    child.stdout?.on("data", (chunk: Buffer) => ingest(run, out.write(chunk)));
-    child.stderr?.on("data", (chunk: Buffer) => ingest(run, err.write(chunk)));
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const text = out.write(chunk);
+      const term = run.terminal;
+      if (!term) return ingest(run, text);
+      // After the end marker comes only the terminal closing: not the command's output.
+      if (term.exitCode !== null) return;
+      const seen = term.seen + text;
+      let shown = text;
+      if (term.group === null) {
+        const group = term.markers.group.exec(seen);
+        if (group) {
+          term.group = Number(group[1]);
+          // Not output: it would count as the command printing something.
+          shown = text.replace(group[0], "");
+        }
+      }
+      const ended = term.markers.end.exec(seen);
+      if (!ended) {
+        term.seen = seen.slice(-256);
+        return ingest(run, shown);
+      }
+      ingest(run, shown.slice(0, Math.max(0, ended.index - term.seen.length - (text.length - shown.length))));
+      term.exitCode = Number(ended[1]);
+      settle(run, term.exitCode, null);
+      // Close the terminal: background jobs get the hangup a closed terminal window sends,
+      // and `script` goes now rather than whenever it notices.
+      child.stdin?.end();
+      if (term.group !== null) signalGroup(term.group, "SIGHUP");
+      if (run.pgid !== null) signalGroup(run.pgid, "SIGKILL");
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      if (run.terminal?.exitCode == null) ingest(run, err.write(chunk));
+    });
     child.on("error", (error) => failToStart(run, `Couldn't start: ${message(error)}`));
+    // A run in a terminal normally settles on the wrapper's end marker, above. These are
+    // for the rest: no terminal, or the terminal killed before the command could report.
     child.on("exit", (code, signal) => {
+      child.stdin?.destroy();
       // A background job can hold the pipe open after the shell exits: flush briefly, then let go.
       run.timers.push(after(limits.exitFlushMs, () => {
         child.stdout?.destroy();
@@ -258,7 +305,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       }));
     });
     child.on("close", (code, signal) => {
-      ingest(run, out.end() + err.end());
+      if (run.terminal?.exitCode == null) ingest(run, out.end() + err.end());
       settle(run, code, signal);
     });
   }
@@ -307,12 +354,15 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       if (process.platform === "win32") throw new Error("Shell Yeah doesn't support Windows yet.");
       if (Buffer.byteLength(input.command) > limits.commandBytes) throw new Error("That command is too long to run.");
       if (liveCount() >= limits.maxLive) throw new Error(`${limits.maxLive} commands are already running. Stop one first.`);
+      const terminal = await terminalReady;
+      if (runs.has(id)) return { runId: id };
       const startedAt = deps.now();
       const run: Run = {
         id, agentId: input.agentId, origin: input.origin, command: input.command, cwd: input.cwd,
         phase: { kind: "running", startedAt, stopRequestedAt: null },
         rev: 0, screen: createScreen({ maxLines: limits.linesKept, maxLineChars: limits.lineChars }),
         sentAt: null, lastOutputAt: null, child: null, pgid: null, capturedBytes: 0, binary: false, capStopped: false,
+        terminal: terminal ? newTerminalState() : null,
         waiters: new Set(), timers: [], escalation: [],
       };
       runs.set(id, run);
@@ -324,7 +374,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
         runs.delete(id);
         throw error;
       }
-      if (run.phase.kind === "running") launch(run);
+      if (run.phase.kind === "running") launch(run, terminal);
       evict();
       return { runId: id };
     },
@@ -332,21 +382,31 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     stop(runId, force) {
       const run = runs.get(runId);
       if (!run || run.phase.kind !== "running" || run.pgid === null) return;
-      const pgid = run.pgid;
+      const signal = (name: NodeJS.Signals) => signalRun(run, name);
       if (force || run.phase.stopRequestedAt !== null) {
-        signalGroup(pgid, "SIGKILL");
+        signal("SIGKILL");
         return;
       }
       run.phase = { ...run.phase, stopRequestedAt: deps.now() };
       bump(run);
-      signalGroup(pgid, "SIGINT");
+      // In a terminal, Ctrl+C reaches whatever runs in the foreground, as it would for the user.
+      if (run.terminal && run.child?.stdin?.writable) run.child.stdin.write("\x03");
+      else signal("SIGINT");
       run.escalation = [
-        after(limits.stopToTermMs, () => signalGroup(pgid, "SIGTERM")),
+        after(limits.stopToTermMs, () => signal("SIGTERM")),
         after(limits.stopToKillMs, () => {
-          signalGroup(pgid, "SIGKILL");
+          signal("SIGKILL");
           run.escalation = [];
         }),
       ];
+    },
+
+    input(runId, text) {
+      const run = runs.get(runId);
+      if (!run || run.phase.kind !== "running") throw new Error("This command has already ended.");
+      const stdin = run.child?.stdin;
+      if (!run.terminal || !stdin?.writable || run.terminal.exitCode !== null) throw new Error("This command can't take typing.");
+      stdin.write(`${text}\r`);
     },
 
     async tail(runId, lines, since, waitMs) {
@@ -399,24 +459,22 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     async shutdown() {
       closed = true;
       const publishes: Promise<void>[] = [];
-      const groups: number[] = [];
+      const groups: Run[] = [];
       for (const run of runs.values()) {
         for (const timer of [...run.timers, ...run.escalation]) cancel(timer);
         run.timers = [];
-        if (run.escalation.length > 0 && run.pgid !== null) signalGroup(run.pgid, "SIGKILL");
+        if (run.escalation.length > 0) signalRun(run, "SIGKILL");
         run.escalation = [];
         if (run.phase.kind !== "running") continue;
         run.phase = { kind: "interrupted", startedAt: run.phase.startedAt, endedAt: deps.now() };
         bump(run);
         publishes.push(publishRun(run, false).catch(() => undefined));
-        if (run.pgid !== null) {
-          groups.push(run.pgid);
-          signalGroup(run.pgid, "SIGTERM");
-        }
+        groups.push(run);
+        signalRun(run, "SIGTERM");
       }
       const all = Promise.all(publishes).then(() => undefined);
       await Promise.race([all, rawDelay(limits.shutdownPublishMs)]);
-      for (const pgid of groups) signalGroup(pgid, "SIGKILL");
+      for (const run of groups) signalRun(run, "SIGKILL");
       await Promise.race([all, rawDelay(limits.shutdownKillWaitMs)]);
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
@@ -438,6 +496,17 @@ function rawDelay(ms: number): Promise<void> {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function newTerminalState(): NonNullable<Run["terminal"]> {
+  const mark = `shell-yeah-${randomBytes(8).toString("hex")}`;
+  return { mark, markers: markers(mark), seen: "", group: null, exitCode: null };
+}
+
+// The run's process group, and in a terminal also the group inside it (see terminal.ts).
+function signalRun(run: Run, signal: NodeJS.Signals): void {
+  if (run.terminal?.group != null) signalGroup(run.terminal.group, signal);
+  if (run.pgid !== null) signalGroup(run.pgid, signal);
 }
 
 export function newRunId(): string {
@@ -486,7 +555,7 @@ const STRIP = ["PASEO_NODE_ENV", "PASEO_DESKTOP_MANAGED", "PASEO_SUPERVISED", "E
 // The user's environment minus what Paseo's worker put in, plus what makes tools
 // print color to a pipe. FORCE_COLOR=1 means 16 colors on purpose: the row
 // re-themes exactly those 16; 256-color and truecolor would bypass the theme.
-export function commandEnv(base: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
+export function commandEnv(base: NodeJS.ProcessEnv, cwd: string, terminal = false): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
   for (const key of STRIP) delete env[key];
   Object.assign(env, {
@@ -501,6 +570,8 @@ export function commandEnv(base: NodeJS.ProcessEnv, cwd: string): NodeJS.Process
     // npm prints its "new version available" banner when it thinks a person is watching.
     npm_config_update_notifier: "false",
   });
+  // A terminal makes git, man and the like open a pager and wait for a keypress.
+  if (terminal) Object.assign(env, { PAGER: "cat", GIT_PAGER: "cat" });
   if (env.GIT_CONFIG_COUNT === undefined) {
     Object.assign(env, { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "color.ui", GIT_CONFIG_VALUE_0: "always" });
   }

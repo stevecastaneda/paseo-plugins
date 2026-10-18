@@ -27,7 +27,7 @@ When you want the user to run a command instead of running it yourself, put it a
 gh auth login --web
 \`\`\`
 
-The block becomes a card under your message: your comment as its title, the command, and a Run button. Use it when the command needs the user's login, password, 2FA code or other secret (prefer a browser or device flow: Run has no keyboard, so commands that prompt will fail); when your sandbox or permissions block it; or when it is something the user should own, like a deploy, a publish or deleting data. Run everything else yourself.
+The block becomes a card under your message: your comment as its title, the command, and a Run button. Use it when the command needs the user's login, password, 2FA code or other secret (it runs in a terminal, so the user can answer its prompts); when your sandbox or permissions block it; or when it is something the user should own, like a deploy, a publish or deleting data. Run everything else yourself.
 
 One command or one short script per block, after its title comment. No "$" prompt, no other commentary and no sample output inside. Before the block, say in a sentence why it's needed. After the block, stop and wait: don't assume it ran. The user sends you the output if they want you to see it.
 

@@ -62,6 +62,8 @@ export const runRow = z.object({
   output,
   // When the user last sent this output to Claude; null if never.
   sentAt: z.number().nullable(),
+  // The command ran in a real terminal, so it could take typing. Absent on older rows.
+  terminal: z.boolean().optional(),
 });
 export type RunRow = z.infer<typeof runRow>;
 

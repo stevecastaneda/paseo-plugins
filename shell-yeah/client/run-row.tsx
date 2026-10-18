@@ -1,11 +1,11 @@
 import { useAgent, useRpc, type PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, Text, View, type LayoutChangeEvent } from "react-native";
+import { Animated, Easing, Pressable, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
 import { basename, errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
-import { dismiss, fullOutput, send, start, stop, tail } from "../shared/rpc.ts";
+import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/rpc.ts";
 import { agentName, capitalize, describe, formatDuration, statusText, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
@@ -145,6 +145,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
             <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: 18, color: colors.foreground }}>{pres.well.text}</Text>
           </View>
         ) : null}
+        {pres.keyboard ? <TypeBox runId={run.runId} colors={colors} well={palette.well} compact={compact} /> : null}
         <Footer pres={pres} colors={colors} compact={compact} actions={actions} />
       </Card>
     </Enter>
@@ -267,6 +268,52 @@ function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colo
       onHoverOut={() => setHovered(false)}>
       {content(hovered)}
     </Pressable>
+  );
+}
+
+// Types into the command's terminal: a line and Enter, as at a prompt. Masked, since what a
+// prompt wants is often a password or a code; the terminal echoes it when the prompt shows typing.
+function TypeBox({ runId, colors, well, compact }: { runId: string; colors: ThemeColors; well: string; compact: boolean }) {
+  const rpcInput = useRpc(input);
+  const toast = useToast();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState(false);
+  async function submit() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await rpcInput({ runId, text });
+      setText("");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <View style={{ marginHorizontal: 6, marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8, height: compact ? 40 : 34, paddingStart: 10, paddingEnd: 3, borderRadius: 6, backgroundColor: well, borderWidth: 1, borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6) }}>
+      <Icon name="Keyboard" size={14} color={colors.foregroundMuted} />
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={() => void submit()}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        submitBehavior="submit"
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="off"
+        spellCheck={false}
+        maxLength={LIMITS.inputChars}
+        placeholder="Type here, then press Enter"
+        placeholderTextColor={colors.foregroundMuted}
+        accessibilityLabel="Type into the command"
+        style={{ flex: 1, minWidth: 0, height: "100%", paddingVertical: 0, fontSize: 13, color: colors.foreground, outlineWidth: 0 }}
+      />
+      <Button icon="CornerDownLeft" label="Enter" tone="quiet" onPress={() => void submit()} busy={busy} compact={compact} iconOnly radius={3} colors={colors} accessibilityLabel="Press Enter" />
+    </View>
   );
 }
 

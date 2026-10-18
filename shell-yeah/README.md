@@ -12,7 +12,7 @@ It's the Paseo version of Claude Code's `!` mode. It's also how an agent hands y
 
 Type `/sh npm test` and press Enter. A card appears in the chat:
 
-- While the command runs: a spinner, a timer, the last lines of output as they arrive, and **Stop**. Progress bars and spinners redraw in place, the way they do in a terminal.
+- While the command runs: a spinner, a timer, the last lines of output as they arrive, a box to type into, and **Stop**. Progress bars and spinners redraw in place, the way they do in a terminal.
 - When it ends: **Done** or **Exit 1** with how long it took, the colored output, and **Send**, **Copy** and **Rerun**. Buttons and notes name the chat's agent: **Send to Claude** in a Claude chat, **Send to Codex** in a Codex chat.
 
 <img src="images/2-running.png" alt="A /sh npm run build card while it runs, with a live progress bar" width="600">
@@ -21,7 +21,9 @@ The output box holds the last 300 lines and stays on the newest one while the co
 
 <img src="images/6-expanded.png" alt="The failed npm test card made taller to show more lines" width="600">
 
-The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It has no keyboard, so a command that asks for a password or a confirmation stops and waits; the card tells you when that seems to be happening. It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over.
+The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over.
+
+Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, type the answer in the box under the output and press Enter. The box hides what you type. The output shows it afterwards if the prompt normally does. When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
 
 The plugin drops a leading `! ` or `$ `, so you can paste a command straight from a README.
 
@@ -70,11 +72,12 @@ Run cards need the agent to know the `sh run` rule. Paseo passes it to new Claud
 
 ## Limits
 
-- No keyboard input. Use a terminal tab for anything interactive.
+- The box sends one line at a time. Full-screen programs like `vim` or `top`, and menus you pick from with the arrow keys, don't work in a card. Use a terminal tab for those.
 - Up to 8 commands run at once across all chats. The plugin keeps the last 30 finished ones for **Copy** and **Send**; older cards fall back to the lines they show.
 - Paseo only treats `/sh` as a command when the message box has no attachments. With an attachment, `/sh npm test` goes to the agent as text.
 - Cards show live output only while the plugin is running. After Paseo restarts, a card that was still running says **Interrupted**, and finished cards keep the lines they ended with.
-- macOS and Linux only.
+- macOS and Linux only. `/sh` doesn't run on Windows yet.
+- The terminal comes from the `script` tool and bash or zsh, which macOS and most Linux systems have. Without them, commands still run, but they can't take typing.
 
 ## Install
 
@@ -88,4 +91,4 @@ Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.j
 
 ### 1.0.0
 
-- First version: `/sh` with live output, sending output to the agent, attaching it to a message, and Run cards for commands the agent hands you. Long output goes to the agent as a summary plus a saved log it can search, and saved logs clean up on their own. Cards for suggested commands carry the agent's plain-words title and warn about commands that are hard to undo.
+- First version: `/sh` with live output, sending output to the agent, attaching it to a message, and Run cards for commands the agent hands you. Each command runs in a terminal of its own, so you can type answers to its prompts, like a 2FA code. Long output goes to the agent as a summary plus a saved log it can search, and saved logs clean up on their own. Cards for suggested commands carry the agent's plain-words title and warn about commands that are hard to undo.

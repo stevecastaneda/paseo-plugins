@@ -29,6 +29,14 @@ export const stop = defineRpc({
   output: z.object({ ok: z.literal(true) }),
 });
 
+// Types a line into a running command's terminal and presses Enter, for a prompt like
+// "Enter OTP:". An empty line is a bare Enter. Fails when the command has no terminal.
+export const input = defineRpc({
+  name: "shell-yeah.input",
+  input: z.object({ runId, text: z.string().max(LIMITS.inputChars).refine((t) => !/[\r\n]/.test(t), "One line at a time") }),
+  output: z.object({ ok: z.literal(true) }),
+});
+
 // The live channel, a coalescing long poll. Answers at once if `since` is not the
 // current rev; otherwise holds up to `waitMs` for a change, then a little longer
 // so a burst batches into one reply. "unknown" = this daemon process never saw

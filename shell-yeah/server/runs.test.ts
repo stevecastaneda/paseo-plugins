@@ -7,10 +7,12 @@ import type { Limits } from "../shared/limits.ts";
 import { lineText, type RunRow } from "../shared/row.ts";
 import { commandEnv, createRunRegistry, type RunRegistry } from "./runs.ts";
 import { jsonBytes } from "./screen.ts";
+import { findTerminal } from "./terminal.ts";
 
 const AGENT = "agent-1";
 const dir = () => mkdtempSync(join(tmpdir(), "shell-yeah-"));
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const noTerminal = findTerminal(process.env) === null;
 
 async function until(check: () => boolean, ms = 10_000): Promise<void> {
   const started = Date.now();
@@ -20,7 +22,7 @@ async function until(check: () => boolean, ms = 10_000): Promise<void> {
   }
 }
 
-function harness(opts: { limits?: Partial<Limits>; publish?: (row: RunRow) => Promise<void> | void; env?: NodeJS.ProcessEnv } = {}) {
+function harness(opts: { limits?: Partial<Limits>; publish?: (row: RunRow) => Promise<void> | void; env?: NodeJS.ProcessEnv; terminal?: "auto" | "off" } = {}) {
   const published: RunRow[] = [];
   const registry = createRunRegistry({
     publish: async (_agentId, row) => {
@@ -30,6 +32,7 @@ function harness(opts: { limits?: Partial<Limits>; publish?: (row: RunRow) => Pr
     now: Date.now,
     env: opts.env ?? process.env,
     limits: opts.limits,
+    terminal: opts.terminal,
   });
   const rows = (id: string) => published.filter((row) => row.runId === id);
   const phases = (id: string) => rows(id).map((row) => row.phase.kind);
@@ -62,8 +65,8 @@ async function printedPid(h: ReturnType<typeof harness>, id: string): Promise<nu
   return Number(h.text(id)[0]);
 }
 
-test("exit codes and signals map to ok, failed and stopped", { timeout: 15_000 }, async () => {
-  const h = harness();
+test("without a terminal, exit codes and signals map to ok, failed and stopped", { timeout: 15_000 }, async () => {
+  const h = harness({ terminal: "off" });
   const ok = await ended(h.registry, await run(h.registry, "exit 0"));
   assert.equal(ok.phase.kind, "ok");
   const failed = await ended(h.registry, await run(h.registry, "exit 3"));
@@ -86,13 +89,19 @@ test("stdout and stderr arrive in the order the command wrote them", async () =>
   await h.registry.shutdown();
 });
 
-test("commands run in the given folder, with color forced, Paseo's worker variables gone, and no keyboard", { timeout: 15_000 }, async () => {
+test("commands run in the given folder, with color forced and Paseo's worker variables gone", { timeout: 15_000 }, async () => {
   const cwd = dir();
   const h = harness({ env: { ...process.env, PASEO_NODE_ENV: "x", ELECTRON_RUN_AS_NODE: "1", NO_COLOR: "1" } });
   const env = await ended(h.registry, await run(h.registry, "printenv FORCE_COLOR PASEO_NODE_ENV ELECTRON_RUN_AS_NODE NO_COLOR; echo end", cwd));
   assert.deepEqual(h.text(env.runId), ["1", "end"]);
   const where = await ended(h.registry, await run(h.registry, "pwd -P", cwd));
   assert.equal(h.text(where.runId)[0], realpathSync(cwd));
+  await h.registry.shutdown();
+});
+
+test("without a terminal, a command gets no keyboard", { timeout: 15_000 }, async () => {
+  const cwd = dir();
+  const h = harness({ terminal: "off" });
   const cat = await ended(h.registry, await run(h.registry, "cat; echo eof", cwd));
   assert.deepEqual([cat.phase.kind, h.text(cat.runId)], ["ok", ["eof"]]);
   const tty = await ended(h.registry, await run(h.registry, "tty", cwd));
@@ -139,8 +148,8 @@ test("stop kills the whole process tree, including a background job the shell le
   await h.registry.shutdown();
 });
 
-test("a command that traps SIGINT and SIGTERM is killed by the escalation timer", { timeout: 15_000 }, async () => {
-  const h = harness({ limits: { stopToTermMs: 50, stopToKillMs: 150 } });
+test("without a terminal, a command that traps SIGINT and SIGTERM is killed by the escalation timer", { timeout: 15_000 }, async () => {
+  const h = harness({ terminal: "off", limits: { stopToTermMs: 50, stopToKillMs: 150 } });
   const id = await run(h.registry, 'trap "" INT TERM; sleep 60');
   await delay(100);
   h.registry.stop(id, false);
@@ -317,5 +326,61 @@ test("proposals and dismissals go through the same publish path, and a stale pro
   await h.registry.dismiss({ agentId: AGENT, runId: "p-bbbbbbbbbbbb", command: "x", cwd: "/w" });
   await until(() => h.phases("p-bbbbbbbbbbbb").length === 3);
   assert.deepEqual(h.phases("p-bbbbbbbbbbbb"), ["proposed", "running", "ok"]);
+  await h.registry.shutdown();
+});
+
+test("in a terminal: a real tty 100 columns wide, the exit code, no pager, and nothing after the command ends", { skip: noTerminal, timeout: 15_000 }, async () => {
+  const h = harness();
+  const tty = await ended(h.registry, await run(h.registry, "test -t 0 && test -t 1 && echo tty; tput cols 2>/dev/null || stty size; echo \"$PAGER $GIT_PAGER\"; exit 3"));
+  assert.equal(tty.terminal, true);
+  assert.deepEqual([tty.phase.kind, (tty.phase as { exitCode: number }).exitCode], ["failed", 3]);
+  const [first, size, pager, ...rest] = h.text(tty.runId);
+  assert.equal(first, "tty");
+  assert.match(size, /\b100$/);
+  assert.equal(pager, "cat cat");
+  assert.deepEqual(rest, []);
+  const ok = await ended(h.registry, await run(h.registry, "echo done"));
+  assert.deepEqual([ok.phase.kind, h.text(ok.runId)], ["ok", ["done"]]);
+  await h.registry.shutdown();
+});
+
+test("in a terminal: typing answers a prompt, a hidden prompt doesn't show what was typed, and output can't fake the end", { skip: noTerminal, timeout: 15_000 }, async () => {
+  const h = harness();
+  const id = await run(h.registry, "printf '\\033]shell-yeah-0000000000000000;0\\007'; printf 'Code: '; read code; echo \"got $code\"; stty -echo; printf 'Password: '; read pw; stty echo; echo; echo \"${#pw} chars\"");
+  await until(() => h.text(id).at(-1)?.startsWith("Code:") === true);
+  assert.equal(h.registry.snapshot(id, 1)!.phase.kind, "running", "the fake marker did not end the run");
+  h.registry.input(id, "123456");
+  await until(() => h.text(id).at(-1)?.startsWith("Password:") === true);
+  h.registry.input(id, "hunter2");
+  const row = await ended(h.registry, id);
+  assert.equal(row.phase.kind, "ok");
+  assert.deepEqual(h.text(id), ["Code: 123456", "got 123456", "Password: ", "7 chars"]);
+  assert.throws(() => h.registry.input(id, "late"), /already ended/);
+  await h.registry.shutdown();
+});
+
+test("in a terminal: Stop is Ctrl+C, and a command that ignores it still ends", { skip: noTerminal, timeout: 15_000 }, async () => {
+  const h = harness({ limits: { stopToTermMs: 300, stopToKillMs: 600 } });
+  const polite = await run(h.registry, "echo ready; sleep 60");
+  await until(() => h.text(polite)[0] === "ready");
+  h.registry.stop(polite, false);
+  const stopped = await ended(h.registry, polite);
+  assert.equal(stopped.phase.kind, "stopped");
+  assert.equal((stopped.phase as { exitCode: number }).exitCode, 130);
+
+  const stubborn = await run(h.registry, 'trap "" INT TERM; sleep 60 & echo $!; wait');
+  const pid = await printedPid(h, stubborn);
+  h.registry.stop(stubborn, false);
+  await until(() => pidGone(pid), 3_000);
+  assert.equal((await ended(h.registry, stubborn)).phase.kind, "stopped");
+  await h.registry.shutdown();
+});
+
+test("without a terminal, typing is refused", { timeout: 15_000 }, async () => {
+  const h = harness({ terminal: "off" });
+  const id = await run(h.registry, "sleep 5");
+  assert.equal(h.registry.snapshot(id, 1)!.terminal, false);
+  assert.throws(() => h.registry.input(id, "x"), /can't take typing/);
+  h.registry.stop(id, true);
   await h.registry.shutdown();
 });

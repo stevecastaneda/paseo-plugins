@@ -2,7 +2,7 @@ import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin
 import { agentOf, attachItems, proposeFromReply, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
 import { createLogStore, defaultLogRoot } from "./server/logs.ts";
 import { createRunRegistry } from "./server/runs.ts";
-import { attachSearch, dismiss, fullOutput, scan, send, start, stop, tail } from "./shared/rpc.ts";
+import { attachSearch, dismiss, fullOutput, input, scan, send, start, stop, tail } from "./shared/rpc.ts";
 import { RUN_KIND, RUN_VERSION } from "./shared/row.ts";
 
 export default function contribute(server: PluginServerContext) {
@@ -26,6 +26,7 @@ export default function contribute(server: PluginServerContext) {
 
   server.handle(start, (input, ctx) => (bind(ctx), runs.start(input)));
   server.handle(stop, ({ runId, force }, ctx) => (bind(ctx), runs.stop(runId, force), { ok: true as const }));
+  server.handle(input, ({ runId, text }) => (runs.input(runId, text), { ok: true as const }));
   server.handle(tail, ({ runId, lines, since, waitMs }, ctx) => (bind(ctx), runs.tail(runId, lines, since, waitMs)));
   server.handle(fullOutput, ({ runId }) => runs.fullText(runId));
   server.handle(send, (input, ctx) => (bind(ctx), sendToClaude({ runs, logs, agent: agentOf(ctx.paseo), send: sendVia(ctx.paseo), sendCounts }, input)));
