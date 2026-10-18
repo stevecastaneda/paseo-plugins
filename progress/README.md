@@ -125,6 +125,11 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.3.0
+
+- The file preview has a **Copy** button beside the path. It copies the full path, so you can paste it into your message to the agent without closing the preview. Before, the path was cut off when it was long, and you had to close the preview and copy it from the list.
+- The path stays in view below a tall image or long file. Before, it scrolled with the file and you had to scroll to the bottom to see it.
+
 ### 1.2.0
 
 - A folder deliverable opens in Paseo as a list of its files. Press a file to preview it, or a folder inside to list that one; **Back** returns to the list. This works from a phone and when the worktree is on another computer. Before, Progress asked the computer running Paseo to open the folder. On a Linux server with no desktop, that failed with `spawn xdg-open ENOENT`.
