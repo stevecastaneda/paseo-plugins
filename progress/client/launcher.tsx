@@ -6,6 +6,7 @@ import { Text, View } from "react-native";
 import { PressScale, Presence } from "./motion";
 import { raised } from "./surfaces";
 import { getLauncherStatus, getSkillStatus, installLauncher, installSkill, type LauncherStatus, type SkillStatus } from "../shared/rpc";
+import { errorText } from "./errors";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -60,7 +61,7 @@ export function LauncherBanner({ colors, host }: { colors: Colors; host: PluginW
       queryClient.setQueryData(launcherQueryKey(host.id), next);
       toast.show(`Installed paseo-progress at ${next.path}`, { variant: "success" });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not install the command."),
+    onError: (error) => toast.error(errorText(error, "Could not install the command.")),
   });
   const notice = status.data ? launcherNotice(status.data) : null;
   return <SetupBanner colors={colors} icon="Terminal" notice={notice} pending={mutation.isPending} onPress={() => mutation.mutate()} />;
@@ -78,7 +79,7 @@ export function SkillBanner({ colors, host }: { colors: Colors; host: PluginWork
       queryClient.setQueryData(skillQueryKey(host.id), next);
       toast.show("Installed the paseo-progress skill. New agent sessions will use it.", { variant: "success" });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not install the skill."),
+    onError: (error) => toast.error(errorText(error, "Could not install the skill.")),
   });
   const notice = status.data ? skillNotice(status.data) : null;
   return <SetupBanner colors={colors} icon="Sparkles" notice={notice} pending={mutation.isPending} onPress={() => mutation.mutate()} />;

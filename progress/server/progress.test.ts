@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,7 @@ import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
-import { MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
+import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
@@ -1043,6 +1043,26 @@ test("a folder with more entries than the preview lists says it stopped", async 
   const listed = await previewDeliverable(w.directory, "D1");
   assert.equal(listed.kind === "folder" && listed.entries.length, MAX_FOLDER_ENTRIES);
   assert.equal(listed.kind === "folder" && listed.truncated, true);
+});
+
+// The bug: on a Linux server, opening a deliverable failed with "spawn xdg-open ENOENT".
+test("a Linux server with no desktop says it can't open files, and the preview hides Open", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  await writeFile(join(w.directory, "report.pdf"), "%PDF");
+  await w.run("deliverable", "add", "Report", "report.pdf");
+  const bin = await mkdtemp(join(tmpdir(), "progress-bin-"));
+  const empty = await mkdtemp(join(tmpdir(), "progress-empty-"));
+  t.after(() => Promise.all([bin, empty].map((path) => rm(path, { recursive: true, force: true }))));
+  const server = { PATH: empty };
+  await assert.rejects(openDeliverable(w.directory, "D1", hostOpener("linux", server)), { message: `Can't open files on ${hostname()}` });
+  assert.equal(canOpenFiles("linux", server), false, "no desktop and no xdg-open");
+  await writeFile(join(bin, "xdg-open"), "#!/bin/sh\n", { mode: 0o755 });
+  assert.equal(canOpenFiles("linux", { PATH: bin }), false, "xdg-open without a desktop session");
+  assert.equal(canOpenFiles("linux", { PATH: empty, DISPLAY: ":0" }), false, "a desktop session without xdg-open");
+  assert.equal(canOpenFiles("linux", { PATH: bin, WAYLAND_DISPLAY: "wayland-0" }), true);
+  assert.equal(canOpenFiles("darwin", {}), true);
+  assert.equal(canOpenFiles("win32", {}), true);
 });
 
 test("every screen gives an attachment the same icon, and SVGs preview only where a browser draws them", async (t) => {

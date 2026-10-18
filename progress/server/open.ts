@@ -1,8 +1,9 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { homedir, hostname } from "node:os";
+import { delimiter, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { findAttachment, type FolderEntry, imageMimeType, previewKind, videoMimeType } from "../shared/attachments.ts";
 import { readProgress } from "./progress-file.ts";
@@ -34,11 +35,23 @@ async function defaultBrowser(): Promise<string | null> {
   }
 }
 
-export const systemOpener: Opener = async (path) => {
-  const browser = process.platform === "darwin" ? await defaultBrowser() : null;
-  const [command, args] = openCommand(path, process.platform, browser);
-  await promisify(execFile)(command, args);
-};
+// Whether this computer can open a file in an app for someone at its screen.
+// A Mac or a Windows PC can. Linux needs a desktop session and xdg-open, which
+// a server reached over ssh doesn't have.
+export function canOpenFiles(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): boolean {
+  if (platform === "darwin" || platform === "win32") return true;
+  if (!env.DISPLAY && !env.WAYLAND_DISPLAY) return false;
+  return (env.PATH ?? "").split(delimiter).some((directory) => directory && existsSync(join(directory, "xdg-open")));
+}
+
+export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): Opener {
+  return async (path) => {
+    if (!canOpenFiles(platform, env)) throw new Error(`Can't open files on ${hostname()}`);
+    const browser = platform === "darwin" ? await defaultBrowser() : null;
+    const [command, args] = openCommand(path, platform, browser);
+    await promisify(execFile)(command, args);
+  };
+}
 
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. A file inside a recorded
@@ -169,5 +182,9 @@ export async function handleOpenDeliverable(
   input: { workspaceId: string; workspaceDirectory: string; ref: string },
   _context: PluginHandlerContext,
 ) {
-  return openDeliverable(input.workspaceDirectory, input.ref, systemOpener);
+  return openDeliverable(input.workspaceDirectory, input.ref, hostOpener(process.platform, process.env));
+}
+
+export async function handleCanOpenOnHost(_input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext) {
+  return { canOpen: canOpenFiles(process.platform, process.env) };
 }

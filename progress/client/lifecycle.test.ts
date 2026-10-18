@@ -258,6 +258,13 @@ test("local deliverable paths resolve against the workspace directory", () => {
   assert.equal(absolutePath("./", "/repo"), "/repo/");
 });
 
+test("a failed request shows the handler's own words, without Paseo's log wrapper", () => {
+  const { errorText } = clientHarness(directory).load("client/errors.ts");
+  assert.equal(errorText(new Error("Request failed: Can't open files on steve-dev requestType=plugin.rpc.invoke.request code=handler_error"), "Could not open it"), "Can't open files on steve-dev");
+  assert.equal(errorText(new Error("shots/a.png no longer exists."), "Could not open it"), "shots/a.png no longer exists.");
+  assert.equal(errorText("not an error", "Could not open it"), "Could not open it");
+});
+
 test("the install banner shows until the command is installed and reachable", () => {
   const h = clientHarness(directory, { "@getpaseo/plugin/client/react-native": {} });
   const { launcherNotice } = h.load("client/launcher.tsx");

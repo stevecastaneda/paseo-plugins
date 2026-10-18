@@ -10,6 +10,7 @@ import { type Attachment, isPreviewable, useAttachmentOpener } from "./attachmen
 import { StackedDialog } from "./dialog-stack";
 import { previewable } from "./preview";
 import { QuestionDetail, QuestionState, useCopy } from "./questions";
+import { errorText } from "./errors";
 import { raised } from "./surfaces";
 
 type Colors = PluginButtonContentProps["theme"]["colors"];
@@ -52,7 +53,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
         </List>
       ) : (
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          {query.error ? `Could not read progress: ${query.error.message}` : "Loading…"}
+          {query.error ? `Could not read progress: ${errorText(query.error, "something went wrong")}` : "Loading…"}
         </Text>
       )}
       <StackedDialog colors={colors} now={Date.now()} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory: root }}

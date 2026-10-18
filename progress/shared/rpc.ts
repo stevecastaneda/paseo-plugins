@@ -124,6 +124,16 @@ export const openDeliverable = defineRpc({
   output: z.object({ opened: z.string() }),
 });
 
+// Whether the daemon host can open files in its own apps, for the preview's Open button.
+export const canOpenOnHost = defineRpc({
+  name: "progress.host.can-open",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    workspaceDirectory: z.string().min(1),
+  }),
+  output: z.object({ canOpen: z.boolean() }),
+});
+
 // An image or text file's contents, or a folder's entries, for the preview dialog. A video comes back
 // as its type and size only; its bytes follow in pieces (readDeliverablePiece).
 export const previewDeliverable = defineRpc({

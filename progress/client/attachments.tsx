@@ -3,6 +3,7 @@ import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React from "react";
 import { Platform, Text, View } from "react-native";
 import { type Attachment, attachmentIcon, canPreview, shortName } from "../shared/attachments";
+import { errorText } from "./errors";
 import { PressableRow } from "./row";
 import { openDeliverable } from "../shared/rpc";
 
@@ -49,7 +50,7 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
       await openOnHostRpc({ workspaceId, workspaceDirectory, ref: attachment.ref });
       toast.show(`Opened ${attachment.title}`, { variant: "success" });
     } catch (error) {
-      await copyPath(attachment, `${error instanceof Error ? error.message : "Could not open it"}. `);
+      await copyPath(attachment, `${errorText(error, "Could not open it")}. `);
     }
   }
   async function open(attachment: Attachment) {

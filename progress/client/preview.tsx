@@ -1,11 +1,12 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, Image, Platform, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { type Attachment, AttachmentList, isPreviewable } from "./attachments";
+import { errorText } from "./errors";
 import { folderAttachments, isFolder, previewKind } from "../shared/attachments";
-import { previewDeliverable, readDeliverablePiece } from "../shared/rpc";
+import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
 import { PressScale } from "./motion";
 import { imageOutline, raised } from "./surfaces";
 import { loadVideo, VideoPlayer } from "./video";
@@ -44,7 +45,14 @@ type PreviewProps = {
 export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
   const fetchPreview = useRpc(previewDeliverable);
   const readPiece = useRpc(readDeliverablePiece);
+  const checkHost = useRpc(canOpenOnHost);
   const queryClient = useQueryClient();
+  // Open is left out where the computer running Paseo can't open files, like a Linux server.
+  const canOpen = useQuery({
+    queryKey: ["progress", "can-open", workspaceId],
+    queryFn: () => checkHost({ workspaceId, workspaceDirectory }),
+    staleTime: Infinity,
+  }).data?.canOpen === true;
   // How much of a video has arrived, for the line under the spinner.
   const loadingKey = (target: Attachment) => ["progress", "preview-loading", workspaceId, target.ref, target.path];
   const previewQuery = (target: Attachment) => ({
@@ -127,7 +135,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       ) : null}
       {preview.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
-          Could not preview it: {preview.error.message}
+          Could not preview it: {errorText(preview.error, "something went wrong")}
         </Text>
       ) : null}
       {preview.data?.kind === "text" ? (
@@ -137,7 +145,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           </Text>
           {preview.data.truncated ? (
             <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingTop: 8 }}>
-              Showing the first 256 KB. Press Open to see the rest in its default app.
+              Showing the first 256 KB.{canOpen ? " Press Open to see the rest in its default app." : ""}
             </Text>
           ) : null}
         </View>
@@ -168,7 +176,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       </View>
       {canStep ? <Stepper colors={colors} index={index} count={items.length} onStep={step} nextRef={nextButton} /> : null}
       <View style={{ flex: 1, alignItems: "flex-end" }}>
-        <DialogButton colors={colors} icon="ExternalLink" label="Open" accessibilityLabel="Open in its default app" onPress={onOpenOnHost} />
+        {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label="Open" accessibilityLabel="Open in its default app" onPress={onOpenOnHost} /> : null}
       </View>
     </View>
   );
