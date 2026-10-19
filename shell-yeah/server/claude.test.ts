@@ -62,7 +62,7 @@ test("commands are normalized: a leading $ or ! goes, duplicates collapse, over-
 });
 
 test("all-mode scanning, for the Run window, also takes unlabeled fences and inline code that start with a command", () => {
-  const known = new Set(["npm", "git", "gh", "cd", "sh"]);
+  const known = new Set(["npm", "git", "gh", "cd", "sh", "bash", "gcloud", "export"]);
   const startsCommand = (word: string) => known.has(word);
   const reply = [
     "Publish it with `npm publish --otp 123456`, then check `git status`.",
@@ -73,8 +73,16 @@ test("all-mode scanning, for the Run window, also takes unlabeled fences and inl
     fence("bash", "cd app && npm ci"),
     fence("sh run", "gh auth login --web"),
     "Again: `npm publish --otp 123456`.",
+    "With a token: `TOKEN=$(gcloud auth print-access-token) bash infra/deploy.sh --prod`.",
+    fence("", "TOKEN=$(gcloud auth print-access-token)\nbash infra/deploy.sh"),
+    fence("", "export NAME=\"two words\"\nmake release"),
+    fence("", "MODE=fast\nnpm run build"),
   ].join("\n");
-  assert.deepEqual(scanProposals(reply, "all", startsCommand), ["npm publish --otp 123456", "git status", "# Build first\nFOO=1 npm run build", "cd app && npm ci", "gh auth login --web"]);
+  assert.deepEqual(scanProposals(reply, "all", startsCommand), [
+    "npm publish --otp 123456", "git status", "# Build first\nFOO=1 npm run build", "cd app && npm ci", "gh auth login --web",
+    "TOKEN=$(gcloud auth print-access-token) bash infra/deploy.sh --prod", "TOKEN=$(gcloud auth print-access-token)\nbash infra/deploy.sh",
+    "export NAME=\"two words\"\nmake release",
+  ]);
   assert.deepEqual(scanProposals(reply, "any", startsCommand), ["cd app && npm ci", "gh auth login --web"], "other modes ignore prose");
   const many = Array.from({ length: 12 }, (_, i) => `\`npm run task${i}\``).join(" ");
   assert.equal(scanProposals(many, "all", startsCommand).length, 8, "capped at eight");

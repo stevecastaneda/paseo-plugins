@@ -41,3 +41,25 @@ export function shortCommand(command: string, max = 48): string {
   if (first.length > max) return `${first.slice(0, max - 1).trimEnd()}…`;
   return rest.length > 0 ? `${first} …` : first;
 }
+
+// Rows a box `columns` characters wide shows for this text, wrapping at spaces like a text
+// box does and breaking a word wider than the box. Exact for a monospace font.
+export function wrappedLines(text: string, columns: number): number {
+  let rows = 0;
+  for (const line of text.split("\n")) {
+    rows++;
+    let used = 0;
+    for (const word of line.split(" ")) {
+      const need = used === 0 ? word.length : used + 1 + word.length;
+      if (need <= columns) {
+        used = need;
+        continue;
+      }
+      if (used > 0) rows++;
+      const extra = Math.max(0, Math.ceil(word.length / columns) - 1);
+      rows += extra;
+      used = word.length - extra * columns;
+    }
+  }
+  return rows;
+}

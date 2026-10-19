@@ -115,14 +115,30 @@ export function scanProposals(text: string, mode: ScanMode, startsCommand: (word
   return found.slice(0, mode === "all" ? LIMITS.suggestionsPerReply : LIMITS.proposalsPerReply);
 }
 
-// Its first line, past any title comment and `NAME=value` settings, starts with a command.
+// Its first command, past title comments and `NAME=value` settings, starts with a program.
 // Inline code needs a second word too, so `git` named in a sentence isn't offered.
 function looksLikeCommand(command: string, startsCommand: (word: string) => boolean, inline: boolean): boolean {
-  const line = command.split("\n").find((l) => l.trim() !== "" && !l.trimStart().startsWith("#")) ?? "";
-  const words = line.trim().split(/\s+/);
-  if (inline && words.length < 2) return false;
-  const word = words.find((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
+  if (inline && command.trim().split(/\s+/).length < 2) return false;
+  const word = firstProgram(command);
   return word !== undefined && startsCommand(word);
+}
+
+// Settings before a command: `A=1`, `B="two words"`, `C=$(gcloud auth print-access-token)`.
+const SETTINGS = /^(?:[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|\$\([^)]*\)|`[^`]*`|\S*)\s*)+/;
+
+// The program a script runs first. A line that only sets a variable runs what its
+// `$(...)` runs, or nothing, and then the next line counts.
+function firstProgram(command: string): string | undefined {
+  for (const raw of command.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const settings = SETTINGS.exec(line)?.[0] ?? "";
+    const rest = line.slice(settings.length).trim();
+    if (rest) return rest.split(/\s+/)[0];
+    const inner = /\$\(\s*([^\s)]+)/.exec(settings);
+    if (inner) return inner[1];
+  }
+  return undefined;
 }
 
 // A console block keeps only its `$ `-prompted lines. Any other shell block loses its

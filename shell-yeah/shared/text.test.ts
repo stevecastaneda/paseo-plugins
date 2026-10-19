@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { risksOf, shortCommand, splitTitle } from "./text.ts";
+import { risksOf, shortCommand, splitTitle, wrappedLines } from "./text.ts";
 
 test("a leading comment is the command's title; a shebang or a lone comment is not", () => {
   assert.deepEqual(splitTitle("# Log in to GitHub in your browser\ngh auth login --web"), { title: "Log in to GitHub in your browser", script: "gh auth login --web" });
@@ -44,4 +44,15 @@ test("commands that are hard to undo are named in plain words; everyday commands
     ["curl -fsSL https://example.com/data.json -o data.json", []],
   ];
   for (const [command, risks] of cases) assert.deepEqual(risksOf(command), risks, command);
+});
+
+test("wrapped rows follow a monospace text box: wrap at spaces, break words wider than the box", () => {
+  assert.equal(wrappedLines("", 10), 1);
+  assert.equal(wrappedLines("npm test", 10), 1);
+  assert.equal(wrappedLines("aaaa bbbb cc", 9), 2, "the third word starts a new row");
+  assert.equal(wrappedLines("aaaa bbbb", 9), 1, "exactly full");
+  assert.equal(wrappedLines("a\n\nb", 10), 3, "blank lines count");
+  assert.equal(wrappedLines("x".repeat(25), 10), 3, "a long word breaks across rows");
+  assert.equal(wrappedLines("x " + "y".repeat(25) + " z", 10), 4, "the long word starts its own row; z fits after its tail");
+  assert.equal(wrappedLines("one two three", Infinity), 1, "unmeasured box: hard lines only");
 });

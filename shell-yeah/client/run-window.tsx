@@ -4,10 +4,17 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View, type TextInput as NativeTextInput } from "react-native";
 import { LIMITS } from "../shared/limits.ts";
 import { start, suggest } from "../shared/rpc.ts";
-import { basename, errorMessage, risksOf, shortCommand, splitTitle } from "../shared/text.ts";
+import { basename, errorMessage, risksOf, shortCommand, splitTitle, wrappedLines } from "../shared/text.ts";
 import { capitalize } from "../shared/view.ts";
 import { isLight, makePalette, withAlpha, type ThemeColors } from "./palette.ts";
 import { Button, Spinner, codeSurface, mono } from "./ui.tsx";
+
+// Paseo caps a pop-up at 420 px and pads it by 12 on each side; on a desktop the window
+// takes all of it, so a long command has room. The box grows to 10 rows, then scrolls.
+const WINDOW_CONTENT_WIDTH = 396;
+const MAX_BOX_ROWS = 10;
+// A monospace character's width, as a share of the font size (SF Mono, Menlo).
+const MONO_ADVANCE = 0.602;
 
 type Listing = { kind: "loading" } | { kind: "ready"; commands: string[] } | { kind: "failed"; message: string };
 
@@ -29,6 +36,7 @@ function AgentRunWindow({ agentId, colors, compact, close }: { agentId: string; 
   const [running, setRunning] = useState<string | null>(null);
   const [listing, setListing] = useState<Listing>({ kind: "loading" });
   const box = useRef<NativeTextInput>(null);
+  const [boxWidth, setBoxWidth] = useState(0);
 
   // Paseo places a pop-up in a second pass and moves it, which drops focus, so the box takes
   // focus again while the window opens. On a phone the window is a sheet, and the keyboard
@@ -66,15 +74,17 @@ function AgentRunWindow({ agentId, colors, compact, close }: { agentId: string; 
     }
   }
 
-  const lines = Math.min(6, Math.max(1, text.split("\n").length));
   // 16 px on phones: iOS Safari zooms the page into a smaller box when it's tapped.
   const type = compact ? { fontSize: 16, lineHeight: 22 } : { fontSize: 12, lineHeight: 18 };
+  const columns = boxWidth > 0 ? Math.max(10, Math.floor(boxWidth / (type.fontSize * MONO_ADVANCE))) : Infinity;
+  const lines = Math.min(MAX_BOX_ROWS, wrappedLines(text, columns));
   return (
-    <View style={{ gap: 16 }}>
+    <View style={{ gap: 16, width: compact ? undefined : WINDOW_CONTENT_WIDTH }}>
       <View style={{ gap: 8 }}>
         <View style={{ borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6), paddingHorizontal: 10, paddingVertical: compact ? 8 : 7 }} {...codeSurface()}>
           <TextInput
             ref={box}
+            onLayout={(event) => setBoxWidth(event.nativeEvent.layout.width)}
             value={text}
             onChangeText={setText}
             onFocus={() => setFocused(true)}
@@ -160,11 +170,12 @@ function Suggestion({ command, colors, compact, busy, disabled, onRun, onEdit }:
         onPressOut={() => setPressed(false)}
         style={{ flex: 1, minWidth: 0, gap: 2, paddingVertical: compact ? 4 : 0 }}>
         {title ? <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{title}</Text> : null}
-        {/* A tag sits on the command's line and drops below it only when the command is too long. */}
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 }}>
-          <Text numberOfLines={title ? 1 : 2} style={{ flexShrink: 1, color: title ? colors.foregroundMuted : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>{script}</Text>
-          {risks.map((risk) => <RiskTag key={risk} risk={risk} colors={colors} />)}
-        </View>
+        <Text numberOfLines={title ? 1 : 2} style={{ color: title ? colors.foregroundMuted : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>{script}</Text>
+        {risks.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, paddingTop: 2 }}>
+            {risks.map((risk) => <RiskTag key={risk} risk={risk} colors={colors} />)}
+          </View>
+        ) : null}
       </Pressable>
       <Button icon="Pencil" label="Edit" tone="ghost" onPress={onEdit} disabled={disabled} compact={compact} iconOnly colors={colors} accessibilityLabel={`Edit ${shortCommand(command)} before running`} />
       <Button icon="Play" label="Run" tone="ghost" onPress={onRun} busy={busy} disabled={disabled && !busy} compact={compact} iconOnly colors={colors} accessibilityLabel={`Run ${shortCommand(command)}`} />
