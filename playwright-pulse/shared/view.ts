@@ -247,6 +247,34 @@ export function slowest(run: RunSnapshot, limit = 5): PulseTest[] {
     .slice(0, limit);
 }
 
+// A prompt for an agent working in the worktree: find out why these tests are
+// slow and what would speed them up. Paths stay relative to the worktree.
+export function slowestPrompt(run: RunSnapshot, tests: PulseTest[]): string {
+  const one = tests.length === 1;
+  const which = isLive(run) ? "so far in the run" : "in the last run";
+  const intro = `Find out why ${one ? "this Playwright test is" : "these Playwright tests are"} slow, and how to make ${one ? "it" : "them"} faster without making ${one ? "it" : "them"} flaky. ${one ? "It's" : "They're"} the slowest ${which} of \`${commandLine(run.args)}\` in this worktree.`;
+  const items = tests.map((test, index) => {
+    const notes = [
+      test.timeout ? `took ${formatDuration(test.duration ?? 0)} of a ${formatDuration(test.timeout)} timeout` : `took ${formatDuration(test.duration ?? 0)}`,
+      run.projects.length > 1 && test.project ? `project ${test.project}` : null,
+      promptNote(test),
+    ].filter(Boolean);
+    return `${index + 1}. ${[...test.titlePath, test.title].join(" › ")}\n   ${test.file}:${test.line} · ${notes.join(", ")}`;
+  });
+  const ask = `For ${one ? "it" : "each one"}, read the test and the helpers it calls. Then run it on its own with \`--trace on\` and check each step's time in the trace. Look for fixed waits, setup that could go through the API or be shared, and waits on things the test doesn't check. Report where the time goes and what you'd change.`;
+  return [intro, ...items, ask].join("\n\n");
+}
+
+function promptNote(test: PulseTest): string | null {
+  if (test.status === "timedOut") return "timed out";
+  switch (verdict(test)) {
+    case "failed": return "failed";
+    case "flaky": return `flaky, passed on retry ${test.retry}`;
+    case "stopped": return "stopped before it finished";
+    default: return null;
+  }
+}
+
 // About how long a live run has left, from its pace so far, or null until
 // enough tests have finished to tell.
 export function timeLeft(run: RunSnapshot, nowMs: number, minDone = 5): number | null {

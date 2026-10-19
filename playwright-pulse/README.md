@@ -18,7 +18,7 @@ A live dashboard in Paseo for the Playwright test run in a worktree. You see the
 - **Failures:** pinned above the running tests and the rest, with the error, the failing step, the code around it, and buttons to preview the screenshot, open the video, open the trace in Playwright's trace viewer, or copy the error.
 - **Time left:** an estimate from the run's pace so far, once a few tests have finished.
 - **Folders and Slowest tabs:** one card, two tabs (the same tabs as Progress's history card).
-  - **Slowest:** the five longest so far, each against its timeout, amber past three quarters of it.
+  - **Slowest:** the five longest so far, each against its timeout, amber past three quarters of it. Each test has a copy button for its file and line. **Copy a prompt to speed these up** puts a prompt on the clipboard that asks an agent where each test spends its time and what would make it faster.
   - **Folders:** the suite by folder, or **Files** when the specs share one folder, in run order, with how far each has got and what failed, was flaky or was skipped. Folders that haven't started show too. Press one for its tests.
 
 Open it from Explorer, or with **Open Playwright Pulse** in the Command Center.
@@ -77,6 +77,10 @@ Set `PLAYWRIGHT_PULSE=0` to turn the reporter off for one run.
 Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tested with Playwright 1.63.
 
 ## Changelog
+
+### 1.2.0
+
+- The Slowest tab has copy buttons, so you can hand its tests to an agent without retyping them. The button beside a test copies its file and line, like `e2e/videos/record-video.spec.ts:44`. **Copy a prompt to speed these up**, below the list, copies a prompt for an agent. It lists each test with its time and timeout, and asks where the time goes and what would make it faster.
 
 ### 1.1.1
 
