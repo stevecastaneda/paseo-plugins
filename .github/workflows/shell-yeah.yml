@@ -1,0 +1,28 @@
+name: Shell Yeah
+
+on:
+  push:
+    paths: ["shell-yeah/**", ".github/workflows/shell-yeah.yml"]
+  pull_request:
+    paths: ["shell-yeah/**", ".github/workflows/shell-yeah.yml"]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: shell-yeah
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
+      # A per-test timeout, so a hung test fails with its name instead of stalling the job.
+      - run: node --test --test-timeout=120000 "*/*.test.ts" "*.test.ts"

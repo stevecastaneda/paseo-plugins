@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import contribute from "../index.server.ts";
 import { createLogStore, defaultLogRoot } from "./logs.ts";
+import { commandFinder } from "./shells.ts";
 import { PLUGIN_ID, type RunRow } from "../shared/row.ts";
 import {
   HANDOFF_PROMPT, MAYBE_SENT, PERMISSION_PENDING, RUN_GONE, attachItems, commandsAlreadyShown, formatReport, latestAssistantText,
@@ -59,6 +61,62 @@ test("commands are normalized: a leading $ or ! goes, duplicates collapse, over-
   assert.deepEqual(scanProposals("`! deploy --prod`", "marked"), ["deploy --prod"]);
 });
 
+test("all-mode scanning, for the Run window, also takes unlabeled fences and inline code that start with a command", () => {
+  const known = new Set(["npm", "git", "gh", "cd", "sh", "bash", "gcloud", "export"]);
+  const startsCommand = (word: string) => known.has(word);
+  const reply = [
+    "Publish it with `npm publish --otp 123456`, then check `git status`.",
+    "Named in passing: `git`, `package.json`, `src/index.ts`, `lorem ipsum`, and the `sh run` label.",
+    fence("", "# Build first\nFOO=1 npm run build"),
+    fence("", "Error: something broke"),
+    fence("python", "print(1)"),
+    fence("bash", "cd app && npm ci"),
+    fence("sh run", "gh auth login --web"),
+    "Again: `npm publish --otp 123456`.",
+    "With a token: `TOKEN=$(gcloud auth print-access-token) bash infra/deploy.sh --prod`.",
+    fence("", "TOKEN=$(gcloud auth print-access-token)\nbash infra/deploy.sh"),
+    fence("", "export NAME=\"two words\"\nmake release"),
+    fence("", "MODE=fast\nnpm run build"),
+  ].join("\n");
+  assert.deepEqual(scanProposals(reply, "all", startsCommand), [
+    "npm publish --otp 123456", "git status", "# Build first\nFOO=1 npm run build", "cd app && npm ci", "gh auth login --web",
+    "TOKEN=$(gcloud auth print-access-token) bash infra/deploy.sh --prod", "TOKEN=$(gcloud auth print-access-token)\nbash infra/deploy.sh",
+    "export NAME=\"two words\"\nmake release",
+  ]);
+  assert.deepEqual(scanProposals(reply, "any", startsCommand), ["cd app && npm ci", "gh auth login --web"], "other modes ignore prose");
+  const many = Array.from({ length: 12 }, (_, i) => `\`npm run task${i}\``).join(" ");
+  assert.equal(scanProposals(many, "all", startsCommand).length, 8, "capped at eight");
+});
+
+// File modes and slash-style paths are how macOS and Linux find programs; Windows has neither.
+const posixTest = process.platform === "win32" ? test.skip : test;
+
+posixTest("a word starts a command when it's a builtin, a program on the PATH, or a path to a program from the run's folder", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shell-yeah-path-"));
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  mkdirSync(join(dir, "scripts"));
+  writeFileSync(join(bin, "fakecmd"), "#!/bin/sh\n", { mode: 0o755 });
+  writeFileSync(join(bin, "notes"), "plain file", { mode: 0o644 });
+  writeFileSync(join(dir, "scripts", "go.sh"), "#!/bin/sh\n", { mode: 0o755 });
+  const starts = commandFinder({ PATH: bin }, dir, "darwin");
+  assert.deepEqual(["fakecmd", "notes", "cd", "export", "./scripts/go.sh", "scripts/go.sh", "./scripts/none.sh", "missing"].map(starts), [true, false, true, true, true, true, false, false]);
+});
+
+test("on Windows, cmdlets count, and programs are found through PATHEXT", () => {
+  const cmdlets = commandFinder({ PATH: "" }, tmpdir(), "win32");
+  assert.deepEqual(["Get-ChildItem", "Remove-Item", "dir", "get-childitem", "Readme"].map(cmdlets), [true, true, true, false, false]);
+  if (process.platform !== "win32") return;
+  const dir = mkdtempSync(join(tmpdir(), "shell-yeah-path-"));
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  mkdirSync(join(dir, "scripts"));
+  writeFileSync(join(bin, "fakecmd.cmd"), "@echo off\r\n");
+  writeFileSync(join(dir, "scripts", "go.ps1"), "");
+  const starts = commandFinder({ PATH: bin, PATHEXT: ".COM;.EXE;.BAT;.CMD" }, dir, "win32");
+  assert.deepEqual(["fakecmd", "fakecmd.cmd", ".\\scripts\\go.ps1", "scripts/go.ps1", "missing"].map(starts), [true, true, true, true, false]);
+});
+
 test("the handoff block is added once, after what is already there, and teaches `sh run`", () => {
   assert.equal(withHandoffPrompt(undefined), HANDOFF_PROMPT);
   assert.equal(withHandoffPrompt(""), HANDOFF_PROMPT);
@@ -68,6 +126,7 @@ test("the handoff block is added once, after what is already there, and teaches 
   assert.match(HANDOFF_PROMPT, /```sh run\n/);
   assert.match(HANDOFF_PROMPT, /starts with "! " or "\/sh "/);
   assert.match(HANDOFF_PROMPT, /<bash-input>/);
+  assert.match(HANDOFF_PROMPT, /Never leave one only in a sentence or in inline code/);
 });
 
 test("the latest reply is the assistant text since the last user message, chunks joined, tool calls in between tolerated", () => {
@@ -262,7 +321,7 @@ test("attach items: running first, filtered by command or folder, each with the 
   assert.equal(all[1].subtitle, "just now · app");
   assert.equal(all[2].subtitle, "2 min ago · app");
   assert.equal(all[0].resourceType, "command-output");
-  assert.equal(new URL(all[0].url).pathname, "/w/web");
+  assert.equal(all[0].url, pathToFileURL("/w/web").href);
   assert.equal(all[1].text, formatReport(rows[2], now).text);
   assert.deepEqual((await attachItems(deps, "APP", now)).map((i) => i.id), ["r-new:3", "r-old:3"]);
   assert.deepEqual((await attachItems(deps, "yarn", now)).map((i) => i.id), ["r-live:3"]);
@@ -280,7 +339,7 @@ test("a long run in the attach menu saves its full log once per revision, from e
   const [first] = await attachItems(deps, "");
   await attachItems(deps, "npm");
   assert.equal(saves, 1, "typing in the menu doesn't rewrite the log");
-  assert.match(first.text, /Full log: .*\/a\/npm-test-r-long\.log\n/);
+  assert.match(first.text, /Full log: .*[\\/]a[\\/]npm-test-r-long\.log\n/);
   current = { ...current, rev: 4 };
   await attachItems(deps, "");
   assert.equal(saves, 2, "new output saves it again");
@@ -358,6 +417,22 @@ test("/sh alone rescans the latest reply in any mode, and says so when there is 
   s.setPage([{ type: "user_message", text: "hi" }, { type: "assistant_message", text: fence("bash", "npm ci") }, shown]);
   await assert.rejects(scan({ agentId: "a" }, s.ctx) as Promise<unknown>, /already in the chat/);
   assert.equal(s.appended.length, 1);
+  await s.cleanup();
+});
+
+test("the Run window lists every command in the latest reply, prose included, and nothing from earlier replies", async () => {
+  const s = fakeServer();
+  const suggest = s.handlers.get("shell-yeah.suggest")!;
+  s.setPage([
+    { type: "assistant_message", text: "Earlier: `echo old`" },
+    { type: "user_message", text: "how do I publish?" },
+    { type: "assistant_message", text: "Run `echo hi there` in `src/index.ts`, then:" },
+    { type: "assistant_message", text: "\n" + fence("bash", "echo done") },
+  ]);
+  assert.deepEqual(await suggest({ agentId: "a" }, s.ctx), { commands: ["echo hi there", "echo done"] });
+  s.setPage([{ type: "user_message", text: "hi" }]);
+  assert.deepEqual(await suggest({ agentId: "a" }, s.ctx), { commands: [] });
+  assert.equal(s.appended.length, 0, "listing shows no cards");
   await s.cleanup();
 });
 

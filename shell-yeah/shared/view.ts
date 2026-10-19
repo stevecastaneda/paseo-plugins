@@ -8,8 +8,8 @@ export type ActionId = "run" | "dismiss" | "stop" | "force-stop" | "copy" | "rer
 export type NoteIcon = "eye-off" | "eye" | "scissors" | "clock" | "info" | "folder";
 
 // A row after merging its data with the freshest live reply (see client/live.ts).
-export type ResolvedRun = Pick<RunRow, "runId" | "origin" | "command" | "cwd"> &
-  Pick<LiveView, "rev" | "phase" | "output" | "sentAt"> & {
+export type ResolvedRun = Pick<RunRow, "runId" | "origin" | "command" | "cwd"> & { terminal: boolean } &
+  Pick<LiveView, "rev" | "phase" | "output" | "sentAt" | "cursor"> & {
     // Client time when a poll said the daemon never saw this run while the row still claimed running.
     lostAt: number | null;
     lastOutputAt: number | null;
@@ -55,12 +55,15 @@ export interface Presentation {
   notes: Array<{ icon: NoteIcon; text: string }>;
   // At most one, below the notes.
   hint: string | null;
+  // Show the box for typing into the command's terminal.
+  keyboard: boolean;
   well: Well | null;
 }
 
 const INPUT_PATTERNS = /password.*:\s*$|passphrase|not a tty|terminal is required|Inappropriate ioctl|input device is not a TTY/im;
 const NO_SHELL_FILES_HINT = "/sh runs your shell without its startup files, so aliases aren't loaded.";
-const NO_KEYBOARD_HINT = "This command wants input, and /sh has no keyboard. Run it in a terminal tab.";
+const NO_KEYBOARD_HINT = "This command wants input, and /sh has no keyboard here. Run it in a terminal tab.";
+const TYPE_HINT = "This command may be waiting for you. Click the output and type your answer.";
 
 // Paseo's built-in provider labels (protocol/src/provider-manifest.ts); anything else is "the agent".
 const AGENT_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex", copilot: "Copilot", opencode: "OpenCode", pi: "Pi", omp: "Oh My Pi" };
@@ -89,12 +92,12 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
     return {
       layout: "proposed", title, script, warning: warningFor(risksOf(script)), tone: "muted", badge: "play", label: `Suggested by ${agent}`, elapsed: null, timerFrom: null,
       actions: [action("run", "Run", true), action("copy", "Copy"), action("dismiss", "Dismiss")],
-      foldable: false, boxLines, hint: null, well: null,
+      foldable: false, boxLines, hint: null, well: null, keyboard: false,
       notes: [{ icon: "eye-off", text: `${capitalize(agent)} sees the output only if you send it` }, { icon: "folder", text: basename(run.cwd) }],
     };
   }
   if (phase.kind === "dismissed") {
-    return { layout: "dismissed", ...shown, tone: "muted", badge: "x", label: "Dismissed", elapsed: null, timerFrom: null, actions: [], foldable: false, boxLines, notes: [], hint: null, well: null };
+    return { layout: "dismissed", ...shown, tone: "muted", badge: "x", label: "Dismissed", elapsed: null, timerFrom: null, actions: [], foldable: false, boxLines, notes: [], hint: null, well: null, keyboard: false };
   }
   if (phase.kind === "running") {
     const stopping = phase.stopRequestedAt !== null;
@@ -112,8 +115,9 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
       foldable,
       boxLines,
       notes: [{ icon: "clock", text: total === 0 ? "No output yet" : `${formatCount(total)} ${total === 1 ? "line" : "lines"}${quiet}` }],
-      hint: wantsInput ? NO_KEYBOARD_HINT : null,
+      hint: wantsInput ? (run.terminal ? TYPE_HINT : NO_KEYBOARD_HINT) : null,
       well: total === 0 ? null : { kind: "output", skipped },
+      keyboard: run.terminal && !stopping,
     };
   }
 
@@ -127,9 +131,9 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
   ];
   if (skipped > 0) notes.push({ icon: "scissors", text: `Last ${formatCount(lines.length)} of ${formatCount(total)} lines` });
   const notFound = (phase.kind === "failed" && phase.exitCode === 127) || /command not found/i.test(outputText);
-  const hint = notFound ? NO_SHELL_FILES_HINT : INPUT_PATTERNS.test(outputText) ? NO_KEYBOARD_HINT : null;
+  const hint = notFound ? NO_SHELL_FILES_HINT : !run.terminal && INPUT_PATTERNS.test(outputText) ? NO_KEYBOARD_HINT : null;
 
-  const base = { layout: "card" as const, ...shown, elapsed, timerFrom: null, actions, foldable, boxLines, notes, hint };
+  const base = { layout: "card" as const, ...shown, elapsed, timerFrom: null, actions, foldable, boxLines, notes, hint, keyboard: false };
   const well: Well | null = phase.kind === "failed" && phase.message !== null
     ? { kind: "message", text: phase.message }
     : total === 0 ? { kind: "empty", text: "No output" } : { kind: "output", skipped };

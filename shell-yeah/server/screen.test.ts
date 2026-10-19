@@ -86,7 +86,7 @@ test("a huge line is clamped once with a marker; the line budget keeps the newes
 test("the trailing empty line is not a line; a note is its own dim line", () => {
   const screen = createScreen();
   screen.write("a\nb");
-  assert.deepEqual(screen.tail(5), { lines: ["a", "b"], total: 2 });
+  assert.deepEqual(screen.tail(5), { lines: ["a", "b"], total: 2, cursor: { up: 0, col: 1 } });
   screen.note("[binary output hidden]");
   assert.deepEqual(screen.tail(5).lines, ["a", "b", [["[binary output hidden]", "2"]]]);
   screen.write("c\n");
@@ -111,4 +111,17 @@ test("binary output is detected by NUL bytes or a flood of control bytes, never 
   assert.equal(looksBinary("\x01\x02\x03\x04abc"), true);
   assert.equal(looksBinary(`${ESC}[31mred${ESC}[0m\r\n\tok\x07`), false);
   assert.equal(looksBinary(""), false);
+});
+
+test("tail says where the cursor is, counted from the last line", () => {
+  const screen = createScreen();
+  screen.write("one\ntwo\nPassword: ");
+  assert.deepEqual(screen.tail(10).cursor, { up: 0, col: 10 });
+  screen.write("\n");
+  assert.deepEqual(screen.tail(10).cursor, { up: -1, col: 0 });
+  screen.write("\x1b[2A\x1b[2G");
+  const { lines, cursor } = screen.tail(10);
+  assert.equal(lines[lines.length - 1 - cursor!.up], "two");
+  assert.equal(cursor!.col, 1);
+  assert.equal(screen.tail(1).cursor, null, "above the lines sent");
 });

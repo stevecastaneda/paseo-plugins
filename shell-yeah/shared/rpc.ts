@@ -29,6 +29,15 @@ export const stop = defineRpc({
   output: z.object({ ok: z.literal(true) }),
 });
 
+// Sends keys to a running command's terminal as they're pressed, the way a terminal does:
+// "\r" is Enter. The terminal decides what shows, so a password prompt shows nothing.
+// Fails when the command has no terminal.
+export const input = defineRpc({
+  name: "shell-yeah.input",
+  input: z.object({ runId, keys: z.string().min(1).max(LIMITS.inputChars) }),
+  output: z.object({ ok: z.literal(true) }),
+});
+
 // The live channel, a coalescing long poll. Answers at once if `since` is not the
 // current rev; otherwise holds up to `waitMs` for a change, then a little longer
 // so a burst batches into one reply. "unknown" = this daemon process never saw
@@ -85,6 +94,13 @@ export const scan = defineRpc({
   name: "shell-yeah.scan",
   input: z.object({ agentId }),
   output: z.object({ found: z.number().int().nonnegative() }),
+});
+
+// The Run window's list: every command in the agent's latest reply, prose included.
+export const suggest = defineRpc({
+  name: "shell-yeah.suggest",
+  input: z.object({ agentId }),
+  output: z.object({ commands: z.array(z.string()) }),
 });
 
 // Dismiss a proposal card. The card's data is enough; the server holds no proposal state.

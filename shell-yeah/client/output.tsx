@@ -2,12 +2,12 @@ import { openExternalUrl } from "@getpaseo/plugin/client";
 import { ScrollView } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView as NativeScrollView } from "react-native";
-import type { Line, Segment } from "../shared/row.ts";
+import { lineText, type Cursor, type Line, type Segment } from "../shared/row.ts";
 import { LIMITS } from "../shared/limits.ts";
-import { formatCount, trimBlankEnds } from "../shared/view.ts";
+import { formatCount } from "../shared/view.ts";
 import type { Palette, ThemeColors } from "./palette.ts";
 import { withAlpha } from "./palette.ts";
-import { Button, mono, nativeDriver } from "./ui.tsx";
+import { Button, codeSurface, mono, nativeDriver } from "./ui.tsx";
 
 export const LINE_HEIGHT = 18;
 const WELL_PADDING_V = 8;
@@ -15,8 +15,9 @@ const URL = /https?:\/\/[^\s<>"')\]]+/g;
 
 // The output well: one selectable Text so copy and selection work across lines, spans
 // colored by the palette, in a box that scrolls back through everything the card holds
-// and follows the newest line. https links open outside.
-export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, rows, compact, running, following, onFollowingChange, commandLines, reduced }: {
+// and follows the newest line. https links open outside. While the user types into the
+// command, it shows the terminal's cursor, and a click on the text starts typing.
+export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, rows, compact, running, following, onFollowingChange, commandLines, reduced, cursor, onPress }: {
   lines: readonly Line[];
   skipped: number;
   palette: Palette;
@@ -29,6 +30,9 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   onFollowingChange(v: boolean): void;
   commandLines: string[];
   reduced: boolean;
+  // Shown while typing goes to the command; null otherwise.
+  cursor: Cursor | null;
+  onPress?(): void;
 }) {
   const screen = useWindowDimensions();
   // While the user reads above the newest line of a running command, hold what they're
@@ -39,7 +43,7 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   else held.current ??= { lines: liveLines, skipped: liveSkipped };
   const { lines, skipped } = held.current ?? { lines: liveLines, skipped: liveSkipped };
   const total = skipped + lines.length;
-  const shown = trimBlankEnds(lines, skipped === 0);
+  const { shown, cursorRow } = linesToDraw(lines, skipped === 0, cursor && !held.current ? lines.length - 1 - cursor.up : null);
   const seen = useRef(total);
   const fade = useRef(new Animated.Value(1)).current;
   const freshFrom = running && total > seen.current ? Math.max(0, shown.length - (total - seen.current)) : shown.length;
@@ -52,15 +56,16 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   }, [total]);
 
   const body = (
-    <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }}>
+    <Text selectable onPress={onPress ? () => noSelection() && onPress() : undefined} style={[{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }, onPress ? ({ cursor: "text" } as object) : null]}>
       {tall && commandLines.length > 1 ? <Text style={{ color: colors.foregroundMuted }}>{commandLines.map((l) => `$ ${l}`).join("\n")}{"\n"}</Text> : null}
       {skipped > 0 ? <Text style={{ color: colors.foregroundMuted }}>{`… ${formatCount(skipped)} earlier ${skipped === 1 ? "line" : "lines"}\n`}</Text> : null}
-      {shown.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === shown.length - 1} />)}
+      {shown.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === shown.length - 1} cursorCol={i === cursorRow ? cursor!.col : null} />)}
       {freshFrom < shown.length ? (
         <Animated.Text style={{ opacity: fade }}>
-          {shown.slice(freshFrom).map((line, i) => <LineSpans key={freshFrom + i} line={line} palette={palette} last={freshFrom + i === shown.length - 1} />)}
+          {shown.slice(freshFrom).map((line, i) => <LineSpans key={freshFrom + i} line={line} palette={palette} last={freshFrom + i === shown.length - 1} cursorCol={freshFrom + i === cursorRow ? cursor!.col : null} />)}
         </Animated.Text>
       ) : null}
+      {cursorRow === shown.length ? <>{shown.length > 0 ? "\n" : null}{" ".repeat(cursor!.col)}<CursorCell char=" " palette={palette} /></> : null}
     </Text>
   );
 
@@ -72,22 +77,23 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
     borderColor: withAlpha(colors.border, 0.6),
     overflow: "hidden" as const,
   };
-  const pmono = Platform.OS === "web" ? ({ dataSet: { pmono: "" } } as object) : {};
 
   // Vertical padding sits outside the scroller, so a box scrolled to the end never slices its
   // last line; half a row at the top shows there is more above.
   return (
-    <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...pmono}>
-      <TailScroll maxHeight={(boxRows(tall ? LIMITS.tallBoxLines : rows, compact, screen.height) + 0.5) * LINE_HEIGHT} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
+    <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...codeSurface()}>
+      <TailScroll maxHeight={(boxRows(rows, tall, compact, screen.height) + 0.5) * LINE_HEIGHT} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
         <View style={{ paddingHorizontal: 10 }}>{body}</View>
       </TailScroll>
     </View>
   );
 }
 
-// On a phone a box never takes more than 40% of the screen, so a drag can still reach the chat.
-function boxRows(rows: number, compact: boolean, windowHeight: number): number {
-  return compact ? Math.max(4, Math.min(rows, Math.floor((0.4 * windowHeight) / LINE_HEIGHT))) : rows;
+// Made taller, the box takes up to 60% of the window, which leaves the card's header and buttons
+// in view. On a phone a box never takes more than 40%, so a drag can still reach the chat.
+function boxRows(rows: number, tall: boolean, compact: boolean, windowHeight: number): number {
+  if (compact) return Math.max(4, Math.min(tall ? LIMITS.tallBoxLines : rows, Math.floor((0.4 * windowHeight) / LINE_HEIGHT)));
+  return tall ? Math.max(LIMITS.tallBoxLines, Math.floor((0.6 * windowHeight) / LINE_HEIGHT)) : rows;
 }
 
 // Three bands of the well color over the half row at a cut edge, without gradient support.
@@ -112,7 +118,6 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
   fadeColor: string;
 }) {
   const ref = useRef<NativeScrollView>(null);
-  const [away, setAway] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   // The last known geometry. `content` is the height before the newest output landed.
   const metrics = useRef({ offset: 0, viewport: 0, content: 0 });
@@ -127,11 +132,10 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
     return offset + viewport >= m.content - LINE_HEIGHT;
   };
   const onContentSizeChange = (_width: number, height: number) => {
-    if (metrics.current.content === 0) ref.current?.scrollToEnd({ animated: false });
-    else if (following) {
-      if (atBottom()) ref.current?.scrollToEnd({ animated: false });
-      else onFollowingChange(false);
-    }
+    // Output that got shorter, as when the command clears the screen, wasn't scrolled away from.
+    const shrank = height < metrics.current.content;
+    if (metrics.current.content === 0 || (following && (shrank || atBottom()))) ref.current?.scrollToEnd({ animated: false });
+    else if (following) onFollowingChange(false);
     metrics.current.content = height;
   };
   useEffect(() => {
@@ -141,7 +145,6 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     metrics.current = { offset: contentOffset.y, viewport: layoutMeasurement.height, content: contentSize.height };
     const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - LINE_HEIGHT;
-    setAway(!bottom);
     setScrolled(contentOffset.y > 0);
     if (bottom !== following) onFollowingChange(bottom);
   };
@@ -151,8 +154,8 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
         {children}
       </ScrollView>
       {scrolled ? <EdgeFade color={fadeColor} edge="top" /> : null}
-      {away ? <EdgeFade color={fadeColor} edge="bottom" /> : null}
-      {away ? (
+      {following ? null : <EdgeFade color={fadeColor} edge="bottom" />}
+      {following ? null : (
         <View style={{ position: "absolute", end: 8, bottom: 0 }}>
           <Button
             icon="ArrowDown"
@@ -166,13 +169,37 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
             onPress={() => { onFollowingChange(true); ref.current?.scrollToEnd({ animated: false }); }}
           />
         </View>
-      ) : null}
+      )}
     </View>
   );
 }
 
-function LineSpans({ line, palette, last }: { line: Line; palette: Palette; last: boolean }) {
-  const segments: Segment[] = typeof line === "string" ? [[line, ""]] : line;
+// The lines to draw: blank lines trimmed off the ends, but never the cursor's line.
+// `cursorRow` is the cursor's index in `shown`; shown.length is the empty line below it.
+function linesToDraw(lines: readonly Line[], atStart: boolean, cursorAt: number | null): { shown: readonly Line[]; cursorRow: number | null } {
+  const blank = (line: Line) => lineText(line).trim() === "";
+  let from = 0;
+  let to = lines.length;
+  while (atStart && from < to && blank(lines[from])) from++;
+  while (to > from && blank(lines[to - 1])) to--;
+  if (cursorAt === null || cursorAt < from) return { shown: lines.slice(from, to), cursorRow: null };
+  to = Math.max(to, Math.min(cursorAt + 1, lines.length));
+  return { shown: lines.slice(from, to), cursorRow: cursorAt - from };
+}
+
+// A click that ends a text selection is for copying, not for typing.
+function noSelection(): boolean {
+  const selection = (globalThis as { getSelection?(): { isCollapsed: boolean } | null }).getSelection?.();
+  return !selection || selection.isCollapsed;
+}
+
+function CursorCell({ char, palette }: { char: string; palette: Palette }) {
+  return <Text style={{ backgroundColor: palette.text, color: palette.well }}>{char}</Text>;
+}
+
+function LineSpans({ line, palette, last, cursorCol = null }: { line: Line; palette: Palette; last: boolean; cursorCol?: number | null }) {
+  const all: Segment[] = typeof line === "string" ? [[line, ""]] : line;
+  const { segments, cursorChar, after } = cursorCol === null ? { segments: all, cursorChar: null, after: [] } : splitAt(all, cursorCol);
   return (
     <>
       {segments.map(([text, sgr], i) => {
@@ -186,9 +213,33 @@ function LineSpans({ line, palette, last }: { line: Line; palette: Palette; last
         };
         return <Text key={i} style={style}>{linkify(text)}</Text>;
       })}
+      {cursorChar === null ? null : <CursorCell char={cursorChar} palette={palette} />}
+      {after.map(([text], i) => <Text key={`after-${i}`}>{text}</Text>)}
       {last ? null : "\n"}
     </>
   );
+}
+
+// Splits a line at the cursor's column: the text before it, the character under it (a space
+// past the end of the line), and the plain text after it.
+function splitAt(segments: Segment[], col: number): { segments: Segment[]; cursorChar: string; after: Segment[] } {
+  const before: Segment[] = [];
+  let seen = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const [text, sgr] = segments[i];
+    const chars = [...text];
+    if (seen + chars.length <= col) {
+      before.push(segments[i]);
+      seen += chars.length;
+      continue;
+    }
+    const at = col - seen;
+    if (at > 0) before.push([chars.slice(0, at).join(""), sgr]);
+    const rest = chars.slice(at + 1).join("");
+    return { segments: before, cursorChar: chars[at], after: [...(rest ? [[rest, sgr] as Segment] : []), ...segments.slice(i + 1)] };
+  }
+  if (col > seen) before.push([" ".repeat(col - seen), ""]);
+  return { segments: before, cursorChar: " ", after: [] };
 }
 
 function linkify(text: string): React.ReactNode {

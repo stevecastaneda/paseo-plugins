@@ -6,7 +6,7 @@ import { describe, formatDuration, statusText, type ResolvedRun } from "./view.t
 const T0 = 1_700_000_000_000;
 
 function run(phase: Phase, overrides: Partial<ResolvedRun> = {}): ResolvedRun {
-  return { runId: "r1", origin: "user", command: "npm test", cwd: "/repo", rev: 1, phase, output: { lines: ["a", "b"], total: 2 }, sentAt: null, lostAt: null, lastOutputAt: null, clockOffset: 0, ...overrides };
+  return { runId: "r1", origin: "user", command: "npm test", cwd: "/repo", terminal: false, rev: 1, phase, output: { lines: ["a", "b"], total: 2 }, cursor: null, sentAt: null, lostAt: null, lastOutputAt: null, clockOffset: 0, ...overrides };
 }
 
 const ended = { startedAt: T0, endedAt: T0 + 12_400 };
@@ -149,6 +149,21 @@ test("hints: exit 127 or 'command not found' explains missing aliases; a prompt-
   const chatty = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["Overwrite existing file?"], total: 1 }, lastOutputAt: T0 }), T0 + 2_000);
   assert.equal(chatty.hint, null, "a fresh prompt-shaped line is not yet a stall");
   assert.equal(describe(run({ kind: "ok", ...ended }), T0).hint, null);
+});
+
+test("in a terminal, a running card has a box to type into, and a prompt points to it instead of a missing keyboard", () => {
+  const running = { kind: "running" as const, startedAt: T0, stopRequestedAt: null };
+  const plain = describe(run(running), T0);
+  assert.equal(plain.keyboard, false);
+  const typing = describe(run(running, { terminal: true }), T0);
+  assert.equal(typing.keyboard, true);
+  assert.equal(typing.hint, null);
+  const prompted = describe(run(running, { terminal: true, output: { lines: ["Enter OTP:"], total: 1 }, lastOutputAt: T0 }), T0 + 9_000);
+  assert.match(prompted.hint ?? "", /Click the output and type your answer/);
+  const stopping = describe(run({ ...running, stopRequestedAt: T0 }, { terminal: true }), T0);
+  assert.equal(stopping.keyboard, false, "no typing while it stops");
+  const done = describe(run({ kind: "ok", ...ended }, { terminal: true, output: { lines: ["Password:"], total: 1 } }), T0);
+  assert.deepEqual([done.keyboard, done.hint], [false, null]);
 });
 
 test("a running row the daemon lost reads as interrupted at the moment it was lost", () => {

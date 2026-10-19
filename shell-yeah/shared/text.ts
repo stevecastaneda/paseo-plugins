@@ -19,16 +19,20 @@ export function splitTitle(command: string): { title: string | null; script: str
 // Things worth a second look before pressing Run, in plain words. Pattern checks, not a
 // shell parser: they catch the common forms, not every disguise.
 const AT_COMMAND = String.raw`(?:^|[;&|(\x60]|\bsudo\s+(?:-\S+\s+)*|\bxargs\s+(?:-\S+\s+)*)\s*`;
+// PowerShell names are case-insensitive, so its patterns are too.
 const RISKS: Array<[RegExp, string]> = [
   [new RegExp(String.raw`(?:^|[;&|(\x60])\s*sudo\b`, "m"), "runs as administrator (sudo)"],
+  [/\bStart-Process\b[^\n]*\s-Verb\s+['"]?RunAs\b|(?:^|[;&|(])\s*runas(\.exe)?\s/im, "runs as administrator"],
   [new RegExp(String.raw`${AT_COMMAND}rm\s|\bfind\b[^\n]*\s-delete\b|\bgit\s+clean\s+-\w*f`, "m"), "deletes files"],
+  [new RegExp(String.raw`${AT_COMMAND}(?:Remove-Item|del|erase|rd|rmdir)(?:\s|$)`, "im"), "deletes files"],
   [/\bgit\s+reset\s+--hard\b|\bgit\s+checkout\s+(--\s+)?\.(\s|$)|\bgit\s+restore\s+(?!--staged\b)\S|\bgit\s+stash\s+(drop|clear)\b/m, "throws away uncommitted changes"],
   [/\bgit\s+push\b[^\n;&|]*?\s(--force(-with-lease|-if-includes)?\b|-[a-zA-Z]*f[a-zA-Z]*\b|\+\S)/, "force-pushes"],
   [/\b(curl|wget)\b[^\n]*\|\s*(sudo\s+(-\S+\s+)*)?(\S*\/)?((ba|z|da|k|fi)?sh|python3?|node|ruby|perl)\b|\b(ba|z)?sh\b[^\n]*<\(\s*(curl|wget)\b|\b(ba|z)?sh\s+-c\s+["']?\$\(\s*(curl|wget)\b/, "runs a script from the internet"],
+  [/\b(irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)\b[^\n]*\|\s*(iex|Invoke-Expression)\b|\b(iex|Invoke-Expression)\b[^\n]*\b(irm|iwr|Invoke-RestMethod|Invoke-WebRequest|DownloadString)\b/i, "runs a script from the internet"],
 ];
 
 export function risksOf(script: string): string[] {
-  return RISKS.filter(([pattern]) => pattern.test(script)).map(([, risk]) => risk);
+  return [...new Set(RISKS.filter(([pattern]) => pattern.test(script)).map(([, risk]) => risk))];
 }
 
 // A command's first line, cut to fit one line of a message or toast.
@@ -36,4 +40,26 @@ export function shortCommand(command: string, max = 48): string {
   const [first, ...rest] = splitTitle(command).script.split("\n");
   if (first.length > max) return `${first.slice(0, max - 1).trimEnd()}…`;
   return rest.length > 0 ? `${first} …` : first;
+}
+
+// Rows a box `columns` characters wide shows for this text, wrapping at spaces like a text
+// box does and breaking a word wider than the box. Exact for a monospace font.
+export function wrappedLines(text: string, columns: number): number {
+  let rows = 0;
+  for (const line of text.split("\n")) {
+    rows++;
+    let used = 0;
+    for (const word of line.split(" ")) {
+      const need = used === 0 ? word.length : used + 1 + word.length;
+      if (need <= columns) {
+        used = need;
+        continue;
+      }
+      if (used > 0) rows++;
+      const extra = Math.max(0, Math.ceil(word.length / columns) - 1);
+      rows += extra;
+      used = word.length - extra * columns;
+    }
+  }
+  return rows;
 }

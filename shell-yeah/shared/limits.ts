@@ -3,6 +3,8 @@
 export const LIMITS = {
   commandChars: 8_000,
   commandBytes: 16 * 1024,
+  // Keys in one send. A longer paste goes in pieces.
+  inputChars: 4_000,
   maxLive: 8,
   keepFinished: 30,
   linesKept: 10_000,
@@ -23,6 +25,7 @@ export const LIMITS = {
   // Lines a card can scroll back through, live and in its row; Copy gets everything kept.
   scrollbackLines: 300,
   proposalsPerReply: 4,
+  suggestionsPerReply: 8,
   tailCoalesceMs: 60,
   tailWaitMs: 1_500,
   tailWaitMaxMs: 2_000,

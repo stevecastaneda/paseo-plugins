@@ -1,12 +1,10 @@
-import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { accessSync, constants } from "node:fs";
 import { stat } from "node:fs/promises";
-import { basename } from "node:path";
-import { StringDecoder } from "node:string_decoder";
 import { LIMITS, type Limits } from "../shared/limits.ts";
 import type { LiveView, Phase, RunRow } from "../shared/row.ts";
 import { createScreen, fitLines, jsonBytes, looksBinary, type Screen } from "./screen.ts";
+import { pickSpawner, type Proc, type Spawner } from "./proc.ts";
+import { shellCommand } from "./shells.ts";
 
 export interface RunsDeps {
   // Append-or-replace this run's timeline row (id = runId). Rejects if the agent isn't loaded.
@@ -14,6 +12,8 @@ export interface RunsDeps {
   now(): number;
   env: NodeJS.ProcessEnv;
   limits?: Partial<Limits>;
+  // "auto" runs commands in a real terminal when this machine can; "off" never does.
+  terminal?: "auto" | "off";
 }
 
 export interface StartInput {
@@ -30,6 +30,9 @@ export interface RunRegistry {
   // Idempotent on runId. The row is published before the process exists, so a command is never running invisibly.
   start(input: StartInput): Promise<{ runId: string }>;
   stop(runId: string, force: boolean): void;
+  // Types a line into a running command's terminal, then Enter. Throws when it can't take typing.
+  // Keys as the terminal gets them: "\r" is Enter, "\x7f" Backspace.
+  input(runId: string, keys: string): void;
   tail(runId: string, lines: number, since: number | null, waitMs: number): Promise<TailResult>;
   // The row as the daemon sees it now, with up to `lines` lines. Not size-fitted.
   snapshot(runId: string, lines: number): RunRow | null;
@@ -56,10 +59,10 @@ interface Run {
   readonly screen: Screen;
   sentAt: number | null;
   lastOutputAt: number | null;
-  child: ChildProcess | null;
-  // The process group (= the child's pid, since it is a session leader). Kept after exit so
-  // a Stop can still reach background jobs the shell left behind.
-  pgid: number | null;
+  // Kept after the command exits, so a Stop can still reach background jobs it left behind.
+  proc: Proc | null;
+  // Runs in a real terminal (see proc.ts), so it can take typing.
+  readonly terminal: boolean;
   capturedBytes: number;
   binary: boolean;
   capStopped: boolean;
@@ -103,6 +106,8 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   }
 
   const sleep = (ms: number) => new Promise<void>((resolve) => after(ms, resolve));
+
+  const spawnerReady = pickSpawner(deps.env, deps.terminal ?? "auto");
 
   // ---- the one publish path ----
 
@@ -159,7 +164,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   }
 
   function rowOf(run: Run, lines: number): RunRow {
-    return { runId: run.id, rev: run.rev, origin: run.origin, command: run.command, cwd: run.cwd, phase: run.phase, output: run.screen.tail(lines), sentAt: run.sentAt };
+    return { runId: run.id, rev: run.rev, origin: run.origin, command: run.command, cwd: run.cwd, phase: run.phase, output: run.screen.tail(lines), sentAt: run.sentAt, terminal: run.terminal };
   }
 
   function fitRow(row: RunRow): RunRow {
@@ -198,14 +203,12 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       run.phase.stopRequestedAt !== null ? { kind: "stopped", ...clock, exitCode: code, signal }
       : code === 0 ? { kind: "ok", ...clock }
       : { kind: "failed", ...clock, exitCode: code, signal, message: null };
-    run.child = null;
     transition(run, next);
     evict();
   }
 
   function failToStart(run: Run, message: string) {
     if (run.phase.kind !== "running") return;
-    run.child = null;
     transition(run, { kind: "failed", startedAt: run.phase.startedAt, endedAt: deps.now(), exitCode: null, signal: null, message });
     evict();
   }
@@ -234,33 +237,19 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     bump(run);
   }
 
-  function launch(run: Run) {
-    let child: ChildProcess;
+  function launch(run: Run, spawner: Spawner) {
     try {
-      child = spawnShell(run.command, run.cwd, deps.env);
+      run.proc = spawner.start(
+        { ...shellCommand(deps.env, run.command), cwd: run.cwd, env: commandEnv(deps.env, run.cwd, spawner.terminal), flushMs: limits.exitFlushMs },
+        {
+          data: (text) => ingest(run, text),
+          exit: (code, signal) => settle(run, code, signal),
+          error: (problem) => failToStart(run, `Couldn't start: ${problem}`),
+        },
+      );
     } catch (error) {
       failToStart(run, `Couldn't start a shell: ${message(error)}`);
-      return;
     }
-    run.child = child;
-    run.pgid = child.pid ?? null;
-    const out = new StringDecoder("utf8");
-    const err = new StringDecoder("utf8");
-    child.stdout?.on("data", (chunk: Buffer) => ingest(run, out.write(chunk)));
-    child.stderr?.on("data", (chunk: Buffer) => ingest(run, err.write(chunk)));
-    child.on("error", (error) => failToStart(run, `Couldn't start: ${message(error)}`));
-    child.on("exit", (code, signal) => {
-      // A background job can hold the pipe open after the shell exits: flush briefly, then let go.
-      run.timers.push(after(limits.exitFlushMs, () => {
-        child.stdout?.destroy();
-        child.stderr?.destroy();
-        settle(run, code, signal);
-      }));
-    });
-    child.on("close", (code, signal) => {
-      ingest(run, out.end() + err.end());
-      settle(run, code, signal);
-    });
   }
 
   function evict() {
@@ -294,6 +283,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       rev: run.rev,
       phase: run.phase,
       output: { lines: fitLines(tail.lines, limits.liveReplyBytes), total: tail.total },
+      cursor: tail.cursor,
       sentAt: run.sentAt,
       lastOutputAt: run.lastOutputAt,
       serverNow: deps.now(),
@@ -304,15 +294,16 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     async start(input) {
       const id = input.runId ?? newRunId();
       if (runs.has(id)) return { runId: id };
-      if (process.platform === "win32") throw new Error("Shell Yeah doesn't support Windows yet.");
       if (Buffer.byteLength(input.command) > limits.commandBytes) throw new Error("That command is too long to run.");
       if (liveCount() >= limits.maxLive) throw new Error(`${limits.maxLive} commands are already running. Stop one first.`);
+      const spawner = await spawnerReady;
+      if (runs.has(id)) return { runId: id };
       const startedAt = deps.now();
       const run: Run = {
         id, agentId: input.agentId, origin: input.origin, command: input.command, cwd: input.cwd,
         phase: { kind: "running", startedAt, stopRequestedAt: null },
         rev: 0, screen: createScreen({ maxLines: limits.linesKept, maxLineChars: limits.lineChars }),
-        sentAt: null, lastOutputAt: null, child: null, pgid: null, capturedBytes: 0, binary: false, capStopped: false,
+        sentAt: null, lastOutputAt: null, proc: null, terminal: spawner.terminal, capturedBytes: 0, binary: false, capStopped: false,
         waiters: new Set(), timers: [], escalation: [],
       };
       runs.set(id, run);
@@ -324,29 +315,39 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
         runs.delete(id);
         throw error;
       }
-      if (run.phase.kind === "running") launch(run);
+      if (run.phase.kind === "running") launch(run, spawner);
       evict();
       return { runId: id };
     },
 
     stop(runId, force) {
       const run = runs.get(runId);
-      if (!run || run.phase.kind !== "running" || run.pgid === null) return;
-      const pgid = run.pgid;
-      if (force || run.phase.stopRequestedAt !== null) {
-        signalGroup(pgid, "SIGKILL");
+      const proc = run?.proc;
+      if (!run || !proc || run.phase.kind !== "running") return;
+      const again = run.phase.stopRequestedAt !== null;
+      if (!again) {
+        run.phase = { ...run.phase, stopRequestedAt: deps.now() };
+        bump(run);
+      }
+      if (force || again) {
+        proc.kill("SIGKILL");
         return;
       }
-      run.phase = { ...run.phase, stopRequestedAt: deps.now() };
-      bump(run);
-      signalGroup(pgid, "SIGINT");
+      proc.interrupt();
       run.escalation = [
-        after(limits.stopToTermMs, () => signalGroup(pgid, "SIGTERM")),
+        after(limits.stopToTermMs, () => proc.kill("SIGTERM")),
         after(limits.stopToKillMs, () => {
-          signalGroup(pgid, "SIGKILL");
+          proc.kill("SIGKILL");
           run.escalation = [];
         }),
       ];
+    },
+
+    input(runId, keys) {
+      const run = runs.get(runId);
+      if (!run || run.phase.kind !== "running") throw new Error("This command has already ended.");
+      if (!run.terminal || !run.proc) throw new Error("This command can't take typing.");
+      run.proc.write(keys);
     },
 
     async tail(runId, lines, since, waitMs) {
@@ -399,24 +400,22 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     async shutdown() {
       closed = true;
       const publishes: Promise<void>[] = [];
-      const groups: number[] = [];
+      const groups: Run[] = [];
       for (const run of runs.values()) {
         for (const timer of [...run.timers, ...run.escalation]) cancel(timer);
         run.timers = [];
-        if (run.escalation.length > 0 && run.pgid !== null) signalGroup(run.pgid, "SIGKILL");
+        if (run.escalation.length > 0) run.proc?.kill("SIGKILL");
         run.escalation = [];
         if (run.phase.kind !== "running") continue;
         run.phase = { kind: "interrupted", startedAt: run.phase.startedAt, endedAt: deps.now() };
         bump(run);
         publishes.push(publishRun(run, false).catch(() => undefined));
-        if (run.pgid !== null) {
-          groups.push(run.pgid);
-          signalGroup(run.pgid, "SIGTERM");
-        }
+        groups.push(run);
+        run.proc?.kill("SIGTERM");
       }
       const all = Promise.all(publishes).then(() => undefined);
       await Promise.race([all, rawDelay(limits.shutdownPublishMs)]);
-      for (const pgid of groups) signalGroup(pgid, "SIGKILL");
+      for (const run of groups) run.proc?.kill("SIGKILL");
       await Promise.race([all, rawDelay(limits.shutdownKillWaitMs)]);
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
@@ -453,40 +452,12 @@ async function folderProblem(cwd: string): Promise<string | null> {
   }
 }
 
-const SHELLS = new Set(["zsh", "bash", "sh", "dash", "ksh", "fish"]);
-
-export function pickShell(preferred: string | undefined): string {
-  const candidates = [preferred && SHELLS.has(basename(preferred)) ? preferred : null, "/bin/bash", "/bin/sh"];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    try {
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      continue;
-    }
-  }
-  return "/bin/sh";
-}
-
-// `/bin/sh -c 'exec "$0" "$@" 2>&1' $SHELL -c <command>`: one pipe for both streams
-// so their interleaving is the kernel's, and the command text is never rewritten.
-// detached = its own session and process group, no controlling terminal.
-export function spawnShell(command: string, cwd: string, env: NodeJS.ProcessEnv): ChildProcess {
-  return spawn("/bin/sh", ["-c", 'exec "$0" "$@" 2>&1', pickShell(env.SHELL), "-c", command], {
-    cwd,
-    env: commandEnv(env, cwd),
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-}
-
 const STRIP = ["PASEO_NODE_ENV", "PASEO_DESKTOP_MANAGED", "PASEO_SUPERVISED", "ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ATTACH_CONSOLE", "ESBUILD_BINARY_PATH", "BASH_ENV", "NO_COLOR"];
 
 // The user's environment minus what Paseo's worker put in, plus what makes tools
 // print color to a pipe. FORCE_COLOR=1 means 16 colors on purpose: the row
 // re-themes exactly those 16; 256-color and truecolor would bypass the theme.
-export function commandEnv(base: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
+export function commandEnv(base: NodeJS.ProcessEnv, cwd: string, terminal = false): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
   for (const key of STRIP) delete env[key];
   Object.assign(env, {
@@ -501,18 +472,10 @@ export function commandEnv(base: NodeJS.ProcessEnv, cwd: string): NodeJS.Process
     // npm prints its "new version available" banner when it thinks a person is watching.
     npm_config_update_notifier: "false",
   });
+  // A terminal makes git, man and the like open a pager and wait for a keypress.
+  if (terminal) Object.assign(env, { PAGER: "cat", GIT_PAGER: "cat" });
   if (env.GIT_CONFIG_COUNT === undefined) {
     Object.assign(env, { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "color.ui", GIT_CONFIG_VALUE_0: "always" });
   }
   return env;
-}
-
-// Signals the whole group, even after its leader (the shell) has exited, so background jobs
-// it left behind are reached too. An empty group is ESRCH, which is fine.
-export function signalGroup(pgid: number, signal: NodeJS.Signals): void {
-  try {
-    process.kill(-pgid, signal);
-  } catch {
-    // The group is already gone.
-  }
 }

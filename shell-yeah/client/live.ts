@@ -87,10 +87,11 @@ export function createLiveStore(deps: LiveStoreDeps): LiveStore {
     const useView = v !== null && (v.rev > row.rev || (v.rev === row.rev && isEnded(v.phase)));
     const live = useView ? v : null;
     return {
-      runId: row.runId, origin: row.origin, command: row.command, cwd: row.cwd,
+      runId: row.runId, origin: row.origin, command: row.command, cwd: row.cwd, terminal: row.terminal === true,
       rev: live?.rev ?? row.rev,
       phase: live?.phase ?? row.phase,
       output: live?.output ?? row.output,
+      cursor: live?.cursor ?? null,
       sentAt: live?.sentAt ?? row.sentAt,
       lastOutputAt: live?.lastOutputAt ?? null,
       lostAt: (live?.phase ?? row.phase).kind === "running" ? e.lostAt : null,

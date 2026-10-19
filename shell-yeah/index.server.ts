@@ -1,8 +1,9 @@
 import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
-import { agentOf, attachItems, proposeFromReply, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
+import { agentOf, attachItems, latestAssistantText, proposeFromReply, scanProposals, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
 import { createLogStore, defaultLogRoot } from "./server/logs.ts";
 import { createRunRegistry } from "./server/runs.ts";
-import { attachSearch, dismiss, fullOutput, scan, send, start, stop, tail } from "./shared/rpc.ts";
+import { commandFinder } from "./server/shells.ts";
+import { attachSearch, dismiss, fullOutput, input, scan, send, start, stop, suggest, tail } from "./shared/rpc.ts";
 import { RUN_KIND, RUN_VERSION } from "./shared/row.ts";
 
 export default function contribute(server: PluginServerContext) {
@@ -26,24 +27,35 @@ export default function contribute(server: PluginServerContext) {
 
   server.handle(start, (input, ctx) => (bind(ctx), runs.start(input)));
   server.handle(stop, ({ runId, force }, ctx) => (bind(ctx), runs.stop(runId, force), { ok: true as const }));
+  server.handle(input, ({ runId, keys }) => (runs.input(runId, keys), { ok: true as const }));
   server.handle(tail, ({ runId, lines, since, waitMs }, ctx) => (bind(ctx), runs.tail(runId, lines, since, waitMs)));
   server.handle(fullOutput, ({ runId }) => runs.fullText(runId));
   server.handle(send, (input, ctx) => (bind(ctx), sendToClaude({ runs, logs, agent: agentOf(ctx.paseo), send: sendVia(ctx.paseo), sendCounts }, input)));
   server.handle(attachSearch, async ({ query }) => ({ items: await attachItems({ runs, logs, saved }, query) }));
   server.handle(dismiss, (input, ctx) => (bind(ctx), runs.dismiss(input).then(() => ({ ok: true as const }))));
 
-  // `/sh` with no command: look at Claude's latest reply again, this time counting plain shell blocks.
-  server.handle(scan, async ({ agentId }, ctx) => {
+  const recentTimeline = async (agentId: string, ctx: PluginHandlerContext) => {
     bind(ctx);
     const ref = ctx.paseo.agents.ref(agentId);
     const page = await ref.timeline.refetch({ direction: "tail", limit: 400, projection: "projected" });
     if (page.error) throw new Error(page.error);
     await ref.refresh();
     if (!ref.cwd) throw new Error("Paseo doesn't have this agent loaded.");
-    const { found, proposed } = await proposeFromReply({ registry: runs, agentId, cwd: ref.cwd, timeline: page.entries.map((entry) => entry.item), turnId: null, mode: "any" });
+    return { cwd: ref.cwd, timeline: page.entries.map((entry) => entry.item) };
+  };
+
+  // `/sh` with no command: look at Claude's latest reply again, this time counting plain shell blocks.
+  server.handle(scan, async ({ agentId }, ctx) => {
+    const { cwd, timeline } = await recentTimeline(agentId, ctx);
+    const { found, proposed } = await proposeFromReply({ registry: runs, agentId, cwd, timeline, turnId: null, mode: "any" });
     if (found === 0) throw new Error("The last reply has no commands to run. Type /sh and a command to run one.");
     if (proposed === 0) throw new Error("Those commands are already in the chat.");
     return { found: proposed };
+  });
+
+  server.handle(suggest, async ({ agentId }, ctx) => {
+    const { cwd, timeline } = await recentTimeline(agentId, ctx);
+    return { commands: scanProposals(latestAssistantText(timeline), "all", commandFinder(process.env, cwd)) };
   });
 
   // New agents only: one tagged block in the system prompt, merged after whatever is there.

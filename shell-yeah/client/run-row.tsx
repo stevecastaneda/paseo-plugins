@@ -1,11 +1,12 @@
 import { useAgent, useRpc, type PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, Text, View, type LayoutChangeEvent } from "react-native";
+import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, Platform, Pressable, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
+import { terminalKeys, type KeyPress } from "../shared/keys.ts";
 import { basename, errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
-import { dismiss, fullOutput, send, start, stop, tail } from "../shared/rpc.ts";
+import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/rpc.ts";
 import { agentName, capitalize, describe, formatDuration, statusText, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
@@ -28,6 +29,8 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const rpcOutput = useRpc(fullOutput);
   const rpcDismiss = useRpc(dismiss);
   const run = useResolvedRun(row, rpcTail);
+  const keyBox = useRef<TextInput>(null);
+  const [typing, setTyping] = useState(false);
   const ui = useRunUi(row.runId, rpcTail);
   const running = run.phase.kind === "running" && run.lostAt === null;
   const now = useNow(running ? 1_000 : null);
@@ -104,8 +107,8 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   if (pres.layout === "dismissed") {
     return (
       <View testID="shell-yeah-run" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingHorizontal: 12 }}>
-        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>Dismissed · </Text>
-        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 12, lineHeight: 16, flexShrink: 1 }}>{pres.script}</Text>
+        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 0 }}>Dismissed · </Text>
+        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 12, lineHeight: 16, flexShrink: 1, minWidth: 0 }}>{pres.script}</Text>
       </View>
     );
   }
@@ -139,13 +142,16 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
             onFollowingChange={ui.setFollowing}
             commandLines={pres.script.split("\n")}
             reduced={reduced}
+            cursor={pres.keyboard && typing ? run.cursor : null}
+            onPress={pres.keyboard ? () => keyBox.current?.focus() : undefined}
           />
         ) : pres.well?.kind === "message" ? (
           <View style={{ marginHorizontal: 6, borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: withAlpha(colors.border, 0.6), paddingVertical: 8, paddingHorizontal: 10 }}>
             <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: 18, color: colors.foreground }}>{pres.well.text}</Text>
           </View>
         ) : null}
-        <Footer pres={pres} colors={colors} compact={compact} actions={actions} />
+        {pres.keyboard ? <KeyBox ref={keyBox} runId={run.runId} colors={colors} well={palette.well} compact={compact} typing={typing} onTypingChange={setTyping} /> : null}
+        <Footer pres={typing ? { ...pres, hint: null } : pres} colors={colors} compact={compact} actions={actions} />
       </Card>
     </Enter>
   );
@@ -234,18 +240,18 @@ function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colo
     Animated.timing(rotate, { toValue: expanded ? 1 : 0, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
   }, [expanded]);
   const status = (
-    <Text accessibilityLiveRegion="polite" style={{ color: toneColor(pres.tone, colors), fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>
+    <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ flexShrink: 0, color: toneColor(pres.tone, colors), fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>
       {pres.timerFrom !== null ? <Elapsed from={pres.timerFrom} prefix={pres.label ? `${pres.label} · ` : ""} /> : statusText(pres)}
     </Text>
   );
   const content = (hovered: boolean) => (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
       <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-      <Text numberOfLines={expanded ? undefined : 1} style={{ flex: 1, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
+      <Text numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
         <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
         {first}
       </Text>
-      {rest.length > 0 ? <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
+      {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
       {status}
       <IconSwap swapKey={pres.foldable ? "fold" : "none"} size={14}>
         {pres.foldable ? (
@@ -268,6 +274,84 @@ function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colo
       {content(hovered)}
     </Pressable>
   );
+}
+
+// Typing into the command, as in a terminal: each key goes to it as it's pressed. The box
+// itself stays empty. What the command shows lands in the output, so a password prompt shows
+// nothing. Esc stops typing.
+const KeyBox = forwardRef<TextInput, { runId: string; colors: ThemeColors; well: string; compact: boolean; typing: boolean; onTypingChange(typing: boolean): void }>(function KeyBox({ runId, colors, well, compact, typing, onTypingChange }, ref) {
+  const send = useKeySender(runId);
+  const box = useRef<TextInput | null>(null);
+  const setRef = (node: TextInput | null) => {
+    box.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) ref.current = node;
+  };
+  return (
+    <View style={{ marginHorizontal: 10, marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8, height: compact ? 40 : 34, paddingStart: 10, paddingEnd: 3, borderRadius: 6, backgroundColor: well, borderWidth: 1, borderColor: typing ? colors.accent : withAlpha(colors.border, 0.6) }}>
+      <Icon name="Keyboard" size={14} color={typing ? colors.foreground : colors.foregroundMuted} />
+      <TextInput
+        ref={setRef}
+        value=""
+        onChangeText={(text) => {
+          if (text) send(text);
+        }}
+        onKeyPress={(event) => {
+          const press = event.nativeEvent as KeyPress;
+          if (press.key === "Escape") return box.current?.blur();
+          // On phones Enter arrives as a submit instead.
+          if (press.key === "Enter" && Platform.OS !== "web") return;
+          const keys = terminalKeys(press);
+          if (keys === null) return;
+          event.preventDefault();
+          send(keys);
+        }}
+        onSubmitEditing={() => send("\r")}
+        submitBehavior="submit"
+        onFocus={() => onTypingChange(true)}
+        onBlur={() => onTypingChange(false)}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={typing ? `Keys go to the command as you type${compact ? "" : " · Esc to stop"}` : `${compact ? "Tap" : "Click"} here or on the output to type`}
+        placeholderTextColor={colors.foregroundMuted}
+        accessibilityLabel="Type into the command"
+        accessibilityHint="Each key goes to the command as you press it"
+        // 16 px on phones: iOS Safari zooms the page into a smaller box when it's tapped.
+        style={{ flex: 1, minWidth: 0, height: "100%", paddingVertical: 0, fontSize: compact ? 16 : 13, color: colors.foreground, outlineWidth: 0 }}
+      />
+      <Button icon="CornerDownLeft" label="Enter" tone="quiet" onPress={() => send("\r")} compact={compact} iconOnly radius={3} colors={colors} accessibilityLabel="Press Enter" />
+    </View>
+  );
+});
+
+// Sends keys in the order they were pressed, one request at a time, joining what was typed
+// while a request was out. Pastes past the request limit go in pieces.
+function useKeySender(runId: string): (keys: string) => void {
+  const rpcInput = useRpc(input);
+  const toast = useToast();
+  const queue = useRef({ pending: [] as string[], sending: false });
+  return useCallback((keys: string) => {
+    const q = queue.current;
+    q.pending.push(...keys);
+    if (q.sending) return;
+    q.sending = true;
+    void (async () => {
+      try {
+        while (q.pending.length > 0) {
+          // Half the limit in characters: one character can take two of the limit's units.
+          const chunk = q.pending.splice(0, LIMITS.inputChars / 2).join("");
+          await rpcInput({ runId, keys: chunk });
+        }
+      } catch (error) {
+        q.pending = [];
+        toast.error(errorMessage(error));
+      } finally {
+        q.sending = false;
+      }
+    })();
+  }, [runId]);
 }
 
 function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors: ThemeColors; compact: boolean; actions: React.ReactNode }) {

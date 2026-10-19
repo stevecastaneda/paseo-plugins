@@ -85,3 +85,21 @@ test("a failure to start names the command, since the composer already cleared i
     return true;
   });
 });
+
+test("every chat gets one Run pill that opens the Run window; updates keep it, so an open window stays open", async () => {
+  const h = clientHarness(directory);
+  const stop = h.load("index.client.tsx").default(h.client);
+  h.agents.bootstrap([{ agent: { id: "a1", workspaceId: "w1" } }, { agent: { id: "a2", workspaceId: "w1" } }, { agent: { id: "a3", workspaceId: null } }]);
+  await h.flush();
+  type Pill = { removed: boolean; placement: string; agentId: string; workspaceId: string; button: { label: string; behavior: { kind: string } } };
+  const pills = () => (h.registrations as unknown as Pill[]).filter((entry) => !entry.removed);
+  assert.deepEqual(plain(pills().map((entry) => [entry.placement, entry.agentId, entry.workspaceId, entry.button.label, entry.button.behavior.kind])), [["composer", "a1", "w1", "Run", "popover"], ["composer", "a2", "w1", "Run", "popover"]]);
+  h.agents.update({ kind: "upsert", agent: { id: "a1", workspaceId: "w1", status: "running" } });
+  assert.equal(h.registrations.length, 2, "an update doesn't replace the pill");
+  h.agents.update({ kind: "upsert", agent: { id: "a4", workspaceId: "w2" } });
+  h.agents.update({ kind: "remove", agentId: "a2" });
+  assert.deepEqual(pills().map((entry) => entry.agentId), ["a1", "a4"]);
+  stop();
+  assert.equal(pills().length, 0);
+  assert.equal(h.agents.listenerCount, 0);
+});
