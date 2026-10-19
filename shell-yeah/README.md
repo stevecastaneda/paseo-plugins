@@ -98,6 +98,10 @@ Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.j
 
 ## Changelog
 
+### 1.0.1
+
+- A command whose output moves the cursor very far no longer crashes Shell Yeah. A dozen bytes, like `ESC[500000000C`, could run it out of memory. The cursor now stops at 4,000 characters, the longest line Shell Yeah keeps, and a move down adds at most 40 rows, one screen's height.
+
 ### 1.0.0
 
 - First version: `/sh` with live output, sending output to the agent, attaching it to a message, and Run cards for commands the agent hands you. Each command runs in a terminal of its own, and keys you type go straight to it, so you can answer its prompts, like a 2FA code or a one-key menu. Runs on macOS, Linux and Windows, where commands run in PowerShell. Long output goes to the agent as a summary plus a saved log it can search, and saved logs clean up on their own. Cards for suggested commands carry the agent's plain-words title and warn about commands that are hard to undo. The **Run** pill lists the commands in the agent's last reply, including ones written in a sentence, and runs any command you paste.
