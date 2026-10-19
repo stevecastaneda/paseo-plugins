@@ -318,7 +318,8 @@ const KeyBox = forwardRef<TextInput, { runId: string; colors: ThemeColors; well:
         placeholderTextColor={colors.foregroundMuted}
         accessibilityLabel="Type into the command"
         accessibilityHint="Each key goes to the command as you press it"
-        style={{ flex: 1, minWidth: 0, height: "100%", paddingVertical: 0, fontSize: 13, color: colors.foreground, outlineWidth: 0 }}
+        // 16 px on phones: iOS Safari zooms the page into a smaller box when it's tapped.
+        style={{ flex: 1, minWidth: 0, height: "100%", paddingVertical: 0, fontSize: compact ? 16 : 13, color: colors.foreground, outlineWidth: 0 }}
       />
       <Button icon="CornerDownLeft" label="Enter" tone="quiet" onPress={() => send("\r")} compact={compact} iconOnly radius={3} colors={colors} accessibilityLabel="Press Enter" />
     </View>
