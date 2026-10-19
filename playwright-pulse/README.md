@@ -78,6 +78,10 @@ Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tes
 
 ## Changelog
 
+### 1.2.1
+
+- The Slowest tab screenshot now shows the copy buttons from 1.2.0.
+
 ### 1.2.0
 
 - The Slowest tab has copy buttons, so you can hand its tests to an agent without retyping them. The button beside a test copies its file and line, like `e2e/videos/record-video.spec.ts:44`. **Copy a prompt to speed these up**, below the list, copies a prompt for an agent. It lists each test with its time and timeout, and asks where the time goes and what would make it faster.
