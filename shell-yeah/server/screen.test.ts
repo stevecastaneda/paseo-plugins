@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { StringDecoder } from "node:string_decoder";
 import { test } from "node:test";
 import { plainText, type Line } from "../shared/row.ts";
+import { ROWS } from "./proc.ts";
 import { createScreen, fitLines, jsonBytes, looksBinary } from "./screen.ts";
 
 const ESC = "\x1b";
@@ -81,6 +82,22 @@ test("a huge line is clamped once with a marker; the line budget keeps the newes
   assert.equal(tail.total, 20_000);
   assert.equal(many.dropped, 10_000);
   assert.equal(many.text().split("\n").length, 10_000);
+});
+
+test("cursor moves stop at the line limit and a screen's height, so a few bytes can't fill memory", () => {
+  for (const move of [`${ESC}[999999999C`, `${ESC}[999999999G`, `${ESC}[1;999999999H`]) {
+    const [only] = lines(`x${move}y`) as string[];
+    assert.equal(only.length, 4_001, JSON.stringify(move));
+    assert.ok(only.startsWith("x ") && only.endsWith("…"));
+  }
+  for (const move of [`${ESC}[999999999B`, `${ESC}[999999999E`, `${ESC}[999999999;1H`]) {
+    const screen = createScreen();
+    screen.write(`top${move}bottom`);
+    assert.equal(screen.tail(1).total, ROWS + 1, JSON.stringify(move));
+  }
+  const flood = createScreen({ maxLines: 100, maxLineChars: 4_000 });
+  for (let i = 0; i < 10_000; i++) flood.write(`${ESC}[999999999;1H${ESC}[999999999B`);
+  assert.equal(flood.text().split("\n").length, 100);
 });
 
 test("the trailing empty line is not a line; a note is its own dim line", () => {

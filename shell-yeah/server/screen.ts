@@ -1,5 +1,6 @@
 import { LIMITS } from "../shared/limits.ts";
 import type { Cursor, Line, Segment } from "../shared/row.ts";
+import { ROWS } from "./proc.ts";
 
 export interface ScreenLimits {
   maxLines: number;
@@ -71,14 +72,21 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
     }
   }
 
-  function moveDown(n: number) {
-    row += n;
+  // Rows past the last one appear as the cursor reaches them. A terminal stops the
+  // cursor at its bottom edge, so one move adds at most a screen of rows.
+  function moveTo(target: number) {
+    row = Math.max(0, Math.min(target, rows.length - 1 + ROWS));
     while (row >= rows.length) rows.push(emptyRow());
     trimRows();
   }
 
+  // A line is cut at maxLineChars, so the cursor never needs to go further right.
+  function toCol(target: number): number {
+    return Math.max(0, Math.min(target, limits.maxLineChars));
+  }
+
   function newline() {
-    moveDown(1);
+    moveTo(row + 1);
     col = 0;
   }
 
@@ -159,17 +167,16 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
     const n = Math.max(1, nums[0] || 0);
     switch (final) {
       case "A": row = Math.max(0, row - n); break;
-      case "B": moveDown(n); break;
-      case "C": col += n; break;
+      case "B": moveTo(row + n); break;
+      case "C": col = toCol(col + n); break;
       case "D": col = Math.max(0, col - n); break;
-      case "E": moveDown(n); col = 0; break;
+      case "E": moveTo(row + n); col = 0; break;
       case "F": row = Math.max(0, row - n); col = 0; break;
-      case "G": col = n - 1; break;
+      case "G": col = toCol(n - 1); break;
       case "H":
       case "f": {
-        row = Math.max(0, (nums[0] || 1) - 1);
-        while (row >= rows.length) rows.push(emptyRow());
-        col = Math.max(0, (nums[1] || 1) - 1);
+        moveTo((nums[0] || 1) - 1);
+        col = toCol((nums[1] || 1) - 1);
         break;
       }
       case "K": eraseLine(nums[0] || 0); break;
