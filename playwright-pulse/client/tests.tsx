@@ -3,11 +3,11 @@ import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { PulseTest, RunSnapshot } from "../shared/run";
-import { folders, assignSlots, attachmentKind, isLive, slowest, type Folder, errorPreview, failureMessage, formatClock, formatDuration, isFailure, testWhere, timeoutShare, runningSlotCount, workerCount, MAX_WORKER_DOTS, MAX_WORKER_DOTS_NARROW, shownFailure, stepFailure, verdict, verdictNote, type AttachmentKind, type Counts } from "../shared/view";
+import { folders, assignSlots, attachmentKind, isLive, slowest, slowestPrompt, type Folder, errorPreview, failureMessage, formatClock, formatDuration, isFailure, testWhere, timeoutShare, runningSlotCount, workerCount, MAX_WORKER_DOTS, MAX_WORKER_DOTS_NARROW, shownFailure, stepFailure, verdict, verdictNote, type AttachmentKind, type Counts } from "../shared/view";
 import { IconSwap, PressScale } from "./motion";
 import { mono } from "./mono";
 import { useNarrow } from "./narrow";
-import { PressableRow } from "./row";
+import { PressableRow, rowTint } from "./row";
 import { SectionTitle } from "./section-title";
 import { Spinner, WaitingDot } from "./spinner";
 import { raised } from "./surfaces";
@@ -281,11 +281,17 @@ function ChipButton({ colors, icon, label, onPress }: { colors: Colors; icon: st
 }
 
 // The slowest tests so far, each against its timeout: the ones to speed up,
-// and the ones at risk of timing out on a slower machine.
+// and the ones at risk of timing out on a slower machine. Copy hands them to an
+// agent: one test's path, or a prompt to find out why they're slow.
 export function SlowestList({ colors, run }: { colors: Colors; run: RunSnapshot }) {
+  const toast = useToast();
+  const tests = slowest(run);
+  const copy = (text: string, done: string) => {
+    copyText(text).then(() => toast.show(done, { variant: "success", durationMs: 2000 }), () => toast.error("Could not copy."));
+  };
   return (
     <View>
-      {slowest(run).map((test, index) => {
+      {tests.map((test, index) => {
         const share = test.timeout ? Math.min(1, (test.duration ?? 0) / test.timeout) : null;
         return (
           <View key={test.id} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 4, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
@@ -293,11 +299,23 @@ export function SlowestList({ colors, run }: { colors: Colors; run: RunSnapshot 
               <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{test.title}</Text>
               <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatDuration(test.duration ?? 0)}</Text>
             </View>
-            <Text numberOfLines={2} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test.file}:{test.line}</Text>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <Text selectable numberOfLines={2} style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test.file}:{test.line}</Text>
+              {/* Optical: the 22px button centers on the 17px line without growing it, its glyph flush with the time above. */}
+              <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${test.title}`} hitSlop={6} outerStyle={{ marginVertical: -3, marginEnd: -4 }}
+                onPress={() => copy(`${test.file}:${test.line}`, "Copied the path")}
+                style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: rowTint(colors, { pressed, hovered }) })}>
+                <Icon name="Copy" size={14} color={colors.foregroundMuted} />
+              </PressScale>
+            </View>
             {share !== null ? <TimeoutBar colors={colors} share={share} timeout={test.timeout} /> : null}
           </View>
         );
       })}
+      <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+        <ChipButton colors={colors} icon="Copy" label={tests.length === 1 ? "Copy a prompt to speed it up" : "Copy a prompt to speed these up"}
+          onPress={() => copy(slowestPrompt(run, tests), tests.length === 1 ? "Copied a prompt for the slowest test" : `Copied a prompt for the ${tests.length} slowest tests`)} />
+      </View>
     </View>
   );
 }
