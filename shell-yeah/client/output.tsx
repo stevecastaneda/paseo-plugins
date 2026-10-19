@@ -2,9 +2,9 @@ import { openExternalUrl } from "@getpaseo/plugin/client";
 import { ScrollView } from "@getpaseo/plugin/client/react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView as NativeScrollView } from "react-native";
-import type { Line, Segment } from "../shared/row.ts";
+import { lineText, type Cursor, type Line, type Segment } from "../shared/row.ts";
 import { LIMITS } from "../shared/limits.ts";
-import { formatCount, trimBlankEnds } from "../shared/view.ts";
+import { formatCount } from "../shared/view.ts";
 import type { Palette, ThemeColors } from "./palette.ts";
 import { withAlpha } from "./palette.ts";
 import { Button, codeSurface, mono, nativeDriver } from "./ui.tsx";
@@ -15,8 +15,9 @@ const URL = /https?:\/\/[^\s<>"')\]]+/g;
 
 // The output well: one selectable Text so copy and selection work across lines, spans
 // colored by the palette, in a box that scrolls back through everything the card holds
-// and follows the newest line. https links open outside.
-export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, rows, compact, running, following, onFollowingChange, commandLines, reduced }: {
+// and follows the newest line. https links open outside. While the user types into the
+// command, it shows the terminal's cursor, and a click on the text starts typing.
+export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, rows, compact, running, following, onFollowingChange, commandLines, reduced, cursor, onPress }: {
   lines: readonly Line[];
   skipped: number;
   palette: Palette;
@@ -29,6 +30,9 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   onFollowingChange(v: boolean): void;
   commandLines: string[];
   reduced: boolean;
+  // Shown while typing goes to the command; null otherwise.
+  cursor: Cursor | null;
+  onPress?(): void;
 }) {
   const screen = useWindowDimensions();
   // While the user reads above the newest line of a running command, hold what they're
@@ -39,7 +43,7 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   else held.current ??= { lines: liveLines, skipped: liveSkipped };
   const { lines, skipped } = held.current ?? { lines: liveLines, skipped: liveSkipped };
   const total = skipped + lines.length;
-  const shown = trimBlankEnds(lines, skipped === 0);
+  const { shown, cursorRow } = linesToDraw(lines, skipped === 0, cursor && !held.current ? lines.length - 1 - cursor.up : null);
   const seen = useRef(total);
   const fade = useRef(new Animated.Value(1)).current;
   const freshFrom = running && total > seen.current ? Math.max(0, shown.length - (total - seen.current)) : shown.length;
@@ -52,15 +56,16 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   }, [total]);
 
   const body = (
-    <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }}>
+    <Text selectable onPress={onPress ? () => noSelection() && onPress() : undefined} style={[{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }, onPress ? ({ cursor: "text" } as object) : null]}>
       {tall && commandLines.length > 1 ? <Text style={{ color: colors.foregroundMuted }}>{commandLines.map((l) => `$ ${l}`).join("\n")}{"\n"}</Text> : null}
       {skipped > 0 ? <Text style={{ color: colors.foregroundMuted }}>{`… ${formatCount(skipped)} earlier ${skipped === 1 ? "line" : "lines"}\n`}</Text> : null}
-      {shown.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === shown.length - 1} />)}
+      {shown.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === shown.length - 1} cursorCol={i === cursorRow ? cursor!.col : null} />)}
       {freshFrom < shown.length ? (
         <Animated.Text style={{ opacity: fade }}>
-          {shown.slice(freshFrom).map((line, i) => <LineSpans key={freshFrom + i} line={line} palette={palette} last={freshFrom + i === shown.length - 1} />)}
+          {shown.slice(freshFrom).map((line, i) => <LineSpans key={freshFrom + i} line={line} palette={palette} last={freshFrom + i === shown.length - 1} cursorCol={freshFrom + i === cursorRow ? cursor!.col : null} />)}
         </Animated.Text>
       ) : null}
+      {cursorRow === shown.length ? <>{shown.length > 0 ? "\n" : null}{" ".repeat(cursor!.col)}<CursorCell char=" " palette={palette} /></> : null}
     </Text>
   );
 
@@ -169,8 +174,32 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
   );
 }
 
-function LineSpans({ line, palette, last }: { line: Line; palette: Palette; last: boolean }) {
-  const segments: Segment[] = typeof line === "string" ? [[line, ""]] : line;
+// The lines to draw: blank lines trimmed off the ends, but never the cursor's line.
+// `cursorRow` is the cursor's index in `shown`; shown.length is the empty line below it.
+function linesToDraw(lines: readonly Line[], atStart: boolean, cursorAt: number | null): { shown: readonly Line[]; cursorRow: number | null } {
+  const blank = (line: Line) => lineText(line).trim() === "";
+  let from = 0;
+  let to = lines.length;
+  while (atStart && from < to && blank(lines[from])) from++;
+  while (to > from && blank(lines[to - 1])) to--;
+  if (cursorAt === null || cursorAt < from) return { shown: lines.slice(from, to), cursorRow: null };
+  to = Math.max(to, Math.min(cursorAt + 1, lines.length));
+  return { shown: lines.slice(from, to), cursorRow: cursorAt - from };
+}
+
+// A click that ends a text selection is for copying, not for typing.
+function noSelection(): boolean {
+  const selection = (globalThis as { getSelection?(): { isCollapsed: boolean } | null }).getSelection?.();
+  return !selection || selection.isCollapsed;
+}
+
+function CursorCell({ char, palette }: { char: string; palette: Palette }) {
+  return <Text style={{ backgroundColor: palette.text, color: palette.well }}>{char}</Text>;
+}
+
+function LineSpans({ line, palette, last, cursorCol = null }: { line: Line; palette: Palette; last: boolean; cursorCol?: number | null }) {
+  const all: Segment[] = typeof line === "string" ? [[line, ""]] : line;
+  const { segments, cursorChar, after } = cursorCol === null ? { segments: all, cursorChar: null, after: [] } : splitAt(all, cursorCol);
   return (
     <>
       {segments.map(([text, sgr], i) => {
@@ -184,9 +213,33 @@ function LineSpans({ line, palette, last }: { line: Line; palette: Palette; last
         };
         return <Text key={i} style={style}>{linkify(text)}</Text>;
       })}
+      {cursorChar === null ? null : <CursorCell char={cursorChar} palette={palette} />}
+      {after.map(([text], i) => <Text key={`after-${i}`}>{text}</Text>)}
       {last ? null : "\n"}
     </>
   );
+}
+
+// Splits a line at the cursor's column: the text before it, the character under it (a space
+// past the end of the line), and the plain text after it.
+function splitAt(segments: Segment[], col: number): { segments: Segment[]; cursorChar: string; after: Segment[] } {
+  const before: Segment[] = [];
+  let seen = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const [text, sgr] = segments[i];
+    const chars = [...text];
+    if (seen + chars.length <= col) {
+      before.push(segments[i]);
+      seen += chars.length;
+      continue;
+    }
+    const at = col - seen;
+    if (at > 0) before.push([chars.slice(0, at).join(""), sgr]);
+    const rest = chars.slice(at + 1).join("");
+    return { segments: before, cursorChar: chars[at], after: [...(rest ? [[rest, sgr] as Segment] : []), ...segments.slice(i + 1)] };
+  }
+  if (col > seen) before.push([" ".repeat(col - seen), ""]);
+  return { segments: before, cursorChar: " ", after: [] };
 }
 
 function linkify(text: string): React.ReactNode {

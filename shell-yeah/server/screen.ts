@@ -1,5 +1,5 @@
 import { LIMITS } from "../shared/limits.ts";
-import type { Line, Segment } from "../shared/row.ts";
+import type { Cursor, Line, Segment } from "../shared/row.ts";
 
 export interface ScreenLimits {
   maxLines: number;
@@ -13,8 +13,8 @@ export const DEFAULT_SCREEN_LIMITS: ScreenLimits = { maxLines: LIMITS.linesKept,
 // Nothing else in the plugin looks at escape codes.
 export interface Screen {
   write(text: string): void;
-  // The last `count` lines, the cursor's empty trailing line excluded.
-  tail(count: number): { lines: Line[]; total: number };
+  // The last `count` lines, the cursor's empty trailing line excluded, and where the cursor is.
+  tail(count: number): { lines: Line[]; total: number; cursor: Cursor | null };
   // Plain text of every retained line.
   text(): string;
   // Lines dropped from the front because of maxLines.
@@ -297,7 +297,9 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
     write,
     tail(count) {
       const visible = visibleRows();
-      return { lines: visible.slice(-count).map(toLine), total: dropped + visible.length };
+      const lines = visible.slice(-count).map(toLine);
+      const up = visible.length - 1 - row;
+      return { lines, total: dropped + visible.length, cursor: up < lines.length ? { up, col } : null };
     },
     text() {
       return visibleRows().map((r) => r.segs.map((s) => s.text).join("")).join("\n");

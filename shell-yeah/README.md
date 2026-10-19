@@ -23,9 +23,9 @@ The output box holds the last 300 lines and stays on the newest one while the co
 
 The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over. On Windows, the command runs in PowerShell 7 if it's installed, otherwise in the Windows PowerShell that comes with Windows. It skips your PowerShell profile for the same reason.
 
-Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, type the answer in the box under the output and press Enter. The box hides what you type. The output shows it afterwards if the prompt normally does. When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
+Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, click the output and type, as you would in a terminal. Each key goes to the command as you press it, so a one-key menu takes one key and arrow-key menus work. What you type shows only if the command shows it, so a password stays hidden. **Esc** stops typing. On a phone, tap the box under the output. When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
 
-<img src="images/7-prompt.png" alt="npm asks for a one-time password, and the box under the output takes the code" width="600">
+<img src="images/7-prompt.png" alt="npm asks for a one-time password, and the code goes in as it is typed" width="600">
 
 The plugin drops a leading `! ` or `$ `, so you can paste a command straight from a README.
 
@@ -82,7 +82,7 @@ Run cards need the agent to know the `sh run` rule. Paseo passes it to new Claud
 
 ## Limits
 
-- The box sends one line at a time. Full-screen programs like `vim` or `top`, and menus you pick from with the arrow keys, don't work in a card. Use a terminal tab for those.
+- Full-screen programs like `vim` or `top` don't work in a card. Use a terminal tab for those.
 - Up to 8 commands run at once across all chats. The plugin keeps the last 30 finished ones for **Copy** and **Send**; older cards fall back to the lines they show.
 - Paseo only treats `/sh` as a command when the message box has no attachments. With an attachment, `/sh npm test` goes to the agent as text.
 - Cards show live output only while the plugin is running. After Paseo restarts, a card that was still running says **Interrupted**, and finished cards keep the lines they ended with.
@@ -100,4 +100,4 @@ Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.j
 
 ### 1.0.0
 
-- First version: `/sh` with live output, sending output to the agent, attaching it to a message, and Run cards for commands the agent hands you. Each command runs in a terminal of its own, so you can type answers to its prompts, like a 2FA code. Runs on macOS, Linux and Windows, where commands run in PowerShell. Long output goes to the agent as a summary plus a saved log it can search, and saved logs clean up on their own. Cards for suggested commands carry the agent's plain-words title and warn about commands that are hard to undo. The **Run** pill lists the commands in the agent's last reply, including ones written in a sentence, and runs any command you paste.
+- First version: `/sh` with live output, sending output to the agent, attaching it to a message, and Run cards for commands the agent hands you. Each command runs in a terminal of its own, and keys you type go straight to it, so you can answer its prompts, like a 2FA code or a one-key menu. Runs on macOS, Linux and Windows, where commands run in PowerShell. Long output goes to the agent as a summary plus a saved log it can search, and saved logs clean up on their own. Cards for suggested commands carry the agent's plain-words title and warn about commands that are hard to undo. The **Run** pill lists the commands in the agent's last reply, including ones written in a sentence, and runs any command you paste.

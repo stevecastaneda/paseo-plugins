@@ -31,7 +31,8 @@ export interface RunRegistry {
   start(input: StartInput): Promise<{ runId: string }>;
   stop(runId: string, force: boolean): void;
   // Types a line into a running command's terminal, then Enter. Throws when it can't take typing.
-  input(runId: string, text: string): void;
+  // Keys as the terminal gets them: "\r" is Enter, "\x7f" Backspace.
+  input(runId: string, keys: string): void;
   tail(runId: string, lines: number, since: number | null, waitMs: number): Promise<TailResult>;
   // The row as the daemon sees it now, with up to `lines` lines. Not size-fitted.
   snapshot(runId: string, lines: number): RunRow | null;
@@ -282,6 +283,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       rev: run.rev,
       phase: run.phase,
       output: { lines: fitLines(tail.lines, limits.liveReplyBytes), total: tail.total },
+      cursor: tail.cursor,
       sentAt: run.sentAt,
       lastOutputAt: run.lastOutputAt,
       serverNow: deps.now(),
@@ -341,11 +343,11 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       ];
     },
 
-    input(runId, text) {
+    input(runId, keys) {
       const run = runs.get(runId);
       if (!run || run.phase.kind !== "running") throw new Error("This command has already ended.");
       if (!run.terminal || !run.proc) throw new Error("This command can't take typing.");
-      run.proc.write(`${text}\r`);
+      run.proc.write(keys);
     },
 
     async tail(runId, lines, since, waitMs) {

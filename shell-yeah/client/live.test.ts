@@ -13,7 +13,7 @@ function row(overrides: Partial<RunRow> = {}): RunRow {
 }
 
 function view(rev: number, overrides: Partial<LiveView> = {}): LiveView {
-  return { rev, phase: { kind: "running", startedAt: T0, stopRequestedAt: null }, output: { lines: ["a", "b"], total: 2 }, sentAt: null, lastOutputAt: T0, serverNow: T0 + 1_000, ...overrides };
+  return { rev, phase: { kind: "running", startedAt: T0, stopRequestedAt: null }, output: { lines: ["a", "b"], total: 2 }, cursor: null, sentAt: null, lastOutputAt: T0, serverNow: T0 + 1_000, ...overrides };
 }
 
 type Call = { input: { runId: string; lines: number; since: number | null; waitMs: number }; resolve(value: unknown): void; reject(error: Error): void };

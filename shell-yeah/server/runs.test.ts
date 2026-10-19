@@ -353,13 +353,31 @@ posixTest("in a terminal: typing answers a prompt, and a hidden prompt doesn't s
   const h = harness();
   const id = await run(h.registry, "printf 'Code: '; read code; echo \"got $code\"; stty -echo; printf 'Password: '; read pw; stty echo; echo; echo \"${#pw} chars\"");
   await until(() => h.text(id).at(-1)?.startsWith("Code:") === true);
-  h.registry.input(id, "123456");
+  h.registry.input(id, "123456\r");
   await until(() => h.text(id).at(-1)?.startsWith("Password:") === true);
-  h.registry.input(id, "hunter2");
+  h.registry.input(id, "hunter2\r");
   const row = await ended(h.registry, id);
   assert.equal(row.phase.kind, "ok");
   assert.deepEqual(h.text(id), ["Code: 123456", "got 123456", "Password: ", "7 chars"]);
   assert.throws(() => h.registry.input(id, "late"), /already ended/);
+  await h.registry.shutdown();
+});
+
+posixTest("in a terminal: keys arrive as pressed, so a one-key menu takes one key and Backspace edits", { skip: noTerminal, timeout: 15_000 }, async () => {
+  const h = harness();
+  const cwd = dir();
+  writeFileSync(join(cwd, "menu.sh"), "printf '[y] yes [q] quit '; read -rsn1 k; echo; echo \"key $k\"; printf 'Project: '; read -r p; echo \"using $p\"\n");
+  const id = await run(h.registry, "bash menu.sh", cwd);
+  await until(() => h.text(id).at(-1)?.startsWith("[y]") === true);
+  h.registry.input(id, "y");
+  await until(() => h.text(id).at(-1)?.startsWith("Project:") === true);
+  assert.equal(h.registry.snapshot(id, 1)!.phase.kind, "running", "the one key didn't also answer the next prompt");
+  h.registry.input(id, "stx");
+  h.registry.input(id, "\x7f");
+  h.registry.input(id, "aging\r");
+  const row = await ended(h.registry, id);
+  assert.equal(row.phase.kind, "ok");
+  assert.deepEqual(h.text(id).slice(-3), ["key y", "Project: staging", "using staging"]);
   await h.registry.shutdown();
 });
 
@@ -413,9 +431,9 @@ windowsTest("on Windows: typing answers Read-Host, and a hidden prompt doesn't s
   const h = harness();
   const id = await run(h.registry, "$c = Read-Host 'Code'; Write-Output \"got $c\"; $p = Read-Host 'Password' -AsSecureString; Write-Output \"$($p.Length) chars\"");
   await until(() => h.text(id).some((line) => line.startsWith("Code")), 30_000);
-  h.registry.input(id, "123456");
+  h.registry.input(id, "123456\r");
   await until(() => h.text(id).some((line) => line.startsWith("Password")), 30_000);
-  h.registry.input(id, "hunter2");
+  h.registry.input(id, "hunter2\r");
   const row = await ended(h.registry, id);
   assert.equal(row.phase.kind, "ok");
   const text = h.text(id);

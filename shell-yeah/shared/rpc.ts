@@ -29,11 +29,12 @@ export const stop = defineRpc({
   output: z.object({ ok: z.literal(true) }),
 });
 
-// Types a line into a running command's terminal and presses Enter, for a prompt like
-// "Enter OTP:". An empty line is a bare Enter. Fails when the command has no terminal.
+// Sends keys to a running command's terminal as they're pressed, the way a terminal does:
+// "\r" is Enter. The terminal decides what shows, so a password prompt shows nothing.
+// Fails when the command has no terminal.
 export const input = defineRpc({
   name: "shell-yeah.input",
-  input: z.object({ runId, text: z.string().max(LIMITS.inputChars).refine((t) => !/[\r\n]/.test(t), "One line at a time") }),
+  input: z.object({ runId, keys: z.string().min(1).max(LIMITS.inputChars) }),
   output: z.object({ ok: z.literal(true) }),
 });
 

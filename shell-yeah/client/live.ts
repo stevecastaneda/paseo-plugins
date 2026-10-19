@@ -91,6 +91,7 @@ export function createLiveStore(deps: LiveStoreDeps): LiveStore {
       rev: live?.rev ?? row.rev,
       phase: live?.phase ?? row.phase,
       output: live?.output ?? row.output,
+      cursor: live?.cursor ?? null,
       sentAt: live?.sentAt ?? row.sentAt,
       lastOutputAt: live?.lastOutputAt ?? null,
       lostAt: (live?.phase ?? row.phase).kind === "running" ? e.lostAt : null,

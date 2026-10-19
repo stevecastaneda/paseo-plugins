@@ -6,7 +6,7 @@ import { describe, formatDuration, statusText, type ResolvedRun } from "./view.t
 const T0 = 1_700_000_000_000;
 
 function run(phase: Phase, overrides: Partial<ResolvedRun> = {}): ResolvedRun {
-  return { runId: "r1", origin: "user", command: "npm test", cwd: "/repo", terminal: false, rev: 1, phase, output: { lines: ["a", "b"], total: 2 }, sentAt: null, lostAt: null, lastOutputAt: null, clockOffset: 0, ...overrides };
+  return { runId: "r1", origin: "user", command: "npm test", cwd: "/repo", terminal: false, rev: 1, phase, output: { lines: ["a", "b"], total: 2 }, cursor: null, sentAt: null, lostAt: null, lastOutputAt: null, clockOffset: 0, ...overrides };
 }
 
 const ended = { startedAt: T0, endedAt: T0 + 12_400 };
@@ -159,7 +159,7 @@ test("in a terminal, a running card has a box to type into, and a prompt points 
   assert.equal(typing.keyboard, true);
   assert.equal(typing.hint, null);
   const prompted = describe(run(running, { terminal: true, output: { lines: ["Enter OTP:"], total: 1 }, lastOutputAt: T0 }), T0 + 9_000);
-  assert.match(prompted.hint ?? "", /Type your answer in the box above/);
+  assert.match(prompted.hint ?? "", /Click the output and type your answer/);
   const stopping = describe(run({ ...running, stopRequestedAt: T0 }, { terminal: true }), T0);
   assert.equal(stopping.keyboard, false, "no typing while it stops");
   const done = describe(run({ kind: "ok", ...ended }, { terminal: true, output: { lines: ["Password:"], total: 1 } }), T0);

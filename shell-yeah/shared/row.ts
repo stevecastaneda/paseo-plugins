@@ -67,11 +67,18 @@ export const runRow = z.object({
 });
 export type RunRow = z.infer<typeof runRow>;
 
+// Where the terminal's cursor is, counted from the end of `output.lines`: up 0 is the last
+// line, up -1 the empty line below it. Typing lands here.
+export const cursor = z.object({ up: z.number().int().min(-1), col: z.number().int().nonnegative() });
+export type Cursor = z.infer<typeof cursor>;
+
 // What a live reply carries: the moving parts of a RunRow, plus two clocks.
 export const liveView = z.object({
   rev: z.number().int(),
   phase,
   output,
+  // Null when the cursor is above the lines sent.
+  cursor: cursor.nullable(),
   sentAt: z.number().nullable(),
   lastOutputAt: z.number().nullable(),
   // The daemon's clock when the reply was built; the row corrects its timers by it.
