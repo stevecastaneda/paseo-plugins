@@ -17,7 +17,7 @@ Type `/sh npm test` and press Enter. A card appears in the chat:
 
 <img src="images/2-running.png" alt="A /sh npm run build card while it runs, with a live progress bar" width="600">
 
-The output box holds the last 300 lines and stays on the newest one while the command runs. Scroll up for earlier lines; **Jump to latest** brings you back. The arrow in the header makes the box taller. **Copy** copies everything the plugin kept, up to 10,000 lines.
+The output box holds the last 300 lines and stays on the newest one while the command runs. Scroll up for earlier lines; **Jump to latest** brings you back. The arrow in the header makes the box taller, up to 60% of the window. **Copy** copies everything the plugin kept, up to 10,000 lines.
 
 <img src="images/6-expanded.png" alt="The failed npm test card made taller to show more lines" width="600">
 

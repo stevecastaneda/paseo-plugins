@@ -77,16 +77,18 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   // last line; half a row at the top shows there is more above.
   return (
     <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...codeSurface()}>
-      <TailScroll maxHeight={(boxRows(tall ? LIMITS.tallBoxLines : rows, compact, screen.height) + 0.5) * LINE_HEIGHT} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
+      <TailScroll maxHeight={(boxRows(rows, tall, compact, screen.height) + 0.5) * LINE_HEIGHT} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
         <View style={{ paddingHorizontal: 10 }}>{body}</View>
       </TailScroll>
     </View>
   );
 }
 
-// On a phone a box never takes more than 40% of the screen, so a drag can still reach the chat.
-function boxRows(rows: number, compact: boolean, windowHeight: number): number {
-  return compact ? Math.max(4, Math.min(rows, Math.floor((0.4 * windowHeight) / LINE_HEIGHT))) : rows;
+// Made taller, the box takes up to 60% of the window, which leaves the card's header and buttons
+// in view. On a phone a box never takes more than 40%, so a drag can still reach the chat.
+function boxRows(rows: number, tall: boolean, compact: boolean, windowHeight: number): number {
+  if (compact) return Math.max(4, Math.min(tall ? LIMITS.tallBoxLines : rows, Math.floor((0.4 * windowHeight) / LINE_HEIGHT)));
+  return tall ? Math.max(LIMITS.tallBoxLines, Math.floor((0.6 * windowHeight) / LINE_HEIGHT)) : rows;
 }
 
 // Three bands of the well color over the half row at a cut edge, without gradient support.
@@ -111,7 +113,6 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
   fadeColor: string;
 }) {
   const ref = useRef<NativeScrollView>(null);
-  const [away, setAway] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   // The last known geometry. `content` is the height before the newest output landed.
   const metrics = useRef({ offset: 0, viewport: 0, content: 0 });
@@ -126,11 +127,10 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
     return offset + viewport >= m.content - LINE_HEIGHT;
   };
   const onContentSizeChange = (_width: number, height: number) => {
-    if (metrics.current.content === 0) ref.current?.scrollToEnd({ animated: false });
-    else if (following) {
-      if (atBottom()) ref.current?.scrollToEnd({ animated: false });
-      else onFollowingChange(false);
-    }
+    // Output that got shorter, as when the command clears the screen, wasn't scrolled away from.
+    const shrank = height < metrics.current.content;
+    if (metrics.current.content === 0 || (following && (shrank || atBottom()))) ref.current?.scrollToEnd({ animated: false });
+    else if (following) onFollowingChange(false);
     metrics.current.content = height;
   };
   useEffect(() => {
@@ -140,7 +140,6 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     metrics.current = { offset: contentOffset.y, viewport: layoutMeasurement.height, content: contentSize.height };
     const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - LINE_HEIGHT;
-    setAway(!bottom);
     setScrolled(contentOffset.y > 0);
     if (bottom !== following) onFollowingChange(bottom);
   };
@@ -150,8 +149,8 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
         {children}
       </ScrollView>
       {scrolled ? <EdgeFade color={fadeColor} edge="top" /> : null}
-      {away ? <EdgeFade color={fadeColor} edge="bottom" /> : null}
-      {away ? (
+      {following ? null : <EdgeFade color={fadeColor} edge="bottom" />}
+      {following ? null : (
         <View style={{ position: "absolute", end: 8, bottom: 0 }}>
           <Button
             icon="ArrowDown"
@@ -165,7 +164,7 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
             onPress={() => { onFollowingChange(true); ref.current?.scrollToEnd({ animated: false }); }}
           />
         </View>
-      ) : null}
+      )}
     </View>
   );
 }
