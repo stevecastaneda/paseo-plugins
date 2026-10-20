@@ -1,6 +1,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { ProgressPanel } from "./client/panel";
 import { contributePills, progressPanel } from "./client/pills";
+import { QuestionSettings } from "./client/settings";
 
 export default function contribute(client: PluginClientContext) {
   const stopPills = contributePills(client);
@@ -25,7 +26,15 @@ export default function contribute(client: PluginClientContext) {
     },
   });
 
+  const stopSettings = client.addSettingsScreen({
+    id: "questions",
+    title: "Questions",
+    icon: "MessageCircleQuestion",
+    Component: QuestionSettings,
+  });
+
   return () => {
+    void stopSettings();
     void stopPanel();
     void stopCommand();
     stopPills();

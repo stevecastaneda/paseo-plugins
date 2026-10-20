@@ -153,7 +153,10 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
       </PressScale>
       <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={`${question.id} choices`} onPress={onOpen}
         style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 4, margin: -4, padding: 4 }}>
-        <Text style={{ flex: 1, minWidth: 0, color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
+          <QuestionState colors={colors} question={question} />
+        </View>
         {/* Optical: centers the 14px chevron on the 19px first line. */}
         <View style={{ paddingTop: 2.5 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
       </PressableRow>
@@ -183,10 +186,20 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
   );
 }
 
-// The agent's pick, under an open question that has no lettered options to tag.
+// Under an open question: whether the agent is building its pick or waiting,
+// and its pick when there are no lettered options to tag.
 export function QuestionState({ colors, question }: { colors: Colors; question: Question }) {
-  if (question.options.length || !question.recommended) return null;
-  return <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>Recommended: <Text style={{ color: colors.foreground }}>{question.recommended}</Text></Text>;
+  const value = { color: colors.foreground };
+  return (
+    <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+      {question.state === "building" ? <>Building with <Text style={value}>{question.recommended}</Text></> : (
+        <>
+          {!question.options.length && question.recommended ? <>Recommended: <Text style={value}>{question.recommended}</Text>. </> : null}
+          Waiting for you{question.big ? <>. Big: <Text style={value}>{question.big}</Text></> : null}
+        </>
+      )}
+    </Text>
+  );
 }
 
 // `onSurface1` when drawn on a surface1 background (Paseo's dialogs), so the

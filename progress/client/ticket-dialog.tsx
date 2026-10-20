@@ -8,6 +8,7 @@ import { type Link, ticketStory, type TimelineStep } from "../shared/ticket-stor
 import { type Attachment, AttachmentList, deliverableAttachment, ticketSourceAttachment } from "./attachments";
 import { StackedDialog } from "./dialog-stack";
 import { IconSwap } from "./motion";
+import { QuestionState } from "./questions";
 import { PressableRow } from "./row";
 import { Spinner, StalledPulse, WaitingDot } from "./spinner";
 import { StatusBadge } from "./status-badge";
@@ -98,7 +99,7 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, context,
                 <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{question.title}<LinkNote colors={colors} link={question.link} /></Text>
                 {question.answer
                   ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>Answered <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{question.answer.choice}</Text>{chosen ? <Text style={{ color: colors.foreground }}>: {chosen.label}</Text> : null}</Text>
-                  : null}
+                  : <QuestionState colors={colors} question={question} />}
               </View>
               <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>
             </PressableRow>
