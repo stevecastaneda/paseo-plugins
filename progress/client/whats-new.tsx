@@ -45,7 +45,7 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <PressScale accessibilityRole="button" onPress={() => { setShown(whatsNew); setOpen(true); }}
               style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>See what's new</Text>
+              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>See what’s new</Text>
             </PressScale>
             <PressScale accessibilityRole="button" accessibilityLabel="Dismiss what's new" hitSlop={6} onPress={() => close(whatsNew.version)}
               style={({ pressed, hovered }) => ({ padding: 5, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
@@ -54,7 +54,7 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
           </View>
         </View>
       ) : null}</Presence>
-      <Modal title={shown ? `What's new in Progress ${shown.version}` : ""} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
+      <Modal title={shown ? `What’s new in Progress ${shown.version}` : ""} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
         open={open} onOpenChange={(next) => { if (!next) closeDialog(); }}>
         <Modal.Content>
           {shown ? <Notes colors={colors} notes={shown.notes} /> : null}
