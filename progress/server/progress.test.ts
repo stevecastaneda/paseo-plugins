@@ -19,6 +19,8 @@ import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./ski
 import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
+import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMode } from "./question-mode.ts";
+import type { QuestionMode } from "../shared/question-modes.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 import { parseWriteUp, writeUpExcerpt } from "../shared/write-up.ts";
 
@@ -30,6 +32,10 @@ const HOME = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
 process.env.HOME = HOME;
 const git = async (cwd: string, ...args: string[]) =>
   (await promisify(execFile)("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd })).stdout;
+
+const WORK_AROUND_LINE = `Question mode: Work around, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`;
+const HOLD_RULE = "Build no option before the answer, not even your recommendation. Work on everything the question doesn't affect. If nothing else is left, end your turn, tell the user in chat which questions you're waiting on, and leave the run open.";
+const STOP_RULE = "Ask any other questions you already have, then stop all work and resume only after an answer. End your turn now, tell the user in chat which questions you're waiting on, and leave the run open.";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const minutes = (count: number) => new Date(T0 + count * 60_000);
@@ -226,7 +232,7 @@ test("a worktree without a progress file reads as not configured", async (t) => 
 
 test("tickets added and updated by the agent show up with ids, statuses, and the headline", async (t) => {
   const w = await worktree(t);
-  assert.deepEqual(await w.run("start", "Loan Options", "--subtitle", "Frozen links"), { code: 0, text: "Started run: Loan Options" });
+  assert.deepEqual(await w.run("start", "Loan Options", "--subtitle", "Frozen links"), { code: 0, text: `Started run: Loan Options\n${WORK_AROUND_LINE}` });
   assert.equal((await w.run("ticket", "add", "Ticket 01: Saved table", "--estimate", "120")).text, "Added T01: Ticket 01: Saved table (2h)");
   await w.run("ticket", "add", "Ticket 02: Copy Link", "--estimate", "150");
   await w.run("ticket", "add", "Ticket 03: Frozen links", "--estimate", "120");
@@ -434,7 +440,7 @@ test("the command runs as a script and stamps the real time", async (t) => {
   const cli = fileURLToPath(new URL("./cli.ts", import.meta.url));
   const before = Date.now();
   const { stdout } = await promisify(execFile)(process.execPath, [cli, "start", "Real clock"], { cwd: w.directory });
-  assert.equal(stdout.trim(), "Started run: Real clock");
+  assert.equal(stdout.trim(), `Started run: Real clock\n${WORK_AROUND_LINE}`);
   const updatedAt = Date.parse((await w.dashboard()).dashboard.updatedAt ?? "");
   assert.ok(updatedAt >= before - 1000 && updatedAt <= Date.now() + 1000);
 });
@@ -526,7 +532,7 @@ test("a write-up reads as headings, paragraphs, list items and code, and its exc
   ].join("\n"));
   assert.deepEqual(blocks, [
     { kind: "heading", level: 1, spans: [{ text: "Ticket 01: Login" }] },
-    { kind: "paragraph", spans: [{ text: "Let people sign in with email and a magic link. It wraps onto two lines." }] },
+    { kind: "paragraph", spans: [{ text: "Let people sign in with " }, { text: "email", strong: true }, { text: " and a magic link. It wraps onto two lines." }] },
     { kind: "heading", level: 2, spans: [{ text: "Acceptance" }] },
     { kind: "item", marker: "☐", depth: 0, spans: [{ text: "Sends the " }, { text: "link", code: true }, { text: " within a minute" }] },
     { kind: "item", marker: "1.", depth: 1, spans: [{ text: "Nested step" }] },
@@ -722,7 +728,7 @@ test("questions carry the agent's recommendation and wait for the answer, then a
     "--background", "13px left, 20px right.",
     "--file", ".scratch/shots/row.png=Before",
     "--raised-by", "Ticket 01 design review");
-  assert.deepEqual(ask, { code: 0, text: "Asked Q1 (Row spacing). You recommend A. Build no option before the answer: work only on what it doesn't affect, and if nothing else is left, stop and wait." });
+  assert.deepEqual(ask, { code: 0, text: `Asked Q1 (Row spacing). You recommend A. Mode: Work around. ${HOLD_RULE}` });
   await w.run("question", "ask", "PDF check", "Do the PDFs match the page?", "--recommend", "Looks right");
   let { dashboard } = await w.dashboard();
   assert.equal(headlineText(dashboard), "2 of 4 tickets done, 2 questions waiting for you");
@@ -760,6 +766,164 @@ test("questions from before recommendations show their default as the pick, and 
   const { dashboard } = await w.dashboard();
   assert.equal(dashboard.issues.length, 0);
   assert.deepEqual(dashboard.questions.answered.map((question) => [question.recommended, question.answer?.changedCourse]), [["Yes", true]]);
+});
+
+// The mode the user picked in Paseo's Settings, as the server mirrors it, until the test ends.
+async function questionMode(t: TestContext, mode: QuestionMode) {
+  await writeQuestionMode(mode);
+  t.after(() => rm(questionModePath(), { force: true }));
+}
+
+async function lastEvent(w: Awaited<ReturnType<typeof worktree>>) {
+  const lines = (await readFile(join(w.store, "progress.jsonl"), "utf8")).trim().split("\n");
+  return JSON.parse(lines.at(-1)!);
+}
+
+test("in Stop mode the agent asks what it has, then stops all work until an answer", async (t) => {
+  await questionMode(t, "stop");
+  const w = await screenshotRun(t);
+  assert.equal((await w.run("start", "Next")).text, `Started run: Next\nQuestion mode: Stop, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`);
+  const ask = await w.run("question", "ask", "Spacing", "Even it out?", "--option", "A=Yes", "--option", "B=No", "--recommend", "A");
+  assert.equal(ask.text, `Asked Q1 (Spacing). You recommend A. Mode: Stop. ${STOP_RULE}`);
+  assert.deepEqual([(await lastEvent(w)).mode, (await lastEvent(w)).big], ["stop", undefined]);
+  const big = await w.run("question", "ask", "Push", "Push it?", "--recommend", "Yes", "--big", "pushes to GitHub");
+  assert.equal(big.text, `Asked Q2 (Push). You recommend Yes. Mode: Stop. ${STOP_RULE}`, "--big changes nothing");
+  assert.equal((await lastEvent(w)).big, "pushes to GitHub", "--big is still recorded");
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.state, question.big]), [["Q1", "stopped", undefined], ["Q2", "stopped", "pushes to GitHub"]]);
+  const show = (await runShow(w, 0)).text;
+  assert.ok(show.includes("Question mode: Stop,"), show);
+  assert.ok(show.includes("Even it out? You recommended A, agent stopped until the answer"), show);
+  assert.ok(show.includes("Push it? You recommended Yes, agent stopped until the answer. Big: pushes to GitHub"), show);
+  assert.equal((await w.run("question", "answer", "Q1", "B")).text, "Answered Q1: B (not your recommendation, A). Build it now.");
+  assert.equal((await lastEvent(w)).changedCourse, undefined);
+});
+
+test("with no question mode set, the agent works around questions", async (t) => {
+  const w = await screenshotRun(t);
+  assert.equal(await readQuestionMode(), "work-around");
+  assert.equal((await w.run("question", "ask", "Spacing", "Even it out?", "--recommend", "Yes")).text, `Asked Q1 (Spacing). You recommend Yes. Mode: Work around. ${HOLD_RULE}`);
+  assert.equal((await lastEvent(w)).mode, "work-around");
+  assert.equal((await w.run("question", "ask", "Push", "Push it?", "--recommend", "Yes", "--big", "pushes to GitHub")).text, `Asked Q2 (Push). You recommend Yes. Mode: Work around. ${HOLD_RULE}`, "--big changes nothing");
+  assert.equal((await lastEvent(w)).big, "pushes to GitHub", "--big is still recorded");
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.questions.open.map((question) => question.state), ["waiting", "waiting"]);
+  const show = (await runShow(w, 0)).text;
+  assert.ok(show.includes(WORK_AROUND_LINE), show);
+  assert.ok(show.includes("Even it out? You recommended Yes, waiting for the answer"), show);
+  assert.ok(show.includes("Push it? You recommended Yes, waiting for the answer. Big: pushes to GitHub"), show);
+  assert.equal((await w.run("question", "answer", "Q1", "No")).text, "Answered Q1: No (not your recommendation, Yes). Build it now.");
+  assert.equal((await lastEvent(w)).changedCourse, undefined);
+});
+
+test("in Keep building mode the agent builds its recommendation, and changes course when the answer differs", async (t) => {
+  await questionMode(t, "keep-building");
+  const w = await screenshotRun(t);
+  assert.match((await w.run("start", "Next")).text, /^Started run: Next\nQuestion mode: Keep building, set by the user in Paseo's Settings\./);
+  const ask = await w.run("question", "ask", "Row spacing", "Even out the spacing?", "--option", "A=Even it out", "--option", "B=Leave it", "--recommend", "A");
+  assert.equal(ask.text, "Asked Q1 (Row spacing). You recommend A. Mode: Keep building. Build A now and keep working. If the user picks another option, undo the work built on A and build their choice first. If the rest of the work is done while it's still open, leave it open and tell the user in chat; don't withdraw it.");
+  assert.equal((await lastEvent(w)).mode, "keep-building");
+  await w.run("question", "ask", "Theme", "Dark by default?", "--option", "A=Yes", "--option", "B=No", "--recommend", "B");
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.questions.open.map((question) => question.state), ["building", "building"]);
+  const show = await runShow(w, 0);
+  assert.ok(show.text.includes("Question mode: Keep building"), show.text);
+  assert.ok(show.text.includes("Even out the spacing? You recommended A, building with it"), show.text);
+
+  assert.equal((await w.run("question", "answer", "Q1", "B")).text, "Answered Q1: B (not your recommendation, A). Undo the work built on your recommendation and build B before anything else.");
+  assert.equal((await lastEvent(w)).changedCourse, true);
+  w.at(1);
+  assert.equal((await w.run("question", "answer", "Q2", "B")).text, "Answered Q2: B (as you recommended). Carry on with it.");
+  assert.equal((await lastEvent(w)).changedCourse, undefined);
+  const answered = (await w.dashboard()).dashboard.questions.answered;
+  assert.deepEqual(answered.map((question) => [question.id, question.answer?.changedCourse]), [["Q2", undefined], ["Q1", true]]);
+});
+
+test("in Keep building mode a big question holds like Work around, and says why", async (t) => {
+  await questionMode(t, "keep-building");
+  const w = await screenshotRun(t);
+  const ask = await w.run("question", "ask", "Publish", "Publish to npm?", "--recommend", "Yes", "--big", "publishes to npm");
+  assert.equal(ask.text, `Asked Q1 (Publish). You recommend Yes. Mode: Keep building. This question is big, so hold it like Work around. ${HOLD_RULE}`);
+  const event = await lastEvent(w);
+  assert.deepEqual([event.mode, event.big], ["keep-building", "publishes to npm"]);
+  const question = (await w.dashboard()).dashboard.questions.open[0];
+  assert.deepEqual([question.state, question.big], ["waiting", "publishes to npm"]);
+  assert.ok((await runShow(w, 0)).text.includes("Publish to npm? You recommended Yes, waiting for the answer. Big: publishes to npm"));
+  assert.match((await w.run("question", "ask", "Other", "Other?", "--recommend", "Yes", "--big", " ")).text, /Missing --big reason/);
+  assert.equal((await w.run("question", "answer", "Q1", "No")).text, "Answered Q1: No (not your recommendation, Yes). Build it now.");
+  assert.equal((await lastEvent(w)).changedCourse, undefined);
+});
+
+test("question ask --help names the three modes and the three big tests", async (t) => {
+  const w = await worktree(t);
+  const help = (await w.run("question", "ask", "--help")).text;
+  assert.match(help, /Stop \(stop all work until an answer\), Work around \(build nothing the question affects, work on the rest\), or Keep building \(build your recommendation now, change course if the user picks another\)/);
+  assert.ok(help.includes("A question is big when one of these holds, and only then: (1) building your recommendation before the answer would mean something leaves this computer: pushing, publishing, deploying, changing live data, sending messages, spending money; (2) the answer sets something people or programs outside this repo will rely on: a saved data format, a database schema, a public API, command or setting name, or removing or renaming something people already use; (3) most of the tickets or steps still ahead would be built on the answer. Every other question is small, large code changes included. When you can't name the test it meets, it's small. Name the test in the --big reason."), help);
+});
+
+test("questions from earlier versions keep their state: a default without waits was built, the rest waited", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), title: "Old", question: "Old?", type: "question.ask", ...event });
+  await appendFile(join(w.store, "progress.jsonl"), [
+    line({ id: "Q1", default: "A" }),
+    line({ id: "Q2", default: "A", waits: true }),
+    line({ id: "Q3", recommend: "A" }),
+  ].join("\n") + "\n");
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.state]), [["Q1", "building"], ["Q2", "waiting"], ["Q3", "waiting"]]);
+});
+
+test("the server mirrors the question mode for the command, falling back to Work around, and removes it on cleanup", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "progress-home-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  type State = { status: "ready"; revision: string; values: { mode: QuestionMode } } | { status: "invalid"; revision: string; error: string };
+  const listeners: Array<(state: State) => unknown> = [];
+  const settings = {
+    read: async (): Promise<State> => ({ status: "ready", revision: "1", values: { mode: "keep-building" } }),
+    subscribe(listener: (typeof listeners)[number]) {
+      listeners.push(listener);
+      return () => void listeners.splice(listeners.indexOf(listener), 1);
+    },
+  };
+  assert.equal(await readQuestionMode(home), "work-around", "no mirror yet");
+  const mirror = mirrorQuestionMode(settings, home);
+  await mirror.settled;
+  assert.equal(await readQuestionMode(home), "keep-building");
+  await listeners[0]({ status: "ready", revision: "2", values: { mode: "stop" } });
+  assert.equal(await readQuestionMode(home), "stop");
+  await listeners[0]({ status: "ready", revision: "3", values: { mode: "keep-building" } });
+  await listeners[0]({ status: "invalid", revision: "4", error: "bad" });
+  assert.equal(await readQuestionMode(home), "work-around", "invalid settings work around");
+  assert.deepEqual((await readdir(join(home, ".local", "state", "paseo-progress"))), ["settings.json"], "no temp files left");
+  await writeFile(questionModePath(home), "{ not json");
+  assert.equal(await readQuestionMode(home), "work-around", "a damaged mirror works around");
+
+  void listeners[0]({ status: "ready", revision: "5", values: { mode: "stop" } });
+  await mirror.stop();
+  assert.equal(listeners.length, 0);
+  assert.deepEqual(await readdir(join(home, ".local", "state", "paseo-progress")), [], "a write pending at cleanup doesn't bring the mirror back");
+  assert.equal(await readQuestionMode(home), "work-around", "agents fall back to the default while the plugin is off");
+
+  const restarted = mirrorQuestionMode(settings, home);
+  await restarted.settled;
+  assert.equal(await readQuestionMode(home), "keep-building", "startup writes the saved setting again");
+  await restarted.stop();
+});
+
+test("cleanup during the first read leaves no mirror behind", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "progress-home-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  let finishRead!: () => void;
+  const read = new Promise<void>((resolve) => { finishRead = resolve; });
+  const mirror = mirrorQuestionMode({
+    read: async () => { await read; return { status: "ready" as const, revision: "1", values: { mode: "stop" as const } }; },
+    subscribe: () => () => {},
+  }, home);
+  const stopped = mirror.stop();
+  finishRead();
+  await stopped;
+  assert.equal(await readQuestionMode(home), "work-around");
 });
 
 test("question references are never reused and bad questions are refused", async (t) => {
@@ -939,7 +1103,7 @@ test("the launcher runs the command from the plugin folder Paseo reports", async
     cwd: w.directory,
     env: { ...process.env, PASEO_PROGRESS_PLUGIN_DIR: pluginDir },
   });
-  assert.equal(stdout.trim(), "Started run: Via launcher");
+  assert.equal(stdout.trim(), `Started run: Via launcher\n${WORK_AROUND_LINE}`);
   await assert.rejects(
     promisify(execFile)(target, ["show"], { cwd: w.directory, env: { ...process.env, PASEO_PROGRESS_PLUGIN_DIR: join(w.directory, "nowhere") } }),
     /not installed in Paseo/,

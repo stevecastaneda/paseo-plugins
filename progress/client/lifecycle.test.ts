@@ -17,9 +17,10 @@ test("registers the Progress panel and a Command Center item that opens it as a 
   assert.equal(item.title, "Open Progress");
   item.onSelect({ openPanel: (id: string, options?: object) => h.client.openPanel(id, { workspaceId: "w", ...options }) });
   assert.deepEqual(plain(h.openedPanels), [{ id: "progress", workspaceId: "w", location: "explorer" }], "Command Center opens the panel in Explorer");
+  assert.deepEqual(plain(h.settingsScreens.map(({ id, title }) => ({ id, title }))), [{ id: "settings", title: "Settings" }], "the plugin has a Settings page in Paseo's Settings");
   assert.equal(h.requests.length, 0, "nothing is read until a panel is shown");
   stop();
-  assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed));
+  assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed) && h.settingsScreens.every((entry) => entry.removed));
 });
 
 test("on a phone, where Paseo doesn't draw Explorer, Progress opens as a tab", () => {

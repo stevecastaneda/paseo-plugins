@@ -3,17 +3,20 @@ import type { ViewStyle } from "react-native";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
-// Relative luminance of a #rgb/#rrggbb or rgb() color, or null when unreadable.
-function luminance(color: string): number | null {
-  let rgb: number[] | null = null;
+// The red, green and blue of a #rgb/#rrggbb or rgb() color, or null when unreadable.
+function channels(color: string): number[] | null {
   const hex = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
   if (hex) {
     const digits = hex[1].length === 3 ? [...hex[1]].map((d) => d + d) : hex[1].match(/../g)!;
-    rgb = digits.map((d) => parseInt(d, 16));
-  } else {
-    const fn = color.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
-    if (fn) rgb = fn.slice(1, 4).map(Number);
+    return digits.map((d) => parseInt(d, 16));
   }
+  const fn = color.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+  return fn ? fn.slice(1, 4).map(Number) : null;
+}
+
+// Relative luminance, or null when the color is unreadable.
+function luminance(color: string): number | null {
+  const rgb = channels(color);
   if (!rgb) return null;
   const [r, g, b] = rgb.map((v) => {
     const c = v / 255;
@@ -22,7 +25,7 @@ function luminance(color: string): number | null {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function isLight(colors: Colors): boolean | null {
+export function isLight(colors: Colors): boolean | null {
   const value = luminance(colors.surface0);
   return value === null ? null : value > 0.4;
 }
@@ -42,4 +45,13 @@ export function raised(colors: Colors): ViewStyle {
       ? "0px 0px 0px 1px rgba(0, 0, 0, 0.06), 0px 1px 2px -1px rgba(0, 0, 0, 0.06), 0px 2px 4px 0px rgba(0, 0, 0, 0.04)"
       : "0px 0px 0px 1px rgba(255, 255, 255, 0.08)",
   };
+}
+
+// A color at low opacity, for a tag's fill: the same hue as its text, never a
+// drifting second color. Paseo's own status badges use 12% in light themes and
+// 16% in dark ones, where the surface swallows more of it.
+export function tint(color: string, colors: Colors): string {
+  const rgb = channels(color);
+  if (!rgb) return colors.surface2;
+  return `rgba(${rgb.join(", ")}, ${isLight(colors) ? 0.12 : 0.16})`;
 }

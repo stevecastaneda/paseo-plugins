@@ -1,4 +1,5 @@
 import { EVENT_VERSION, eventSchema, type DELIVERABLE_KINDS, type FileLink, type ProgressEvent, type QuestionOption, type TicketStatus } from "./events.ts";
+import { QUESTION_MODE_RULES, type QuestionState } from "./question-modes.ts";
 
 // One recorded change to a ticket, oldest first. `stage: ""` clears the stage.
 export interface TicketChange {
@@ -43,14 +44,18 @@ export interface Question {
   title: string;
   question: string;
   options: QuestionOption[];
-  // The option the agent leans toward. Nothing is built until the user answers.
+  // The option the agent leans toward.
   recommended: string;
+  // What the agent does while the question is open.
+  state: QuestionState;
+  // Why the question holds even in Keep building mode.
+  big?: string;
   background?: string;
   files: FileLink[];
   raisedBy?: string;
   ticketId?: string;
   askedAt: string;
-  // `changedCourse` only on older answers, from when agents built a default before asking.
+  // `changedCourse`: the agent had built another option and changed course.
   answer?: { choice: string; words?: string; changedCourse?: boolean; at: string };
 }
 
@@ -279,6 +284,8 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           question: event.question,
           options: event.options ?? [],
           recommended: event.recommend ?? event.default ?? "",
+          state: event.mode ? QUESTION_MODE_RULES[event.mode].state(Boolean(event.big)) : event.default !== undefined && !event.waits ? "building" : "waiting",
+          big: event.big,
           background: event.background,
           files: event.files ?? [],
           raisedBy: event.raisedBy,

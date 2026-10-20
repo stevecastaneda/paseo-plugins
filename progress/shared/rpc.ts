@@ -1,6 +1,7 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 import type { Dashboard } from "./dashboard.ts";
+import type { WhatsNew } from "./whats-new.ts";
 
 // `panelOpened`: the Progress panel has been opened for this worktree before.
 // `root`: the worktree root the file was read from, which stored paths are
@@ -162,4 +163,21 @@ export const readDeliverablePiece = defineRpc({
     offset: z.number().int().min(0),
   }),
   output: z.object({ data: z.string(), bytes: z.number() }),
+});
+
+// This version's changelog notes, once after an update; null otherwise.
+// `headline` is the first sentence of the first note, without Markdown.
+// A changelog bullet. `title` is its bold lead without Markdown, when it has
+// one; `body` is the rest, Markdown kept.
+export const getWhatsNew = defineRpc({
+  name: "progress.whats-new.get",
+  input: z.object({}),
+  output: z.custom<WhatsNew | null>(),
+});
+
+// The user closed it; it stays away for this version.
+export const dismissWhatsNew = defineRpc({
+  name: "progress.whats-new.dismiss",
+  input: z.object({ version: z.string().min(1) }),
+  output: z.object({}),
 });

@@ -2,10 +2,11 @@ import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DeliverablesList } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
+import { WhatsNewBanner } from "./whats-new";
 import { HistoryRow } from "./history";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
 import { Spinner, StalledPulse, WaitingDot } from "./spinner";
-import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
+import { IconSwap, PressScale, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
 import { unbroken, When } from "./when";
@@ -30,11 +31,13 @@ type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
 const mono = () => (Platform.OS === "ios" ? "Menlo" : "monospace");
 
-export function ProgressPanel(props: PluginWorkspacePanelProps) {
+type PanelProps = PluginWorkspacePanelProps & { openSettings(): void };
+
+export function ProgressPanel(props: PanelProps) {
   return <WorkspaceProgress key={`${props.host.id}:${props.workspaceId}`} {...props} />;
 }
 
-function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: PluginWorkspacePanelProps) {
+function WorkspaceProgress({ theme, workspaceId, host, layout, navigation, openSettings }: PanelProps) {
   const colors = theme.colors;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   // Paseo marks the workspace running while any of its agents is. Since 0.11 a Claude
@@ -56,12 +59,13 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation }: Plu
           Could not read progress: {errorText(query.error, "something went wrong")}
         </Text>
       ) : null}
+      <WhatsNewBanner colors={colors} host={host} />
       <LauncherBanner colors={colors} host={host} />
       <SkillBanner colors={colors} host={host} />
       {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}
-      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} file={result.file} /> : null}</Presence>
+      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} file={result.file} openSettings={openSettings} /> : null}</Presence>
       {/* Keyed by run: a new run starts with fresh tabs, pages and dialogs. */}
-      {result?.configured ? <DashboardView key={result.dashboard.run?.startedAt ?? "none"} colors={colors} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
+      {result?.configured ? <DashboardView key={result.dashboard.run?.startedAt ?? "none"} colors={colors} openSettings={openSettings} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
         workspaceId={workspaceId} workspaceDirectory={result.root} file={result.file} navigation={navigation} /> : null}
       {result?.inRepo && directory ? <HistoryRow colors={colors} workspaceId={workspaceId} directory={directory} savedTo={result.savedTo} /> : null}
     </ScrollView>
@@ -84,7 +88,17 @@ function useMarkPanelOpened(workspaceId: string, directory: string | null, neede
   }, [needed, directory, workspaceId, mark]);
 }
 
-function EmptyState({ colors, file }: { colors: Colors; file: string }) {
+// Optical: the 24px button centers on a 20 to 21px title line.
+function SettingsButton({ colors, onPress }: { colors: Colors; onPress(): void }) {
+  return (
+    <PressScale accessibilityRole="button" accessibilityLabel="Open Progress settings" hitSlop={6} outerStyle={{ marginVertical: -2 }} onPress={onPress}
+      style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface1 : "transparent" })}>
+      <Icon name="Settings" size={16} color={colors.foregroundMuted} />
+    </PressScale>
+  );
+}
+
+function EmptyState({ colors, file, openSettings }: { colors: Colors; file: string; openSettings(): void }) {
   return (
     <View style={{ padding: 12, paddingTop: 20, gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -92,6 +106,8 @@ function EmptyState({ colors, file }: { colors: Colors; file: string }) {
         <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "500" }}>
           No progress recorded yet
         </Text>
+        <View style={{ flex: 1 }} />
+        <SettingsButton colors={colors} onPress={openSettings} />
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
         An agent working in this worktree records progress with the <Text style={{ color: colors.foreground }}>paseo-progress</Text> command. It shows up here as soon as the first run starts.
@@ -132,7 +148,8 @@ function useNow(intervalMs: number): number {
 
 const WIDE_MIN = 760;
 
-function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, workspaceDirectory, file, navigation }: {
+function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, workspaceDirectory, file, navigation, openSettings }: {
+  openSettings(): void;
   colors: Colors;
   dashboard: Dashboard;
   agentRunning: boolean;
@@ -155,9 +172,12 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
     <StaggerRoot>
       <Presence show order={0}>
       <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, gap: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 15, lineHeight: 21, fontWeight: "600" }}>
-          {dashboard.run?.title ?? "Progress"}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+          <Text accessibilityRole="header" style={{ flex: 1, color: colors.foreground, fontSize: 15, lineHeight: 21, fontWeight: "600" }}>
+            {dashboard.run?.title ?? "Progress"}
+          </Text>
+          <SettingsButton colors={colors} onPress={openSettings} />
+        </View>
         {dashboard.run?.subtitle ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{dashboard.run.subtitle}</Text>
         ) : null}

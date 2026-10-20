@@ -1,6 +1,9 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { ProgressPanel } from "./client/panel";
 import { contributePills, progressPanel } from "./client/pills";
+import { QuestionSettings } from "./client/settings";
+
+const SETTINGS_ID = "settings";
 
 export default function contribute(client: PluginClientContext) {
   const stopPills = contributePills(client);
@@ -11,7 +14,7 @@ export default function contribute(client: PluginClientContext) {
     icon: "ListChecks",
     context: "workspace",
     locations: [panel.location],
-    Component: ProgressPanel,
+    Component: (props) => <ProgressPanel {...props} openSettings={() => client.openSettings(SETTINGS_ID)} />,
   });
   const stopCommand = client.addCommandCenterItem({
     id: "open-progress",
@@ -25,7 +28,15 @@ export default function contribute(client: PluginClientContext) {
     },
   });
 
+  const stopSettings = client.addSettingsScreen({
+    id: SETTINGS_ID,
+    title: "Settings",
+    icon: "Settings",
+    Component: QuestionSettings,
+  });
+
   return () => {
+    void stopSettings();
     void stopPanel();
     void stopCommand();
     stopPills();

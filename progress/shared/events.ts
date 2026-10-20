@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { QUESTION_MODES } from "./question-modes.ts";
 
 // One line of `progress.jsonl`. The command-line tool writes these; the
 // dashboard reducer reads them. `v` lets later versions change a shape without
@@ -77,9 +78,11 @@ export const eventSchema = z.discriminatedUnion("type", [
   // A blocker that is not a ticket status, like a failing external service.
   z.object({ ...base, type: z.literal("stuck.set"), id: text, reason: text, ticket: text.optional() }),
   z.object({ ...base, type: z.literal("stuck.clear"), id: text }),
-  // The agent asks, recommends an option, and builds none of them before the
-  // answer: it works only on what the question doesn't affect. Older questions
-  // carry `default` (the option the agent carried on with) and `waits` instead.
+  // The agent asks and recommends an option. `mode` is the question mode when
+  // asked; without it (0.3.0 to 1.3.x) the agent built nothing before the
+  // answer, like "work-around". `big` says why the question holds even in
+  // "keep-building" mode. Questions from before 0.3.0 carry `default`, the
+  // option the agent carried on with unless it `waits`.
   z.object({
     ...base,
     type: z.literal("question.ask"),
@@ -89,6 +92,8 @@ export const eventSchema = z.discriminatedUnion("type", [
     options: z.array(questionOptionSchema).max(26).optional(),
     // The agent's pick: an option letter, or a word such as "Looks right" when there are no options.
     recommend: text.optional(),
+    mode: z.enum(QUESTION_MODES).optional(),
+    big: text.optional(),
     default: text.optional(),
     waits: z.boolean().optional(),
     background: text.optional(),
@@ -104,7 +109,7 @@ export const eventSchema = z.discriminatedUnion("type", [
     choice: text,
     // The user's own words, quoted under the answer.
     words: text.optional(),
-    // Older answers: true when the agent had to undo work built on its default.
+    // True when the agent had to undo work built on another option.
     changedCourse: z.boolean().optional(),
   }),
   // Adds detail to an open question; its reference and default stay.
