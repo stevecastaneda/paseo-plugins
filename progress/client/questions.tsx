@@ -190,13 +190,15 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
 // and its pick when there are no lettered options to tag.
 export function QuestionState({ colors, question }: { colors: Colors; question: Question }) {
   const value = { color: colors.foreground };
+  // The letter alone means nothing in the rows that don't list the options.
+  const pick = question.options.find((option) => option.letter === question.recommended);
   return (
     <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-      {question.state === "building" ? <>Building with <Text style={value}>{question.recommended}</Text></> : (
+      {question.state === "building" ? <>Building with <Text style={value}>{question.recommended}{pick ? `: ${pick.label}` : ""}</Text></> : (
         <>
           {!question.options.length && question.recommended ? <>Recommended: <Text style={value}>{question.recommended}</Text>. </> : null}
           {question.state === "stopped" ? "Agent stopped until you answer" : "Waiting for you"}
-          {question.big ? <>. Big: <Text style={value}>{question.big}</Text></> : null}
+          {question.big ? <>. <Text style={value}>Big</Text>: {question.big}</> : null}
         </>
       )}
     </Text>
