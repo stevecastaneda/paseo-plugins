@@ -48,15 +48,30 @@ async function seenFile(home: string): Promise<unknown> {
   return JSON.parse(await readFile(whatsNewPath(home), "utf8"));
 }
 
-test("the plugin's own README parses to the current version's notes", async () => {
+async function ownReadme(): Promise<{ readme: string; version: string }> {
   const directory = fileURLToPath(new URL("..", import.meta.url));
   const readme = await readFile(join(directory, "README.md"), "utf8");
   const { version } = JSON.parse(await readFile(join(directory, "package.json"), "utf8"));
+  return { readme, version };
+}
+
+// What's new shows this entry to users after they update, so a release can't
+// ship without one in the shape the dialog draws.
+test("the current version has a changelog entry ready for What's new", async () => {
+  const { readme, version } = await ownReadme();
   const notes = changelogNotes(readme, version);
-  assert.ok(notes && notes.length >= 4, `expected 4 or more notes for ${version}, got ${notes?.length}`);
+  assert.ok(notes?.length, `README.md needs a "### ${version}" entry under "## Changelog"`);
+  for (const note of notes) {
+    assert.ok(note.kind && note.title && note.body && !note.body.includes("[") && !note.title.includes("*"),
+      `each ${version} bullet needs the form "- [New|Improved|Fixed] **Short title.** Detail", got: ${note.title ?? ""} ${note.body}`);
+  }
+});
+
+test("the 1.4.0 entry leads with the question modes", async () => {
+  const { readme } = await ownReadme();
+  const notes = changelogNotes(readme, "1.4.0");
+  assert.ok(notes && notes.length >= 4);
   assert.equal(headline(notes[0]), "Choose what agents do while a question waits.");
-  assert.ok(notes.every((note) => note.title && !note.title.includes("*") && note.body && !note.body.startsWith("- ")), "every 1.4.0 note has a title and a body");
-  assert.ok(notes.every((note) => note.kind && !note.body.includes("[")), "every 1.4.0 note has a kind, with its tag removed");
 });
 
 const NOTES = [
