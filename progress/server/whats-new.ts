@@ -6,7 +6,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import type { WhatsNew } from "../shared/rpc.ts";
+import type { WhatsNew, WhatsNewNote } from "../shared/rpc.ts";
 import { spans } from "../shared/write-up.ts";
 import { findPluginDirectory } from "./skill.ts";
 import { stateRoot, writeAtomic } from "./store.ts";
@@ -22,7 +22,7 @@ export function whatsNewPath(home = homedir()): string {
 
 // The top-level bullets under `### <version>` in the README's `## Changelog`,
 // or null when that version has none.
-export function changelogNotes(readme: string, version: string): string[] | null {
+export function changelogNotes(readme: string, version: string): WhatsNewNote[] | null {
   let section: "other" | "changelog" | "version" = "other";
   const notes: string[] = [];
   for (const line of readme.replace(/\r\n?/g, "\n").split("\n")) {
@@ -34,13 +34,24 @@ export function changelogNotes(readme: string, version: string): string[] | null
       notes[notes.length - 1] += ` ${line.trim()}`;
     }
   }
-  return notes.length ? notes : null;
+  return notes.length ? notes.map(note) : null;
 }
 
-// The first sentence of a note, without its Markdown.
-export function headline(note: string): string {
-  const plain = spans(note).map((span) => span.text).join("");
-  return /^.*?[.!?](?=\s|$)/.exec(plain)?.[0] ?? plain;
+// A bullet that opens with a bold sentence, like `**Title.** Detail.`, has a title.
+function note(bullet: string): WhatsNewNote {
+  const lead = /^\*\*([^*]+?[.!?])\*\*\s*(.*)$/.exec(bullet);
+  return lead ? { title: plain(lead[1]), body: lead[2] } : { body: bullet };
+}
+
+function plain(markdown: string): string {
+  return spans(markdown).map((span) => span.text).join("");
+}
+
+// A note's title, or else the first sentence of its body, without Markdown.
+export function headline(note: WhatsNewNote): string {
+  if (note.title) return note.title;
+  const body = plain(note.body);
+  return /^.*?[.!?](?=\s|$)/.exec(body)?.[0] ?? body;
 }
 
 async function readSeen(home: string): Promise<string | null> {

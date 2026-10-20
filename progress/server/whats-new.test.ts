@@ -19,6 +19,8 @@ const README = `# Plugin
 
 ### 2.0.0
 
+- **Questions can pause work.** Pick **Stop** in
+  Settings.
 - **Stop** halts all work. It waits for you.
 - Runs \`paseo-progress --help\`
   on a wrapped line.
@@ -52,24 +54,36 @@ test("the plugin's own README parses to the current version's notes", async () =
   const { version } = JSON.parse(await readFile(join(directory, "package.json"), "utf8"));
   const notes = changelogNotes(readme, version);
   assert.ok(notes && notes.length >= 4, `expected 4 or more notes for ${version}, got ${notes?.length}`);
-  assert.equal(headline(notes[0]), "A new setting picks what agents do while a question waits for you.");
-  assert.ok(notes.every((note) => !note.startsWith("- ") && !note.startsWith("#")));
+  assert.equal(headline(notes[0]), "Choose what agents do while a question waits.");
+  assert.ok(notes.every((note) => note.title && !note.title.includes("*") && note.body && !note.body.startsWith("- ")), "every 1.4.0 note has a title and a body");
 });
 
+const NOTES = [
+  { title: "Questions can pause work.", body: "Pick **Stop** in Settings." },
+  { body: "**Stop** halts all work. It waits for you." },
+  { body: "Runs `paseo-progress --help` on a wrapped line." },
+];
+
 test("changelog notes come from that version's section only, wrapped lines joined", () => {
-  assert.deepEqual(changelogNotes(README, "2.0.0"), [
-    "**Stop** halts all work. It waits for you.",
-    "Runs `paseo-progress --help` on a wrapped line.",
-  ]);
-  assert.deepEqual(changelogNotes(README, "1.0.0"), ["First release."]);
+  assert.deepEqual(changelogNotes(README, "2.0.0"), NOTES);
+  assert.deepEqual(changelogNotes(README, "1.0.0"), [{ body: "First release." }]);
   assert.equal(changelogNotes(README, "3.0.0"), null);
   assert.equal(changelogNotes("# Plugin\n", "2.0.0"), null);
 });
 
-test("the headline is the first sentence without Markdown", () => {
-  assert.equal(headline("**Stop** halts all work. It waits for you."), "Stop halts all work.");
-  assert.equal(headline("Runs `paseo-progress --help` on 1.4.0 now"), "Runs paseo-progress --help on 1.4.0 now");
-  assert.equal(headline("See [the docs](https://example.com)! Then more."), "See the docs!");
+test("a bullet's bold opening sentence is its title, without Markdown", () => {
+  const titled = (bullet: string) => changelogNotes(`## Changelog\n\n### 1.0.0\n\n- ${bullet}\n`, "1.0.0")?.[0];
+  assert.deepEqual(titled("**Ready?** Then go."), { title: "Ready?", body: "Then go." });
+  assert.deepEqual(titled("**Only a title.**"), { title: "Only a title.", body: "" });
+  assert.deepEqual(titled("**Stop** halts all work."), { body: "**Stop** halts all work." }, "bold that isn't a sentence");
+  assert.deepEqual(titled("Uses **Stop.** now."), { body: "Uses **Stop.** now." }, "bold that doesn't open the bullet");
+});
+
+test("the headline is the title, or else the body's first sentence without Markdown", () => {
+  assert.equal(headline({ title: "Questions can pause work.", body: "Pick **Stop**. Then wait." }), "Questions can pause work.");
+  assert.equal(headline({ body: "**Stop** halts all work. It waits for you." }), "Stop halts all work.");
+  assert.equal(headline({ body: "Runs `paseo-progress --help` on 1.4.0 now" }), "Runs paseo-progress --help on 1.4.0 now");
+  assert.equal(headline({ body: "See [the docs](https://example.com)! Then more." }), "See the docs!");
 });
 
 test("an update shows the version's notes until they're dismissed", async (t) => {
@@ -78,8 +92,8 @@ test("an update shows the version's notes until they're dismissed", async (t) =>
   const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
   assert.deepEqual(shown, {
     version: "2.0.0",
-    headline: "Stop halts all work.",
-    notes: ["**Stop** halts all work. It waits for you.", "Runs `paseo-progress --help` on a wrapped line."],
+    headline: "Questions can pause work.",
+    notes: NOTES,
   });
   assert.deepEqual(await whatsNew({ version: "2.0.0", readme: README }, home), shown, "still shown until dismissed");
   await markWhatsNewSeen("2.0.0", home);

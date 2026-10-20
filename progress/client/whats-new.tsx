@@ -3,11 +3,11 @@ import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
-import { dismissWhatsNew, getWhatsNew, type WhatsNew } from "../shared/rpc";
+import { dismissWhatsNew, getWhatsNew, type WhatsNew, type WhatsNewNote } from "../shared/rpc";
 import { spans } from "../shared/write-up";
 import { PressScale, Presence } from "./motion";
 import { raised } from "./surfaces";
-import { BlockView } from "./write-up";
+import { BlockView, Spans } from "./write-up";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -26,6 +26,11 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
   const close = (version: string) => {
     queryClient.setQueryData(queryKey, null);
     dismiss({ version }).catch(() => queryClient.invalidateQueries({ queryKey }));
+  };
+  const closeDialog = () => {
+    if (!shown) return;
+    setOpen(false);
+    close(shown.version);
   };
 
   return (
@@ -50,17 +55,41 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
         </View>
       ) : null}</Presence>
       <Modal title={shown ? `What's new in Progress ${shown.version}` : ""} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
-        open={open} onOpenChange={(next) => {
-          if (next || !shown) return;
-          setOpen(false);
-          close(shown.version);
-        }}>
+        open={open} onOpenChange={(next) => { if (!next) closeDialog(); }}>
         <Modal.Content>
-          {shown?.notes.map((note, index) => (
-            <BlockView key={index} colors={colors} block={{ kind: "item", marker: "•", depth: 0, spans: spans(note) }} first={index === 0} />
-          ))}
+          {shown ? <Notes colors={colors} notes={shown.notes} /> : null}
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
+            <PressScale accessibilityRole="button" onPress={closeDialog}
+              style={({ pressed, hovered }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
+              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Got it</Text>
+            </PressScale>
+          </View>
         </Modal.Content>
       </Modal>
     </>
+  );
+}
+
+// Titled notes read as a short list of headings with their details; a changelog
+// written without titles stays a bulleted list.
+function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
+  if (!notes.some((note) => note.title)) {
+    return <View style={{ gap: 12 }}>{notes.map((note, index) => (
+      <BlockView key={index} colors={colors} block={{ kind: "item", marker: "•", depth: 0, spans: spans(note.body) }} first={index === 0} />
+    ))}</View>;
+  }
+  return (
+    <View style={{ gap: 20 }}>
+      {notes.map((note, index) => (
+        <View key={index} style={{ gap: 4 }}>
+          {note.title ? <Text accessibilityRole="header" selectable style={{ color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{note.title}</Text> : null}
+          {note.body ? (
+            <Text selectable style={{ color: note.title ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 19 }}>
+              <Spans colors={colors} spans={spans(note.body)} />
+            </Text>
+          ) : null}
+        </View>
+      ))}
+    </View>
   );
 }

@@ -166,7 +166,11 @@ export const readDeliverablePiece = defineRpc({
 
 // This version's changelog notes, once after an update; null otherwise.
 // `headline` is the first sentence of the first note, without Markdown.
-export type WhatsNew = { version: string; headline: string; notes: string[] };
+// A changelog bullet. `title` is its bold lead without Markdown, when it has
+// one; `body` is the rest, Markdown kept.
+export type WhatsNewNote = { title?: string; body: string };
+
+export type WhatsNew = { version: string; headline: string; notes: WhatsNewNote[] };
 
 export const getWhatsNew = defineRpc({
   name: "progress.whats-new.get",
