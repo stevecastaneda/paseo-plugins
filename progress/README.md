@@ -139,12 +139,12 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.4.0
 
-- **Choose what agents do while a question waits.** Open Settings with the cog at the top right of the Progress panel. **Stop** halts all work until you answer. **Work around**, the default, holds only what your answer affects, which is how questions already worked. **Keep building** builds the agent's pick and changes course if you choose another.
-- **Big questions always wait.** In Keep building, the agent still waits when building ahead would send something off your computer, set something people outside the repo rely on, or carry most of the remaining work. The question says which.
-- **Every open question shows what the agent is doing.** It reads "Agent stopped until you answer", "Waiting for you", or "Building with B" and the name of option B.
-- **A shorter agent skill.** It's about half as long, and agents get the rule for your mode each time they ask.
-- **What's new, once per update.** After an update, a banner in the panel shows that version's changes. Closing it hides it until the next version.
-- **Bold text in ticket write-ups.** Words marked bold in a ticket's write-up used to show as plain text.
+- [New] **Choose what agents do while a question waits.** Open Settings with the cog at the top right of the Progress panel. **Stop** halts all work until you answer. **Work around**, the default, holds only what your answer affects, which is how questions already worked. **Keep building** builds the agent's pick and changes course if you choose another.
+- [New] **Big questions always wait.** In Keep building, the agent still waits when building ahead would send something off your computer, set something people outside the repo rely on, or carry most of the remaining work. The question says which.
+- [Improved] **Every open question shows what the agent is doing.** It reads "Agent stopped until you answer", "Waiting for you", or "Building with B" and the name of option B.
+- [Improved] **A shorter agent skill.** It's about half as long, and agents get the rule for your mode each time they ask.
+- [New] **What's new, once per update.** After an update, a banner in the panel shows that version's changes. Closing it hides it until the next version.
+- [Fixed] **Bold text in ticket write-ups.** Words marked bold in a ticket's write-up used to show as plain text.
 
 ### 1.3.1
 
