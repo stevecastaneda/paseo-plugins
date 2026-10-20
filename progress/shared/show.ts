@@ -44,7 +44,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.questions.open.length) {
     lines.push("", "Questions waiting");
     for (const question of dashboard.questions.open) {
-      lines.push(`  ${question.id} ${question.ticketId ? `[${question.ticketId}] ` : ""}(${question.title}): ${question.question} You recommended ${question.recommended}`);
+      lines.push(`  ${question.id} ${question.ticketId ? `[${question.ticketId}] ` : ""}(${question.title}): ${question.question} You recommended ${question.recommended}${question.state === "building" ? ", building with it" : ", waiting for the answer"}${question.big ? `. Big: ${question.big}` : ""}`);
       for (const option of question.options) lines.push(`      ${option.letter}) ${option.label}${option.consequence ? `: ${option.consequence}` : ""}`);
     }
   }

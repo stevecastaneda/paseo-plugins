@@ -5,11 +5,12 @@ import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { isSettled, type Dashboard, type NextIds, type Ticket } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent } from "../shared/events.ts";
+import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent, type QuestionMode } from "../shared/events.ts";
 import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
 import { findStore, saveRunCopy } from "./store.ts";
+import { readQuestionMode } from "./question-mode.ts";
 import { dashboardText } from "../shared/show.ts";
 import { formatMinutes } from "../shared/format.ts";
 import { imageMimeType } from "../shared/attachments.ts";
@@ -34,10 +35,18 @@ interface Command {
   usage: string;
   summary: string;
   options?: Record<string, { type: "string" | "boolean"; multiple?: boolean }>;
-  run(args: { positionals: string[]; values: Record<string, string | boolean | Array<string | boolean> | undefined>; state: State; cwd: string; root: string }): { event: EventDraft; message: string };
+  run(args: { positionals: string[]; values: Record<string, string | boolean | Array<string | boolean> | undefined>; state: State; cwd: string; root: string; mode: QuestionMode }): { event: EventDraft; message: string };
 }
 
 const USAGE_NAME = "paseo-progress";
+
+const MODE_NAMES: Record<QuestionMode, string> = { stop: "Stop and ask", build: "Keep building" };
+
+function modeLine(mode: QuestionMode): string {
+  return `Question mode: ${MODE_NAMES[mode]}, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`;
+}
+
+const HOLD = "Build no option before the answer: work only on what it doesn't affect, and if nothing else is left, stop and wait.";
 
 function required(value: string | undefined, name: string): string {
   if (!value?.trim()) throw new UsageError(`Missing ${name}.`);
@@ -168,11 +177,11 @@ const commands: Record<string, Command> = {
     usage: `start "<title>" [--subtitle <text>] [--item-label <word>]`,
     summary: "Start a new run. Earlier runs stay in the file but leave the dashboard.",
     options: { subtitle: { type: "string" }, "item-label": { type: "string" } },
-    run({ positionals, values }) {
+    run({ positionals, values, mode }) {
       const title = required(positionals[0], "run title");
       return {
         event: { type: "run.start", title, subtitle: stringOption(values.subtitle), itemLabel: stringOption(values["item-label"]) },
-        message: `Started run: ${title}`,
+        message: `Started run: ${title}\n${modeLine(mode)}`,
       };
     },
   },
@@ -244,17 +253,18 @@ const commands: Record<string, Command> = {
     },
   },
   "question ask": {
-    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --recommend <letter or word> [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
-    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...). --recommend is the option you would pick. Build no option before the answer: work only on what the question doesn't affect, and if nothing else is left, stop and wait.",
+    usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --recommend <letter or word> [--big "<why, in a few plain words>"] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
+    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...) and what to do until the answer, which depends on the question mode the user picks in Paseo's Settings. --recommend is the option you would pick. Add --big with the reason when the question is big: acting on it leaves this computer (pushing, publishing, deploying, changing live data, sending messages, spending money), it is hard to change once others depend on it (saved data formats, database schemas, public APIs or commands, removing or renaming something people use), or another answer would throw away most of the work left. A big question holds until the answer in every mode. Anything else, large code changes included, is not big: git can undo it.",
     options: {
       option: { type: "string", multiple: true },
       recommend: { type: "string" },
+      big: { type: "string" },
       background: { type: "string" },
       file: { type: "string", multiple: true },
       "raised-by": { type: "string" },
       ticket: { type: "string" },
     },
-    run({ positionals, values, state, cwd, root }) {
+    run({ positionals, values, state, cwd, root, mode }) {
       const title = required(positionals[0], "short title");
       const ticket = values.ticket === undefined ? undefined : existingTicket(state, stringOption(values.ticket));
       const question = required(positionals[1], "question");
@@ -270,6 +280,10 @@ const commands: Record<string, Command> = {
         recommend = recommend.toUpperCase();
       }
       const id = state.nextIds.question;
+      const big = values.big === undefined ? undefined : required(stringOption(values.big), "--big reason (why the question is big)");
+      const rule = mode === "stop" ? `Mode: Stop and ask. ${HOLD}`
+        : big ? `Mode: Keep building, but this question is big, so hold it like Stop and ask. ${HOLD}`
+        : `Mode: Keep building. Build your recommendation now and keep working. If the user picks another option, undo what it affects and build their choice.`;
       return {
         event: {
           type: "question.ask",
@@ -278,12 +292,14 @@ const commands: Record<string, Command> = {
           question,
           options: options.length ? options : undefined,
           recommend,
+          mode,
+          big,
           background: stringOption(values.background),
           files: listOption(values.file).length ? listOption(values.file).map((raw) => parseFile(raw, cwd, root)) : undefined,
           raisedBy: stringOption(values["raised-by"]),
           ticket: ticket?.id,
         },
-        message: `Asked ${id} (${title}). You recommend ${recommend}. Build no option before the answer: work only on what it doesn't affect, and if nothing else is left, stop and wait.`,
+        message: `Asked ${id} (${title}). You recommend ${recommend}. ${rule}`,
       };
     },
   },
@@ -300,9 +316,13 @@ const commands: Record<string, Command> = {
         if (letters.length && !letters.includes(choice)) throw new UsageError(`${question.id} has options ${letters.join(", ")}, not ${choice}.`);
       }
       const asRecommended = choice.toLowerCase() === question.recommended.toLowerCase();
+      const built = question.state === "building";
+      const next = !built ? "Build it now."
+        : asRecommended ? "Carry on with it."
+        : `Undo the work built on your recommendation and build ${choice} before anything else.`;
       return {
-        event: { type: "question.answer", id: question.id, choice, words: stringOption(values.words) },
-        message: `Answered ${question.id}: ${choice}${asRecommended ? " (as you recommended)" : ` (not your recommendation, ${question.recommended})`}. Build it now.`,
+        event: { type: "question.answer", id: question.id, choice, words: stringOption(values.words), changedCourse: built && !asRecommended ? true : undefined },
+        message: `Answered ${question.id}: ${choice}${asRecommended ? " (as you recommended)" : ` (not your recommendation, ${question.recommended})`}. ${next}`,
       };
     },
   },
@@ -496,7 +516,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
       const store = await findStore(root);
       const { dashboard } = await readProgress(store.directory, now());
       const added = addedByOthersText(addedByOthers(await readLatestRun(store.directory), dashboard, options.agentId), dashboard);
-      out(`Worktree: ${root}\n\n${dashboardText(dashboard, now().getTime())}${added}`);
+      out(`Worktree: ${root}\n${modeLine(await readQuestionMode())}\n\n${dashboardText(dashboard, now().getTime())}${added}`);
       return 0;
     }
     const target = resolve(options.cwd, (argv[1] ?? DEFAULT_LAUNCHER).replace(/^~(?=$|\/)/, homedir()));
@@ -523,12 +543,13 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     }
     const root = findRoot(options.cwd);
     const store = await findStore(root);
+    const mode = await readQuestionMode();
     const message = await appendProgress(store.directory, now, (state) => {
       const finished = state.dashboard.run?.finished;
       if (finished && command !== commands.start) {
         throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
       }
-      const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root });
+      const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
       const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
       return { event: { ...event, by: options.agentId }, result: `${message}${added}` };
     }, (text) => saveRunCopy(root, text));

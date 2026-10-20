@@ -40,6 +40,11 @@ async function exists(path: string): Promise<boolean> {
   return Boolean(await stat(path).catch(() => null));
 }
 
+// The plugin's per-user folder on this computer.
+export function stateRoot(home = homedir()): string {
+  return join(home, ".local", "state", "paseo-progress");
+}
+
 // One folder per worktree on this computer, named so a person can tell which
 // worktree it belongs to.
 export function outsideDirectory(root: string, home = homedir()): string {
@@ -48,7 +53,7 @@ export function outsideDirectory(root: string, home = homedir()): string {
     real = realpathSync(root);
   } catch {}
   const hash = createHash("sha1").update(real).digest("hex").slice(0, 8);
-  return join(home, ".local", "state", "paseo-progress", `${basename(real)}-${hash}`);
+  return join(stateRoot(home), `${basename(real)}-${hash}`);
 }
 
 // Whether git tracks a 0.1.x progress file, per worktree, until the file changes.

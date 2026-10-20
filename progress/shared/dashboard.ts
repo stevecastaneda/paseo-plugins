@@ -43,14 +43,19 @@ export interface Question {
   title: string;
   question: string;
   options: QuestionOption[];
-  // The option the agent leans toward. Nothing is built until the user answers.
+  // The option the agent leans toward.
   recommended: string;
+  // While open: "building" when the agent builds `recommended` without waiting
+  // for the answer, "waiting" when it builds nothing the question affects.
+  state: "building" | "waiting";
+  // Why the question holds even in Keep building mode.
+  big?: string;
   background?: string;
   files: FileLink[];
   raisedBy?: string;
   ticketId?: string;
   askedAt: string;
-  // `changedCourse` only on older answers, from when agents built a default before asking.
+  // `changedCourse`: the agent had built another option and changed course.
   answer?: { choice: string; words?: string; changedCourse?: boolean; at: string };
 }
 
@@ -279,6 +284,8 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           question: event.question,
           options: event.options ?? [],
           recommended: event.recommend ?? event.default ?? "",
+          state: event.mode === "build" ? (event.big ? "waiting" : "building") : event.mode === undefined && event.default !== undefined && !event.waits ? "building" : "waiting",
+          big: event.big,
           background: event.background,
           files: event.files ?? [],
           raisedBy: event.raisedBy,

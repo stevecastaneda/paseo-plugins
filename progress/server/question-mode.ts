@@ -1,0 +1,61 @@
+// The question mode lives in Paseo's settings, which only the plugin's server
+// process can read. It mirrors the mode into a file the paseo-progress command
+// can read on its own.
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { z } from "zod";
+import type { PluginSettings } from "@getpaseo/plugin/server";
+import { QUESTION_MODES, type QuestionMode } from "../shared/events.ts";
+import type { questionSettings } from "../shared/settings.ts";
+import { stateRoot } from "./store.ts";
+
+const mirrorSchema = z.object({ questionMode: z.enum(QUESTION_MODES) });
+
+export function questionModePath(home = homedir()): string {
+  return join(stateRoot(home), "settings.json");
+}
+
+// "stop" unless the mirror says otherwise, so a missing or damaged file never
+// lets an agent build ahead of the user.
+export async function readQuestionMode(home = homedir()): Promise<QuestionMode> {
+  try {
+    return mirrorSchema.parse(JSON.parse(await readFile(questionModePath(home), "utf8"))).questionMode;
+  } catch {
+    return "stop";
+  }
+}
+
+export async function writeQuestionMode(mode: QuestionMode, home = homedir()): Promise<void> {
+  const path = questionModePath(home);
+  await mkdir(stateRoot(home), { recursive: true });
+  const temp = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, `${JSON.stringify({ questionMode: mode })}\n`);
+    await rename(temp, path);
+  } finally {
+    await rm(temp, { force: true });
+  }
+}
+
+type Settings = Pick<PluginSettings<(typeof questionSettings)["schema"]>, "read" | "subscribe">;
+type State = Awaited<ReturnType<Settings["read"]>>;
+
+// Writes the mode now and on every change. Returns the cleanup.
+export function mirrorQuestionMode(settings: Settings, home = homedir()): { stop(): void; settled: Promise<void> } {
+  let writes = Promise.resolve();
+  let changed = false;
+  const write = (state: State | null) => {
+    const mode = state?.status === "ready" ? state.values.mode : "stop";
+    writes = writes.then(() => writeQuestionMode(mode, home)).catch(() => {});
+    return writes;
+  };
+  const stop = settings.subscribe((state) => {
+    changed = true;
+    return write(state);
+  });
+  // A change heard while the first read is in flight is newer than that read.
+  const settled = settings.read().catch(() => null).then((state) => (changed ? writes : write(state)));
+  return { stop: () => void stop(), settled };
+}
