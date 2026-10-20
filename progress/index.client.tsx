@@ -27,9 +27,9 @@ export default function contribute(client: PluginClientContext) {
   });
 
   const stopSettings = client.addSettingsScreen({
-    id: "questions",
-    title: "Questions",
-    icon: "MessageCircleQuestion",
+    id: "settings",
+    title: "Settings",
+    icon: "Settings",
     Component: QuestionSettings,
   });
 
