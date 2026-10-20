@@ -5,7 +5,8 @@
     "images/1-panel.png",
     "images/2-ticket.png",
     "images/3-question.png",
-    "images/4-pill.png"
+    "images/4-pill.png",
+    "images/5-settings.png"
   ],
   "requirements": {
     "paseo": ">=0.11.0"
