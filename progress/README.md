@@ -144,7 +144,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - **Every open question shows what the agent is doing.** It reads "Agent stopped until you answer", "Waiting for you", or "Building with B" and the name of option B.
 - **A shorter agent skill.** It's about half as long, and agents get the rule for your mode each time they ask.
 - **What's new, once per update.** After an update, a banner in the panel shows that version's changes. Closing it hides it until the next version.
-- **Bold text in ticket write-ups.** A ticket's write-up now shows bold text in bold.
+- **Bold text in ticket write-ups.** Words marked bold in a ticket's write-up used to show as plain text.
 
 ### 1.3.1
 
