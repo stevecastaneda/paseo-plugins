@@ -36,7 +36,8 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
           <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             <Text style={{ color: colors.foreground, fontWeight: "500" }}>New in {whatsNew.version}:</Text> {whatsNew.headline}
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {/* 8px keeps the close button's 6px hit slop off the button beside it. */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <PressScale accessibilityRole="button" onPress={() => { setShown(whatsNew); setOpen(true); }}
               style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
               <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>See what's new</Text>
