@@ -62,7 +62,7 @@ function TextButton({ colors, icon, label, accessibilityLabel, onPress, grow = f
   );
 }
 
-function BlockView({ colors, block, first }: { colors: Colors; block: Block; first: boolean }) {
+export function BlockView({ colors, block, first }: { colors: Colors; block: Block; first: boolean }) {
   switch (block.kind) {
     case "heading":
       return (
@@ -92,5 +92,6 @@ function BlockView({ colors, block, first }: { colors: Colors; block: Block; fir
 function Spans({ colors, spans }: { colors: Colors; spans: Span[] }) {
   return <>{spans.map((span, index) => span.code
     ? <Text key={index} style={{ fontFamily: MONO, fontSize: 12, color: colors.foreground }}>{span.text}</Text>
+    : span.strong ? <Text key={index} style={{ fontWeight: "600" }}>{span.text}</Text>
     : <React.Fragment key={index}>{span.text}</React.Fragment>)}</>;
 }

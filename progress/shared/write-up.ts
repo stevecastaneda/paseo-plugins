@@ -1,9 +1,9 @@
 // A ticket's write-up (its Markdown source file) as simple blocks the dialog
 // can draw without a Markdown renderer: headings, paragraphs, list items and
-// code. Inline marks are kept as spans: `code` stays code, **bold** and
-// _emphasis_ lose their markers, and [links](url) keep only their text.
+// code. Inline marks are kept as spans: `code` stays code, **bold** stays
+// bold, _emphasis_ loses its markers, and [links](url) keep only their text.
 
-export type Span = { text: string; code?: boolean };
+export type Span = { text: string; code?: boolean; strong?: boolean };
 
 export type Block =
   | { kind: "heading"; level: number; spans: Span[] }
@@ -20,11 +20,12 @@ export function spans(text: string): Span[] {
       result.push({ text: part.slice(1, -1), code: true });
       return;
     }
-    const plain = part
-      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-      .replace(/(\*\*|__)(.+?)\1/g, "$2")
-      .replace(/(^|[\s(])[*_](\S(?:.*?\S)?)[*_](?=[\s).,;:!?]|$)/g, "$1$2");
-    result.push({ text: plain });
+    part.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").split(/((?:\*\*|__).+?(?:\*\*|__))/).forEach((piece) => {
+      if (!piece) return;
+      const strong = /^(\*\*|__).+\1$/.test(piece);
+      const text = (strong ? piece.slice(2, -2) : piece).replace(/(^|[\s(])[*_](\S(?:.*?\S)?)[*_](?=[\s).,;:!?]|$)/g, "$1$2");
+      result.push(strong ? { text, strong } : { text });
+    });
   });
   return result;
 }

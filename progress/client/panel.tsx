@@ -2,6 +2,7 @@ import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { DeliverablesList } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
+import { WhatsNewBanner } from "./whats-new";
 import { HistoryRow } from "./history";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
 import { Spinner, StalledPulse, WaitingDot } from "./spinner";
@@ -58,6 +59,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation, openS
           Could not read progress: {errorText(query.error, "something went wrong")}
         </Text>
       ) : null}
+      <WhatsNewBanner colors={colors} host={host} />
       <LauncherBanner colors={colors} host={host} />
       <SkillBanner colors={colors} host={host} />
       {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}

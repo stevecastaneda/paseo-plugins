@@ -532,7 +532,7 @@ test("a write-up reads as headings, paragraphs, list items and code, and its exc
   ].join("\n"));
   assert.deepEqual(blocks, [
     { kind: "heading", level: 1, spans: [{ text: "Ticket 01: Login" }] },
-    { kind: "paragraph", spans: [{ text: "Let people sign in with email and a magic link. It wraps onto two lines." }] },
+    { kind: "paragraph", spans: [{ text: "Let people sign in with " }, { text: "email", strong: true }, { text: " and a magic link. It wraps onto two lines." }] },
     { kind: "heading", level: 2, spans: [{ text: "Acceptance" }] },
     { kind: "item", marker: "☐", depth: 0, spans: [{ text: "Sends the " }, { text: "link", code: true }, { text: " within a minute" }] },
     { kind: "item", marker: "1.", depth: 1, spans: [{ text: "Nested step" }] },
