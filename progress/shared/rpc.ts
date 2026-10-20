@@ -163,3 +163,20 @@ export const readDeliverablePiece = defineRpc({
   }),
   output: z.object({ data: z.string(), bytes: z.number() }),
 });
+
+// This version's changelog notes, once after an update; null otherwise.
+// `headline` is the first sentence of the first note, without Markdown.
+export type WhatsNew = { version: string; headline: string; notes: string[] };
+
+export const getWhatsNew = defineRpc({
+  name: "progress.whats-new.get",
+  input: z.object({}),
+  output: z.custom<WhatsNew | null>(),
+});
+
+// The user closed it; it stays away for this version.
+export const dismissWhatsNew = defineRpc({
+  name: "progress.whats-new.dismiss",
+  input: z.object({ version: z.string().min(1) }),
+  output: z.object({}),
+});
