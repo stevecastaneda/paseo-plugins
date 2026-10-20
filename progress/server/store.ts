@@ -3,11 +3,11 @@
 // one folder per worktree, so git never sees them and nothing needs hiding.
 // Only runs the user asks to save are written into the repo, one file per run.
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join, normalize, resolve } from "node:path";
+import { basename, dirname, join, normalize, resolve } from "node:path";
 import { promisify } from "node:util";
 import { LEGACY_FOLDER, PANEL_OPENED_NAME, PROGRESS_FILE_NAME } from "../shared/events.ts";
 import { withLock } from "./lock.ts";
@@ -43,6 +43,18 @@ async function exists(path: string): Promise<boolean> {
 // The plugin's per-user folder on this computer.
 export function stateRoot(home = homedir()): string {
   return join(home, ".local", "state", "paseo-progress");
+}
+
+// Readers see the old file or the new one, never half of one.
+export async function writeAtomic(path: string, text: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const temp = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, text);
+    await rename(temp, path);
+  } finally {
+    await rm(temp, { force: true });
+  }
 }
 
 // One folder per worktree on this computer, named so a person can tell which
