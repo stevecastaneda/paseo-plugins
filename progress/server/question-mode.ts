@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import type { PluginSettings } from "@getpaseo/plugin/server";
-import { QUESTION_MODES, type QuestionMode } from "../shared/events.ts";
+import { DEFAULT_QUESTION_MODE, QUESTION_MODES, type QuestionMode } from "../shared/question-modes.ts";
 import type { questionSettings } from "../shared/settings.ts";
 import { stateRoot } from "./store.ts";
 
@@ -17,13 +17,13 @@ export function questionModePath(home = homedir()): string {
   return join(stateRoot(home), "settings.json");
 }
 
-// "stop" unless the mirror says otherwise, so a missing or damaged file never
-// lets an agent build ahead of the user.
+// The default unless the mirror says otherwise, so a missing or damaged file
+// never lets an agent build ahead of the user.
 export async function readQuestionMode(home = homedir()): Promise<QuestionMode> {
   try {
     return mirrorSchema.parse(JSON.parse(await readFile(questionModePath(home), "utf8"))).questionMode;
   } catch {
-    return "stop";
+    return DEFAULT_QUESTION_MODE;
   }
 }
 
@@ -47,7 +47,7 @@ export function mirrorQuestionMode(settings: Settings, home = homedir()): { stop
   let writes = Promise.resolve();
   let changed = false;
   const write = (state: State | null) => {
-    const mode = state?.status === "ready" ? state.values.mode : "stop";
+    const mode = state?.status === "ready" ? state.values.mode : DEFAULT_QUESTION_MODE;
     writes = writes.then(() => writeQuestionMode(mode, home)).catch(() => {});
     return writes;
   };

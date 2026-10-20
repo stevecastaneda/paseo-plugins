@@ -186,7 +186,7 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
   );
 }
 
-// Under an open question: whether the agent is building its pick or waiting,
+// Under an open question: whether the agent stopped, waits, or builds its pick,
 // and its pick when there are no lettered options to tag.
 export function QuestionState({ colors, question }: { colors: Colors; question: Question }) {
   const value = { color: colors.foreground };
@@ -195,7 +195,8 @@ export function QuestionState({ colors, question }: { colors: Colors; question: 
       {question.state === "building" ? <>Building with <Text style={value}>{question.recommended}</Text></> : (
         <>
           {!question.options.length && question.recommended ? <>Recommended: <Text style={value}>{question.recommended}</Text>. </> : null}
-          Waiting for you{question.big ? <>. Big: <Text style={value}>{question.big}</Text></> : null}
+          {question.state === "stopped" ? "Agent stopped until you answer" : "Waiting for you"}
+          {question.big ? <>. Big: <Text style={value}>{question.big}</Text></> : null}
         </>
       )}
     </Text>

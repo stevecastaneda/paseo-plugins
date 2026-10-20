@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { QUESTION_MODES } from "./question-modes.ts";
 
 // One line of `progress.jsonl`. The command-line tool writes these; the
 // dashboard reducer reads them. `v` lets later versions change a shape without
@@ -33,12 +34,6 @@ export const fileLinkSchema = z
   .object({ path: text.optional(), url: httpUrl.optional(), label: text.optional() })
   .refine((file) => Boolean(file.path) !== Boolean(file.url), "Give a path or a URL");
 export type FileLink = z.infer<typeof fileLinkSchema>;
-
-// What an agent does while a question waits for the user, picked in Paseo's
-// Settings: build nothing it affects ("stop"), or build its recommendation
-// and change course if the answer differs ("build").
-export const QUESTION_MODES = ["stop", "build"] as const;
-export type QuestionMode = (typeof QUESTION_MODES)[number];
 
 export const DELIVERABLE_KINDS = ["file", "folder", "report", "screenshot", "link"] as const;
 
@@ -85,9 +80,9 @@ export const eventSchema = z.discriminatedUnion("type", [
   z.object({ ...base, type: z.literal("stuck.clear"), id: text }),
   // The agent asks and recommends an option. `mode` is the question mode when
   // asked; without it (0.3.0 to 1.3.x) the agent built nothing before the
-  // answer. `big` says why the question holds even in "build" mode. Questions
-  // from before 0.3.0 carry `default`, the option the agent carried on with
-  // unless it `waits`.
+  // answer, like "work-around". `big` says why the question holds even in
+  // "keep-building" mode. Questions from before 0.3.0 carry `default`, the
+  // option the agent carried on with unless it `waits`.
   z.object({
     ...base,
     type: z.literal("question.ask"),

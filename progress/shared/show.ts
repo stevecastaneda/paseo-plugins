@@ -1,8 +1,10 @@
 import type { Dashboard } from "./dashboard.ts";
 import { headlineText, shortTitle } from "./dashboard.ts";
 import { formatAgo, formatClock, formatMinutes, formatWorkDone, minutesSince } from "./format.ts";
+import type { QuestionState } from "./question-modes.ts";
 
 const STATUS: Record<string, string> = { not_started: "Not started", working: "Working", blocked: "Blocked", done: "Done", skipped: "Skipped" };
+const QUESTION_STATE: Record<QuestionState, string> = { stopped: "agent stopped until the answer", waiting: "waiting for the answer", building: "building with it" };
 
 // The dashboard as plain text, so an agent can check what the user sees.
 export function dashboardText(dashboard: Dashboard, nowMs: number): string {
@@ -44,7 +46,7 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.questions.open.length) {
     lines.push("", "Questions waiting");
     for (const question of dashboard.questions.open) {
-      lines.push(`  ${question.id} ${question.ticketId ? `[${question.ticketId}] ` : ""}(${question.title}): ${question.question} You recommended ${question.recommended}${question.state === "building" ? ", building with it" : ", waiting for the answer"}${question.big ? `. Big: ${question.big}` : ""}`);
+      lines.push(`  ${question.id} ${question.ticketId ? `[${question.ticketId}] ` : ""}(${question.title}): ${question.question} You recommended ${question.recommended}, ${QUESTION_STATE[question.state]}${question.big ? `. Big: ${question.big}` : ""}`);
       for (const option of question.options) lines.push(`      ${option.letter}) ${option.label}${option.consequence ? `: ${option.consequence}` : ""}`);
     }
   }

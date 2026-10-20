@@ -5,7 +5,8 @@ import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { isSettled, type Dashboard, type NextIds, type Ticket } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent, type QuestionMode } from "../shared/events.ts";
+import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent } from "../shared/events.ts";
+import { QUESTION_MODE_RULES, type QuestionMode } from "../shared/question-modes.ts";
 import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
@@ -40,13 +41,9 @@ interface Command {
 
 const USAGE_NAME = "paseo-progress";
 
-const MODE_NAMES: Record<QuestionMode, string> = { stop: "Stop and ask", build: "Keep building" };
-
 function modeLine(mode: QuestionMode): string {
-  return `Question mode: ${MODE_NAMES[mode]}, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`;
+  return `Question mode: ${QUESTION_MODE_RULES[mode].label}, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`;
 }
-
-const HOLD = "Build no option before the answer: work only on what it doesn't affect, and if nothing else is left, stop and wait.";
 
 function required(value: string | undefined, name: string): string {
   if (!value?.trim()) throw new UsageError(`Missing ${name}.`);
@@ -254,7 +251,7 @@ const commands: Record<string, Command> = {
   },
   "question ask": {
     usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --recommend <letter or word> [--big "<why, in a few plain words>"] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
-    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...) and what to do until the answer, which depends on the question mode the user picks in Paseo's Settings. --recommend is the option you would pick. Add --big with the reason when the question is big: acting on it leaves this computer (pushing, publishing, deploying, changing live data, sending messages, spending money), it is hard to change once others depend on it (saved data formats, database schemas, public APIs or commands, removing or renaming something people use), or another answer would throw away most of the work left. A big question holds until the answer in every mode. Anything else, large code changes included, is not big: git can undo it.",
+    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...) and what to do until the answer, which depends on the question mode the user picks in Paseo's Settings: Stop (stop all work until an answer), Work around (build nothing the question affects, work on the rest), or Keep building (build your recommendation now, change course if the user picks another). --recommend is the option you would pick. Add --big with the reason when the question is big; it only changes what you do in Keep building, where a big question holds like Work around. A question is big when one of these holds, and only then: (1) building your recommendation before the answer would mean something leaves this computer: pushing, publishing, deploying, changing live data, sending messages, spending money; (2) the answer sets something people or programs outside this repo will rely on: a saved data format, a database schema, a public API, command or setting name, or removing or renaming something people already use; (3) most of the tickets or steps still ahead would be built on the answer. Every other question is small, large code changes included. When you can't name the test it meets, it's small. Name the test in the --big reason.",
     options: {
       option: { type: "string", multiple: true },
       recommend: { type: "string" },
@@ -281,9 +278,8 @@ const commands: Record<string, Command> = {
       }
       const id = state.nextIds.question;
       const big = values.big === undefined ? undefined : required(stringOption(values.big), "--big reason (why the question is big)");
-      const rule = mode === "stop" ? `Mode: Stop and ask. ${HOLD}`
-        : big ? `Mode: Keep building, but this question is big, so hold it like Stop and ask. ${HOLD}`
-        : `Mode: Keep building. Build your recommendation now and keep working. If the user picks another option, undo what it affects and build their choice.`;
+      const rules = QUESTION_MODE_RULES[mode];
+      const rule = `Mode: ${rules.label}. ${rules.askRule({ recommend, big: Boolean(big) })}`;
       return {
         event: {
           type: "question.ask",

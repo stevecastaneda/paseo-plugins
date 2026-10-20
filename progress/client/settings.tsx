@@ -2,18 +2,10 @@ import { type PluginSurfaceProps, useSettings } from "@getpaseo/plugin/client";
 import { SettingsAction, SettingsCard, SettingsSection, SettingsSelect } from "@getpaseo/plugin/client/ui";
 import React from "react";
 import { Text } from "react-native";
-import type { QuestionMode } from "../shared/events";
+import { DEFAULT_QUESTION_MODE, QUESTION_MODE_RULES, QUESTION_MODES } from "../shared/question-modes";
 import { questionSettings } from "../shared/settings";
 
-const MODES = [
-  { label: "Stop and ask", value: "stop" },
-  { label: "Keep building", value: "build" },
-] as const;
-
-const HINTS: Record<QuestionMode, string> = {
-  stop: "Agents build nothing a question affects until you answer.",
-  build: "Agents build their recommended option while you decide, and change course if you pick another. Big questions still wait.",
-};
+const OPTIONS = QUESTION_MODES.map((value) => ({ label: QUESTION_MODE_RULES[value].label, value }));
 
 export function QuestionSettings({ theme }: PluginSurfaceProps) {
   const settings = useSettings(questionSettings);
@@ -25,7 +17,7 @@ export function QuestionSettings({ theme }: PluginSurfaceProps) {
         <Text style={muted}>{settings.error}</Text>
         <SettingsCard>
           <SettingsAction label="Try again" actionLabel="Reload" onPress={settings.reload} />
-          {settings.status === "invalid" ? <SettingsAction label="Go back to Stop and ask" actionLabel="Reset" onPress={settings.reset} /> : null}
+          {settings.status === "invalid" ? <SettingsAction label={`Go back to ${QUESTION_MODE_RULES[DEFAULT_QUESTION_MODE].label}`} actionLabel="Reset" onPress={settings.reset} /> : null}
         </SettingsCard>
       </SettingsSection>
     );
@@ -34,11 +26,11 @@ export function QuestionSettings({ theme }: PluginSurfaceProps) {
     <SettingsSection title="Questions">
       <SettingsCard>
         <SettingsSelect
-          label="While a question waits for you"
-          hint={HINTS[settings.values.mode]}
+          label="When an agent asks you a question"
+          hint={QUESTION_MODE_RULES[settings.values.mode].hint}
           error={settings.saveError}
           value={settings.values.mode}
-          options={MODES}
+          options={OPTIONS}
           disabled={settings.saving}
           onValueChange={(mode) => void settings.save({ ...settings.values, mode }, settings.revision)}
         />

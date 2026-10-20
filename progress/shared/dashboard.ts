@@ -1,4 +1,5 @@
 import { EVENT_VERSION, eventSchema, type DELIVERABLE_KINDS, type FileLink, type ProgressEvent, type QuestionOption, type TicketStatus } from "./events.ts";
+import { QUESTION_MODE_RULES, type QuestionState } from "./question-modes.ts";
 
 // One recorded change to a ticket, oldest first. `stage: ""` clears the stage.
 export interface TicketChange {
@@ -45,9 +46,8 @@ export interface Question {
   options: QuestionOption[];
   // The option the agent leans toward.
   recommended: string;
-  // While open: "building" when the agent builds `recommended` without waiting
-  // for the answer, "waiting" when it builds nothing the question affects.
-  state: "building" | "waiting";
+  // What the agent does while the question is open.
+  state: QuestionState;
   // Why the question holds even in Keep building mode.
   big?: string;
   background?: string;
@@ -284,7 +284,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
           question: event.question,
           options: event.options ?? [],
           recommended: event.recommend ?? event.default ?? "",
-          state: event.mode === "build" ? (event.big ? "waiting" : "building") : event.mode === undefined && event.default !== undefined && !event.waits ? "building" : "waiting",
+          state: event.mode ? QUESTION_MODE_RULES[event.mode].state(Boolean(event.big)) : event.default !== undefined && !event.waits ? "building" : "waiting",
           big: event.big,
           background: event.background,
           files: event.files ?? [],
