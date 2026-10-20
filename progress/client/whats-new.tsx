@@ -19,7 +19,7 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
   const dismiss = useRpc(dismissWhatsNew);
   const queryClient = useQueryClient();
   const queryKey = ["progress", "whats-new", host.id];
-  const query = useQuery({ queryKey, queryFn: () => fetchWhatsNew({}), staleTime: Infinity });
+  const query = useQuery({ queryKey, queryFn: () => fetchWhatsNew({}) });
   const whatsNew = query.data ?? null;
   // Paseo's Modal keeps drawing its content while it fades out, so the notes outlive the dismissal.
   const [shown, setShown] = useState<WhatsNew | null>(null);
