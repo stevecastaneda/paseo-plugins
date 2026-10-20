@@ -20,7 +20,7 @@ The dashboard shows:
 
 <img src="images/5-settings.png" alt="The Questions setting in Paseo's Settings, set to Work around" width="600">
 
-The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
+The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new in that version once. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
 
 <img src="images/4-pill.png" alt="The pill above the message box, showing two questions waiting" width="600">
 
@@ -143,6 +143,8 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - In Keep building, big questions still wait. A question is big when building ahead would send something off your computer, when the answer sets something people or programs outside the repo rely on, or when most of the remaining work would be built on it. The agent gives the reason with `--big`, and the question shows it.
 - Each open question says what the agent is doing about it: "Agent stopped until you answer", "Waiting for you", or "Building with B" followed by the label of option B.
 - The agent skill is about half as long. It leaves commands and flags to `paseo-progress --help`, and `question ask` now prints the rule for your mode each time an agent asks.
+- After an update, the panel shows a one-time banner with that version's changes. **See what's new** lists them all. Closing the list or the banner hides both for that version.
+- A ticket's write-up shows **bold** text in bold. Before, it showed as plain text.
 
 ### 1.3.1
 
