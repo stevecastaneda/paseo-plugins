@@ -39,8 +39,14 @@ export function changelogNotes(readme: string, version: string): WhatsNewNote[] 
 
 // A bullet that opens with a bold sentence, like `**Title.** Detail.`, has a title.
 function note(bullet: string): WhatsNewNote {
-  const lead = /^\*\*([^*]+?[.!?])\*\*\s*(.*)$/.exec(bullet);
-  return lead ? { title: plain(lead[1]), body: lead[2] } : { body: bullet };
+  const text = bullet.split(/(`[^`]+`)/).map((part, index) => index % 2 ? part : curly(part)).join("");
+  const lead = /^\*\*([^*]+?[.!?])\*\*\s*(.*)$/.exec(text);
+  return lead ? { title: plain(lead[1]), body: lead[2] } : { body: text };
+}
+
+// The README is typed with straight quotes; the panel shows typeset ones. Code keeps its own.
+function curly(text: string): string {
+  return text.replace(/(^|[\s([{])"/g, "$1\u201c").replace(/"/g, "\u201d").replace(/(^|[\s([{])'/g, "$1\u2018").replace(/'/g, "\u2019");
 }
 
 function plain(markdown: string): string {

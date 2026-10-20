@@ -79,6 +79,11 @@ test("a bullet's bold opening sentence is its title, without Markdown", () => {
   assert.deepEqual(titled("Uses **Stop.** now."), { body: "Uses **Stop.** now." }, "bold that doesn't open the bullet");
 });
 
+test("notes show typeset quotes, except in code", () => {
+  const notes = changelogNotes(`## Changelog\n\n### 1.0.0\n\n- **It's here.** Reads "Waiting for you" ('soon'), not \`echo "it's"\`.\n`, "1.0.0");
+  assert.deepEqual(notes, [{ title: "It\u2019s here.", body: "Reads \u201cWaiting for you\u201d (\u2018soon\u2019), not `echo \"it's\"`." }]);
+});
+
 test("the headline is the title, or else the body's first sentence without Markdown", () => {
   assert.equal(headline({ title: "Questions can pause work.", body: "Pick **Stop**. Then wait." }), "Questions can pause work.");
   assert.equal(headline({ body: "**Stop** halts all work. It waits for you." }), "Stop halts all work.");
