@@ -137,6 +137,13 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.4.0
+
+- A new setting picks what agents do while a question waits for you. Find it at Settings, Plugins, Progress, Questions. **Stop** halts all work until you answer. **Work around**, the default, holds what your answer affects and keeps working on the rest, which is how questions have worked since 0.3.0. **Keep building** builds the agent's recommendation and changes course if you pick another.
+- In Keep building, big questions still wait. A question is big when building ahead would send something off your computer, when the answer sets something people or programs outside the repo rely on, or when most of the remaining work would be built on it. The agent gives the reason with `--big`, and the question shows it.
+- Each open question says what the agent is doing about it: "Agent stopped until you answer", "Waiting for you", or "Building with B" followed by the label of option B.
+- The agent skill is about half as long. It leaves commands and flags to `paseo-progress --help`, and `question ask` now prints the rule for your mode each time an agent asks.
+
 ### 1.3.1
 
 - Progress works on Windows (#84). Before, `paseo-progress` stopped with "The progress plugin is not installed in Paseo", and **Install skill** couldn't find the plugin. On Windows, Paseo's command is `paseo.cmd`, and Node can start a `.cmd` file only through cmd. Both now go through cmd on Windows, and both also check where Paseo installs its command.

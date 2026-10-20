@@ -2,7 +2,7 @@ Progress gives each worktree a live dashboard for long agent jobs. The agent rec
 
 The panel shows how much of the estimated work is done, what the agent is doing right now, and where each ticket stands. A ticket turns stuck when it's blocked or runs past its estimate without an update. Press a ticket to see its timeline, activity, questions and deliverables. Images, videos and text files the agent records open in a preview inside Paseo, and a folder opens as a list of its files. Videos play only in the desktop app. Any other file opens in an app on the computer running the Paseo daemon, and so does a previewed file when you press Open. Open is hidden when that computer can't open files, like a Linux server with no desktop. That's true from your phone too. The app opens on that computer, not on the phone.
 
-When the agent needs a decision, it asks a numbered question with lettered options and says which one it recommends. A pill above the message box counts open questions and stuck work. Each option has a Copy button. Paste the answer into the chat and the agent records it.
+When the agent needs a decision, it asks a numbered question with lettered options and says which one it recommends. A pill above the message box counts open questions and stuck work. Each option has a Copy button. Paste the answer into the chat and the agent records it. In Settings you choose what the agent does while it waits: stop, work around the question, or keep building on its recommendation.
 
 Nothing updates unless the agent runs the command, so agents need the plugin's skill. The panel has two setup buttons, and each one shows where it will write before you press it:
 
