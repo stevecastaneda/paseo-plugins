@@ -49,23 +49,32 @@ Record progress on the Paseo dashboard as you work:
 
 The `cd` puts the updates on this worktree's dashboard even when the subagent works in another checkout. When the subagent reports back, mark the ticket done.
 
-## 3. Ask questions, and work around them
+## 3. Ask questions
 
-When a decision belongs to the user, ask it, then park everything the answer affects:
+When a decision belongs to the user, ask it:
 
 ```sh
 paseo-progress question ask "<short title>" "<the question, in one or two sentences>" \
   --option "A=<choice> | <what happens if they pick it>" \
   --option "B=<choice> | <what happens if they pick it>" \
   --recommend <letter> --ticket T03 --raised-by "Ticket 03 design review" \
+  [--big "<why it's big, in a few plain words>"] \
   [--background "<what they need to decide without opening the worktree>"] \
   [--file <path or http(s) URL>=<what it shows>]
 ```
 
+The user picks the question mode in Paseo's Settings; you never pick it. `question ask` prints the mode and what to do until the answer. Do exactly that.
+
+- **Stop and ask:** build no option the question affects, not even the one you recommend. Work on everything else. If nothing else is left, stop, tell the user in chat which questions you're waiting on, and leave the run open.
+- **Keep building:** build your recommendation now and keep going. If the user picks another option, undo what it affects and build their choice before anything else.
 - `--recommend` is the option you would pick, so the user knows which way to lean.
-- Build no option before the user answers, not even the one you recommend. The point of asking is that the user decides before the work is done.
-- Keep working on whatever the question doesn't affect: other tickets, or other parts of this one. If nothing else is left, stop, tell the user in chat which questions you're waiting on, and leave the run open.
-- When the user replies ("Q7 A", or in their own words), run `question answer Q7 A --words "<their words>"`, then build what they chose.
+- Pass `--big` with the reason when the question is big. A big question holds like Stop and ask in every mode. It is big when any of these is true, and only then:
+  1. Acting on it leaves this computer: pushing, publishing, deploying, changing live data, sending messages, spending money.
+  2. It's hard to change once others depend on it: saved data formats, database schemas, public APIs or commands, removing or renaming something people already use.
+  3. Another answer would throw away a lot of work: most of what's left would be built on it.
+
+  Anything else is not big, large code changes included, because git can undo them.
+- When the user replies ("Q7 A", or in their own words), run `question answer Q7 A --words "<their words>"` and do what it prints.
 - When a question is about how something looks, attach the screenshot, mockup or preview link with `--file`. The user opens it from the question: images and videos preview in Paseo, links open in its browser. Add more later with `question update Q7 --file <path>=<what it shows>`.
 - When the user asks about a question, answer in chat and also put the explanation on the question with `question update Q7 --background "<text>"`, so the dashboard carries it too.
 - `question remove Q7` withdraws a question that no longer applies.
