@@ -101,8 +101,7 @@ function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
 }
 
 // Paseo has no violet for plugins, so it's Paseo's own "merged" purple, which
-// shares the status colors' lightness and chroma. The theme's accent can't be
-// used: it's green, like success, in Paseo's default themes.
+// shares the status colors' lightness and chroma.
 const TONE_COLOR: Record<NoteTone, (colors: Colors) => string> = {
   violet: (colors) => isLight(colors) ? "#7347af" : "#a890d5",
   green: (colors) => colors.statusSuccess,
@@ -114,7 +113,7 @@ const TONE_COLOR: Record<NoteTone, (colors: Colors) => string> = {
 function KindTag({ colors, kind }: { colors: Colors; kind: NoteKind }) {
   const color = TONE_COLOR[NOTE_KINDS[kind].tone](colors);
   return (
-    <View style={{ marginTop: 1, minWidth: 64, borderRadius: 999, paddingHorizontal: 7, backgroundColor: tint(color, colors) }}>
+    <View style={{ marginTop: 1, minWidth: 64, borderRadius: 4, paddingHorizontal: 7, backgroundColor: tint(color, colors) }}>
       <Text numberOfLines={1} style={{ textAlign: "center", color, fontSize: 11, lineHeight: 18, fontWeight: "500" }}>{NOTE_KINDS[kind].label}</Text>
     </View>
   );

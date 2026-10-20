@@ -2,8 +2,8 @@
 // that says what kind of change it is. The parser and the dialog both read
 // this table. `tone` is the hue the dialog colors the tag with.
 export const NOTE_KINDS = {
-  new: { label: "New", tone: "violet" },
-  improved: { label: "Improved", tone: "green" },
+  new: { label: "New", tone: "green" },
+  improved: { label: "Improved", tone: "violet" },
   fixed: { label: "Fixed", tone: "amber" },
 } as const;
 
