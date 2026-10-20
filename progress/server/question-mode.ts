@@ -42,8 +42,9 @@ export async function writeQuestionMode(mode: QuestionMode, home = homedir()): P
 type Settings = Pick<PluginSettings<(typeof questionSettings)["schema"]>, "read" | "subscribe">;
 type State = Awaited<ReturnType<Settings["read"]>>;
 
-// Writes the mode now and on every change. Returns the cleanup.
-export function mirrorQuestionMode(settings: Settings, home = homedir()): { stop(): void; settled: Promise<void> } {
+// Writes the mode now and on every change. Stopping deletes the mirror, so
+// agents fall back to the default while the plugin is off.
+export function mirrorQuestionMode(settings: Settings, home = homedir()): { stop(): Promise<void>; settled: Promise<void> } {
   let writes = Promise.resolve();
   let changed = false;
   const write = (state: State | null) => {
@@ -51,11 +52,19 @@ export function mirrorQuestionMode(settings: Settings, home = homedir()): { stop
     writes = writes.then(() => writeQuestionMode(mode, home)).catch(() => {});
     return writes;
   };
-  const stop = settings.subscribe((state) => {
+  const unsubscribe = settings.subscribe((state) => {
     changed = true;
     return write(state);
   });
   // A change heard while the first read is in flight is newer than that read.
   const settled = settings.read().catch(() => null).then((state) => (changed ? writes : write(state)));
-  return { stop: () => void stop(), settled };
+  return {
+    settled,
+    async stop() {
+      await unsubscribe();
+      await settled;
+      await writes;
+      await rm(questionModePath(home), { force: true });
+    },
+  };
 }

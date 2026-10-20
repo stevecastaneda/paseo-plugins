@@ -22,5 +22,5 @@ export default function contribute(server: PluginServerContext) {
   server.handle(listFolders, handleListFolders);
   server.handle(setHistoryFolder, handleSetHistoryFolder);
   const mirror = mirrorQuestionMode(server.registerSettings(questionSettings));
-  return () => mirror.stop();
+  return mirror.stop;
 }

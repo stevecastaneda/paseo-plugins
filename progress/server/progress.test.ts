@@ -874,7 +874,7 @@ test("questions from earlier versions keep their state: a default without waits 
   assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.state]), [["Q1", "building"], ["Q2", "waiting"], ["Q3", "waiting"]]);
 });
 
-test("the server mirrors the question mode for the command, falling back to Work around", async (t) => {
+test("the server mirrors the question mode for the command, falling back to Work around, and removes it on cleanup", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "progress-home-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   type State = { status: "ready"; revision: string; values: { mode: QuestionMode } } | { status: "invalid"; revision: string; error: string };
@@ -899,8 +899,31 @@ test("the server mirrors the question mode for the command, falling back to Work
   await writeFile(questionModePath(home), "{ not json");
   assert.equal(await readQuestionMode(home), "work-around", "a damaged mirror works around");
 
-  mirror.stop();
+  void listeners[0]({ status: "ready", revision: "5", values: { mode: "stop" } });
+  await mirror.stop();
   assert.equal(listeners.length, 0);
+  assert.deepEqual(await readdir(join(home, ".local", "state", "paseo-progress")), [], "a write pending at cleanup doesn't bring the mirror back");
+  assert.equal(await readQuestionMode(home), "work-around", "agents fall back to the default while the plugin is off");
+
+  const restarted = mirrorQuestionMode(settings, home);
+  await restarted.settled;
+  assert.equal(await readQuestionMode(home), "keep-building", "startup writes the saved setting again");
+  await restarted.stop();
+});
+
+test("cleanup during the first read leaves no mirror behind", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "progress-home-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  let finishRead!: () => void;
+  const read = new Promise<void>((resolve) => { finishRead = resolve; });
+  const mirror = mirrorQuestionMode({
+    read: async () => { await read; return { status: "ready" as const, revision: "1", values: { mode: "stop" as const } }; },
+    subscribe: () => () => {},
+  }, home);
+  const stopped = mirror.stop();
+  finishRead();
+  await stopped;
+  assert.equal(await readQuestionMode(home), "work-around");
 });
 
 test("question references are never reused and bad questions are refused", async (t) => {
