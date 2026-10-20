@@ -139,12 +139,12 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.4.0
 
-- A new setting picks what agents do while a question waits for you. Find it on the plugin's Settings page, which the cog at the top right of the Progress panel opens. It's also at Settings, Plugins, Progress, Settings. **Stop** halts all work until you answer. **Work around**, the default, holds what your answer affects and keeps working on the rest, which is how questions have worked since 0.3.0. **Keep building** builds the agent's recommendation and changes course if you pick another.
-- In Keep building, big questions still wait. A question is big when building ahead would send something off your computer, when the answer sets something people or programs outside the repo rely on, or when most of the remaining work would be built on it. The agent gives the reason with `--big`, and the question shows it.
-- Each open question says what the agent is doing about it: "Agent stopped until you answer", "Waiting for you", or "Building with B" followed by the label of option B.
-- The agent skill is about half as long. It leaves commands and flags to `paseo-progress --help`, and `question ask` now prints the rule for your mode each time an agent asks.
-- After an update, the panel shows a one-time banner with that version's changes. **See what's new** lists them all. Closing the list or the banner hides both for that version.
-- A ticket's write-up shows **bold** text in bold. Before, it showed as plain text.
+- **Choose what agents do while a question waits.** Open Settings with the cog at the top right of the Progress panel. **Stop** halts all work until you answer. **Work around**, the default, holds only what your answer affects, which is how questions already worked. **Keep building** builds the agent's pick and changes course if you choose another.
+- **Big questions always wait.** In Keep building, the agent still waits when building ahead would send something off your computer, set something people outside the repo rely on, or carry most of the remaining work. The question says which.
+- **Every open question shows what the agent is doing.** It reads "Agent stopped until you answer", "Waiting for you", or "Building with B" and the name of option B.
+- **A shorter agent skill.** It's about half as long, and agents get the rule for your mode each time they ask.
+- **What's new, once per update.** After an update, a banner in the panel shows that version's changes. Closing it hides it until the next version.
+- **Bold text in ticket write-ups.** A ticket's write-up now shows bold text in bold.
 
 ### 1.3.1
 
