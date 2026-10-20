@@ -4,10 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { dismissWhatsNew, getWhatsNew } from "../shared/rpc";
-import { NOTE_KINDS, type WhatsNew, type WhatsNewNote } from "../shared/whats-new";
+import { NOTE_KINDS, type NoteKind, type NoteTone, type WhatsNew, type WhatsNewNote } from "../shared/whats-new";
 import { spans } from "../shared/write-up";
 import { PressScale, Presence } from "./motion";
-import { raised } from "./surfaces";
+import { isLight, raised, tint } from "./surfaces";
 import { BlockView, Spans } from "./write-up";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -74,7 +74,7 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
 // Titled notes read as a short list of headings with their details; a changelog
 // written without titles stays a bulleted list.
 function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
-  if (!notes.some((note) => note.title)) {
+  if (!notes.some((note) => note.title || note.kind)) {
     return <View style={{ gap: 12 }}>{notes.map((note, index) => (
       <BlockView key={index} colors={colors} block={{ kind: "item", marker: "•", depth: 0, spans: spans(note.body) }} first={index === 0} />
     ))}</View>;
@@ -83,7 +83,12 @@ function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
     <View style={{ gap: 20 }}>
       {notes.map((note, index) => (
         <View key={index} style={{ gap: 4 }}>
-          {note.title ? <Text accessibilityRole="header" selectable style={{ color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{note.title}</Text> : null}
+          {note.title || note.kind ? (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              {note.kind ? <KindTag colors={colors} kind={note.kind} /> : null}
+              {note.title ? <Text accessibilityRole="header" selectable style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{note.title}</Text> : null}
+            </View>
+          ) : null}
           {note.body ? (
             <Text selectable style={{ color: note.title ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 19 }}>
               <Spans colors={colors} spans={spans(note.body)} />
@@ -91,6 +96,26 @@ function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
           ) : null}
         </View>
       ))}
+    </View>
+  );
+}
+
+// Paseo has no violet for plugins, so it's Paseo's own "merged" purple, which
+// shares the status colors' lightness and chroma. The theme's accent can't be
+// used: it's green, like success, in Paseo's default themes.
+const TONE_COLOR: Record<NoteTone, (colors: Colors) => string> = {
+  violet: (colors) => isLight(colors) ? "#7347af" : "#a890d5",
+  green: (colors) => colors.statusSuccess,
+  amber: (colors) => colors.statusWarning,
+};
+
+// Sits on the title's first line: 18px tall, 1px down in its 20px line. As wide
+// as "Improved" at least, so the titles beside the tags start at one edge.
+function KindTag({ colors, kind }: { colors: Colors; kind: NoteKind }) {
+  const color = TONE_COLOR[NOTE_KINDS[kind].tone](colors);
+  return (
+    <View style={{ marginTop: 1, minWidth: 64, borderRadius: 999, paddingHorizontal: 7, backgroundColor: tint(color, colors) }}>
+      <Text numberOfLines={1} style={{ textAlign: "center", color, fontSize: 11, lineHeight: 18, fontWeight: "500" }}>{NOTE_KINDS[kind].label}</Text>
     </View>
   );
 }
