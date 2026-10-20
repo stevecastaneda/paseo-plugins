@@ -6,7 +6,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import type { WhatsNew, WhatsNewNote } from "../shared/rpc.ts";
+import { NOTE_KINDS, type NoteKind, type WhatsNew, type WhatsNewNote } from "../shared/whats-new.ts";
 import { spans } from "../shared/write-up.ts";
 import { findPluginDirectory } from "./skill.ts";
 import { stateRoot, writeAtomic } from "./store.ts";
@@ -37,11 +37,20 @@ export function changelogNotes(readme: string, version: string): WhatsNewNote[] 
   return notes.length ? notes.map(note) : null;
 }
 
-// A bullet that opens with a bold sentence, like `**Title.** Detail.`, has a title.
+// A bullet can open with a kind tag, like `[Fixed]`, and then a bold
+// sentence, like `**Title.** Detail.`, which is its title.
 function note(bullet: string): WhatsNewNote {
-  const text = bullet.split(/(`[^`]+`)/).map((part, index) => index % 2 ? part : curly(part)).join("");
+  const tag = /^\[([a-z]+)\]\s*(.*)$/i.exec(bullet);
+  const kind = tag ? noteKind(tag[1]) : undefined;
+  const rest = kind ? tag![2] : bullet;
+  const text = rest.split(/(`[^`]+`)/).map((part, index) => index % 2 ? part : curly(part)).join("");
   const lead = /^\*\*([^*]+?[.!?])\*\*\s*(.*)$/.exec(text);
-  return lead ? { title: plain(lead[1]), body: lead[2] } : { body: text };
+  return { ...(kind && { kind }), ...(lead ? { title: plain(lead[1]), body: lead[2] } : { body: text }) };
+}
+
+function noteKind(tag: string): NoteKind | undefined {
+  const key = tag.toLowerCase();
+  return Object.hasOwn(NOTE_KINDS, key) ? key as NoteKind : undefined;
 }
 
 // The README is typed with straight quotes; the panel shows typeset ones. Code keeps its own.

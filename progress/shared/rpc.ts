@@ -1,6 +1,7 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 import type { Dashboard } from "./dashboard.ts";
+import type { WhatsNew } from "./whats-new.ts";
 
 // `panelOpened`: the Progress panel has been opened for this worktree before.
 // `root`: the worktree root the file was read from, which stored paths are
@@ -168,10 +169,6 @@ export const readDeliverablePiece = defineRpc({
 // `headline` is the first sentence of the first note, without Markdown.
 // A changelog bullet. `title` is its bold lead without Markdown, when it has
 // one; `body` is the rest, Markdown kept.
-export type WhatsNewNote = { title?: string; body: string };
-
-export type WhatsNew = { version: string; headline: string; notes: WhatsNewNote[] };
-
 export const getWhatsNew = defineRpc({
   name: "progress.whats-new.get",
   input: z.object({}),

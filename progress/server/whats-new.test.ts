@@ -56,6 +56,7 @@ test("the plugin's own README parses to the current version's notes", async () =
   assert.ok(notes && notes.length >= 4, `expected 4 or more notes for ${version}, got ${notes?.length}`);
   assert.equal(headline(notes[0]), "Choose what agents do while a question waits.");
   assert.ok(notes.every((note) => note.title && !note.title.includes("*") && note.body && !note.body.startsWith("- ")), "every 1.4.0 note has a title and a body");
+  assert.ok(notes.every((note) => note.kind && !note.body.includes("[")), "every 1.4.0 note has a kind, with its tag removed");
 });
 
 const NOTES = [
@@ -77,6 +78,18 @@ test("a bullet's bold opening sentence is its title, without Markdown", () => {
   assert.deepEqual(titled("**Only a title.**"), { title: "Only a title.", body: "" });
   assert.deepEqual(titled("**Stop** halts all work."), { body: "**Stop** halts all work." }, "bold that isn't a sentence");
   assert.deepEqual(titled("Uses **Stop.** now."), { body: "Uses **Stop.** now." }, "bold that doesn't open the bullet");
+});
+
+test("a leading [New], [Improved] or [Fixed] tag sets the note's kind, in any case", () => {
+  const tagged = (bullet: string) => changelogNotes(`## Changelog\n\n### 1.0.0\n\n- ${bullet}\n`, "1.0.0")?.[0];
+  assert.deepEqual(tagged("[New] **Ready?** Then go."), { kind: "new", title: "Ready?", body: "Then go." });
+  assert.deepEqual(tagged("[improved] **Faster.** Half the wait."), { kind: "improved", title: "Faster.", body: "Half the wait." });
+  assert.deepEqual(tagged("[FIXED] Bold text shows."), { kind: "fixed", body: "Bold text shows." });
+  assert.deepEqual(tagged("[Beta] **Try it.** Soon."), { body: "[Beta] **Try it.** Soon." }, "an unknown tag stays text");
+  assert.deepEqual(tagged("Uses [New] mid-sentence."), { body: "Uses [New] mid-sentence." }, "a tag that doesn't open the bullet");
+  assert.deepEqual(tagged("**Ready?** Then go."), { title: "Ready?", body: "Then go." }, "no tag, no kind");
+  assert.equal(headline(tagged("[Fixed] **Bold text shows.** It used to be plain.")!), "Bold text shows.");
+  assert.equal(headline(tagged("[Fixed] Bold text shows. It used to be plain.")!), "Bold text shows.");
 });
 
 test("notes show typeset quotes, except in code", () => {
