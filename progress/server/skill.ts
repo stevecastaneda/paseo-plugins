@@ -1,5 +1,5 @@
 import { exec, execFile } from "node:child_process";
-import { lstat, mkdir, readlink, symlink, unlink } from "node:fs/promises";
+import { lstat, mkdir, readFile, readlink, symlink, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -112,6 +112,17 @@ export function repairSkill(): Promise<unknown> {
 export async function handleSkillStatus() {
   await repairSkill();
   return skillStatus(defaultSkillPaths(), await findPluginDirectory());
+}
+
+// SKILL.md's frontmatter holds one-line fields; only the description is shown.
+export function skillDocument(text: string): { markdown: string; description: string } {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  const description = /^description:[ \t]*(.*)$/m.exec(frontmatter?.[1] ?? "")?.[1].trim().replace(/^(["'])(.*)\1$/, "$2") ?? "";
+  return { markdown: text.slice(frontmatter?.[0].length ?? 0).trimStart(), description };
+}
+
+export async function handleReadSkill() {
+  return skillDocument(await readFile(join(skillSource(await findPluginDirectory()), "SKILL.md"), "utf8"));
 }
 
 // Runs only when the user presses Install skill. Links that only need to

@@ -70,23 +70,28 @@ export function LauncherBanner({ colors, host }: { colors: Colors; host: PluginW
   return <SetupBanner colors={colors} icon="Terminal" notice={notice} pending={mutation.isPending} onPress={() => mutation.mutate()} />;
 }
 
-export function SkillBanner({ colors, host }: { colors: Colors; host: PluginWorkspacePanelProps["host"] }) {
+// The panel banner and Settings share the status and the install action.
+export function useSkill(hostId: string) {
   const { messages: m } = useProgressLanguage();
   const fetchStatus = useRpc(getSkillStatus);
   const install = useRpc(installSkill);
   const queryClient = useQueryClient();
   const toast = useToast();
-  const status = useQuery({ queryKey: skillQueryKey(host.id), queryFn: () => fetchStatus({}), staleTime: 60_000 });
+  const status = useQuery({ queryKey: skillQueryKey(hostId), queryFn: () => fetchStatus({}), staleTime: 60_000 });
   const mutation = useMutation({
     mutationFn: () => install({}),
     onSuccess: (next) => {
-      queryClient.setQueryData(skillQueryKey(host.id), next);
+      queryClient.setQueryData(skillQueryKey(hostId), next);
       toast.show(m.skillInstalled, { variant: "success" });
     },
     onError: (error) => toast.error(errorText(error, m.installSkillFailure)),
   });
-  const notice = status.data ? skillNotice(status.data, m) : null;
-  return <SetupBanner colors={colors} icon="Sparkles" notice={notice} pending={mutation.isPending} onPress={() => mutation.mutate()} />;
+  return { notice: status.data ? skillNotice(status.data, m) : null, state: status.data?.state, pending: mutation.isPending, install: () => mutation.mutate() };
+}
+
+export function SkillBanner({ colors, host }: { colors: Colors; host: PluginWorkspacePanelProps["host"] }) {
+  const skill = useSkill(host.id);
+  return <SetupBanner colors={colors} icon="Sparkles" notice={skill.notice} pending={skill.pending} onPress={skill.install} />;
 }
 
 function SetupBanner({ colors, icon, notice, pending, onPress }: {

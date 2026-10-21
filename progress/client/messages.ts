@@ -107,6 +107,11 @@ export interface ProgressMessages {
   skillForeign: string;
   skillInstalled: string;
   installSkillFailure: string;
+  agentSkill: string;
+  skillName: string;
+  viewSkill: string;
+  skillNotInstalled: string;
+  skillLinkOutdated: string;
   installing: string;
   loadingSettings: string;
   tryAgain: string;

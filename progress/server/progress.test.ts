@@ -15,7 +15,7 @@ import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
-import { defaultSkillPaths, installSkill, relinkSkill, skillSource, skillStatus } from "./skill.ts";
+import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
 import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
@@ -1399,6 +1399,14 @@ test("after an update, links the user made follow the new copy without touching 
   ], "someone else's folder stays, and no new link is made without Install skill");
   assert.equal(await relinkSkill(paths, updated), false, "a second run finds nothing to do");
   assert.equal(await readlink(linked), skillSource(updated));
+});
+
+test("Settings shows the skill as agents read it, without its frontmatter", async () => {
+  const shipped = skillDocument(await readFile(join(skillSource(fileURLToPath(new URL("..", import.meta.url))), "SKILL.md"), "utf8"));
+  assert.match(shipped.description, /^Keep the Paseo Progress dashboard live/);
+  assert.match(shipped.markdown, /^# Paseo progress\n/);
+  assert.deepEqual(skillDocument("---\r\nname: x\r\ndescription: \"Quoted: yes\"\r\n---\r\n\nBody"), { markdown: "Body", description: "Quoted: yes" });
+  assert.deepEqual(skillDocument("# No frontmatter"), { markdown: "# No frontmatter", description: "" });
 });
 
 
