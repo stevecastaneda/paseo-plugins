@@ -255,23 +255,29 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, onStep }: { 
       {pres.timerFrom !== null ? <Elapsed from={pres.timerFrom} prefix={pres.label ? `${pres.label} · ` : ""} /> : statusText(pres)}
     </Text>
   );
+  const switcher = steps ? <Switcher steps={steps} colors={colors} compact={compact} onStep={onStep} /> : null;
   const content = (hovered: boolean) => (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
-      <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-      <Text numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
-        <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
-        {first}
-      </Text>
-      {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
-      {steps ? <Switcher steps={steps} colors={colors} compact={compact} onStep={onStep} /> : null}
-      {status}
-      <IconSwap swapKey={pres.foldable ? "fold" : "none"} size={14}>
-        {pres.foldable ? (
-          <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] }) }] }}>
-            <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
-          </Animated.View>
-        ) : null}
-      </IconSwap>
+    <View style={{ gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
+        <Text numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
+          <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
+          {first}
+        </Text>
+        {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
+        {compact ? null : switcher}
+        {status}
+        <IconSwap swapKey={pres.foldable ? "fold" : "none"} size={14}>
+          {pres.foldable ? (
+            <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] }) }] }}>
+              <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
+            </Animated.View>
+          ) : null}
+        </IconSwap>
+      </View>
+      {/* On a phone the switcher gets its own line, so the command keeps the header's width. The
+          left chevron's glyph lines up under the "$". */}
+      {compact && switcher ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcher}</View> : null}
     </View>
   );
   if (!pres.foldable) return content(false);
