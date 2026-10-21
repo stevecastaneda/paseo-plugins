@@ -150,6 +150,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - [Improved] **What's new catches you up.** If you skip an update, What's new now shows the changes from every version you missed, newest first.
 
 ### 1.5.1
+
 - [Improved] **Settings screenshot.** It shows the new Language setting.
 
 ### 1.5.0
