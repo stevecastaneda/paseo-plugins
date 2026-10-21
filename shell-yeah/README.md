@@ -14,13 +14,16 @@ Type `/sh npm test` and press Enter. A card appears in the chat:
 
 - While the command runs: a spinner, a timer, the last lines of output as they arrive, a box to type into, and **Stop**. Progress bars and spinners redraw in place, the way they do in a terminal.
 - When it ends: **Done** or **Exit 1** with how long it took, the colored output, and **Send**, **Copy** and **Rerun**. Buttons and notes name the chat's agent: **Send to Claude** in a Claude chat, **Send to Codex** in a Codex chat.
-- **Rerun** runs the command again in the same card. The arrows next to **Run 2 of 3** go back through earlier runs, up to 10, with each one's result and the end of its output. **Send** and **Copy** use the run you're looking at.
 
 <img src="images/2-running.png" alt="A /sh npm run build card while it runs, with a live progress bar" width="600">
 
 The output box holds the last 300 lines and stays on the newest one while the command runs. Scroll up for earlier lines; **Jump to latest** brings you back. The arrow in the header makes the box taller, up to 60% of the window. **Copy** copies everything the plugin kept, up to 10,000 lines.
 
 <img src="images/6-expanded.png" alt="The failed npm test card made taller to show more lines" width="600">
+
+**Rerun** runs the command again in the same card. The arrows next to **Run 2 of 2** go back through earlier runs, up to 10. Each shows its result and the end of its output. **Send** and **Copy** use the run you're looking at.
+
+<img src="images/9-rerun.png" alt="Rerun runs the command again in the same card; the arrows next to Run 2 of 2 go back to the run that failed" width="600">
 
 The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over. On Windows, the command runs in PowerShell 7 if it's installed, otherwise in the Windows PowerShell that comes with Windows. It skips your PowerShell profile for the same reason.
 

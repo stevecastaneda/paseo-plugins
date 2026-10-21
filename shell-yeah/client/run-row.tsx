@@ -274,7 +274,7 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
           <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
           {first}
         </Text>
-        <Text aria-hidden pointerEvents="none" onLayout={(event) => setNeeds(event.nativeEvent.layout.width)} numberOfLines={1} style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{`$ ${first}`}</Text>
+        <Text aria-hidden selectable={false} pointerEvents="none" onLayout={(event) => setNeeds(event.nativeEvent.layout.width)} numberOfLines={1} style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{`$ ${first}`}</Text>
         {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
         {stacked ? null : switcher}
         {status}
