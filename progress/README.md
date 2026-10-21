@@ -82,7 +82,7 @@ Earlier versions kept progress in `.scratch/` in each worktree, hidden by a `.sc
 
 ## Agent skill
 
-The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions, and finish. It stays short and leaves the details to `paseo-progress --help`. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. On Windows the links are junctions, which don't need admin rights or Developer Mode. If Paseo later runs the plugin from somewhere else, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped.
+The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions, and finish. It stays short and leaves the details to `paseo-progress --help`. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. On Windows the links are junctions, which don't need admin rights or Developer Mode. Paseo puts each plugin update in a new folder, so when Progress starts it repoints the links it made to that folder. If it can't, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped. To read what agents get, open **View skill** under Agent skill in Progress settings.
 
 From a terminal instead:
 
@@ -148,6 +148,8 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 ### 1.6.0
 
 - [Improved] **What's new catches you up.** If you skip an update, What's new now shows the changes from every version you missed, newest first.
+- [Fixed] **The skill stays linked after updates.** Paseo puts each plugin update in a new folder, so after every update Progress asked you to press **Update skill**, even when the skill hadn't changed. Progress now repoints the link it made by itself.
+- [New] **Read the skill in Settings.** Progress settings has an Agent skill section. **View skill** shows the instructions agents get, and **Install skill** appears there when it isn't installed.
 
 ### 1.5.1
 
