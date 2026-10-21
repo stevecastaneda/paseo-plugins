@@ -16,6 +16,8 @@ import { Badge, Button, IconSwap, PressScale, mono, nativeDriver, raised, toneCo
 const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder" };
 const ACTION_ICON: Record<Action["id"], string> = { run: "Play", dismiss: "X", stop: "Square", "force-stop": "SquareX", copy: "Copy", rerun: "RotateCw", send: "Send" };
 const ENTER_WITHIN_MS = 2_000;
+// Narrower than this, the switcher and status leave the command too little of the header.
+const STACK_SWITCHER_BELOW = 560;
 
 // The renderer for kind "run" v1. Reads the row, merges live state, asks describe() what to
 // show, and paints. Holds no run state of its own, only which of the card's runs is in view.
@@ -40,6 +42,8 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const ui = useRunUi(row.runId, rpcTail);
   const running = run.phase.kind === "running" && run.lostAt === null;
   const latestRunning = latest.phase.kind === "running" && latest.lostAt === null;
+  // An earlier run in view while the newest is still going: it can't be rerun yet.
+  const newerRunning = past !== null && latestRunning;
   const now = useNow(running ? 1_000 : null);
   const agent = agentName(useAgent(agentId, (a) => a.provider));
   const pres = describe(run, now, { agent });
@@ -92,7 +96,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
 
   const actions = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-      {pres.actions.map((action) => (
+      {pres.actions.filter((action) => !(action.id === "rerun" && newerRunning)).map((action) => (
         <Button
           key={action.id}
           icon={action.id === "copy" && copied ? "Check" : ACTION_ICON[action.id]}
@@ -135,7 +139,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
     <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
       <Card colors={colors} tone={pres.tone} running={latestRunning} away={past !== null} seenLive={ui.seenLive} reduced={reduced}>
         <Header pres={pres} colors={colors} compact={compact} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)}
-          steps={steps} onStep={(at) => setPicked(at === null ? null : { runId: row.runId, at })} />
+          steps={steps} newerRunning={newerRunning} onStep={(at) => setPicked(at === null ? null : { runId: row.runId, at })} />
         {pres.well?.kind === "output" ? (
           <OutputWell
             lines={run.output.lines}
@@ -243,9 +247,15 @@ function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeCol
 
 type Steps = ReturnType<typeof switcher>;
 
-function Header({ pres, colors, compact, expanded, onToggle, steps, onStep }: { pres: Presentation; colors: ThemeColors; compact: boolean; expanded: boolean; onToggle(): void; steps: Steps; onStep(at: number | null): void }) {
+function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning, onStep }: { pres: Presentation; colors: ThemeColors; compact: boolean; expanded: boolean; onToggle(): void; steps: Steps; newerRunning: boolean; onStep(at: number | null): void }) {
   const [first, ...rest] = pres.script.split("\n");
   const [hovered, setHovered] = useState(false);
+  const [width, setWidth] = useState(0);
+  const stacked = compact || (width > 0 && width < STACK_SWITCHER_BELOW);
+  // A command cut short by the header's width still folds open, so it can always be read whole.
+  const [room, setRoom] = useState(0);
+  const [needs, setNeeds] = useState(0);
+  const foldable = pres.foldable || (room > 0 && needs > room + 1);
   const rotate = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(rotate, { toValue: expanded ? 1 : 0, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
@@ -255,32 +265,33 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, onStep }: { 
       {pres.timerFrom !== null ? <Elapsed from={pres.timerFrom} prefix={pres.label ? `${pres.label} · ` : ""} /> : statusText(pres)}
     </Text>
   );
-  const switcher = steps ? <Switcher steps={steps} colors={colors} compact={compact} onStep={onStep} /> : null;
+  const switcher = steps ? <Switcher steps={steps} colors={colors} compact={compact} newerRunning={newerRunning} onStep={onStep} /> : null;
   const content = (hovered: boolean) => (
-    <View style={{ gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-        <Text numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
+        <Text onLayout={(event) => setRoom(event.nativeEvent.layout.width)} numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
           <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
           {first}
         </Text>
+        <Text aria-hidden pointerEvents="none" onLayout={(event) => setNeeds(event.nativeEvent.layout.width)} numberOfLines={1} style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{`$ ${first}`}</Text>
         {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
-        {compact ? null : switcher}
+        {stacked ? null : switcher}
         {status}
-        <IconSwap swapKey={pres.foldable ? "fold" : "none"} size={14}>
-          {pres.foldable ? (
+        <IconSwap swapKey={foldable ? "fold" : "none"} size={14}>
+          {foldable ? (
             <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] }) }] }}>
               <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
             </Animated.View>
           ) : null}
         </IconSwap>
       </View>
-      {/* On a phone the switcher gets its own line, so the command keeps the header's width. The
-          left chevron's glyph lines up under the "$". */}
-      {compact && switcher ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcher}</View> : null}
+      {/* On a phone or a narrow card the switcher gets its own line, so the command keeps the
+          header's width. The left chevron's glyph lines up under the "$". */}
+      {stacked && switcher ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcher}</View> : null}
     </View>
   );
-  if (!pres.foldable) return content(false);
+  if (!foldable) return content(false);
   return (
     <Pressable
       accessibilityRole="button"
@@ -295,9 +306,11 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, onStep }: { 
 }
 
 // "‹ Run 2 of 3 ›": steps through the card's runs. Its own presses never fold the card.
-function Switcher({ steps, colors, compact, onStep }: { steps: NonNullable<Steps>; colors: ThemeColors; compact: boolean; onStep(at: number | null): void }) {
+// While an earlier run is in view, the card's sweep is hidden, so the later-run arrow
+// turns the accent color and carries a dot to say the newest run is still going.
+function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: NonNullable<Steps>; colors: ThemeColors; compact: boolean; newerRunning: boolean; onStep(at: number | null): void }) {
   const size = compact ? 28 : 24;
-  const arrow = (icon: string, label: string, to: number | null | undefined) => (
+  const arrow = (icon: string, label: string, to: number | null | undefined, live = false) => (
     <PressScale
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -305,14 +318,15 @@ function Switcher({ steps, colors, compact, onStep }: { steps: NonNullable<Steps
       disabled={to === undefined}
       onPress={() => to !== undefined && onStep(to)}
       style={({ hovered }) => ({ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered && to !== undefined ? colors.surface2 : "transparent", opacity: to === undefined ? 0.35 : 1 })}>
-      <Icon name={icon} size={14} color={colors.foregroundMuted} />
+      <Icon name={icon} size={14} color={live ? colors.accent : colors.foregroundMuted} />
+      {live ? <View style={{ position: "absolute", top: size / 2 - 7, right: size / 2 - 7, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.accent }} /> : null}
     </PressScale>
   );
   return (
     <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, marginVertical: -(size - 20) / 2 }}>
       {arrow("ChevronLeft", "Earlier run", steps.prev)}
       <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>{steps.label}</Text>
-      {arrow("ChevronRight", "Later run", steps.next)}
+      {arrow("ChevronRight", newerRunning ? "Later run, still running" : "Later run", steps.next, newerRunning)}
     </View>
   );
 }
