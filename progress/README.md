@@ -18,7 +18,7 @@ The dashboard shows:
 
 <img src="images/2-ticket.png" alt="A ticket's story: its status, time against the estimate, the agent on it, and its timeline" width="400"> <img src="images/3-question.png" alt="A question waiting for an answer, with lettered options, the agent's recommendation and Copy buttons" width="400">
 
-<img src="images/5-settings.png" alt="Progress settings in Paseo: the Questions setting set to Work around, and the Language setting set to System" width="600">
+<img src="images/5-settings.png" alt="Progress settings in Paseo: Questions set to Work around, Language set to System, and the Agent skill section with View skill" width="600">
 
 The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new once, including any versions you skipped. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
 
@@ -147,9 +147,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.6.0
 
+- [New] **Read the skill in Settings.** Progress settings has an Agent skill section. **View skill** shows the instructions agents get, and **Install skill** appears there when the skill isn't installed.
+- [Fixed] **The skill stays linked after updates.** Paseo puts each plugin update in a new folder, so after every update Progress asked you to press **Update skill**, even when the skill hadn't changed. Progress now fixes the link itself.
 - [Improved] **What's new catches you up.** If you skip an update, What's new now shows the changes from every version you missed, newest first.
-- [Fixed] **The skill stays linked after updates.** Paseo puts each plugin update in a new folder, so after every update Progress asked you to press **Update skill**, even when the skill hadn't changed. Progress now repoints the link it made by itself.
-- [New] **Read the skill in Settings.** Progress settings has an Agent skill section. **View skill** shows the instructions agents get, and **Install skill** appears there when it isn't installed.
+- [Fixed] **Code inside lists.** A code block inside a list item in a write-up no longer shows shifted to the right.
 
 ### 1.5.1
 
