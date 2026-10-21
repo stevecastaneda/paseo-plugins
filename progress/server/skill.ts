@@ -31,22 +31,39 @@ export async function skillState(path: string, pluginDirectory: string): Promise
   return basename(target) === SKILL_NAME && basename(dirname(target)) === "skills" ? "outdated" : "foreign";
 }
 
+// Repoints each link this plugin made to an old copy at the copy Paseo runs
+// now. Paseo puts every update in a new folder, so this follows each update.
+// Returns whether it wrote.
+export async function relinkSkill(paths: string[], pluginDirectory: string): Promise<boolean> {
+  let wrote = false;
+  for (const path of paths) {
+    if (await skillState(path, pluginDirectory) !== "outdated") continue;
+    await unlink(path);
+    await link(path, pluginDirectory);
+    wrote = true;
+  }
+  return wrote;
+}
+
 // Links the skill wherever it is missing or points at an old copy of the
 // plugin. Leaves alone anything else at those paths. Returns whether it wrote.
 export async function installSkill(paths: string[], pluginDirectory: string): Promise<boolean> {
   const states = await Promise.all(paths.map((path) => skillState(path, pluginDirectory)));
   if (states.every((state) => state === "foreign")) throw new Error(`${paths.join(", ")} already exist and were not linked by this plugin.`);
-  let wrote = false;
+  let wrote = await relinkSkill(paths, pluginDirectory);
   for (const [index, path] of paths.entries()) {
-    if (states[index] !== "missing" && states[index] !== "outdated") continue;
-    if (states[index] === "outdated") await unlink(path);
-    await mkdir(dirname(path), { recursive: true });
-    // A junction on Windows, where a directory symlink needs admin rights or
-    // Developer Mode. Other systems ignore the type and make a symlink.
-    await symlink(skillSource(pluginDirectory), path, "junction");
+    if (states[index] !== "missing") continue;
+    await link(path, pluginDirectory);
     wrote = true;
   }
   return wrote;
+}
+
+async function link(path: string, pluginDirectory: string) {
+  await mkdir(dirname(path), { recursive: true });
+  // A junction on Windows, where a directory symlink needs admin rights or
+  // Developer Mode. Other systems ignore the type and make a symlink.
+  await symlink(skillSource(pluginDirectory), path, "junction");
 }
 
 // "current" once every folder that can take the link has it.
@@ -82,11 +99,23 @@ function askPaseo(cli: string) {
     : promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"]);
 }
 
+// Runs once per load, when the server starts: an update reloads the bundle.
+// Only repoints links the user already asked for; new ones wait for Install
+// skill. A failure leaves the links as they were, and status says so.
+let repair: Promise<unknown> | null = null;
+
+export function repairSkill(): Promise<unknown> {
+  repair ??= findPluginDirectory().then((directory) => relinkSkill(defaultSkillPaths(), directory)).catch(() => {});
+  return repair;
+}
+
 export async function handleSkillStatus() {
+  await repairSkill();
   return skillStatus(defaultSkillPaths(), await findPluginDirectory());
 }
 
-// Runs only when the user presses Install skill in the panel.
+// Runs only when the user presses Install skill. Links that only need to
+// follow an update are repointed on their own (repairSkill).
 export async function handleInstallSkill() {
   const pluginDirectory = await findPluginDirectory();
   await installSkill(defaultSkillPaths(), pluginDirectory);
