@@ -17,10 +17,6 @@ export type Line = z.infer<typeof line>;
 
 const clock = { startedAt: z.number(), endedAt: z.number() };
 
-// The run's state machine, one variant per visual state. `proposed` and `running`
-// are the only non-terminal ones; the rest are absorbing.
-//   proposed -> running -> ok | failed | stopped | interrupted
-//   proposed -> dismissed
 const ok = z.object({ kind: z.literal("ok"), ...clock });
 const failed = z.object({
   kind: z.literal("failed"),
