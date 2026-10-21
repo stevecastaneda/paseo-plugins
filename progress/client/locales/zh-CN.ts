@@ -86,6 +86,7 @@ export const messages: ProgressMessages = {
   showFewer: "收起",
   seeWhatsNew: "查看更新",
   dismissWhatsNew: "关闭更新提示",
+  whatsNewSince: "Progress 更新内容",
   gotIt: "知道了",
   loadingPreview: "正在加载预览",
   truncatedText: "仅显示前 256 KB。",

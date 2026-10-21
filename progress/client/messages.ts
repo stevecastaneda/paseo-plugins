@@ -68,6 +68,7 @@ export interface ProgressMessages {
   showFewer: string;
   seeWhatsNew: string;
   dismissWhatsNew: string;
+  whatsNewSince: string;
   gotIt: string;
   loadingPreview: string;
   truncatedText: string;

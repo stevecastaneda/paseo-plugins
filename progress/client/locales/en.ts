@@ -86,6 +86,7 @@ export const messages: ProgressMessages = {
   showFewer: "Show fewer",
   seeWhatsNew: "See what’s new",
   dismissWhatsNew: "Dismiss what's new",
+  whatsNewSince: "What’s new in Progress",
   gotIt: "Got it",
   loadingPreview: "Loading preview",
   truncatedText: "Showing the first 256 KB.",
