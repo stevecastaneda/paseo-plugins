@@ -147,6 +147,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.5.1
 
+- [New] **Simplified Chinese.** Progress now comes in English and Simplified Chinese. Pick one under Display in Progress settings, or let it follow each device's language. Thanks to @xzthemeofsss for the translation.
 - [Improved] **Settings screenshot.** It shows the new Language setting.
 
 ### 1.5.0
