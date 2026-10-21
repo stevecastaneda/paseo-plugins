@@ -21,6 +21,10 @@ The output box holds the last 300 lines and stays on the newest one while the co
 
 <img src="images/6-expanded.png" alt="The failed npm test card made taller to show more lines" width="600">
 
+**Rerun** runs the command again in the same card. The arrows next to **Run 2 of 2** go back through earlier runs, up to 10. Each shows its result and the end of its output. **Send** and **Copy** use the run you're looking at.
+
+<img src="images/9-rerun.png" alt="A card after Rerun showing Run 2 of 2, with an arrow back to the run that failed" width="600">
+
 The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over. On Windows, the command runs in PowerShell 7 if it's installed, otherwise in the Windows PowerShell that comes with Windows. It skips your PowerShell profile for the same reason.
 
 Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, click the output and type, as you would in a terminal. Each key goes to the command as you press it, so a one-key menu takes one key and arrow-key menus work. What you type shows only if the command shows it, so a password stays hidden. **Esc** stops typing. On a phone, tap the box under the output. When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
@@ -97,6 +101,10 @@ paseo plugin add npm:@stevecastaneda/paseo-shell-yeah
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
 ## Changelog
+
+### 1.1.0
+
+- **Rerun** now runs the command again in the same card, so it no longer adds a card for each run. Arrows in the card's header show earlier runs, up to 10. **Send** and **Copy** use the run you're looking at.
 
 ### 1.0.1
 

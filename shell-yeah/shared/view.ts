@@ -1,6 +1,6 @@
 import { LIMITS } from "./limits.ts";
 import { basename, risksOf, splitTitle } from "./text.ts";
-import { lineText, type Line, type LiveView, type Phase, type RunRow } from "./row.ts";
+import { cardIdOf, lineText, runNumberOf, type Line, type LiveView, type PastRun, type Phase, type RunRow } from "./row.ts";
 
 export type Tone = "muted" | "active" | "success" | "danger" | "warning";
 export type Badge = "play" | "spinner" | "check" | "x" | "square" | "unplug";
@@ -148,6 +148,29 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
     case "interrupted":
       return { ...base, tone: "warning", badge: "unplug", label: "Interrupted", well, notes: [...notes, { icon: "info" as const, text: "Stopped when the plugin restarted" }].slice(0, 2) };
   }
+}
+
+export function pastRow(card: RunRow, past: PastRun): RunRow {
+  return { runId: past.runId, rev: card.rev, origin: card.origin, command: card.command, cwd: card.cwd, phase: past.phase, output: past.output, sentAt: past.sentAt, terminal: card.terminal, cardId: cardIdOf(card), runNumber: past.runNumber };
+}
+
+export function pastRunView(card: RunRow, past: PastRun): ResolvedRun {
+  return { ...pastRow(card, past), terminal: card.terminal === true, cursor: null, lastOutputAt: null, lostAt: null, clockOffset: 0 };
+}
+
+// An index into the card's past runs, or its latest run.
+export type RunInView = number | "latest";
+
+export function switcher(card: Pick<RunRow, "runNumber" | "past">, viewing: RunInView): { label: string; prev: RunInView | null; next: RunInView | null } | null {
+  const past = card.past ?? [];
+  if (past.length === 0) return null;
+  const at = viewing === "latest" ? past.length : viewing;
+  const run = at < past.length ? past[at].runNumber : runNumberOf(card);
+  return {
+    label: `Run ${run} of ${runNumberOf(card)}`,
+    prev: at > 0 ? at - 1 : null,
+    next: at >= past.length ? null : at + 1 < past.length ? at + 1 : "latest",
+  };
 }
 
 // "Deletes files and runs as administrator (sudo)"

@@ -14,6 +14,8 @@ export const LIMITS = {
   // structured clone of the whole timeline, so fat rows are paid for on every turn.
   rowOutputBytes: 32 * 1024,
   rowTotalBytes: 60 * 1024,
+  pastRuns: 10,
+  pastRunOutputBytes: 3 * 1024,
   liveReplyBytes: 128 * 1024,
   // The output box's height in lines; a failure's cause usually sits a few lines above
   // its summary. The header arrow makes the box taller, short of a phone screen.

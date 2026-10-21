@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Limits } from "../shared/limits.ts";
-import { lineText, type RunRow } from "../shared/row.ts";
+import { cardIdOf, lineText, type RunRow } from "../shared/row.ts";
 import { commandEnv, createRunRegistry, type RunRegistry } from "./runs.ts";
 import { jsonBytes } from "./screen.ts";
 import { loadPty } from "./proc.ts";
@@ -39,13 +39,19 @@ function harness(opts: { limits?: Partial<Limits>; publish?: (row: RunRow) => Pr
     terminal: opts.terminal,
   });
   const rows = (id: string) => published.filter((row) => row.runId === id);
+  const card = (id: string) => published.filter((row) => cardIdOf(row) === id).at(-1)!;
   const phases = (id: string) => rows(id).map((row) => row.phase.kind);
   const text = (id: string) => registry.snapshot(id, 400)!.output.lines.map(lineText);
-  return { registry, published, rows, phases, text };
+  return { registry, published, rows, card, phases, text };
 }
 
 async function run(registry: RunRegistry, command: string, cwd = dir(), extra: { runId?: string; origin?: "user" | "claude" } = {}) {
   const { runId } = await registry.start({ agentId: AGENT, cwd, command, origin: extra.origin ?? "user", runId: extra.runId });
+  return runId;
+}
+
+async function rerun(registry: RunRegistry, of: RunRow, extra: { runId?: string } = {}) {
+  const { runId } = await registry.start({ agentId: AGENT, cwd: of.cwd, command: of.command, origin: of.origin, runId: extra.runId, rerunOf: of });
   return runId;
 }
 
@@ -467,5 +473,80 @@ windowsTest("on Windows: without PowerShell 7, Windows PowerShell runs the comma
   const row = await ended(h.registry, await run(h.registry, "Write-Output $PSVersionTable.PSEdition; exit 4"));
   assert.ok(h.text(row.runId).includes("Desktop"), JSON.stringify(h.text(row.runId)));
   assert.equal((row.phase as { exitCode: number }).exitCode, 4);
+  await h.registry.shutdown();
+});
+
+posixTest("Rerun runs again in the same card: run 2 on top, run 1 kept below with its status and the end of its output", { timeout: 15_000 }, async () => {
+  const h = harness({ limits: { pastRunOutputBytes: 64 } });
+  const first = await ended(h.registry, await run(h.registry, "seq 1 50; exit 3"));
+  const second = await rerun(h.registry, first);
+  assert.notEqual(second, first.runId);
+  await ended(h.registry, second);
+  await until(() => h.card(first.runId).phase.kind !== "running");
+  const shown = h.card(first.runId);
+  assert.deepEqual([shown.runId, shown.runNumber, shown.past?.length], [second, 2, 1]);
+  const [past] = shown.past!;
+  assert.deepEqual([past.runId, past.runNumber, past.phase.kind, past.output.total], [first.runId, 1, "failed", 50]);
+  assert.equal(past.output.lines.map(lineText).at(-1), "50");
+  assert.ok(past.output.lines.length < 50 && JSON.stringify(past.output.lines).length <= 64, "the past run keeps only the end of its output");
+  const sleeping = await rerun(h.registry, { ...shown, command: "sleep 30" });
+  await assert.rejects(rerun(h.registry, { ...shown, runId: sleeping, runNumber: 3 }), /still running/);
+  await h.registry.shutdown();
+});
+
+posixTest("two Reruns of the same card start one command and both get its run", { timeout: 15_000 }, async () => {
+  const h = harness();
+  const cwd = dir();
+  const first = await ended(h.registry, await run(h.registry, "echo x >> hits", cwd));
+  const [a, b] = await Promise.all([rerun(h.registry, first), rerun(h.registry, first)]);
+  assert.equal(a, b);
+  await ended(h.registry, a);
+  assert.equal(await rerun(h.registry, first), a, "a stale card's Rerun gets the card's latest run");
+  await delay(100);
+  assert.equal(readFileSync(join(cwd, "hits"), "utf8"), "x\nx\n");
+  await h.registry.shutdown();
+});
+
+posixTest("after a restart, Rerun builds the card's history from the card itself, and keeps at most 10 earlier runs", { timeout: 15_000 }, async () => {
+  const h = harness();
+  const clock = { startedAt: 1, endedAt: 2 };
+  const pastRuns = Array.from({ length: 10 }, (_, i) => ({ runId: `old-${i}`, runNumber: i + 2, phase: { kind: "ok" as const, ...clock }, output: { lines: [`run ${i + 2}`], total: 1 }, sentAt: null }));
+  const card: RunRow = { runId: "gone-run", cardId: "card-1", runNumber: 12, past: pastRuns, rev: 4, origin: "user", command: "true", cwd: dir(), phase: { kind: "running", startedAt: 5, stopRequestedAt: null }, output: { lines: ["last words"], total: 1 }, sentAt: 7 };
+  const id = await rerun(h.registry, card);
+  await ended(h.registry, id);
+  const shown = h.card("card-1");
+  assert.deepEqual([shown.runId, shown.runNumber], [id, 13]);
+  assert.deepEqual(shown.past!.map((p) => p.runNumber), [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  const last = shown.past!.at(-1)!;
+  assert.deepEqual([last.runId, last.phase.kind, last.output.lines, last.sentAt], ["gone-run", "interrupted", ["last words"], 7]);
+  await h.registry.shutdown();
+});
+
+posixTest("sending an earlier run records it in the card's history, and the card keeps showing the latest run", { timeout: 15_000 }, async () => {
+  const h = harness();
+  const first = await ended(h.registry, await run(h.registry, "echo one"));
+  const second = await rerun(h.registry, first);
+  await ended(h.registry, second);
+  h.registry.markSent(first.runId);
+  await until(() => h.card(first.runId).past?.[0].sentAt != null);
+  const shown = h.card(first.runId);
+  assert.deepEqual([shown.runId, shown.sentAt], [second, null]);
+  assert.ok(h.published.every((row) => row.runId !== first.runId || row.runNumber === 1 && row.past === undefined), "the earlier run's own row is never published again");
+  await h.registry.shutdown();
+});
+
+posixTest("after a rerun, a late proposal for the card's first run never overwrites it", { timeout: 15_000 }, async () => {
+  const h = harness({ limits: { keepFinished: 1 } });
+  const id = "p-cccccccccccc";
+  const proposal: RunRow = { runId: id, rev: 0, origin: "claude", command: "true", cwd: dir(), phase: { kind: "proposed" }, output: { lines: [], total: 0 }, sentAt: null };
+  await h.registry.propose(AGENT, proposal);
+  const first = await ended(h.registry, await run(h.registry, "true", proposal.cwd, { runId: id, origin: "claude" }));
+  const second = await rerun(h.registry, first);
+  await ended(h.registry, second);
+  await until(() => h.card(id).phase.kind === "ok");
+  assert.equal(h.registry.snapshot(id, 1), null, "the first run has left the registry");
+  await h.registry.propose(AGENT, proposal);
+  await h.registry.dismiss({ agentId: AGENT, runId: id, command: "true", cwd: proposal.cwd });
+  assert.deepEqual([h.card(id).runId, h.card(id).phase.kind], [second, "ok"]);
   await h.registry.shutdown();
 });

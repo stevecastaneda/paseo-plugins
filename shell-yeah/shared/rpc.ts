@@ -8,8 +8,10 @@ const agentId = z.string().min(1);
 
 // The only way a command starts: /sh, the Run button and Rerun all call this.
 // `runId` is given when a proposal card becomes a run (same id, so the row is
-// replaced in place). Idempotent on `runId`. Returns once the row exists and the
-// process is launched.
+// replaced in place). `rerunOf` is the card Rerun was pressed on: the new run
+// takes over that card and the old one moves into its history. Idempotent on
+// `runId`, and on `rerunOf` while this daemon knows the card. Returns once the
+// row exists and the process is launched.
 export const start = defineRpc({
   name: "shell-yeah.start",
   input: z.object({
@@ -18,6 +20,7 @@ export const start = defineRpc({
     command: z.string().trim().min(1).max(LIMITS.commandChars),
     origin: z.enum(["user", "claude"]),
     runId: runId.optional(),
+    rerunOf: runRow.optional(),
   }),
   output: z.object({ runId }),
 });

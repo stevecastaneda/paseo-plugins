@@ -7,15 +7,16 @@ import { basename, errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
 import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/rpc.ts";
-import { agentName, capitalize, describe, formatDuration, statusText, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
+import { agentName, capitalize, describe, formatDuration, pastRow, pastRunView, statusText, switcher, type Action, type NoteIcon, type Presentation, type RunInView } from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
 import { makePalette, mix, withAlpha, type ThemeColors } from "./palette.ts";
-import { Badge, Button, IconSwap, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
+import { Badge, Button, IconSwap, PressScale, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
 
 const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder" };
 const ACTION_ICON: Record<Action["id"], string> = { run: "Play", dismiss: "X", stop: "Square", "force-stop": "SquareX", copy: "Copy", rerun: "RotateCw", send: "Send" };
 const ENTER_WITHIN_MS = 2_000;
+const STACK_SWITCHER_BELOW = 560;
 
 // The renderer for kind "run" v1. Reads the row, merges live state, asks describe() what to
 // show, and paints. Holds no run state of its own.
@@ -28,11 +29,18 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const rpcSend = useRpc(send);
   const rpcOutput = useRpc(fullOutput);
   const rpcDismiss = useRpc(dismiss);
-  const run = useResolvedRun(row, rpcTail);
+  const latest = useResolvedRun(row, rpcTail);
+  const [picked, setPicked] = useState<{ runId: string; at: number } | null>(null);
+  const viewing: RunInView = picked?.runId === row.runId && row.past?.[picked.at] ? picked.at : "latest";
+  const past = viewing === "latest" ? null : row.past![viewing];
+  const run = past ? pastRunView(row, past) : latest;
+  const steps = switcher(row, viewing);
   const keyBox = useRef<TextInput>(null);
   const [typing, setTyping] = useState(false);
   const ui = useRunUi(row.runId, rpcTail);
   const running = run.phase.kind === "running" && run.lostAt === null;
+  const latestRunning = latest.phase.kind === "running" && latest.lostAt === null;
+  const newerRunning = past !== null && latestRunning;
   const now = useNow(running ? 1_000 : null);
   const agent = agentName(useAgent(agentId, (a) => a.provider));
   const pres = describe(run, now, { agent });
@@ -51,7 +59,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
           await rpcStart({ agentId, cwd: run.cwd, command: run.command, origin: "claude", runId: run.runId });
           return;
         case "rerun":
-          await rpcStart({ agentId, cwd: run.cwd, command: run.command, origin: run.origin });
+          await rpcStart({ agentId, cwd: row.cwd, command: row.command, origin: row.origin, rerunOf: row });
           return;
         case "dismiss":
           await rpcDismiss({ agentId, runId: run.runId, command: run.command, cwd: run.cwd });
@@ -71,7 +79,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
           return;
         }
         case "send": {
-          const { delivery } = await rpcSend({ agentId, runId: run.runId, fallback: row });
+          const { delivery } = await rpcSend({ agentId, runId: run.runId, fallback: past ? pastRow(row, past) : row });
           toast.show(delivery === "steered" ? `Added to ${agent}'s current turn` : `Sent to ${agent}`, { variant: "success" });
           return;
         }
@@ -85,7 +93,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
 
   const actions = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-      {pres.actions.map((action) => (
+      {pres.actions.filter((action) => !(action.id === "rerun" && newerRunning)).map((action) => (
         <Button
           key={action.id}
           icon={action.id === "copy" && copied ? "Check" : ACTION_ICON[action.id]}
@@ -126,8 +134,9 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
 
   return (
     <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
-      <Card colors={colors} tone={pres.tone} running={running} seenLive={ui.seenLive} reduced={reduced}>
-        <Header pres={pres} colors={colors} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)} />
+      <Card colors={colors} tone={pres.tone} running={latestRunning} showingEarlierRun={past !== null} seenLive={ui.seenLive} reduced={reduced}>
+        <Header pres={pres} colors={colors} compact={compact} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)}
+          steps={steps} newerRunning={newerRunning} onStep={(to) => setPicked(to === "latest" ? null : { runId: row.runId, at: to })} />
         {pres.well?.kind === "output" ? (
           <OutputWell
             lines={run.output.lines}
@@ -164,7 +173,7 @@ function buttonTone(action: Action): ButtonTone {
 
 // The card: surface, ring, the running sweep along the top edge, and one flash of the
 // status color when a run this mount watched comes to an end.
-function Card({ children, colors, tone, running, seenLive, reduced }: { children: React.ReactNode; colors: ThemeColors; tone: Presentation["tone"]; running: boolean; seenLive: boolean; reduced: boolean }) {
+function Card({ children, colors, tone, running, showingEarlierRun, seenLive, reduced }: { children: React.ReactNode; colors: ThemeColors; tone: Presentation["tone"]; running: boolean; showingEarlierRun: boolean; seenLive: boolean; reduced: boolean }) {
   const [width, setWidth] = useState(0);
   const sweep = useRef(new Animated.Value(0)).current;
   const flash = useRef(new Animated.Value(0)).current;
@@ -177,7 +186,7 @@ function Card({ children, colors, tone, running, seenLive, reduced }: { children
     return () => loop.stop();
   }, [running, reduced, width]);
   useEffect(() => {
-    if (wasRunning.current && !running && seenLive && !reduced) {
+    if (wasRunning.current && !running && seenLive && !reduced && !showingEarlierRun) {
       flash.setValue(1);
       Animated.timing(flash, { toValue: 0, duration: 700, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
     }
@@ -187,7 +196,7 @@ function Card({ children, colors, tone, running, seenLive, reduced }: { children
   const barWidth = Math.round(width * 0.28);
   return (
     <View testID="shell-yeah-run" onLayout={onLayout} style={[{ borderRadius: 12, backgroundColor: colors.surface1, overflow: "hidden", borderWidth: 1, borderColor: "transparent" }, raised(colors)]}>
-      {running ? (
+      {running && !showingEarlierRun ? (
         reduced ? (
           <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1, backgroundColor: withAlpha(colors.accent, 0.4) }} />
         ) : (
@@ -232,9 +241,15 @@ function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeCol
   );
 }
 
-function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colors: ThemeColors; expanded: boolean; onToggle(): void }) {
+type Steps = ReturnType<typeof switcher>;
+
+function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning, onStep }: { pres: Presentation; colors: ThemeColors; compact: boolean; expanded: boolean; onToggle(): void; steps: Steps; newerRunning: boolean; onStep(to: RunInView): void }) {
   const [first, ...rest] = pres.script.split("\n");
   const [hovered, setHovered] = useState(false);
+  const [width, setWidth] = useState(0);
+  const stacked = compact || (width > 0 && width < STACK_SWITCHER_BELOW);
+  const command = useCutOff();
+  const foldable = pres.foldable || command.cutOff;
   const rotate = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(rotate, { toValue: expanded ? 1 : 0, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
@@ -244,25 +259,31 @@ function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colo
       {pres.timerFrom !== null ? <Elapsed from={pres.timerFrom} prefix={pres.label ? `${pres.label} · ` : ""} /> : statusText(pres)}
     </Text>
   );
+  const switcher = steps ? <Switcher steps={steps} colors={colors} compact={compact} newerRunning={newerRunning} onStep={onStep} /> : null;
   const content = (hovered: boolean) => (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
-      <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-      <Text numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
-        <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
-        {first}
-      </Text>
-      {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
-      {status}
-      <IconSwap swapKey={pres.foldable ? "fold" : "none"} size={14}>
-        {pres.foldable ? (
-          <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] }) }] }}>
-            <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
-          </Animated.View>
-        ) : null}
-      </IconSwap>
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
+        <Text onLayout={command.onShownLayout} numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
+          <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
+          {first}
+        </Text>
+        <Text aria-hidden selectable={false} pointerEvents="none" onLayout={command.onFullLayout} numberOfLines={1} style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{`$ ${first}`}</Text>
+        {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
+        {stacked ? null : switcher}
+        {status}
+        <IconSwap swapKey={foldable ? "fold" : "none"} size={14}>
+          {foldable ? (
+            <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] }) }] }}>
+              <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
+            </Animated.View>
+          ) : null}
+        </IconSwap>
+      </View>
+      {stacked && switcher ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcher}</View> : null}
     </View>
   );
-  if (!pres.foldable) return content(false);
+  if (!foldable) return content(false);
   return (
     <Pressable
       accessibilityRole="button"
@@ -273,6 +294,29 @@ function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colo
       onHoverOut={() => setHovered(false)}>
       {content(hovered)}
     </Pressable>
+  );
+}
+
+function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: NonNullable<Steps>; colors: ThemeColors; compact: boolean; newerRunning: boolean; onStep(to: RunInView): void }) {
+  const size = compact ? 28 : 24;
+  const arrow = (icon: string, label: string, to: RunInView | null, live = false) => (
+    <PressScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: to === null }}
+      disabled={to === null}
+      onPress={() => to !== null && onStep(to)}
+      style={({ hovered }) => ({ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered && to !== null ? colors.surface2 : "transparent", opacity: to === null ? 0.35 : 1 })}>
+      <Icon name={icon} size={14} color={live ? colors.accent : colors.foregroundMuted} />
+      {live ? <View style={{ position: "absolute", top: size / 2 - 7, right: size / 2 - 7, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.accent }} /> : null}
+    </PressScale>
+  );
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, marginVertical: -(size - 20) / 2 }}>
+      {arrow("ChevronLeft", "Earlier run", steps.prev)}
+      <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>{steps.label}</Text>
+      {arrow("ChevronRight", newerRunning ? "Later run, still running" : "Later run", steps.next, newerRunning)}
+    </View>
   );
 }
 
@@ -386,6 +430,17 @@ function Elapsed({ from, prefix }: { from: number; prefix: string }) {
   // A stopwatch starts at 0.0s; "<0.1s" is for runs that are already over.
   const ms = Math.max(0, now - from);
   return <>{prefix}{ms < 100 ? "0.0s" : formatDuration(ms)}</>;
+}
+
+// Compares the width a one-line text gets with the width an unconstrained copy of it needs.
+function useCutOff(): { cutOff: boolean; onShownLayout(event: LayoutChangeEvent): void; onFullLayout(event: LayoutChangeEvent): void } {
+  const [shown, setShown] = useState(0);
+  const [full, setFull] = useState(0);
+  return {
+    cutOff: shown > 0 && full > shown + 1,
+    onShownLayout: (event) => setShown(event.nativeEvent.layout.width),
+    onFullLayout: (event) => setFull(event.nativeEvent.layout.width),
+  };
 }
 
 function useNow(intervalMs: number | null): number {
