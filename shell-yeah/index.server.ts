@@ -4,7 +4,7 @@ import { createLogStore, defaultLogRoot } from "./server/logs.ts";
 import { createRunRegistry } from "./server/runs.ts";
 import { commandFinder } from "./server/shells.ts";
 import { attachSearch, dismiss, fullOutput, input, scan, send, start, stop, suggest, tail } from "./shared/rpc.ts";
-import { RUN_KIND, RUN_VERSION } from "./shared/row.ts";
+import { RUN_KIND, RUN_VERSION, cardIdOf } from "./shared/row.ts";
 
 export default function contribute(server: PluginServerContext) {
   // `paseo` exists only inside handler and hook contexts; every one of them hands over the
@@ -15,7 +15,7 @@ export default function contribute(server: PluginServerContext) {
   const runs = createRunRegistry({
     publish: async (agentId, row) => {
       if (!paseo) throw new Error("Paseo isn't connected yet.");
-      await paseo.agents.ref(agentId).timeline.append({ type: "plugin", id: row.runId, kind: RUN_KIND, version: RUN_VERSION, data: row });
+      await paseo.agents.ref(agentId).timeline.append({ type: "plugin", id: cardIdOf(row), kind: RUN_KIND, version: RUN_VERSION, data: row });
     },
     now: Date.now,
     env: process.env,

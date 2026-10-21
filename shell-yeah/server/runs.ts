@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { LIMITS, type Limits } from "../shared/limits.ts";
-import type { LiveView, Phase, RunRow } from "../shared/row.ts";
+import { cardIdOf, isEnded, runNumberOf, type LiveView, type PastRun, type Phase, type RunRow } from "../shared/row.ts";
 import { createScreen, fitLines, jsonBytes, looksBinary, type Screen } from "./screen.ts";
 import { pickSpawner, type Proc, type Spawner } from "./proc.ts";
 import { shellCommand } from "./shells.ts";
 
 export interface RunsDeps {
-  // Append-or-replace this run's timeline row (id = runId). Rejects if the agent isn't loaded.
+  // Append-or-replace this run's card in the timeline (id = cardIdOf(row)). Rejects if the agent isn't loaded.
   publish(agentId: string, row: RunRow): Promise<void>;
   now(): number;
   env: NodeJS.ProcessEnv;
@@ -22,12 +22,15 @@ export interface StartInput {
   command: string;
   origin: "user" | "claude";
   runId?: string;
+  // The card Rerun was pressed on.
+  rerunOf?: RunRow;
 }
 
 export type TailResult = { state: "unknown" } | { state: "unchanged"; rev: number } | { state: "view"; view: LiveView };
 
 export interface RunRegistry {
-  // Idempotent on runId. The row is published before the process exists, so a command is never running invisibly.
+  // Idempotent on runId, and on rerunOf while this daemon knows the card. The row is
+  // published before the process exists, so a command is never running invisibly.
   start(input: StartInput): Promise<{ runId: string }>;
   stop(runId: string, force: boolean): void;
   // Types a line into a running command's terminal, then Enter. Throws when it can't take typing.
@@ -39,6 +42,7 @@ export interface RunRegistry {
   fullText(runId: string): { text: string; complete: boolean } | null;
   // Running first, then newest. For the attach menu.
   recent(limit: number): Array<{ agentId: string; row: RunRow }>;
+  // Also takes an earlier run of a card: the card's history records it.
   markSent(runId: string): void;
   // A proposal card. Dropped if a run with that id already exists.
   propose(agentId: string, row: RunRow): Promise<void>;
@@ -54,6 +58,10 @@ interface Run {
   readonly origin: "user" | "claude";
   readonly command: string;
   readonly cwd: string;
+  readonly cardId: string;
+  // Its number in the card, from 1.
+  readonly run: number;
+  past: PastRun[];
   phase: Phase;
   rev: number;
   readonly screen: Screen;
@@ -73,8 +81,9 @@ interface Run {
   escalation: NodeJS.Timeout[];
 }
 
-// One publish queue per row id: single flight, trailing coalescing, and a rank
-// that never goes backwards, so a late proposal can't overwrite a running row.
+// One publish queue per card: single flight, trailing coalescing, and a rank that
+// never goes backwards, so a late proposal can't overwrite a running row and an
+// earlier run can't overwrite a later one.
 interface Slot {
   rank: number;
   pending: { row: RunRow; retry: boolean } | null;
@@ -88,6 +97,8 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   const limits: Limits = { ...LIMITS, ...deps.limits };
   const runs = new Map<string, Run>();
   const slots = new Map<string, Slot>();
+  // Each card's latest run.
+  const cards = new Map<string, string>();
   const timers = new Set<NodeJS.Timeout>();
   let closed = false;
 
@@ -112,13 +123,14 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   // ---- the one publish path ----
 
   function publishRow(agentId: string, row: RunRow, retry: boolean): Promise<void> {
-    let slot = slots.get(row.runId);
+    const cardId = cardIdOf(row);
+    let slot = slots.get(cardId);
     if (!slot) {
       pruneSlots();
       slot = { rank: -1, pending: null, chain: null };
-      slots.set(row.runId, slot);
+      slots.set(cardId, slot);
     }
-    const rank = RANK[row.phase.kind];
+    const rank = runNumberOf(row) * 3 + RANK[row.phase.kind];
     if (rank < slot.rank) return Promise.resolve();
     slot.rank = rank;
     slot.pending = { row, retry };
@@ -158,14 +170,26 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   function pruneSlots() {
     if (slots.size < MAX_SLOTS) return;
     for (const [id, slot] of slots) {
-      if (!slot.chain && !runs.has(id)) slots.delete(id);
+      if (!slot.chain && !cards.has(id)) slots.delete(id);
       if (slots.size < MAX_SLOTS / 2) break;
     }
   }
 
   function rowOf(run: Run, lines: number): RunRow {
-    return { runId: run.id, rev: run.rev, origin: run.origin, command: run.command, cwd: run.cwd, phase: run.phase, output: run.screen.tail(lines), sentAt: run.sentAt, terminal: run.terminal };
+    return {
+      runId: run.id, rev: run.rev, origin: run.origin, command: run.command, cwd: run.cwd, phase: run.phase, output: run.screen.tail(lines), sentAt: run.sentAt, terminal: run.terminal,
+      cardId: run.cardId, run: run.run, ...(run.past.length > 0 ? { past: run.past } : {}),
+    };
   }
+
+  // A run as a card's history keeps it. A run the daemon lost while it ran ended then.
+  function pastOf(row: RunRow): PastRun | null {
+    const phase = row.phase.kind === "running" ? { kind: "interrupted" as const, startedAt: row.phase.startedAt, endedAt: deps.now() } : row.phase;
+    if (!isEnded(phase)) return null;
+    return { runId: row.runId, run: runNumberOf(row), phase, output: { lines: fitLines(row.output.lines, limits.pastRunOutputBytes), total: row.output.total }, sentAt: row.sentAt };
+  }
+
+  const isLatest = (run: Run) => cards.get(run.cardId) === run.id;
 
   function fitRow(row: RunRow): RunRow {
     const rest = jsonBytes({ ...row, output: { lines: [], total: row.output.total } });
@@ -256,7 +280,10 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     const ended = [...runs.values()].filter((run) => run.phase.kind !== "running");
     if (ended.length <= limits.keepFinished) return;
     ended.sort((a, b) => endedAt(a) - endedAt(b));
-    for (const run of ended.slice(0, ended.length - limits.keepFinished)) runs.delete(run.id);
+    for (const run of ended.slice(0, ended.length - limits.keepFinished)) {
+      runs.delete(run.id);
+      if (isLatest(run)) cards.delete(run.cardId);
+    }
   }
 
   function liveCount(): number {
@@ -294,13 +321,30 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     async start(input) {
       const id = input.runId ?? newRunId();
       if (runs.has(id)) return { runId: id };
+      const { rerunOf } = input;
+      const cardId = rerunOf ? cardIdOf(rerunOf) : id;
+      const before = cards.get(cardId);
+      // A second Rerun of the same card (double click, another window) gets the run the first one started.
+      if (rerunOf && before !== undefined && before !== rerunOf.runId) return { runId: before };
+      const previous = rerunOf ? runs.get(rerunOf.runId) : undefined;
+      if (previous?.phase.kind === "running") throw new Error("This command is still running. Stop it first.");
       if (Buffer.byteLength(input.command) > limits.commandBytes) throw new Error("That command is too long to run.");
       if (liveCount() >= limits.maxLive) throw new Error(`${limits.maxLive} commands are already running. Stop one first.`);
+      // Claimed before the first await, so two reruns of one card can't both start.
+      cards.set(cardId, id);
+      const release = () => {
+        if (cards.get(cardId) !== id) return;
+        if (before === undefined) cards.delete(cardId);
+        else cards.set(cardId, before);
+      };
       const spawner = await spawnerReady;
       if (runs.has(id)) return { runId: id };
+      const last = rerunOf && pastOf(previous ? rowOf(previous, limits.scrollbackLines) : rerunOf);
+      const past = rerunOf ? [...(previous?.past ?? rerunOf.past ?? []), ...(last ? [last] : [])].slice(-limits.pastRuns) : [];
       const startedAt = deps.now();
       const run: Run = {
         id, agentId: input.agentId, origin: input.origin, command: input.command, cwd: input.cwd,
+        cardId, run: rerunOf ? runNumberOf(rerunOf) + 1 : 1, past,
         phase: { kind: "running", startedAt, stopRequestedAt: null },
         rev: 0, screen: createScreen({ maxLines: limits.linesKept, maxLineChars: limits.lineChars }),
         sentAt: null, lastOutputAt: null, proc: null, terminal: spawner.terminal, capturedBytes: 0, binary: false, capStopped: false,
@@ -313,6 +357,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
         await publishRun(run, false);
       } catch (error) {
         runs.delete(id);
+        release();
         throw error;
       }
       if (run.phase.kind === "running") launch(run, spawner);
@@ -380,11 +425,19 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     },
 
     markSent(runId) {
+      const at = deps.now();
       const run = runs.get(runId);
-      if (!run) return;
-      run.sentAt = deps.now();
-      bump(run);
-      publishRun(run, true).catch(() => undefined);
+      if (run) {
+        run.sentAt = at;
+        bump(run);
+      }
+      // Only a card's latest run publishes; an earlier one is recorded in the latest's history.
+      if (run && isLatest(run)) return void publishRun(run, true).catch(() => undefined);
+      const latest = [...runs.values()].find((r) => isLatest(r) && r.past.some((p) => p.runId === runId));
+      if (!latest) return;
+      latest.past = latest.past.map((p) => (p.runId === runId ? { ...p, sentAt: at } : p));
+      bump(latest);
+      publishRun(latest, true).catch(() => undefined);
     },
 
     propose(agentId, row) {

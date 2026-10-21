@@ -7,18 +7,18 @@ import { basename, errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
 import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/rpc.ts";
-import { agentName, capitalize, describe, formatDuration, statusText, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
+import { agentName, capitalize, describe, formatDuration, pastRow, pastRunView, statusText, switcher, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
 import { makePalette, mix, withAlpha, type ThemeColors } from "./palette.ts";
-import { Badge, Button, IconSwap, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
+import { Badge, Button, IconSwap, PressScale, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
 
 const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder" };
 const ACTION_ICON: Record<Action["id"], string> = { run: "Play", dismiss: "X", stop: "Square", "force-stop": "SquareX", copy: "Copy", rerun: "RotateCw", send: "Send" };
 const ENTER_WITHIN_MS = 2_000;
 
 // The renderer for kind "run" v1. Reads the row, merges live state, asks describe() what to
-// show, and paints. Holds no run state of its own.
+// show, and paints. Holds no run state of its own, only which of the card's runs is in view.
 export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTimelineItemProps<RunRow>) {
   const row = item.data;
   const colors = theme.colors;
@@ -28,11 +28,18 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const rpcSend = useRpc(send);
   const rpcOutput = useRpc(fullOutput);
   const rpcDismiss = useRpc(dismiss);
-  const run = useResolvedRun(row, rpcTail);
+  const latest = useResolvedRun(row, rpcTail);
+  // An earlier run in view, until a new run arrives.
+  const [picked, setPicked] = useState<{ runId: string; at: number } | null>(null);
+  const viewing = picked?.runId === row.runId && row.past?.[picked.at] ? picked.at : null;
+  const past = viewing === null ? null : row.past![viewing];
+  const run = past ? pastRunView(row, past) : latest;
+  const steps = switcher(row, viewing);
   const keyBox = useRef<TextInput>(null);
   const [typing, setTyping] = useState(false);
   const ui = useRunUi(row.runId, rpcTail);
   const running = run.phase.kind === "running" && run.lostAt === null;
+  const latestRunning = latest.phase.kind === "running" && latest.lostAt === null;
   const now = useNow(running ? 1_000 : null);
   const agent = agentName(useAgent(agentId, (a) => a.provider));
   const pres = describe(run, now, { agent });
@@ -51,7 +58,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
           await rpcStart({ agentId, cwd: run.cwd, command: run.command, origin: "claude", runId: run.runId });
           return;
         case "rerun":
-          await rpcStart({ agentId, cwd: run.cwd, command: run.command, origin: run.origin });
+          await rpcStart({ agentId, cwd: row.cwd, command: row.command, origin: row.origin, rerunOf: row });
           return;
         case "dismiss":
           await rpcDismiss({ agentId, runId: run.runId, command: run.command, cwd: run.cwd });
@@ -71,7 +78,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
           return;
         }
         case "send": {
-          const { delivery } = await rpcSend({ agentId, runId: run.runId, fallback: row });
+          const { delivery } = await rpcSend({ agentId, runId: run.runId, fallback: past ? pastRow(row, past) : row });
           toast.show(delivery === "steered" ? `Added to ${agent}'s current turn` : `Sent to ${agent}`, { variant: "success" });
           return;
         }
@@ -126,8 +133,9 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
 
   return (
     <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
-      <Card colors={colors} tone={pres.tone} running={running} seenLive={ui.seenLive} reduced={reduced}>
-        <Header pres={pres} colors={colors} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)} />
+      <Card colors={colors} tone={pres.tone} running={latestRunning} away={past !== null} seenLive={ui.seenLive} reduced={reduced}>
+        <Header pres={pres} colors={colors} compact={compact} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)}
+          steps={steps} onStep={(at) => setPicked(at === null ? null : { runId: row.runId, at })} />
         {pres.well?.kind === "output" ? (
           <OutputWell
             lines={run.output.lines}
@@ -163,8 +171,9 @@ function buttonTone(action: Action): ButtonTone {
 }
 
 // The card: surface, ring, the running sweep along the top edge, and one flash of the
-// status color when a run this mount watched comes to an end.
-function Card({ children, colors, tone, running, seenLive, reduced }: { children: React.ReactNode; colors: ThemeColors; tone: Presentation["tone"]; running: boolean; seenLive: boolean; reduced: boolean }) {
+// status color when a run this mount watched comes to an end. Both belong to the latest
+// run, so neither shows while an earlier run is in view (`away`).
+function Card({ children, colors, tone, running, away, seenLive, reduced }: { children: React.ReactNode; colors: ThemeColors; tone: Presentation["tone"]; running: boolean; away: boolean; seenLive: boolean; reduced: boolean }) {
   const [width, setWidth] = useState(0);
   const sweep = useRef(new Animated.Value(0)).current;
   const flash = useRef(new Animated.Value(0)).current;
@@ -177,7 +186,7 @@ function Card({ children, colors, tone, running, seenLive, reduced }: { children
     return () => loop.stop();
   }, [running, reduced, width]);
   useEffect(() => {
-    if (wasRunning.current && !running && seenLive && !reduced) {
+    if (wasRunning.current && !running && seenLive && !reduced && !away) {
       flash.setValue(1);
       Animated.timing(flash, { toValue: 0, duration: 700, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
     }
@@ -187,7 +196,7 @@ function Card({ children, colors, tone, running, seenLive, reduced }: { children
   const barWidth = Math.round(width * 0.28);
   return (
     <View testID="shell-yeah-run" onLayout={onLayout} style={[{ borderRadius: 12, backgroundColor: colors.surface1, overflow: "hidden", borderWidth: 1, borderColor: "transparent" }, raised(colors)]}>
-      {running ? (
+      {running && !away ? (
         reduced ? (
           <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1, backgroundColor: withAlpha(colors.accent, 0.4) }} />
         ) : (
@@ -232,7 +241,9 @@ function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeCol
   );
 }
 
-function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colors: ThemeColors; expanded: boolean; onToggle(): void }) {
+type Steps = ReturnType<typeof switcher>;
+
+function Header({ pres, colors, compact, expanded, onToggle, steps, onStep }: { pres: Presentation; colors: ThemeColors; compact: boolean; expanded: boolean; onToggle(): void; steps: Steps; onStep(at: number | null): void }) {
   const [first, ...rest] = pres.script.split("\n");
   const [hovered, setHovered] = useState(false);
   const rotate = useRef(new Animated.Value(expanded ? 1 : 0)).current;
@@ -252,6 +263,7 @@ function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colo
         {first}
       </Text>
       {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
+      {steps ? <Switcher steps={steps} colors={colors} compact={compact} onStep={onStep} /> : null}
       {status}
       <IconSwap swapKey={pres.foldable ? "fold" : "none"} size={14}>
         {pres.foldable ? (
@@ -273,6 +285,29 @@ function Header({ pres, colors, expanded, onToggle }: { pres: Presentation; colo
       onHoverOut={() => setHovered(false)}>
       {content(hovered)}
     </Pressable>
+  );
+}
+
+// "‹ Run 2 of 3 ›": steps through the card's runs. Its own presses never fold the card.
+function Switcher({ steps, colors, compact, onStep }: { steps: NonNullable<Steps>; colors: ThemeColors; compact: boolean; onStep(at: number | null): void }) {
+  const size = compact ? 28 : 24;
+  const arrow = (icon: string, label: string, to: number | null | undefined) => (
+    <PressScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: to === undefined }}
+      disabled={to === undefined}
+      onPress={() => to !== undefined && onStep(to)}
+      style={({ hovered }) => ({ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered && to !== undefined ? colors.surface2 : "transparent", opacity: to === undefined ? 0.35 : 1 })}>
+      <Icon name={icon} size={14} color={colors.foregroundMuted} />
+    </PressScale>
+  );
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, marginVertical: -(size - 20) / 2 }}>
+      {arrow("ChevronLeft", "Earlier run", steps.prev)}
+      <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>{steps.label}</Text>
+      {arrow("ChevronRight", "Later run", steps.next)}
+    </View>
   );
 }
 

@@ -21,25 +21,32 @@ const clock = { startedAt: z.number(), endedAt: z.number() };
 // are the only non-terminal ones; the rest are absorbing.
 //   proposed -> running -> ok | failed | stopped | interrupted
 //   proposed -> dismissed
+const ok = z.object({ kind: z.literal("ok"), ...clock });
+const failed = z.object({
+  kind: z.literal("failed"),
+  ...clock,
+  exitCode: z.number().int().nullable(),
+  signal: z.string().nullable(),
+  // Set when the command never started (bad folder, no shell).
+  message: z.string().nullable(),
+});
+const stopped = z.object({ kind: z.literal("stopped"), ...clock, exitCode: z.number().int().nullable(), signal: z.string().nullable() });
+const interrupted = z.object({ kind: z.literal("interrupted"), ...clock });
+export const endedPhase = z.discriminatedUnion("kind", [ok, failed, stopped, interrupted]);
+export type Ended = z.infer<typeof endedPhase>;
+
+// The run's state machine, one variant per visual state. `proposed` and `running`
+// are the only non-terminal ones; the rest are absorbing.
+//   proposed -> running -> ok | failed | stopped | interrupted
+//   proposed -> dismissed
 export const phase = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("proposed") }),
   z.object({ kind: z.literal("running"), startedAt: z.number(), stopRequestedAt: z.number().nullable() }),
-  z.object({ kind: z.literal("ok"), ...clock }),
-  z.object({
-    kind: z.literal("failed"),
-    ...clock,
-    exitCode: z.number().int().nullable(),
-    signal: z.string().nullable(),
-    // Set when the command never started (bad folder, no shell).
-    message: z.string().nullable(),
-  }),
-  z.object({ kind: z.literal("stopped"), ...clock, exitCode: z.number().int().nullable(), signal: z.string().nullable() }),
-  z.object({ kind: z.literal("interrupted"), ...clock }),
+  ok, failed, stopped, interrupted,
   z.object({ kind: z.literal("dismissed") }),
 ]);
 export type Phase = z.infer<typeof phase>;
 export type PhaseKind = Phase["kind"];
-export type Ended = Extract<Phase, { kind: "ok" | "failed" | "stopped" | "interrupted" }>;
 
 export const isEnded = (p: Phase): p is Ended => p.kind === "ok" || p.kind === "failed" || p.kind === "stopped" || p.kind === "interrupted";
 
@@ -47,6 +54,17 @@ export const isEnded = (p: Phase): p is Ended => p.kind === "ok" || p.kind === "
 // including the ones no longer held; lines not shown = total - lines.length.
 export const output = z.object({ lines: z.array(line), total: z.number().int().nonnegative() });
 export type Output = z.infer<typeof output>;
+
+// An earlier run of a card: its status and the end of its output.
+export const pastRun = z.object({
+  runId: z.string(),
+  // Its number in the card, from 1.
+  run: z.number().int().positive(),
+  phase: endedPhase,
+  output,
+  sentAt: z.number().nullable(),
+});
+export type PastRun = z.infer<typeof pastRun>;
 
 // The timeline row's `data`, schema version 1. Everything but `rev` is a projection
 // of the server's run (server/runs.ts owns it). A finished row renders from this alone.
@@ -64,8 +82,17 @@ export const runRow = z.object({
   sentAt: z.number().nullable(),
   // The command ran in a real terminal, so it could take typing. Absent on older rows.
   terminal: z.boolean().optional(),
+  // The timeline row this run shows in; Rerun keeps the card. Absent = runId (rows before 1.1.0).
+  cardId: z.string().optional(),
+  // This run's number in its card, from 1. Absent = 1.
+  run: z.number().int().positive().optional(),
+  // Earlier runs of this card, oldest first, at most LIMITS.pastRuns. Absent = none.
+  past: z.array(pastRun).optional(),
 });
 export type RunRow = z.infer<typeof runRow>;
+
+export const cardIdOf = (row: Pick<RunRow, "runId" | "cardId">): string => row.cardId ?? row.runId;
+export const runNumberOf = (row: Pick<RunRow, "run">): number => row.run ?? 1;
 
 // Where the terminal's cursor is, counted from the end of `output.lines`: up 0 is the last
 // line, up -1 the empty line below it. Typing lands here.
