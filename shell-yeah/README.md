@@ -14,6 +14,7 @@ Type `/sh npm test` and press Enter. A card appears in the chat:
 
 - While the command runs: a spinner, a timer, the last lines of output as they arrive, a box to type into, and **Stop**. Progress bars and spinners redraw in place, the way they do in a terminal.
 - When it ends: **Done** or **Exit 1** with how long it took, the colored output, and **Send**, **Copy** and **Rerun**. Buttons and notes name the chat's agent: **Send to Claude** in a Claude chat, **Send to Codex** in a Codex chat.
+- **Rerun** runs the command again in the same card. The arrows next to **Run 2 of 3** go back through earlier runs, up to 10, with each one's result and the end of its output. **Send** and **Copy** use the run you're looking at.
 
 <img src="images/2-running.png" alt="A /sh npm run build card while it runs, with a live progress bar" width="600">
 
@@ -97,6 +98,10 @@ paseo plugin add npm:@stevecastaneda/paseo-shell-yeah
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
 ## Changelog
+
+### 1.1.0
+
+- **Rerun** now runs the command again in the same card, so it no longer adds a card for each run. Arrows in the card's header show earlier runs, up to 10. **Send** and **Copy** use the run you're looking at.
 
 ### 1.0.1
 
