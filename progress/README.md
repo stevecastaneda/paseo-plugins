@@ -18,7 +18,7 @@ The dashboard shows:
 
 <img src="images/2-ticket.png" alt="A ticket's story: its status, time against the estimate, the agent on it, and its timeline" width="400"> <img src="images/3-question.png" alt="A question waiting for an answer, with lettered options, the agent's recommendation and Copy buttons" width="400">
 
-<img src="images/5-settings.png" alt="The Questions setting in Paseo's Settings, set to Work around" width="600">
+<img src="images/5-settings.png" alt="Progress settings in Paseo: the Questions setting set to Work around, and the Language setting set to System" width="600">
 
 The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new in that version once. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
 
@@ -144,6 +144,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.5.1
+
+- [Improved] **Settings screenshot.** It shows the new Language setting.
 
 ### 1.5.0
 
