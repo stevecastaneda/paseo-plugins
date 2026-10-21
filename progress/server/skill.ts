@@ -127,8 +127,10 @@ export async function handleReadSkill() {
 }
 
 // Runs only when the user presses Install skill. Links that only need to
-// follow an update are repointed on their own (repairSkill).
+// follow an update are repointed on their own (repairSkill), which must finish
+// first: both would unlink the same outdated link.
 export async function handleInstallSkill() {
+  await repairSkill();
   const pluginDirectory = await findPluginDirectory();
   await installSkill(defaultSkillPaths(), pluginDirectory);
   return skillStatus(defaultSkillPaths(), pluginDirectory);
