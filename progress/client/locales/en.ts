@@ -125,7 +125,7 @@ export const messages: ProgressMessages = {
   skillForeign: "Something else already exists at every paseo-progress skill path, so the plugin won't install the skill.",
   skillInstalled: "Installed the paseo-progress skill. New agent sessions will use it.",
   installSkillFailure: "Could not install the skill.",
-  agentSkill: "Agent skill",
+  agentSkill: "Agent Skills",
   skillName: "paseo-progress skill",
   viewSkill: "View skill",
   skillNotInstalled: "Not installed",
