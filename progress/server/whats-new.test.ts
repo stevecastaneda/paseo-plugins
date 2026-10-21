@@ -197,6 +197,18 @@ test("a damaged seen file counts as missing", async (t) => {
   assert.deepEqual(await seenFile(home), { seen: "2.0.0" });
 });
 
+test("a seen version that isn't x.y.z counts as missing", async (t) => {
+  for (const seen of ["1.6", "v1.6.0", ""]) {
+    const home = await fakeHome(t);
+    await earlierRun(home);
+    await writeFile(whatsNewPath(home), JSON.stringify({ seen }));
+    const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
+    assert.deepEqual(shown?.releases.map((release) => release.version), ["2.0.0"], seen);
+    await markWhatsNewSeen("2.0.0", home);
+    assert.equal(await whatsNew({ version: "2.0.0", readme: README }, home), null, seen);
+  }
+});
+
 test("with no notes for the version, nothing shows and nothing is recorded", async (t) => {
   const home = await fakeHome(t);
   await earlierRun(home);

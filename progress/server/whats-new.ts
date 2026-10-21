@@ -13,7 +13,7 @@ import { stateRoot, writeAtomic } from "./store.ts";
 
 export type Release = { version: string; readme: string | null };
 
-const seenSchema = z.object({ seen: z.string() });
+const seenSchema = z.object({ seen: z.string().regex(/^\d+\.\d+\.\d+$/) });
 const packageSchema = z.object({ version: z.string() });
 
 export function whatsNewPath(home = homedir()): string {
