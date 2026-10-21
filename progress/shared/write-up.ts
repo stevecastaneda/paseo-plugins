@@ -33,7 +33,9 @@ export function spans(text: string): Span[] {
 export function parseWriteUp(markdown: string): Block[] {
   const blocks: Block[] = [];
   let paragraph: string[] = [];
-  let fence: string[] | null = null;
+  // A fence opened inside a list item is indented like the item; its lines
+  // lose up to that much indentation.
+  let fence: { indent: number; lines: string[] } | null = null;
   const flush = () => {
     if (paragraph.length) blocks.push({ kind: "paragraph", spans: spans(paragraph.join(" ")) });
     paragraph = [];
@@ -41,14 +43,14 @@ export function parseWriteUp(markdown: string): Block[] {
   for (const raw of markdown.replace(/\r\n?/g, "\n").split("\n")) {
     if (fence) {
       if (/^\s*(```|~~~)/.test(raw)) {
-        blocks.push({ kind: "code", text: fence.join("\n") });
+        blocks.push({ kind: "code", text: fence.lines.join("\n") });
         fence = null;
-      } else fence.push(raw);
+      } else fence.lines.push(raw.replace(new RegExp(`^[ \\t]{0,${fence.indent}}`), ""));
       continue;
     }
     if (/^\s*(```|~~~)/.test(raw)) {
       flush();
-      fence = [];
+      fence = { indent: /^[ \t]*/.exec(raw)![0].length, lines: [] };
       continue;
     }
     const line = raw.trimEnd();
@@ -69,7 +71,7 @@ export function parseWriteUp(markdown: string): Block[] {
     } else paragraph.push(line.trim().replace(/^>\s?/, ""));
   }
   flush();
-  if (fence) blocks.push({ kind: "code", text: fence.join("\n") });
+  if (fence) blocks.push({ kind: "code", text: fence.lines.join("\n") });
   return blocks;
 }
 

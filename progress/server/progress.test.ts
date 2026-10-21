@@ -545,6 +545,13 @@ test("a write-up reads as headings, paragraphs, list items and code, and its exc
   assert.equal(writeUpExcerpt(blocks).more, false);
 });
 
+test("a code block inside a list item drops the item's indentation", () => {
+  assert.deepEqual(parseWriteUp(["- Run it:", "  ```sh", "  npm test \\", "      --watch", " x", "  ```"].join("\n")), [
+    { kind: "item", marker: "•", depth: 0, spans: [{ text: "Run it:" }] },
+    { kind: "code", text: "npm test \\\n    --watch\nx" },
+  ]);
+});
+
 test("each ticket and the ticker remember the agent that last wrote them", async (t) => {
   const w = await worktree(t);
   await w.runAs("a", "start", "Run");
