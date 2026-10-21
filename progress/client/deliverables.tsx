@@ -4,12 +4,13 @@ import React, { useState } from "react";
 import { Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, deliverableAttachment, shortName, useAttachmentOpener } from "./attachments";
-import { formatAgo } from "../shared/format";
+import { formatClientAgo } from "./i18n";
 import { PressScale } from "./motion";
 import { StackedDialog } from "./dialog-stack";
 import { galleryFiles } from "./preview";
 import { PressableRow } from "./row";
 import { ShowMoreRow, usePaged } from "./show-more";
+import { useProgressLanguage } from "./language";
 
 export { absolutePath } from "./attachments";
 
@@ -25,6 +26,7 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
   workspaceDirectory: string;
   navigation: Navigation;
 }) {
+  const { messages: m, locale } = useProgressLanguage();
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
   const { open, copyPath } = useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview: setPreviewing });
   const paged = usePaged(deliverables);
@@ -32,7 +34,7 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
     <View>
       {paged.shown.map((deliverable, index) => (
         <PressableRow key={deliverable.id} colors={colors} accessibilityRole={deliverable.url ? "link" : "button"}
-          accessibilityLabel={`Open ${deliverable.title}`}
+          accessibilityLabel={m.openItem(deliverable.title)}
           onPress={() => void open(deliverableAttachment(deliverable))}
           style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
           {/* Optical: centers the 14px icon on the 18px title line. */}
@@ -42,12 +44,12 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
             <Text numberOfLines={3} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{deliverable.title}</Text>
             {/* Just the name, ticket and age. The full path is one press of Copy away. */}
             <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-              {[shortName(deliverableAttachment(deliverable)), deliverable.ticketLabel ?? deliverable.ticketId, formatAgo(deliverable.addedAt, now)].filter(Boolean).join(" · ")}
+              {[shortName(deliverableAttachment(deliverable)), deliverable.ticketLabel ?? deliverable.ticketId, formatClientAgo(locale, deliverable.addedAt, now)].filter(Boolean).join(" · ")}
             </Text>
           </View>
           {deliverable.path ? (
             // Optical: the 22px button centers on the 18px title line.
-            <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${deliverable.title}`} hitSlop={6} outerStyle={{ marginTop: -2 }}
+            <PressScale accessibilityRole="button" accessibilityLabel={m.copyItemPath(deliverable.title)} hitSlop={6} outerStyle={{ marginTop: -2 }}
               onPress={() => void copyPath(deliverableAttachment(deliverable))}
               // A step above the row's own hover tint (surface1), so it reads as its own target.
               style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>

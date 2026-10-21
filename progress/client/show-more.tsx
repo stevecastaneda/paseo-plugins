@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Text } from "react-native";
 import { IconSwap } from "./motion";
 import { PressableRow } from "./row";
+import { useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -23,8 +24,9 @@ export function usePaged<T>(items: T[]): { shown: T[]; older: number; showOlder(
 
 // The row under a paged list: "Show 10 older", or "Show fewer" once all are shown.
 export function ShowMoreRow({ colors, total, paged }: { colors: Colors; total: number; paged: ReturnType<typeof usePaged> }) {
-  const more = paged.older > 0 ? { label: `Show ${Math.min(paged.older, PAGE)} older`, icon: "ChevronDown", onPress: paged.showOlder }
-    : total > PAGE ? { label: "Show fewer", icon: "ChevronUp", onPress: paged.showFewer }
+  const { messages: m } = useProgressLanguage();
+  const more = paged.older > 0 ? { label: m.showOlder(Math.min(paged.older, PAGE)), icon: "ChevronDown", onPress: paged.showOlder }
+    : total > PAGE ? { label: m.showFewer, icon: "ChevronUp", onPress: paged.showFewer }
     : null;
   if (!more) return null;
   return (

@@ -9,7 +9,8 @@ import { folderAttachments, isFolder, previewKind } from "../shared/attachments"
 import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
 import { PressScale } from "./motion";
 import { imageOutline, raised } from "./surfaces";
-import { loadVideo, VideoPlayer } from "./video";
+import { loadVideo, VideoChangedError, VideoPlayer } from "./video";
+import { useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -39,6 +40,7 @@ type PreviewProps = {
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
 export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
+  const { messages: m } = useProgressLanguage();
   const fetchPreview = useRpc(previewDeliverable);
   const readPiece = useRpc(readDeliverablePiece);
   const checkHost = useRpc(canOpenOnHost);
@@ -118,19 +120,19 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   useEffect(() => onLong(long), [long]);
   // How far a video has loaded: under the spinner, or in place of the path while
   // the last file stays on screen, so nothing moves.
-  const videoLoading = preview.isFetching && loading !== undefined && loading < 1 ? `Loading video, ${Math.floor(loading * 100)}%` : null;
+  const videoLoading = preview.isFetching && loading !== undefined && loading < 1 ? m.loadingVideo(Math.floor(loading * 100)) : null;
   const caption = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
   const content = (
     <>
       {preview.isPending ? (
         <View style={{ alignItems: "center", gap: 8, padding: 24 }}>
-          <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading preview" />
+          <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingPreview} />
           {videoLoading ? <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{videoLoading}</Text> : null}
         </View>
       ) : null}
       {preview.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
-          Could not preview it: {errorText(preview.error, "something went wrong")}
+          {m.previewError(preview.error instanceof VideoChangedError ? m.videoChanged : errorText(preview.error, m.unknownError))}
         </Text>
       ) : null}
       {preview.data?.kind === "text" ? (
@@ -140,7 +142,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           </Text>
           {preview.data.truncated ? (
             <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingTop: 8 }}>
-              Showing the first 256 KB.{canOpen ? " Press Open to see the rest in its default app." : ""}
+              {m.truncatedText}{canOpen ? m.openRest : ""}
             </Text>
           ) : null}
         </View>
@@ -166,7 +168,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
         {attachment.path}
       </Text>
       {/* Optical: the 22px button centers on the 17px caption line without growing it. */}
-      <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${attachment.title}`} hitSlop={6} outerStyle={{ marginVertical: -3 }}
+      <PressScale accessibilityRole="button" accessibilityLabel={m.copyItemPath(attachment.title)} hitSlop={6} outerStyle={{ marginVertical: -3 }}
         onPress={onCopyPath}
         style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
         <Icon name="Copy" size={14} color={colors.foregroundMuted} />
@@ -181,7 +183,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       </View>
       {canStep ? <Stepper colors={colors} index={index} count={items.length} onStep={step} nextRef={nextButton} /> : null}
       <View style={{ flex: 1, alignItems: "flex-end" }}>
-        {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label="Open" accessibilityLabel="Open in its default app" onPress={onOpenOnHost} /> : null}
+        {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label={m.open} accessibilityLabel={m.openDefault} onPress={onOpenOnHost} /> : null}
       </View>
     </View>
   );
@@ -219,12 +221,13 @@ function estimatedHeight(data: { kind: "image" | "video" } | { kind: "text"; tex
 }
 
 function FolderList({ colors, folder, entries, truncated, dimmed, onOpen }: { colors: Colors; folder: Attachment; entries: Attachment[]; truncated: boolean; dimmed: boolean; onOpen(attachment: Attachment, group: Attachment[]): void }) {
+  const { messages: m } = useProgressLanguage();
   const caption = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
-  if (!entries.length) return <Text style={caption}>Nothing in {folder.title} yet.</Text>;
+  if (!entries.length) return <Text style={caption}>{m.emptyFolder(folder.title)}</Text>;
   return (
     <View style={{ gap: 8, opacity: dimmed ? 0.6 : 1 }}>
       <AttachmentList colors={colors} attachments={entries} onOpen={onOpen} />
-      {truncated ? <Text style={caption}>Showing the first {entries.length}.</Text> : null}
+      {truncated ? <Text style={caption}>{m.firstEntries(entries.length)}</Text> : null}
     </View>
   );
 }
@@ -261,16 +264,18 @@ export function DialogButton({ colors, icon, label, accessibilityLabel, onPress,
 
 // Returns to the dialog this one was opened from. For surface1 dialogs.
 export function BackButton({ colors, onPress }: { colors: Colors; onPress(): void }) {
-  return <DialogButton colors={colors} icon="ChevronLeft" label="Back" onPress={onPress} outerStyle={{ alignSelf: "flex-start" }} />;
+  const { messages: m } = useProgressLanguage();
+  return <DialogButton colors={colors} icon="ChevronLeft" label={m.back} onPress={onPress} outerStyle={{ alignSelf: "flex-start" }} />;
 }
 
 // Previous and next through a gallery, with "2 of 3" between.
 function Stepper({ colors, index, count, onStep, nextRef }: { colors: Colors; index: number; count: number; onStep(offset: number): void; nextRef: React.Ref<View> }) {
+  const { messages: m } = useProgressLanguage();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <DialogButton colors={colors} icon="ChevronLeft" accessibilityLabel="Previous file" onPress={() => onStep(-1)} />
-      <Text style={{ minWidth: 44, textAlign: "center", color: colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{index + 1} of {count}</Text>
-      <DialogButton ref={nextRef} colors={colors} icon="ChevronRight" accessibilityLabel="Next file" onPress={() => onStep(1)} />
+      <DialogButton colors={colors} icon="ChevronLeft" accessibilityLabel={m.previousFile} onPress={() => onStep(-1)} />
+      <Text style={{ minWidth: 44, textAlign: "center", color: colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{m.galleryPosition(index + 1, count)}</Text>
+      <DialogButton ref={nextRef} colors={colors} icon="ChevronRight" accessibilityLabel={m.nextFile} onPress={() => onStep(1)} />
     </View>
   );
 }

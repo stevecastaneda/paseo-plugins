@@ -9,12 +9,14 @@ import { spans } from "../shared/write-up";
 import { PressScale, Presence } from "./motion";
 import { isLight, raised, tint } from "./surfaces";
 import { BlockView, Spans } from "./write-up";
+import { ProgressLanguageProvider, useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
 // Once after an update: this version's headline, with its full notes a press
 // away. Closing either hides both for this version.
 export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginWorkspacePanelProps["host"] }) {
+  const { messages: m } = useProgressLanguage();
   const fetchWhatsNew = useRpc(getWhatsNew);
   const dismiss = useRpc(dismissWhatsNew);
   const queryClient = useQueryClient();
@@ -40,31 +42,33 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
           <View style={{ alignSelf: "flex-start", height: 17, justifyContent: "center" }}><Icon name="Gift" size={14} color={colors.foregroundMuted} /></View>
           <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            <Text style={{ color: colors.foreground, fontWeight: "500" }}>New in {whatsNew.version}:</Text> {whatsNew.headline}
+            <Text style={{ color: colors.foreground, fontWeight: "500" }}>{m.newVersion(whatsNew.version)}</Text> {whatsNew.headline}
           </Text>
           {/* 8px keeps the close button's 6px hit slop off the button beside it. */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <PressScale accessibilityRole="button" onPress={() => { setShown(whatsNew); setOpen(true); }}
               style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>See what’s new</Text>
+              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.seeWhatsNew}</Text>
             </PressScale>
-            <PressScale accessibilityRole="button" accessibilityLabel="Dismiss what's new" hitSlop={6} onPress={() => close(whatsNew.version)}
+            <PressScale accessibilityRole="button" accessibilityLabel={m.dismissWhatsNew} hitSlop={6} onPress={() => close(whatsNew.version)}
               style={({ pressed, hovered }) => ({ padding: 5, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
               <Icon name="X" size={16} color={colors.foregroundMuted} />
             </PressScale>
           </View>
         </View>
       ) : null}</Presence>
-      <Modal title={shown ? `What’s new in Progress ${shown.version}` : ""} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
+      <Modal title={shown ? m.whatsNewTitle(shown.version) : ""} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
         open={open} onOpenChange={(next) => { if (!next) closeDialog(); }}>
         <Modal.Content>
+        <ProgressLanguageProvider>
           {shown ? <Notes colors={colors} notes={shown.notes} /> : null}
           <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
             <PressScale accessibilityRole="button" onPress={closeDialog}
               style={({ pressed, hovered }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Got it</Text>
+              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.gotIt}</Text>
             </PressScale>
           </View>
+        </ProgressLanguageProvider>
         </Modal.Content>
       </Modal>
     </>
@@ -111,10 +115,11 @@ const TONE_COLOR: Record<NoteTone, (colors: Colors) => string> = {
 // Sits on the title's first line: 18px tall, 1px down in its 20px line. As wide
 // as "Improved" at least, so the titles beside the tags start at one edge.
 function KindTag({ colors, kind }: { colors: Colors; kind: NoteKind }) {
+  const { messages: m } = useProgressLanguage();
   const color = TONE_COLOR[NOTE_KINDS[kind].tone](colors);
   return (
     <View style={{ marginTop: 1, minWidth: 64, borderRadius: 4, paddingHorizontal: 7, backgroundColor: tint(color, colors) }}>
-      <Text numberOfLines={1} style={{ textAlign: "center", color, fontSize: 11, lineHeight: 18, fontWeight: "500" }}>{NOTE_KINDS[kind].label}</Text>
+      <Text numberOfLines={1} style={{ textAlign: "center", color, fontSize: 11, lineHeight: 18, fontWeight: "500" }}>{m.noteKinds[kind]}</Text>
     </View>
   );
 }

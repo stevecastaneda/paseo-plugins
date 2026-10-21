@@ -58,6 +58,14 @@ The command, and **Install skill** in the panel, look for Paseo's own command in
 
 Setting `PASEO_PROGRESS_PLUGIN_DIR` to a plugin folder makes the command run that copy without asking Paseo. Use it only for testing, because an installed plugin's folder changes with every update.
 
+## Language
+
+Progress supports English and Simplified Chinese. Open the cog in the Progress panel, then choose **Display → Language**. **System** uses each client's system locale, with English for unsupported locales. Traditional Chinese locales stay in English until a Traditional Chinese translation is available. You can choose **English** or **简体中文** explicitly.
+
+This preference is saved on the Paseo host and applies to every client connected to it. Paseo's plugin API does not expose the app's language, so Progress cannot follow a language selected only in Paseo. Content updates when you change the preference, including open dialogs and composer pills. The **Progress** name and host registration titles (**Open Progress**, **Settings**) stay in English.
+
+Agent-written titles, questions, choices, stages, notes, item labels, paths and release-note content keep their original text. This includes the default `Ticket` item label. The command's instructions, output and copied reply format are unchanged.
+
 ## Where progress is kept
 
 Each worktree's progress lives outside the repo, in its own folder under `~/.local/state/paseo-progress/` on the daemon host. There's nothing to set up and nothing to hide: git never sees these files, and the plugin never edits a `.gitignore` or git's exclude file. The panel's empty state shows the exact path.
@@ -136,6 +144,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.5.0
+
+- [New] **English and Simplified Chinese display languages.** Choose a language in Progress settings or follow each client's system locale. The preference applies across clients connected to the same host.
 
 ### 1.4.0
 

@@ -127,7 +127,7 @@ test("an agent's composer shows a pill while its workspace has questions waiting
   assert.equal(pill?.button.label, "2Q · 1 stuck");
   assert.equal(pill?.button.behavior.kind, "popover", "the pill opens a popover with the questions");
   // The popover's Open Progress button opens the panel in Explorer.
-  pill?.button.behavior.Content({ workspaceId: "w", close() {} }).props.openPanel();
+  pill?.button.behavior.Content({ workspaceId: "w", close() {} }).props.children.props.openPanel();
   assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }]);
 
   h.responses["progress.attention"] = attentionWith(1, 0);

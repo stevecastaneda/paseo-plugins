@@ -10,6 +10,7 @@ import { PressScale } from "./motion";
 import { StackedDialog } from "./dialog-stack";
 import { raised } from "./surfaces";
 import { When } from "./when";
+import { useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -23,13 +24,14 @@ export function replyWithChoice(question: Pick<Question, "id" | "title">, letter
 }
 
 export function useCopy() {
+  const { messages: m } = useProgressLanguage();
   const toast = useToast();
   return async function copy(question: Question, letter?: string) {
     try {
       await copyText(letter ? replyWithChoice(question, letter) : replyPrefix(question));
-      toast.show(letter ? `Copied "${question.id} ${letter}". Paste it to your agent.` : `Copied ${question.id} for your reply`, { variant: "success" });
+      toast.show(letter ? m.copiedChoice(question.id, letter) : m.copiedQuestion(question.id), { variant: "success" });
     } catch {
-      toast.error("Could not copy. Select the text and use Copy.");
+      toast.error(m.copyFailure);
     }
   };
 }
@@ -50,15 +52,16 @@ export function QuestionsSection({ colors, questions, answered, now, context }: 
   now: number;
   context: AttachmentContext;
 }) {
+  const { messages: m } = useProgressLanguage();
   const [openId, setOpenId] = useState<string | null>(null);
   const copy = useCopy();
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.accent, borderRadius: 6, overflow: "hidden" }}>
       <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <Icon name="MessageCircleQuestion" size={14} color={colors.accent} />
-        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>Questions</Text>
+        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{m.questions}</Text>
         <View style={{ borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
-          <Text style={{ color: colors.accentForeground, fontSize: 11, lineHeight: 16 }}>{questions.length} waiting</Text>
+          <Text style={{ color: colors.accentForeground, fontSize: 11, lineHeight: 16 }}>{m.waitingCount(questions.length)}</Text>
         </View>
       </View>
       {questions.map((question, index) => (
@@ -79,6 +82,7 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
   now: number;
   context: AttachmentContext;
 }) {
+  const { messages: m } = useProgressLanguage();
   const [openId, setOpenId] = useState<string | null>(null);
   const paged = usePaged(questions);
   return (
@@ -88,7 +92,7 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
         const chosen = question.options.find((option) => option.letter === answer.choice);
         return (
           <View key={question.id} style={{ borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
-            <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={`${question.id} details`} onPress={() => setOpenId(question.id)}
+            <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={m.details(question.id)} onPress={() => setOpenId(question.id)}
               style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
               {/* Room for two-digit ids so titles line up; longer ones widen instead of wrapping. */}
               <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontWeight: "600", fontVariant: ["tabular-nums"], minWidth: 30, flexShrink: 0 }}>{question.id}</Text>
@@ -110,6 +114,7 @@ export function AnsweredQuestionsList({ colors, questions, now, context }: {
 }
 
 function AnswerSummary({ colors, question, now }: { colors: Colors; question: Question; now: number }) {
+  const { messages: m } = useProgressLanguage();
   const answer = question.answer!;
   const chosen = question.options.find((option) => option.letter === answer.choice);
   return (
@@ -119,11 +124,11 @@ function AnswerSummary({ colors, question, now }: { colors: Colors; question: Qu
         {chosen ? ` ${chosen.label}.` : ""}
         {answer.words ? <Text style={{ color: colors.foregroundMuted }}> “{answer.words}”</Text> : null}
         <Text style={{ color: colors.foregroundMuted }}>
-          {answer.changedCourse ? " The agent had already built another option, so work changed course." : ""}
+          {answer.changedCourse ? m.changedCourse : ""}
         </Text>
       </Text>
       <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-        Answer recorded <When colors={colors} iso={answer.at} now={now} />{question.raisedBy ? `, raised by ${question.raisedBy}` : ""}
+        {m.answerRecorded}<When colors={colors} iso={answer.at} now={now} />{question.raisedBy ? m.raisedBy(question.raisedBy) : ""}
       </Text>
     </View>
   );
@@ -136,9 +141,10 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
   onOpen(): void;
   onCopy(): void;
 }) {
+  const { messages: m } = useProgressLanguage();
   return (
     <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
-      <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} for your reply`} onPress={onCopy} hitSlop={6}
+      <PressScale accessibilityRole="button" accessibilityLabel={m.copyQuestion(question.id)} onPress={onCopy} hitSlop={6}
         outerStyle={{ alignSelf: "flex-start", marginTop: 1 }}
         style={({ pressed }) => ({
           // One width for every id, so the questions beside them start on one edge.
@@ -151,7 +157,7 @@ function QuestionRow({ colors, question, first, onOpen, onCopy }: {
         })}>
         <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 17, fontWeight: "600" }}>{question.id}</Text>
       </PressScale>
-      <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={`${question.id} choices`} onPress={onOpen}
+      <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={m.questionChoices(question.id)} onPress={onOpen}
         style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 4, margin: -4, padding: 4 }}>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 19 }}>{question.question}</Text>
@@ -189,16 +195,17 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
 // Under an open question: whether the agent stopped, waits, or builds its pick,
 // and its pick when there are no lettered options to tag.
 export function QuestionState({ colors, question }: { colors: Colors; question: Question }) {
+  const { messages: m } = useProgressLanguage();
   const value = { color: colors.foreground };
   // The letter alone means nothing in the rows that don't list the options.
   const pick = question.options.find((option) => option.letter === question.recommended);
   return (
     <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-      {question.state === "building" ? <>Building with <Text style={value}>{question.recommended}{pick ? `: ${pick.label}` : ""}</Text></> : (
+      {question.state === "building" ? <>{m.buildingWith}<Text style={value}>{question.recommended}{pick ? `: ${pick.label}` : ""}</Text></> : (
         <>
-          {!question.options.length && question.recommended ? <>Recommended: <Text style={value}>{question.recommended}</Text>. </> : null}
-          {question.state === "stopped" ? "Agent stopped until you answer" : "Waiting for you"}
-          {question.big ? <>. <Text style={value}>Big</Text>: {question.big}</> : null}
+          {!question.options.length && question.recommended ? <>{m.recommended}: <Text style={value}>{question.recommended}</Text>. </> : null}
+          {question.state === "stopped" ? m.agentStopped : m.waitingForYou}
+          {question.big ? <>. <Text style={value}>{m.big}</Text>: {question.big}</> : null}
         </>
       )}
     </Text>
@@ -215,6 +222,7 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   onSurface1?: boolean;
 }) {
+  const { messages: m } = useProgressLanguage();
   const button = onSurface1 ? { rest: colors.surface2, pressed: colors.surface1 } : { rest: colors.surface1, pressed: colors.surface2 };
   return (
     <View style={{ gap: 8, paddingTop: 2 }}>
@@ -230,17 +238,17 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
                 {option.label}
-                {chosen ? <Text style={{ color: colors.statusSuccess }}>  Your answer</Text> : null}
-                {recommended ? <Text style={{ color: settled ? colors.foregroundMuted : colors.accent }}>  Recommended</Text> : null}
+                {chosen ? <Text style={{ color: colors.statusSuccess }}>{"  " + m.yourAnswer}</Text> : null}
+                {recommended ? <Text style={{ color: settled ? colors.foregroundMuted : colors.accent }}>{"  " + m.recommended}</Text> : null}
               </Text>
               {option.consequence ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{option.consequence}</Text> : null}
             </View>
             {!question.answer ? (
-              <PressScale accessibilityRole="button" accessibilityLabel={`Copy ${question.id} ${option.letter} for your agent`}
+              <PressScale accessibilityRole="button" accessibilityLabel={m.copyChoiceForAgent(question.id, option.letter)}
                 onPress={() => onCopy(option.letter)} hitSlop={4}
                 style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 3, borderRadius: 4, ...raised(colors), backgroundColor: pressed ? button.pressed : button.rest })}>
                 <Icon name="Copy" size={12} color={colors.foreground} />
-                <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>Copy {question.id} {option.letter}</Text>
+                <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>{m.copyChoice(question.id, option.letter)}</Text>
               </PressScale>
             ) : null}
           </View>
@@ -251,7 +259,7 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
       ) : null}
       <AttachmentList colors={colors} attachments={questionAttachments(question)} onOpen={onOpenAttachment} />
       <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-        Asked <When colors={colors} iso={question.askedAt} now={now} />{question.raisedBy ? `, raised by ${question.raisedBy}` : ""}
+        {m.asked}<When colors={colors} iso={question.askedAt} now={now} />{question.raisedBy ? m.raisedBy(question.raisedBy) : ""}
       </Text>
     </View>
   );

@@ -2,6 +2,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { ProgressPanel } from "./client/panel";
 import { contributePills, progressPanel } from "./client/pills";
 import { QuestionSettings } from "./client/settings";
+import { ProgressLanguageProvider } from "./client/language";
 
 const SETTINGS_ID = "settings";
 
@@ -14,7 +15,7 @@ export default function contribute(client: PluginClientContext) {
     icon: "ListChecks",
     context: "workspace",
     locations: [panel.location],
-    Component: (props) => <ProgressPanel {...props} openSettings={() => client.openSettings(SETTINGS_ID)} />,
+    Component: (props) => <ProgressLanguageProvider><ProgressPanel {...props} openSettings={() => client.openSettings(SETTINGS_ID)} /></ProgressLanguageProvider>,
   });
   const stopCommand = client.addCommandCenterItem({
     id: "open-progress",
@@ -32,7 +33,7 @@ export default function contribute(client: PluginClientContext) {
     id: SETTINGS_ID,
     title: "Settings",
     icon: "Settings",
-    Component: QuestionSettings,
+    Component: (props) => <ProgressLanguageProvider><QuestionSettings {...props} /></ProgressLanguageProvider>,
   });
 
   return () => {
