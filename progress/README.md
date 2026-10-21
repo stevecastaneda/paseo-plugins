@@ -20,7 +20,7 @@ The dashboard shows:
 
 <img src="images/5-settings.png" alt="Progress settings in Paseo: the Questions setting set to Work around, and the Language setting set to System" width="600">
 
-The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new in that version once. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
+The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new once, including any versions you skipped. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
 
 <img src="images/4-pill.png" alt="The pill above the message box, showing two questions waiting" width="600">
 
@@ -145,9 +145,11 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
-### 1.5.1
+### 1.6.0
 
-- [New] **Simplified Chinese.** Progress now comes in English and Simplified Chinese. Pick one under Display in Progress settings, or let it follow each device's language. Thanks to @xzthemeofsss for the translation.
+- [Improved] **What's new catches you up.** If you skip an update, What's new now shows the changes from every version you missed, newest first.
+
+### 1.5.1
 - [Improved] **Settings screenshot.** It shows the new Language setting.
 
 ### 1.5.0
