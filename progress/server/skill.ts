@@ -1,5 +1,5 @@
 import { exec, execFile } from "node:child_process";
-import { lstat, mkdir, readlink, symlink, unlink } from "node:fs/promises";
+import { lstat, mkdir, readFile, readlink, symlink, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -31,22 +31,39 @@ export async function skillState(path: string, pluginDirectory: string): Promise
   return basename(target) === SKILL_NAME && basename(dirname(target)) === "skills" ? "outdated" : "foreign";
 }
 
+// Repoints each link this plugin made to an old copy at the copy Paseo runs
+// now. Paseo puts every update in a new folder, so this follows each update.
+// Returns whether it wrote.
+export async function relinkSkill(paths: string[], pluginDirectory: string): Promise<boolean> {
+  let wrote = false;
+  for (const path of paths) {
+    if (await skillState(path, pluginDirectory) !== "outdated") continue;
+    await unlink(path);
+    await link(path, pluginDirectory);
+    wrote = true;
+  }
+  return wrote;
+}
+
 // Links the skill wherever it is missing or points at an old copy of the
 // plugin. Leaves alone anything else at those paths. Returns whether it wrote.
 export async function installSkill(paths: string[], pluginDirectory: string): Promise<boolean> {
   const states = await Promise.all(paths.map((path) => skillState(path, pluginDirectory)));
   if (states.every((state) => state === "foreign")) throw new Error(`${paths.join(", ")} already exist and were not linked by this plugin.`);
-  let wrote = false;
+  let wrote = await relinkSkill(paths, pluginDirectory);
   for (const [index, path] of paths.entries()) {
-    if (states[index] !== "missing" && states[index] !== "outdated") continue;
-    if (states[index] === "outdated") await unlink(path);
-    await mkdir(dirname(path), { recursive: true });
-    // A junction on Windows, where a directory symlink needs admin rights or
-    // Developer Mode. Other systems ignore the type and make a symlink.
-    await symlink(skillSource(pluginDirectory), path, "junction");
+    if (states[index] !== "missing") continue;
+    await link(path, pluginDirectory);
     wrote = true;
   }
   return wrote;
+}
+
+async function link(path: string, pluginDirectory: string) {
+  await mkdir(dirname(path), { recursive: true });
+  // A junction on Windows, where a directory symlink needs admin rights or
+  // Developer Mode. Other systems ignore the type and make a symlink.
+  await symlink(skillSource(pluginDirectory), path, "junction");
 }
 
 // "current" once every folder that can take the link has it.
@@ -75,19 +92,45 @@ export async function findPluginDirectory(): Promise<string> {
 }
 
 // On Windows Paseo's command is paseo.cmd, which Node can start, or find on
-// PATH, only through cmd.exe.
+// PATH, only through cmd.exe. A hung CLI must fail so the next one is tried.
 function askPaseo(cli: string) {
+  const options = { timeout: 10_000 };
   return process.platform === "win32"
-    ? promisify(exec)(`"${cli}" plugin ls ${PLUGIN_ID} --json`)
-    : promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"]);
+    ? promisify(exec)(`"${cli}" plugin ls ${PLUGIN_ID} --json`, options)
+    : promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"], options);
+}
+
+// Runs once per load, when the server starts: an update reloads the bundle.
+// Only repoints links the user already asked for; new ones wait for Install
+// skill. A failure leaves the links as they were, and status says so.
+let repair: Promise<unknown> | null = null;
+
+export function repairSkill(): Promise<unknown> {
+  repair ??= findPluginDirectory().then((directory) => relinkSkill(defaultSkillPaths(), directory)).catch(() => {});
+  return repair;
 }
 
 export async function handleSkillStatus() {
+  await repairSkill();
   return skillStatus(defaultSkillPaths(), await findPluginDirectory());
 }
 
-// Runs only when the user presses Install skill in the panel.
+// SKILL.md's frontmatter holds one-line fields; only the description is shown.
+export function skillDocument(text: string): { markdown: string; description: string } {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  const description = /^description:[ \t]*(.*)$/m.exec(frontmatter?.[1] ?? "")?.[1].trim().replace(/^(["'])(.*)\1$/, "$2") ?? "";
+  return { markdown: text.slice(frontmatter?.[0].length ?? 0).trimStart(), description };
+}
+
+export async function handleReadSkill() {
+  return skillDocument(await readFile(join(skillSource(await findPluginDirectory()), "SKILL.md"), "utf8"));
+}
+
+// Runs only when the user presses Install skill. Links that only need to
+// follow an update are repointed on their own (repairSkill), which must finish
+// first: both would unlink the same outdated link.
 export async function handleInstallSkill() {
+  await repairSkill();
   const pluginDirectory = await findPluginDirectory();
   await installSkill(defaultSkillPaths(), pluginDirectory);
   return skillStatus(defaultSkillPaths(), pluginDirectory);

@@ -15,7 +15,7 @@ import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
-import { defaultSkillPaths, installSkill, skillSource, skillStatus } from "./skill.ts";
+import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
 import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
 import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
@@ -543,6 +543,13 @@ test("a write-up reads as headings, paragraphs, list items and code, and its exc
   assert.equal(short.blocks.length, 2);
   assert.equal(short.more, true);
   assert.equal(writeUpExcerpt(blocks).more, false);
+});
+
+test("a code block inside a list item drops the item's indentation", () => {
+  assert.deepEqual(parseWriteUp(["- Run it:", "  ```sh", "  npm test \\", "      --watch", " x", "  ```"].join("\n")), [
+    { kind: "item", marker: "•", depth: 0, spans: [{ text: "Run it:" }] },
+    { kind: "code", text: "npm test \\\n    --watch\nx" },
+  ]);
 });
 
 test("each ticket and the ticker remember the agent that last wrote them", async (t) => {
@@ -1381,6 +1388,32 @@ test("the skill is linked for every agent only on request, follows the copy Pase
   assert.equal(await installSkill(paths, moved), true);
   assert.equal(await readlink(paths[1]), skillSource(moved));
   await assert.rejects(installSkill([paths[2]], plugin), /were not linked by this plugin/);
+});
+
+test("after an update, links the user made follow the new copy without touching anything else", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "progress-skill-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const [linked, other, missing] = defaultSkillPaths(home);
+  const paths = [linked, other, missing];
+  await installSkill([linked], join(home, "old-copy"));
+  await mkdir(other, { recursive: true });
+  const updated = join(home, "new-copy");
+  assert.equal((await skillStatus(paths, updated)).state, "outdated");
+  assert.equal(await relinkSkill(paths, updated), true);
+  assert.equal(await readlink(linked), skillSource(updated));
+  assert.deepEqual((await skillStatus(paths, updated)).targets, [
+    { path: linked, state: "current" }, { path: other, state: "foreign" }, { path: missing, state: "missing" },
+  ], "someone else's folder stays, and no new link is made without Install skill");
+  assert.equal(await relinkSkill(paths, updated), false, "a second run finds nothing to do");
+  assert.equal(await readlink(linked), skillSource(updated));
+});
+
+test("Settings shows the skill as agents read it, without its frontmatter", async () => {
+  const shipped = skillDocument(await readFile(join(skillSource(fileURLToPath(new URL("..", import.meta.url))), "SKILL.md"), "utf8"));
+  assert.match(shipped.description, /^Keep the Paseo Progress dashboard live/);
+  assert.match(shipped.markdown, /^# Paseo progress\n/);
+  assert.deepEqual(skillDocument("---\r\nname: x\r\ndescription: \"Quoted: yes\"\r\n---\r\n\nBody"), { markdown: "Body", description: "Quoted: yes" });
+  assert.deepEqual(skillDocument("# No frontmatter"), { markdown: "# No frontmatter", description: "" });
 });
 
 

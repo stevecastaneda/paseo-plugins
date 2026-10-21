@@ -68,6 +68,7 @@ export interface ProgressMessages {
   showFewer: string;
   seeWhatsNew: string;
   dismissWhatsNew: string;
+  whatsNewAll: string;
   gotIt: string;
   loadingPreview: string;
   truncatedText: string;
@@ -106,6 +107,11 @@ export interface ProgressMessages {
   skillForeign: string;
   skillInstalled: string;
   installSkillFailure: string;
+  agentSkill: string;
+  skillName: string;
+  viewSkill: string;
+  skillNotInstalled: string;
+  skillLinkOutdated: string;
   installing: string;
   loadingSettings: string;
   tryAgain: string;
@@ -160,6 +166,7 @@ export interface ProgressMessages {
   readError: (error: string) => string;
   showOlder: (count: number) => string;
   newVersion: (version: string) => string;
+  updatedTo: (version: string) => string;
   whatsNewTitle: (version: string) => string;
   loadingVideo: (percent: number) => string;
   previewError: (error: string) => string;

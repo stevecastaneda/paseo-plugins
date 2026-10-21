@@ -89,6 +89,14 @@ export const installSkill = defineRpc({
   output: skillStatus,
 });
 
+// The skill agents get: its SKILL.md without the frontmatter, and the
+// frontmatter's description.
+export const readSkill = defineRpc({
+  name: "progress.skill.read",
+  input: z.object({}),
+  output: z.object({ markdown: z.string(), description: z.string() }),
+});
+
 // The folders inside one folder of the worktree ("" is the top), for the
 // folder picker.
 export const listFolders = defineRpc({

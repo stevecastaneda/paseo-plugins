@@ -18,9 +18,9 @@ The dashboard shows:
 
 <img src="images/2-ticket.png" alt="A ticket's story: its status, time against the estimate, the agent on it, and its timeline" width="400"> <img src="images/3-question.png" alt="A question waiting for an answer, with lettered options, the agent's recommendation and Copy buttons" width="400">
 
-<img src="images/5-settings.png" alt="Progress settings in Paseo: the Questions setting set to Work around, and the Language setting set to System" width="600">
+<img src="images/5-settings.png" alt="Progress settings in Paseo: Questions set to Work around, Language set to System, and the Agent Skills section with View skill" width="600">
 
-The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new in that version once. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
+The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new once, including any versions you skipped. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with each open question, its choices and their Copy buttons, and what is stuck, so you can answer without leaving the chat. **Open Progress** at the bottom opens the panel in Explorer.
 
 <img src="images/4-pill.png" alt="The pill above the message box, showing two questions waiting" width="600">
 
@@ -82,7 +82,7 @@ Earlier versions kept progress in `.scratch/` in each worktree, hidden by a `.sc
 
 ## Agent skill
 
-The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions, and finish. It stays short and leaves the details to `paseo-progress --help`. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. On Windows the links are junctions, which don't need admin rights or Developer Mode. If Paseo later runs the plugin from somewhere else, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped.
+The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions, and finish. It stays short and leaves the details to `paseo-progress --help`. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. On Windows the links are junctions, which don't need admin rights or Developer Mode. Paseo puts each plugin update in a new folder, so when Progress starts it repoints the links it made to that folder. If it can't, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped. To read what agents get, open **View skill** under Agent Skills in Progress settings.
 
 From a terminal instead:
 
@@ -145,9 +145,15 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.6.0
+
+- [New] **Read the skill in Settings.** Progress settings has an Agent Skills section. **View skill** shows the instructions agents get, and **Install skill** appears there when the skill isn't installed.
+- [Fixed] **The skill stays linked after updates.** Paseo puts each plugin update in a new folder, so after every update Progress asked you to press **Update skill**, even when the skill hadn't changed. Progress now fixes the link itself.
+- [Improved] **What's new catches you up.** If you skip an update, What's new now shows the changes from every version you missed, newest first.
+- [Fixed] **Code inside lists.** A code block inside a list item in a write-up no longer shows shifted to the right.
+
 ### 1.5.1
 
-- [New] **Simplified Chinese.** Progress now comes in English and Simplified Chinese. Pick one under Display in Progress settings, or let it follow each device's language. Thanks to @xzthemeofsss for the translation.
 - [Improved] **Settings screenshot.** It shows the new Language setting.
 
 ### 1.5.0

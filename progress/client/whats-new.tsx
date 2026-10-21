@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { dismissWhatsNew, getWhatsNew } from "../shared/rpc";
-import { NOTE_KINDS, type NoteKind, type NoteTone, type WhatsNew, type WhatsNewNote } from "../shared/whats-new";
+import { NOTE_KINDS, type NoteKind, type NoteTone, type WhatsNew, type WhatsNewNote, type WhatsNewRelease } from "../shared/whats-new";
 import { spans } from "../shared/write-up";
 import { PressScale, Presence } from "./motion";
 import { isLight, raised, tint } from "./surfaces";
@@ -13,8 +13,8 @@ import { ProgressLanguageProvider, useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
-// Once after an update: this version's headline, with its full notes a press
-// away. Closing either hides both for this version.
+// Once after an update: the headline of what changed, with the full notes a
+// press away. Closing either hides both until the next version.
 export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginWorkspacePanelProps["host"] }) {
   const { messages: m } = useProgressLanguage();
   const fetchWhatsNew = useRpc(getWhatsNew);
@@ -42,7 +42,7 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
           <View style={{ alignSelf: "flex-start", height: 17, justifyContent: "center" }}><Icon name="Gift" size={14} color={colors.foregroundMuted} /></View>
           <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            <Text style={{ color: colors.foreground, fontWeight: "500" }}>{m.newVersion(whatsNew.version)}</Text> {whatsNew.headline}
+            <Text style={{ color: colors.foreground, fontWeight: "500" }}>{whatsNew.releases.length > 1 ? m.updatedTo(whatsNew.version) : m.newVersion(whatsNew.version)}</Text> {whatsNew.headline}
           </Text>
           {/* 8px keeps the close button's 6px hit slop off the button beside it. */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -57,11 +57,11 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
           </View>
         </View>
       ) : null}</Presence>
-      <Modal title={shown ? m.whatsNewTitle(shown.version) : ""} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
+      <Modal title={!shown ? "" : shown.releases.length > 1 ? m.whatsNewAll : m.whatsNewTitle(shown.version)} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
         open={open} onOpenChange={(next) => { if (!next) closeDialog(); }}>
         <Modal.Content>
         <ProgressLanguageProvider>
-          {shown ? <Notes colors={colors} notes={shown.notes} /> : null}
+          {shown ? <Releases colors={colors} releases={shown.releases} /> : null}
           <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
             <PressScale accessibilityRole="button" onPress={closeDialog}
               style={({ pressed, hovered }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
@@ -72,6 +72,22 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
         </Modal.Content>
       </Modal>
     </>
+  );
+}
+
+// One version reads as before. After a skipped update, each version's notes sit
+// under its number, so it's clear which release brought what.
+function Releases({ colors, releases }: { colors: Colors; releases: WhatsNewRelease[] }) {
+  if (releases.length === 1) return <Notes colors={colors} notes={releases[0].notes} />;
+  return (
+    <View style={{ gap: 40 }}>
+      {releases.map((release) => (
+        <View key={release.version} style={{ gap: 12 }}>
+          <Text accessibilityRole="header" selectable style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{release.version}</Text>
+          <Notes colors={colors} notes={release.notes} />
+        </View>
+      ))}
+    </View>
   );
 }
 

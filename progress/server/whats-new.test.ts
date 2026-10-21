@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { outsideDirectory } from "./store.ts";
-import { changelogNotes, headline, markWhatsNewSeen, whatsNew, whatsNewPath } from "./whats-new.ts";
+import { changelog, headline, markWhatsNewSeen, whatsNew, whatsNewPath } from "./whats-new.ts";
 
 const README = `# Plugin
 
@@ -26,12 +26,25 @@ const README = `# Plugin
   on a wrapped line.
   - A nested detail.
 
+### 1.10.0
+
+- [Fixed] **Faster.** Half the wait.
+- [New] **Questions can wait.** Agents keep working.
+
+### 1.9.0
+
+- [New] **Older news.** Already seen.
+
 ### 1.0.0
 
 - First release.
 
 ## License
 `;
+
+function changelogNotes(readme: string, version: string) {
+  return changelog(readme).find((release) => release.version === version)?.notes ?? null;
+}
 
 async function fakeHome(t: TestContext): Promise<string> {
   const home = await mkdtemp(join(tmpdir(), "whats-new-"));
@@ -87,6 +100,11 @@ test("changelog notes come from that version's section only, wrapped lines joine
   assert.equal(changelogNotes("# Plugin\n", "2.0.0"), null);
 });
 
+test("the changelog lists versions newest first, by number", () => {
+  assert.deepEqual(changelog(README).map((release) => release.version), ["2.0.0", "1.10.0", "1.9.0", "1.0.0"]);
+  assert.deepEqual(changelog("# Plugin\n"), []);
+});
+
 test("a bullet's bold opening sentence is its title, without Markdown", () => {
   const titled = (bullet: string) => changelogNotes(`## Changelog\n\n### 1.0.0\n\n- ${bullet}\n`, "1.0.0")?.[0];
   assert.deepEqual(titled("**Ready?** Then go."), { title: "Ready?", body: "Then go." });
@@ -121,22 +139,46 @@ test("the headline is the title, or else the body's first sentence without Markd
 
 test("an update shows the version's notes until they're dismissed", async (t) => {
   const home = await fakeHome(t);
-  await earlierRun(home);
+  await markWhatsNewSeen("1.10.0", home);
   const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
   assert.deepEqual(shown, {
     version: "2.0.0",
     headline: "Questions can pause work.",
-    notes: NOTES,
+    releases: [{ version: "2.0.0", notes: NOTES }],
   });
   assert.deepEqual(await whatsNew({ version: "2.0.0", readme: README }, home), shown, "still shown until dismissed");
   await markWhatsNewSeen("2.0.0", home);
   assert.equal(await whatsNew({ version: "2.0.0", readme: README }, home), null);
 });
 
-test("a version seen before shows the next version's notes", async (t) => {
+test("skipping updates shows every version missed, newest first", async (t) => {
   const home = await fakeHome(t);
-  await markWhatsNewSeen("1.0.0", home);
-  assert.equal((await whatsNew({ version: "2.0.0", readme: README }, home))?.version, "2.0.0");
+  await markWhatsNewSeen("1.9.0", home);
+  const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
+  assert.deepEqual(shown?.releases.map((release) => release.version), ["2.0.0", "1.10.0"]);
+  assert.equal(shown?.version, "2.0.0");
+  assert.equal(shown?.headline, "Questions can wait.", "the first New note leads, even from an older version");
+});
+
+test("going from 1.4.0 to 1.5.1 shows 1.5.1 and 1.5.0", async (t) => {
+  const home = await fakeHome(t);
+  const { readme } = await ownReadme();
+  await markWhatsNewSeen("1.4.0", home);
+  const shown = await whatsNew({ version: "1.5.1", readme }, home);
+  assert.deepEqual(shown?.releases.map((release) => release.version), ["1.5.1", "1.5.0"]);
+});
+
+test("an update from before versions were recorded shows this version only", async (t) => {
+  const home = await fakeHome(t);
+  await earlierRun(home);
+  const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
+  assert.deepEqual(shown?.releases.map((release) => release.version), ["2.0.0"]);
+});
+
+test("going back to an older version shows nothing", async (t) => {
+  const home = await fakeHome(t);
+  await markWhatsNewSeen("2.0.0", home);
+  assert.equal(await whatsNew({ version: "1.10.0", readme: README }, home), null);
 });
 
 test("a new install shows nothing, now or later, for its version", async (t) => {
@@ -153,6 +195,18 @@ test("a damaged seen file counts as missing", async (t) => {
   await writeFile(whatsNewPath(home), "{");
   assert.equal(await whatsNew({ version: "2.0.0", readme: README }, home), null);
   assert.deepEqual(await seenFile(home), { seen: "2.0.0" });
+});
+
+test("a seen version that isn't x.y.z counts as missing", async (t) => {
+  for (const seen of ["1.6", "v1.6.0", ""]) {
+    const home = await fakeHome(t);
+    await earlierRun(home);
+    await writeFile(whatsNewPath(home), JSON.stringify({ seen }));
+    const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
+    assert.deepEqual(shown?.releases.map((release) => release.version), ["2.0.0"], seen);
+    await markWhatsNewSeen("2.0.0", home);
+    assert.equal(await whatsNew({ version: "2.0.0", readme: README }, home), null, seen);
+  }
 });
 
 test("with no notes for the version, nothing shows and nothing is recorded", async (t) => {

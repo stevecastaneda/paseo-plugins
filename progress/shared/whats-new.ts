@@ -13,4 +13,7 @@ export type NoteKind = keyof typeof NOTE_KINDS;
 
 export type WhatsNewNote = { kind?: NoteKind; title?: string; body: string };
 
-export type WhatsNew = { version: string; headline: string; notes: WhatsNewNote[] };
+export type WhatsNewRelease = { version: string; notes: WhatsNewNote[] };
+
+// `version` is the one running now; `releases` run newest first and are never empty.
+export type WhatsNew = { version: string; headline: string; releases: WhatsNewRelease[] };
