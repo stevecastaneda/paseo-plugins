@@ -92,11 +92,12 @@ export async function findPluginDirectory(): Promise<string> {
 }
 
 // On Windows Paseo's command is paseo.cmd, which Node can start, or find on
-// PATH, only through cmd.exe.
+// PATH, only through cmd.exe. A hung CLI must fail so the next one is tried.
 function askPaseo(cli: string) {
+  const options = { timeout: 10_000 };
   return process.platform === "win32"
-    ? promisify(exec)(`"${cli}" plugin ls ${PLUGIN_ID} --json`)
-    : promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"]);
+    ? promisify(exec)(`"${cli}" plugin ls ${PLUGIN_ID} --json`, options)
+    : promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"], options);
 }
 
 // Runs once per load, when the server starts: an update reloads the bundle.
