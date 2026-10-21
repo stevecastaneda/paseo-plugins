@@ -16,12 +16,12 @@ export function unbroken(text: string): string {
 // "Sep 27, 8:14 PM (10h 2m ago)", inline inside other text. A narrow
 // panel shows only "10h 2m ago"; the ticket dialog keeps the clock time.
 export function When({ colors, iso, now }: { colors: Colors; iso: string; now: number }) {
-  const { locale } = useProgressLanguage();
+  const { locale, messages: m } = useProgressLanguage();
   const ago = unbroken(formatClientAgo(locale, iso, now));
   if (useNarrow()) return <Text>{ago}</Text>;
   return (
     <Text>
-      {formatClientClock(locale, iso)} <Text style={{ color: colors.foregroundMuted, opacity: 0.7 }}>({ago})</Text>
+      {formatClientClock(locale, iso)}<Text style={{ color: colors.foregroundMuted, opacity: 0.7 }}>{m.parenthetical(ago)}</Text>
     </Text>
   );
 }

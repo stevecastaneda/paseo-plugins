@@ -12,8 +12,8 @@ const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
 
 test("explicit preferences override system locale without selecting Simplified for Traditional Chinese", () => {
   const { resolveLocale } = clientHarness(directory).load("client/i18n.ts");
-  for (const system of ["zh", "zh-CN", "zh_SG", "zh-Hans", "zh-Hans-CN", "ZH-hans-sg"]) assert.equal(resolveLocale("system", system), "zh-CN", system);
-  for (const system of ["", "en-US", "fr-FR", "zh-TW", "zh-HK", "zh-MO", "zh-Hant", "zh-Hant-CN", "zh-Hans-TW", "zh-US"]) assert.equal(resolveLocale("system", system), "en", system);
+  for (const system of ["zh", "zh-CN", "zh_SG", "zh-Hans", "zh-Hans-CN", "ZH-hans-sg", "zh-Hans-HK", "zh-Hans-TW", "zh-u-nu-hanidec", "zh-CN-u-ca-chinese"]) assert.equal(resolveLocale("system", system), "zh-CN", system);
+  for (const system of ["", "en-US", "fr-FR", "zh-TW", "zh-HK", "zh-MO", "zh-Hant", "zh-Hant-CN", "zh-Hant-TW-u-nu-hanidec", "zh-US"]) assert.equal(resolveLocale("system", system), "en", system);
   assert.equal(resolveLocale("en", "zh-CN"), "en");
   assert.equal(resolveLocale("zh-CN", "en-US"), "zh-CN");
 });
@@ -44,7 +44,7 @@ test("catalogs cover statuses, modes and note kinds while preserving authored in
     assert.ok(m.openItem(authored).includes(authored));
     assert.ok(m.copyItemPath(authored).includes(authored));
     assert.ok(m.stageLabel(authored).includes(authored));
-    assert.ok(m.headlineDone(1, 2, authored).includes(authored));
+    assert.ok(m.headlineDone(1, 2, authored).toLowerCase().includes(authored.toLowerCase()));
     assert.ok(m.itemHeading(authored).startsWith(authored));
   }
   assert.equal(zh.itemHeading("Ticket"), "Ticket");
@@ -91,7 +91,8 @@ test("headlines derive from structured counts while preserving server copy and c
     tickets: [ticket("done"), ticket("working"), ticket("skipped")], headline: [{ text: "Server copy", tone: "normal" }],
     questions: { open: [{ id: "Q1", title: "Choice", question: "Question?", options: [], recommended: "A", state: "waiting", files: [], askedAt: "2026-10-21T00:00:00Z" }], answered: [] },
     stuck: [{ kind: "manual", key: "manual:S1", id: "S1", title: "Authored blocker", reason: "Authored reason", since: "2026-10-21T00:00:00Z" }] };
-  assert.deepEqual(plain(clientHeadline("zh-CN", dashboard)), [{ text: "API Task 已完成 1/2", tone: "normal" }, { text: "1 个问题等待你的回答", tone: "normal" }, { text: "1 项受阻", tone: "danger" }]);
+  assert.deepEqual(plain(clientHeadline("en", dashboard)), [{ text: "1 of 2 api tasks done", tone: "normal" }, { text: "1 question waiting for you", tone: "normal" }, { text: "1 stuck", tone: "danger" }]);
+  assert.deepEqual(plain(clientHeadline("zh-CN", dashboard)), [{ text: "API Task 已完成 1/2", tone: "normal" }, { text: "1 个问题等待你的回答", tone: "normal" }, { text: "1 项卡住", tone: "danger" }]);
   assert.equal(dashboard.headline[0].text, "Server copy");
 });
 
@@ -105,9 +106,8 @@ test("timeline descriptors preserve English labels and distinguish Added from la
     { at: "2026-10-21T00:02:00Z", status: "not_started" },
     { at: "2026-10-21T00:03:00Z", status: "done" },
   ] }, Date.parse("2026-10-21T00:04:00Z"));
-  assert.deepEqual(plain(steps.map((step) => step.label)), ["Added", "Authored stage stage", "Back to not started", "Done"]);
-  assert.deepEqual(plain(steps.map((step) => step.labelDescriptor.kind)), ["added", "stage", "reset", "status"]);
-  assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("zh-CN"), step.labelDescriptor))), ["已添加", "Authored stage 阶段", "恢复为未开始", "已完成"]);
+  assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("en"), step.label))), ["Added", "Authored stage stage", "Back to not started", "Done"]);
+  assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("zh-CN"), step.label))), ["已添加", "Authored stage 阶段", "恢复为未开始", "已完成"]);
 });
 
 function languageHarness() {
@@ -169,7 +169,7 @@ test("pill icons update same-mode titles and labels without extra polls and igno
     renderIcon();
     effects.shift()?.();
     assert.equal(pill.button.title, attention ? "Progress 需要你处理" : "打开 Progress");
-    assert.equal(pill.button.label, attention ? "2 问 · 1 项受阻" : "Progress");
+    assert.equal(pill.button.label, attention ? "2 问 · 1 项卡住" : "Progress");
     assert.equal(h.registrations.length, 1);
     assert.equal(pill.removed, false);
     assert.equal(h.timers.size, timers);

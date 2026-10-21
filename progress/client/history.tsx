@@ -43,7 +43,7 @@ export function HistoryRow({ colors, workspaceId, directory, savedTo }: {
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, flex: 1, minWidth: 180 }}>
         <View style={{ paddingTop: 2 }}><Icon name="History" size={13} color={colors.foregroundMuted} /></View>
         <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-          {savedTo ? m.historyInRepo(savedTo) : m.localHistory}
+          {savedTo ? <>{m.historyInRepo[0]}<Text style={{ color: colors.foreground }}>{savedTo}</Text>{m.historyInRepo[1]}</> : m.localHistory}
         </Text>
       </View>
       <View style={{ flexDirection: "row", gap: 4 }}>

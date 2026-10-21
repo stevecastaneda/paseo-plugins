@@ -201,11 +201,11 @@ export function QuestionState({ colors, question }: { colors: Colors; question: 
   const pick = question.options.find((option) => option.letter === question.recommended);
   return (
     <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-      {question.state === "building" ? <>{m.buildingWith}<Text style={value}>{question.recommended}{pick ? `: ${pick.label}` : ""}</Text></> : (
+      {question.state === "building" ? <>{m.buildingWith}<Text style={value}>{question.recommended}{pick ? `${m.colon}${pick.label}` : ""}</Text></> : (
         <>
-          {!question.options.length && question.recommended ? <>{m.recommended}: <Text style={value}>{question.recommended}</Text>. </> : null}
+          {!question.options.length && question.recommended ? <>{m.recommended}{m.colon}<Text style={value}>{question.recommended}</Text>{m.sentenceBreak}</> : null}
           {question.state === "stopped" ? m.agentStopped : m.waitingForYou}
-          {question.big ? <>. <Text style={value}>{m.big}</Text>: {question.big}</> : null}
+          {question.big ? <>{m.sentenceBreak}<Text style={value}>{m.big}</Text>{m.colon}{question.big}</> : null}
         </>
       )}
     </Text>

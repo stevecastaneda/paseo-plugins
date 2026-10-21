@@ -60,11 +60,11 @@ Setting `PASEO_PROGRESS_PLUGIN_DIR` to a plugin folder makes the command run tha
 
 ## Language
 
-Progress supports English and Simplified Chinese. Open the cog in the Progress panel, then choose **Display → Language**. **System** uses each client's system locale, with English for unsupported locales. Traditional Chinese locales stay in English until a Traditional Chinese translation is available. You can choose **English** or **简体中文** explicitly.
+Progress comes in English and Simplified Chinese. To pick one, open the cog in the Progress panel and choose **Display → Language**. **System** follows each device's language and falls back to English for anything other than Simplified Chinese, so Traditional Chinese stays in English for now.
 
-This preference is saved on the Paseo host and applies to every client connected to it. Paseo's plugin API does not expose the app's language, so Progress cannot follow a language selected only in Paseo. Content updates when you change the preference, including open dialogs and composer pills. The **Progress** name and host registration titles (**Open Progress**, **Settings**) stay in English.
+The choice is saved on the Paseo host, so every device connected to it shows the same language. Progress can't follow Paseo's own language setting, because Paseo doesn't share it with plugins. Open dialogs and pills switch as soon as you change it. The **Progress** name and its **Open Progress** and **Settings** entries stay in English.
 
-Agent-written titles, questions, choices, stages, notes, item labels, paths and release-note content keep their original text. This includes the default `Ticket` item label. The command's instructions, output and copied reply format are unchanged.
+Progress translates its own labels, not what agents write. Titles, questions, choices, stages, notes, item labels like `Ticket`, file paths and release notes stay as written, and so do error messages from the host. The `paseo-progress` command and the reply you copy for an agent stay in English too.
 
 ## Where progress is kept
 
@@ -147,7 +147,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.5.0
 
-- [New] **English and Simplified Chinese display languages.** Choose a language in Progress settings or follow each client's system locale. The preference applies across clients connected to the same host.
+- [New] **Simplified Chinese.** Progress now comes in English and Simplified Chinese. Pick one under Display in Progress settings, or let it follow each device's language. Thanks to @xzthemeofsss for the translation.
 
 ### 1.4.0
 

@@ -114,7 +114,7 @@ function EmptyState({ colors, file, openSettings }: { colors: Colors; file: stri
         <SettingsButton colors={colors} onPress={openSettings} />
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        {m.emptyIntro}
+        {m.emptyIntro[0]}<Text style={{ color: colors.foreground }}>paseo-progress</Text>{m.emptyIntro[1]}
       </Text>
       <View style={{ backgroundColor: colors.surface1, borderRadius: 6, padding: 10 }}>
         <Text selectable style={{ color: colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
@@ -123,7 +123,7 @@ function EmptyState({ colors, file, openSettings }: { colors: Colors; file: stri
       </View>
       {/* So people know nothing lands in the repo. */}
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        {m.savedOutside(file)}
+        {m.savedOutside[0]}<Text selectable style={{ color: colors.foreground }}>{file}</Text>{m.savedOutside[1]}
       </Text>
     </View>
   );
@@ -191,7 +191,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
           <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
             {headline.map((part, index) => (
               <Text key={part.text} style={part.tone === "danger" ? { color: colors.statusDanger } : undefined}>
-                {index ? ", " : ""}{part.text}
+                {index ? m.listSeparator : ""}{part.text}
               </Text>
             ))}
           </Text>
@@ -336,8 +336,7 @@ function IssuesNotice({ colors, issues, file }: { colors: Colors; issues: FileIs
       <View style={{ paddingTop: 1.5 }}><Icon name="FileWarning" size={14} color={colors.statusWarning} /></View>
       <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
         {m.skippedLines(issues.length, file)}
-        {shown.map((issue) => m.issueLine(issue.line, issue.reason)).join(", ")}
-        {issues.length > shown.length ? m.moreIssues(issues.length - shown.length) : ""}.
+        {m.issueList(shown.map((issue) => m.issueLine(issue.line, issue.reason)), issues.length - shown.length)}
       </Text>
     </View>
   );
@@ -421,7 +420,7 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             {item.kind === "overdue" ? m.overdueUpdate(unbroken(formatClientMinutes(locale, item.estimateMin))) : null}
             {item.kind === "blocked" ? m.blockedSince(item.note, narrow) : null}
-            {item.kind === "manual" ? `${item.ticketId ? `${item.reason}. ` : ""}${m.flagged}` : null}
+            {item.kind === "manual" ? `${item.ticketId ? `${item.reason}${m.sentenceBreak}` : ""}${m.flagged}` : null}
             <When colors={colors} iso={item.since} now={now} />
           </Text>
           </View>
@@ -464,7 +463,7 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
   const { messages: m, locale } = useProgressLanguage();
   const done = tickets.filter((ticket) => ticket.status === "done").length;
   const skipped = tickets.length - done;
-  const label = [done ? m.doneCount(done) : "", skipped ? m.skippedCount(skipped) : ""].filter(Boolean).join(", ");
+  const label = [done ? m.doneCount(done) : "", skipped ? m.skippedCount(skipped) : ""].filter(Boolean).join(m.listSeparator);
   const estimateMin = tickets.reduce((sum, ticket) => sum + (ticket.status === "done" ? ticket.estimateMin : 0), 0);
   const chevron = shown ? "ChevronUp" : "ChevronDown";
   const narrow = useNarrow();

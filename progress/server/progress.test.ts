@@ -170,7 +170,7 @@ test("a ticket's story: its stages with durations, and what belongs to it exactl
     activity: [...dashboard.activity].reverse(),
   }, minutes(50).getTime());
   assert.deepEqual(story.timeline.map((step) => [step.label, step.minutes === null ? null : Math.round(step.minutes)]), [
-    ["Added", 10], ["Build stage", 15], ["Review stage", 15], ["Done", null],
+    [{ kind: "added" }, 10], [{ kind: "stage", stage: "Build" }, 15], [{ kind: "stage", stage: "Review" }, 15], [{ kind: "status", status: "done" }, null],
   ]);
   assert.deepEqual(story.timeline[2].notes, ["Build went fast"]);
   assert.equal(Math.round(story.workedMin), 30);
@@ -184,7 +184,7 @@ test("a ticket's story: its stages with durations, and what belongs to it exactl
 
   const t02 = dashboard.tickets.find((ticket) => ticket.id === "T02")!;
   const current = ticketStory(t02, { deliverables: [], questions: [], activity: [...dashboard.activity].reverse() }, minutes(50).getTime());
-  assert.deepEqual(current.timeline.map((step) => [step.label, Math.round(step.minutes!)]), [["Added", 40], ["Working", 10]], "the step still going runs to now");
+  assert.deepEqual(current.timeline.map((step) => [step.label, Math.round(step.minutes!)]), [[{ kind: "added" }, 40], [{ kind: "status", status: "working" }, 10]], "the step still going runs to now");
   assert.deepEqual(current.activity.map((entry) => entry.text), ["Untagged, while T02 worked"], "tags to another ticket never match by time");
 });
 
@@ -571,7 +571,7 @@ test("plain steps, with no write-ups, stages or Paseo agent, still get a dialog 
   assert.equal(step.agentId, undefined, "no agent row");
   assert.equal(dashboard.ticker?.by, undefined, "the status line goes by the one working step");
   assert.deepEqual(ticketStory(step, { deliverables: [], questions: [], activity: [] }, minutes(12).getTime()).timeline.map(({ label, minutes }) => ({ label, minutes })),
-    [{ label: "Added", minutes: 0 }, { label: "Working", minutes: 12 }], "one working span for the time bar");
+    [{ label: { kind: "added" }, minutes: 0 }, { label: { kind: "status", status: "working" }, minutes: 12 }], "one working span for the time bar");
 });
 
 async function screenshotRun(t: TestContext) {

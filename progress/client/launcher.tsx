@@ -37,12 +37,12 @@ export function launcherNotice(status: LauncherStatus, m: ProgressMessages = mes
 // What the skill banner says, or null when every agent folder has the skill.
 export function skillNotice(status: SkillStatus, m: ProgressMessages = messagesFor("en")): { text: string; action?: string } | null {
   const folders = (state: string) => status.targets.filter((target) => target.state === state).map((target) => target.path.replace(/[\\/]paseo-progress$/, ""));
-  const skipped = folders("foreign").length ? m.skillSkipped(folders("foreign").join(", ")) : "";
+  const skipped = folders("foreign").length ? m.skillSkipped(folders("foreign").join(m.listSeparator)) : "";
   switch (status.state) {
     case "missing":
-      return { text: m.skillMissing(folders("missing").join(", "), skipped), action: m.installSkill };
+      return { text: m.skillMissing(folders("missing").join(m.listSeparator), skipped), action: m.installSkill };
     case "outdated":
-      return { text: m.skillOutdated(folders("outdated").join(", "), skipped), action: m.updateSkill };
+      return { text: m.skillOutdated(folders("outdated").join(m.listSeparator), skipped), action: m.updateSkill };
     case "foreign":
       return { text: m.skillForeign };
     case "current":

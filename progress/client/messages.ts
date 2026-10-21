@@ -2,6 +2,9 @@ import type { TicketStatus } from "../shared/events";
 import type { QuestionMode } from "../shared/question-modes";
 import type { NoteKind } from "../shared/whats-new";
 
+// Text before and after a value the UI draws in its own style.
+export type Around = readonly [before: string, after: string];
+
 export interface ProgressMessages {
   status: Record<TicketStatus, string>;
   questionModes: Record<QuestionMode, { label: string; hint: string }>;
@@ -11,7 +14,7 @@ export interface ProgressMessages {
   unknownError: string;
   openSettings: string;
   noProgress: string;
-  emptyIntro: string;
+  emptyIntro: Around;
   finished: string;
   lastUpdated: string;
   activity: string;
@@ -37,6 +40,10 @@ export interface ProgressMessages {
   agentStopped: string;
   waitingForYou: string;
   big: string;
+  colon: string;
+  parenthetical: (text: string) => string;
+  listSeparator: string;
+  sentenceBreak: string;
   yourAnswer: string;
   asked: string;
   openProgress: string;
@@ -110,13 +117,13 @@ export interface ProgressMessages {
   languageHint: string;
   systemLanguage: string;
   readProgressError: (error: string) => string;
-  savedOutside: (path: string) => string;
+  savedOutside: Around;
   staleWarning: (duration: string) => string;
   itemHeading: (label: string) => string;
   noItems: (label: string) => string;
   skippedLines: (count: number, file: string) => string;
   issueLine: (line: number, reason: string) => string;
-  moreIssues: (count: number) => string;
+  issueList: (items: string[], more: number) => string;
   overdueUpdate: (duration: string) => string;
   blockedSince: (note: string | undefined, narrow: boolean) => string;
   doneCount: (count: number) => string;
@@ -160,7 +167,7 @@ export interface ProgressMessages {
   firstEntries: (count: number) => string;
   galleryPosition: (index: number, count: number) => string;
   historySaved: (path: string) => string;
-  historyInRepo: (path: string) => string;
+  historyInRepo: Around;
   useNamedFolder: (name: string) => string;
   launcherMissing: (path: string) => string;
   launcherOutdated: (path: string) => string;
@@ -170,7 +177,7 @@ export interface ProgressMessages {
   skillSkipped: (paths: string) => string;
   skillMissing: (paths: string, skipped: string) => string;
   skillOutdated: (paths: string, skipped: string) => string;
-  resetQuestionMode: (label: string) => string;
+  resetTo: (label: string) => string;
   ago: (duration: string) => string;
   workDone: (done: string, total: string) => string;
   justNow: string;

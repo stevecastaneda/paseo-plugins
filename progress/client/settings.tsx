@@ -7,7 +7,7 @@ import { questionSettings, LANGUAGE_PREFERENCES } from "../shared/settings";
 import { useProgressLanguage } from "./language";
 
 export function QuestionSettings({ theme }: PluginSurfaceProps) {
-  return <><DisplaySettings theme={theme} /><QuestionModeSettings theme={theme} /></>;
+  return <><QuestionModeSettings theme={theme} /><DisplaySettings theme={theme} /></>;
 }
 
 type Colors = PluginSurfaceProps["theme"]["colors"];
@@ -34,7 +34,7 @@ function QuestionModeSettings({ theme }: Pick<PluginSurfaceProps, "theme">) {
   return (
     <SettingsSection title={m.questions}>
       {settings.status === "loading" ? <Text style={muted}>{m.loadingSettings}</Text>
-        : settings.status !== "ready" ? <SettingsRecovery colors={theme.colors} settings={settings} resetLabel={m.resetQuestionMode(m.questionModes[DEFAULT_QUESTION_MODE].label)} />
+        : settings.status !== "ready" ? <SettingsRecovery colors={theme.colors} settings={settings} resetLabel={m.resetTo(m.questionModes[DEFAULT_QUESTION_MODE].label)} />
         : <SettingsCard><SettingsSelect label={m.questionMode} hint={m.questionModes[settings.values.mode].hint}
           error={settings.saveError} value={settings.values.mode} options={QUESTION_MODES.map((value) => ({ value, label: m.questionModes[value].label }))}
           disabled={settings.saving} onValueChange={(mode) => void settings.save({ ...settings.values, mode }, settings.revision)} /></SettingsCard>}
@@ -52,7 +52,7 @@ function SettingsRecovery({ colors, settings, resetLabel }: {
     <Text style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 }}>{settings.error}</Text>
     <SettingsCard>
       <SettingsAction label={m.tryAgain} actionLabel={m.reload} onPress={settings.reload} />
-      {settings.status === "invalid" ? <SettingsAction label={resetLabel ?? m.systemLanguage} actionLabel={m.reset} onPress={settings.reset} /> : null}
+      {settings.status === "invalid" ? <SettingsAction label={resetLabel ?? m.resetTo(m.systemLanguage)} actionLabel={m.reset} onPress={settings.reset} /> : null}
     </SettingsCard>
   </>;
 }

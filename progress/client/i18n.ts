@@ -18,9 +18,15 @@ export function systemLocale(): string {
 
 export function resolveLocale(preference: LanguagePreference, system = systemLocale()): ProgressLocale {
   if (preference !== "system") return preference;
-  const [language, ...subtags] = system.replaceAll("_", "-").toLowerCase().split("-");
-  if (language !== "zh" || subtags.some((part) => ["hant", "tw", "hk", "mo"].includes(part))) return "en";
-  return subtags.length === 0 || subtags.some((part) => ["hans", "cn", "sg"].includes(part)) ? "zh-CN" : "en";
+  const [language, ...rest] = system.replaceAll("_", "-").toLowerCase().split("-");
+  // Extensions like "-u-nu-hanidec" say nothing about the script.
+  const singleton = rest.findIndex((part) => part.length === 1);
+  const subtags = singleton === -1 ? rest : rest.slice(0, singleton);
+  if (language !== "zh") return "en";
+  // A script tag beats the region: zh-Hans-HK is Simplified.
+  if (subtags.includes("hans")) return "zh-CN";
+  if (subtags.includes("hant")) return "en";
+  return subtags.length === 0 || subtags.some((part) => ["cn", "sg"].includes(part)) ? "zh-CN" : "en";
 }
 
 export function messagesFor(locale: ProgressLocale): ProgressMessages {
@@ -75,5 +81,6 @@ export function timelineLabel(m: ProgressMessages, label: TimelineLabel): string
     case "reset": return m.resetStatus;
     case "stage": return m.stageLabel(label.stage);
     case "status": return m.status[label.status];
+    case "waiting": return m.waitingForTicket(label.id);
   }
 }

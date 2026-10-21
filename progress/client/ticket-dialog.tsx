@@ -69,7 +69,7 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, context,
     const last = index === story.timeline.length - 1;
     // A current "Blocked" that's only waiting on another ticket reads as waiting, in the calm color.
     const shown = last && ticket.waitingFor && step.status === "blocked"
-      ? { ...step, label: m.waitingForTicket(ticket.waitingFor.id), waiting: true }
+      ? { ...step, label: { kind: "waiting" as const, id: ticket.waitingFor.id }, waiting: true }
       : step;
     return <TimelineRow key={`${step.at}-${index}`} colors={colors} step={shown} last={last} now={now} live={live} />;
   });
@@ -200,8 +200,8 @@ function LinkNote({ colors, link }: { colors: Colors; link: Link }) {
 // The same icons as the ticket rows, so a step reads like the status it was.
 // Past stage steps get an accent ringed dot: work that happened, now over.
 function Marker({ colors, step }: { colors: Colors; step: TimelineStep & { waiting?: boolean } }) {
-  if (step.waiting || (step.status === "not_started" && step.labelDescriptor.kind !== "added")) return <WaitingDot color={colors.foregroundMuted} />;
-  const icon = step.labelDescriptor.kind === "added" ? { name: "CirclePlus", color: colors.foregroundMuted }
+  if (step.waiting || (step.status === "not_started" && step.label.kind !== "added")) return <WaitingDot color={colors.foregroundMuted} />;
+  const icon = step.label.kind === "added" ? { name: "CirclePlus", color: colors.foregroundMuted }
     : step.status === "done" ? { name: "CircleCheck", color: colors.statusSuccess }
     : step.status === "blocked" ? { name: "Ban", color: colors.statusDanger }
     : step.status === "skipped" ? { name: "CircleSlash", color: colors.foregroundMuted }
@@ -224,10 +224,10 @@ function TimelineRow({ colors, step, last, now, live }: { colors: Colors; step: 
             {working ? (live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />) : <Marker colors={colors} step={step} />}
           </IconSwap>
         </View>
-        <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{step.waiting ? step.label : timelineLabel(m, step.labelDescriptor)}</Text>
+        <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{timelineLabel(m, step.label)}</Text>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatClientTimeOfDay(locale, step.at, now)}</Text>
         {/* A fixed column, so durations line up down the list. */}
-        <Text style={{ width: 84, textAlign: "right", color: current ? colors.foreground : colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
+        <Text numberOfLines={1} style={{ minWidth: 84, textAlign: "right", color: current ? colors.foreground : colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
           {step.minutes !== null ? current ? m.soFar(formatClientMinutes(locale, step.minutes)) : formatClientMinutes(locale, step.minutes) : ""}
         </Text>
       </View>
