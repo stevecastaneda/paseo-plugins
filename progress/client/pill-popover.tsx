@@ -12,6 +12,7 @@ import { galleryFiles } from "./preview";
 import { QuestionDetail, QuestionState, useCopy } from "./questions";
 import { errorText } from "./errors";
 import { raised } from "./surfaces";
+import { useProgressLanguage } from "./language";
 
 type Colors = PluginButtonContentProps["theme"]["colors"];
 
@@ -22,6 +23,7 @@ const LIST_MAX_HEIGHT = 340;
 // What the pill opens: the open questions with their Copy buttons, and anything
 // stuck, so the user can answer without leaving the chat.
 export function AttentionPopover({ theme, host, layout, workspaceId, close, openPanel }: PluginButtonContentProps & { openPanel(): void }) {
+  const { messages: m } = useProgressLanguage();
   const colors = theme.colors;
   // Paseo draws the desktop popover on surface1 and the phone sheet on surface0.
   const onSurface1 = !layout.compact;
@@ -53,7 +55,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
         </List>
       ) : (
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          {query.error ? `Could not read progress: ${errorText(query.error, "something went wrong")}` : "Loading…"}
+          {query.error ? m.readProgressError(errorText(query.error, m.unknownError)) : m.loading}
         </Text>
       )}
       <StackedDialog colors={colors} now={Date.now()} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory: root }}
@@ -65,7 +67,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
             backgroundColor: onSurface1 ? (pressed ? colors.surface1 : colors.surface2) : pressed ? colors.surface2 : colors.surface1 })}>
           {/* Beside the chat on desktop; on a phone it opens as its own tab, shown with the tab's icon. */}
           <Icon name={touch ? "ListChecks" : "PanelRight"} size={touch ? 16 : 12} color={colors.foreground} />
-          <Text style={{ color: colors.foreground, fontSize: touch ? 15 : 12, lineHeight: touch ? 20 : 16, fontWeight: "600" }}>Open Progress</Text>
+          <Text style={{ color: colors.foreground, fontSize: touch ? 15 : 12, lineHeight: touch ? 20 : 16, fontWeight: "600" }}>{m.openProgress}</Text>
         </PressScale>
       </View>
     </View>
@@ -87,10 +89,11 @@ export function AttentionList({ colors, dashboard, onSurface1, onCopy, onOpenAtt
   onCopy(question: Dashboard["questions"]["open"][number], letter: string): void;
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
 }) {
+  const { messages: m } = useProgressLanguage();
   const now = Date.now();
   // The last question can be answered while the popover is open.
   if (!dashboard.questions.open.length && !dashboard.stuck.length) {
-    return <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Nothing needs you right now.</Text>;
+    return <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{m.nothingNeedsYou}</Text>;
   }
   return (
     <>
@@ -110,13 +113,13 @@ export function AttentionList({ colors, dashboard, onSurface1, onCopy, onOpenAtt
         <View style={{ gap: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Icon name="OctagonAlert" size={12} color={colors.statusDanger} />
-            <Text style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, fontWeight: "600" }}>Stuck</Text>
+            <Text style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, fontWeight: "600" }}>{m.stuck}</Text>
           </View>
           {dashboard.stuck.map((item) => (
             <Text key={item.key} style={{ color: colors.foreground, fontSize: 12, lineHeight: 17 }}>
               {item.title}
               <Text style={{ color: colors.foregroundMuted }}>
-                {item.kind === "overdue" ? " (no update past its estimate)" : item.kind === "blocked" ? ` (blocked${item.note ? `: ${item.note}` : ""})` : ""}
+                {item.kind === "overdue" ? m.overdueAside : item.kind === "blocked" ? m.blockedAside(item.note) : ""}
               </Text>
             </Text>
           ))}

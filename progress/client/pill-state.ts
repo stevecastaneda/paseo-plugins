@@ -1,3 +1,4 @@
+import { messagesFor, type ProgressMessages } from "./i18n";
 import type { AttentionResult } from "../shared/rpc";
 
 // What an agent's Progress pill shows, decided in one place so its label, its
@@ -13,15 +14,15 @@ export type Pill =
 
 // What needs the user first, else the nudge, else (on a phone) the way in.
 // Null when there's no pill.
-export function pillFor(report: AttentionResult | undefined, where: { phone: boolean }): Pill | null {
+export function pillFor(report: AttentionResult | undefined, where: { phone: boolean }, m: ProgressMessages = messagesFor("en")): Pill | null {
   if (!report?.configured) return null;
   const { questions, stuck } = report;
   if (questions || stuck) {
     // Paseo cuts composer pills off at 160 px, so when something is stuck
     // too, the questions shorten to "2Q" to leave room for "1 stuck".
     const parts = [];
-    if (questions) parts.push(stuck ? `${questions}Q` : `${questions} ${questions === 1 ? "question" : "questions"}`);
-    if (stuck) parts.push(`${stuck} stuck`);
+    if (questions) parts.push(stuck ? m.shortQuestions(questions) : m.questionCount(questions));
+    if (stuck) parts.push(m.stuckCount(stuck));
     return { mode: "attention", label: parts.join(" · "), icon: stuck ? "stuck" : "questions" };
   }
   if (report.runOpen && !report.panelOpened) return { mode: "started", label: "Progress", icon: "started" };

@@ -6,6 +6,7 @@ import { type Attachment, attachmentIcon, canPreview, shortName } from "../share
 import { errorText } from "./errors";
 import { PressableRow } from "./row";
 import { openDeliverable } from "../shared/rpc";
+import { useProgressLanguage } from "./language";
 
 export { type Attachment, attachmentIcon, deliverableAttachment, questionAttachments, shortName, ticketSourceAttachment } from "../shared/attachments";
 
@@ -31,22 +32,23 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
   navigation?: Navigation;
   onPreview?(attachment: Attachment): void;
 }) {
+  const { messages: m } = useProgressLanguage();
   const toast = useToast();
   const openOnHostRpc = useRpc(openDeliverable);
   async function copyPath(attachment: Attachment, prefix = "") {
     try {
       await copyText(absolutePath(attachment.path!, workspaceDirectory));
-      toast.show(`${prefix}Copied path`, { variant: prefix ? "warning" : "success" });
+      toast.show(`${prefix}${m.copyPathDone}`, { variant: prefix ? "warning" : "success" });
     } catch {
-      toast.error("Could not copy. Select the path and use Copy.");
+      toast.error(m.copyPathFailure);
     }
   }
   async function openOnHost(attachment: Attachment) {
     try {
       await openOnHostRpc({ workspaceId, workspaceDirectory, ref: attachment.ref });
-      toast.show(`Opened ${attachment.title}`, { variant: "success" });
+      toast.show(m.opened(attachment.title), { variant: "success" });
     } catch (error) {
-      await copyPath(attachment, `${errorText(error, "Could not open it")}. `);
+      await copyPath(attachment, `${errorText(error, m.openFailure)}. `);
     }
   }
   async function open(attachment: Attachment) {
@@ -55,7 +57,7 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
         if (navigation?.openBrowser) navigation.openBrowser({ url: attachment.url, workspaceId });
         else await openExternalUrl(attachment.url);
       } catch {
-        toast.error("Could not open this link.");
+        toast.error(m.linkFailure);
       }
       return;
     }
@@ -74,11 +76,12 @@ export const ATTACHMENT_ROW = { gap: 2, paddingVertical: 3, lineHeight: 17 };
 // Drawn in dialogs and the popover (surface1) unless `onSurface1` is false.
 // `onOpen` also gets the whole list, so a preview can step through its siblings.
 export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true }: { colors: Colors; attachments: Attachment[]; onOpen(attachment: Attachment, group: Attachment[]): void; onSurface1?: boolean }) {
+  const { messages: m } = useProgressLanguage();
   if (!attachments.length) return null;
   return (
     <View style={{ gap: ATTACHMENT_ROW.gap }}>
       {attachments.map((attachment) => (
-        <PressableRow key={attachment.ref} colors={colors} onSurface1={onSurface1} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={`Open ${attachment.title}`}
+        <PressableRow key={attachment.ref} colors={colors} onSurface1={onSurface1} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={m.openItem(attachment.title)}
           onPress={() => onOpen(attachment, attachments)}
           style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: ATTACHMENT_ROW.paddingVertical, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
           {/* A 14px slot, like a section icon, so the title lines up with the heading above. */}

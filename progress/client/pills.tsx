@@ -1,6 +1,6 @@
 import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import React, { useSyncExternalStore } from "react";
+import React, { useEffect, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { type AttentionResult, getAttention } from "../shared/rpc";
 import { isIdle, type Pill, pillFor } from "./pill-state";
@@ -8,6 +8,8 @@ import { observeDirectory, type PaseoAgentUpdate, type PaseoWorkspaceUpdate } fr
 import { onPanelOpened } from "./panel-opened";
 import { IconSwap } from "./motion";
 import { Spinner } from "./spinner";
+import { messagesFor, resolveLocale } from "./i18n";
+import { ProgressLanguageProvider, useProgressLanguage } from "./language";
 import { AttentionPopover } from "./pill-popover";
 
 export const PILL_POLL_MS = 5_000;
@@ -41,12 +43,13 @@ export function contributePills(client: PluginClientContext) {
   const workspaces = new Map<string, string>();
   // The last report per workspace; pillFor turns it into what the pill shows.
   const reports = new Map<string, AttentionResult>();
+  let locale = resolveLocale("system");
   const where = { phone: progressPanel().location === "workspace" };
-  const pillOf = (workspaceId: string) => pillFor(reports.get(workspaceId), where);
+  const pillOf = (workspaceId: string) => pillFor(reports.get(workspaceId), where, messagesFor(locale));
   // Bumped on each report so a poll that was already in flight can't bring the pill back.
   let openedReports = 0;
   const listeners = new Set<() => void>();
-  const pills = new Map<string, { workspaceId: string; label: string; mode: Pill["mode"]; pill: PluginButtonRegistration }>();
+  const pills = new Map<string, { workspaceId: string; label: string; title: string; mode: Pill["mode"]; pill: PluginButtonRegistration }>();
   const pending = new Set<string>();
   // Polls left before an idle workspace is checked again, and when each was last checked.
   const idleWait = new Map<string, number>();
@@ -56,6 +59,16 @@ export function contributePills(client: PluginClientContext) {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function PillIcon(props: PluginButtonIconProps) {
+    return <ProgressLanguageProvider><LocalizedPillIcon {...props} /></ProgressLanguageProvider>;
+  }
+
+  function LocalizedPillIcon(props: PluginButtonIconProps) {
+    const language = useProgressLanguage();
+    useEffect(() => {
+      if (stopped || locale === language.locale) return;
+      locale = language.locale;
+      publish();
+    }, [language.locale]);
     const icon = useSyncExternalStore(
       (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
       () => pillOf(props.workspaceId)?.icon ?? "open",
@@ -76,11 +89,11 @@ export function contributePills(client: PluginClientContext) {
   };
 
   const buttonFor = (workspaceId: string, mode: Pill["mode"], label: string) => mode === "attention"
-    ? { title: "Progress needs you", icon: PillIcon, label, behavior: { kind: "popover" as const, Content: PillContent } }
-    : { title: "Open Progress", icon: PillIcon, label, behavior: { kind: "action" as const, onPress: () => openPanel(workspaceId) } };
+    ? { title: messagesFor(locale).needsYou, icon: PillIcon, label, behavior: { kind: "popover" as const, Content: PillContent } }
+    : { title: messagesFor(locale).openProgress, icon: PillIcon, label, behavior: { kind: "action" as const, onPress: () => openPanel(workspaceId) } };
 
   function PillContent(props: PluginButtonContentProps) {
-    return <AttentionPopover {...props} openPanel={() => openPanel(props.workspaceId)} />;
+    return <ProgressLanguageProvider><AttentionPopover {...props} openPanel={() => openPanel(props.workspaceId)} /></ProgressLanguageProvider>;
   }
 
   const publish = () => {
@@ -92,6 +105,7 @@ export function contributePills(client: PluginClientContext) {
       const wanted = pillOf(workspaceId);
       if (!wanted) continue;
       const { mode, label } = wanted;
+      const title = mode === "attention" ? messagesFor(locale).needsYou : messagesFor(locale).openProgress;
       seen.add(agent.id);
       const existing = pills.get(agent.id);
       if (existing && existing.workspaceId !== workspaceId) {
@@ -101,13 +115,13 @@ export function contributePills(client: PluginClientContext) {
       const entry = pills.get(agent.id);
       if (!entry) {
         const pill = client.addComposerPill({ id: "progress-attention", workspaceId, agentId: agent.id, button: buttonFor(workspaceId, mode, label) });
-        pills.set(agent.id, { workspaceId, label, mode, pill });
+        pills.set(agent.id, { workspaceId, title, label, mode, pill });
       } else if (entry.mode !== mode) {
         entry.pill.update(buttonFor(workspaceId, mode, label));
-        Object.assign(entry, { mode, label });
-      } else if (entry.label !== label) {
-        entry.pill.update({ label });
-        entry.label = label;
+        Object.assign(entry, { mode, label, title });
+      } else if (entry.label !== label || entry.title !== title) {
+        entry.pill.update({ label, title });
+        Object.assign(entry, { label, title });
       }
     }
     for (const [agentId, entry] of pills) {

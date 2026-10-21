@@ -28,6 +28,8 @@ export interface LoadedVideo {
   ratio: number | null;
 }
 
+export class VideoChangedError extends Error {}
+
 // Fetches a video piece by piece into one blob, then reads its shape.
 export async function loadVideo({ bytes, mimeType, readPiece, onProgress }: {
   bytes: number;
@@ -40,7 +42,7 @@ export async function loadVideo({ bytes, mimeType, readPiece, onProgress }: {
   while (loaded < bytes) {
     const piece = await readPiece(loaded);
     const decoded = decode(piece.data);
-    if (piece.bytes !== bytes || !decoded.length) throw new Error("the video changed while it was loading. Try again.");
+    if (piece.bytes !== bytes || !decoded.length) throw new VideoChangedError("the video changed while it was loading. Try again.");
     pieces.push(decoded);
     loaded += decoded.length;
     onProgress(loaded);

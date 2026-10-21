@@ -14,10 +14,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, ScrollView, Text, View } from "react-native";
 import { finishedToFold, isFinished, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
 import type { TicketStatus } from "../shared/events";
-import { formatMinutes, formatWorkDone, minutesSince } from "../shared/format";
+import { minutesSince } from "../shared/format";
+import { clientHeadline, formatClientMinutes, formatClientWorkDone } from "./i18n";
 import { markPanelOpened } from "../shared/rpc";
 import { useDashboard } from "./dashboard-query";
-import { STATUS_LABEL } from "./status-badge";
 import { TicketDialogs } from "./ticket-dialog";
 import { PressableRow } from "./row";
 import { TabStrip } from "./tabs";
@@ -25,6 +25,7 @@ import { ShowMoreRow, usePaged } from "./show-more";
 import { notePanelOpened } from "./panel-opened";
 import { NARROW_MAX, NarrowProvider, useNarrow } from "./narrow";
 import { errorText } from "./errors";
+import { useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -38,6 +39,7 @@ export function ProgressPanel(props: PanelProps) {
 }
 
 function WorkspaceProgress({ theme, workspaceId, host, layout, navigation, openSettings }: PanelProps) {
+  const { messages: m } = useProgressLanguage();
   const colors = theme.colors;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   // Paseo marks the workspace running while any of its agents is. Since 0.11 a Claude
@@ -53,10 +55,10 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation, openS
     <NarrowProvider value={narrow}>
     <ScrollView onLayout={(event) => setNarrow(event.nativeEvent.layout.width <= NARROW_MAX)}
       style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ paddingBottom: 16 }}>
-      {query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading progress" style={{ padding: 12 }} /> : null}
+      {query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingProgress} style={{ padding: 12 }} /> : null}
       {query.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>
-          Could not read progress: {errorText(query.error, "something went wrong")}
+          {m.readProgressError(errorText(query.error, m.unknownError))}
         </Text>
       ) : null}
       <WhatsNewBanner colors={colors} host={host} />
@@ -90,8 +92,9 @@ function useMarkPanelOpened(workspaceId: string, directory: string | null, neede
 
 // Optical: the 24px button centers on a 20 to 21px title line.
 function SettingsButton({ colors, onPress }: { colors: Colors; onPress(): void }) {
+  const { messages: m } = useProgressLanguage();
   return (
-    <PressScale accessibilityRole="button" accessibilityLabel="Open Progress settings" hitSlop={6} outerStyle={{ marginVertical: -2 }} onPress={onPress}
+    <PressScale accessibilityRole="button" accessibilityLabel={m.openSettings} hitSlop={6} outerStyle={{ marginVertical: -2 }} onPress={onPress}
       style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface1 : "transparent" })}>
       <Icon name="Settings" size={16} color={colors.foregroundMuted} />
     </PressScale>
@@ -99,18 +102,19 @@ function SettingsButton({ colors, onPress }: { colors: Colors; onPress(): void }
 }
 
 function EmptyState({ colors, file, openSettings }: { colors: Colors; file: string; openSettings(): void }) {
+  const { messages: m } = useProgressLanguage();
   return (
     <View style={{ padding: 12, paddingTop: 20, gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Icon name="ListChecks" size={18} color={colors.foregroundMuted} />
         <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "500" }}>
-          No progress recorded yet
+          {m.noProgress}
         </Text>
         <View style={{ flex: 1 }} />
         <SettingsButton colors={colors} onPress={openSettings} />
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        An agent working in this worktree records progress with the <Text style={{ color: colors.foreground }}>paseo-progress</Text> command. It shows up here as soon as the first run starts.
+        {m.emptyIntro[0]}<Text style={{ color: colors.foreground }}>paseo-progress</Text>{m.emptyIntro[1]}
       </Text>
       <View style={{ backgroundColor: colors.surface1, borderRadius: 6, padding: 10 }}>
         <Text selectable style={{ color: colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
@@ -119,7 +123,7 @@ function EmptyState({ colors, file, openSettings }: { colors: Colors; file: stri
       </View>
       {/* So people know nothing lands in the repo. */}
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        Progress is saved outside the repo, in <Text selectable style={{ color: colors.foreground }}>{file}</Text>, so git never sees it.
+        {m.savedOutside[0]}<Text selectable style={{ color: colors.foreground }}>{file}</Text>{m.savedOutside[1]}
       </Text>
     </View>
   );
@@ -159,6 +163,8 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
   file: string;
   navigation: PluginWorkspacePanelProps["navigation"];
 }) {
+  const { messages: m, locale } = useProgressLanguage();
+  const headline = clientHeadline(locale, dashboard);
   const now = useNow(15_000);
   // Quiet isn't stale while an agent in the workspace is still running.
   const stale = dashboard.stale && !agentRunning;
@@ -181,11 +187,11 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
         {dashboard.run?.subtitle ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{dashboard.run.subtitle}</Text>
         ) : null}
-        {dashboard.headline.length ? (
+        {headline.length ? (
           <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-            {dashboard.headline.map((part, index) => (
+            {headline.map((part, index) => (
               <Text key={part.text} style={part.tone === "danger" ? { color: colors.statusDanger } : undefined}>
-                {index ? ", " : ""}{part.text}
+                {index ? m.listSeparator : ""}{part.text}
               </Text>
             ))}
           </Text>
@@ -201,7 +207,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
             {dashboard.run?.finished ? (
               <>
                 <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-                  <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>Finished</Text> <When colors={colors} iso={dashboard.run.finished.at} now={now} />
+                  <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{m.finished}</Text> <When colors={colors} iso={dashboard.run.finished.at} now={now} />
                 </Text>
                 <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{dashboard.run.finished.outcome}</Text>
               </>
@@ -214,7 +220,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
         {dashboard.updatedAt && !dashboard.run?.finished ? (
           <StatusLine icon={<Icon name="Clock" size={12} color={colors.foregroundMuted} />}>
             <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-              Last updated <When colors={colors} iso={dashboard.updatedAt} now={now} />
+              {m.lastUpdated}<When colors={colors} iso={dashboard.updatedAt} now={now} />
             </Text>
           </StatusLine>
         ) : null}
@@ -225,7 +231,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
           {/* Optical: centers the 14px icon on the first 18px line. */}
           <View style={{ paddingTop: 2 }}><Icon name="TriangleAlert" size={14} color={colors.statusWarning} /></View>
           <Text style={{ flex: 1, color: colors.statusWarning, fontSize: 12, lineHeight: 18 }}>
-            Possibly stale. No update for {unbroken(formatMinutes(minutesSince(dashboard.updatedAt, now)))}. The work may have stopped, so working items show a warning until the next update.
+            {m.staleWarning(unbroken(formatClientMinutes(locale, minutesSince(dashboard.updatedAt, now))))}
           </Text>
         </View>
       ) : null}</Presence>
@@ -239,10 +245,10 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
           ) : null}</Presence>
           <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
           <Presence show order={4}>
-          <Card colors={colors} icon="ListChecks" title={`${dashboard.run?.itemLabel ?? "Ticket"}s`}>
+          <Card colors={colors} icon="ListChecks" title={m.itemHeading(dashboard.run?.itemLabel ?? "Ticket")}>
             {dashboard.tickets.length === 0 ? (
               <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-                No {(dashboard.run?.itemLabel ?? "ticket").toLowerCase()}s yet.
+                {m.noItems(dashboard.run?.itemLabel ?? "Ticket")}
               </Text>
             ) : (
               <TicketList colors={colors} dashboard={dashboard} live={live} now={now} workspaceId={workspaceId} onOpen={setOpenTicket} />
@@ -255,11 +261,11 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
           <Presence show={hasHistory} order={5}>
             {hasHistory ? (
               <HistoryCard colors={colors} workspaceId={workspaceId} tabs={[
-                { id: "activity", label: "Activity", icon: "Activity", count: dashboard.activity.length, empty: "No activity yet.",
+                { id: "activity", label: m.activity, icon: "Activity", count: dashboard.activity.length, empty: m.noActivity,
                   content: <ActivityList colors={colors} activity={dashboard.activity} now={now} /> },
-                { id: "answered", label: "Answered", icon: "CircleCheck", count: dashboard.questions.answered.length, empty: "No answered questions yet.",
+                { id: "answered", label: m.answered, icon: "CircleCheck", count: dashboard.questions.answered.length, empty: m.noAnswers,
                   content: <AnsweredQuestionsList colors={colors} questions={dashboard.questions.answered} now={now} context={attachmentContext} /> },
-                { id: "deliverables", label: "Deliverables", icon: "Package", count: dashboard.deliverables.length, empty: "No deliverables yet.",
+                { id: "deliverables", label: m.deliverables, icon: "Package", count: dashboard.deliverables.length, empty: m.noDeliverables,
                   content: <DeliverablesList colors={colors} deliverables={dashboard.deliverables} now={now} workspaceId={workspaceId}
                     workspaceDirectory={workspaceDirectory} navigation={navigation} /> },
               ]} />
@@ -323,14 +329,14 @@ function ActivityList({ colors, activity, now }: { colors: Colors; activity: Act
 
 // Small and non-blocking: the rest of the dashboard still renders.
 function IssuesNotice({ colors, issues, file }: { colors: Colors; issues: FileIssue[]; file: string }) {
+  const { messages: m } = useProgressLanguage();
   const shown = issues.slice(0, 5);
   return (
     <View style={{ flexDirection: "row", gap: 8, margin: 12, marginBottom: 0, padding: 8, borderRadius: 6, backgroundColor: colors.surface1 }}>
       <View style={{ paddingTop: 1.5 }}><Icon name="FileWarning" size={14} color={colors.statusWarning} /></View>
       <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-        Skipped {issues.length === 1 ? "1 line" : `${issues.length} lines`} in {file}:{" "}
-        {shown.map((issue) => `line ${issue.line} (${issue.reason})`).join(", ")}
-        {issues.length > shown.length ? `, and ${issues.length - shown.length} more` : ""}.
+        {m.skippedLines(issues.length, file)}
+        {m.issueList(shown.map((issue) => m.issueLine(issue.line, issue.reason)), issues.length - shown.length)}
       </Text>
     </View>
   );
@@ -346,15 +352,16 @@ function Card({ colors, icon, title, children }: { colors: Colors; icon: string;
 }
 
 function ProgressBar({ colors, progress, live }: { colors: Colors; progress: Dashboard["progress"]; live: boolean }) {
+  const { messages: m, locale } = useProgressLanguage();
   const narrow = useNarrow();
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
         <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>
-          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{progress.percent}%</Text> {narrow ? "done" : "of estimated work done"}
+          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{progress.percent}%</Text> {narrow ? m.workDoneShort : m.workDoneLong}
         </Text>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-          {formatWorkDone(progress.doneMin, progress.totalMin, progress.tookMin)}
+          {formatClientWorkDone(locale, progress.doneMin, progress.totalMin, progress.tookMin)}
         </Text>
       </View>
       <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }}
@@ -399,10 +406,11 @@ function Shimmer() {
 const STUCK_ICON: Record<StuckItem["kind"], string> = { blocked: "Ban", overdue: "Hourglass", manual: "Flag" };
 
 function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem[]; now: number }) {
+  const { messages: m, locale } = useProgressLanguage();
   const narrow = useNarrow();
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.statusDanger, borderRadius: 6, overflow: "hidden" }}>
-      <SectionTitle colors={colors} icon="OctagonAlert" title="Stuck" color={colors.statusDanger} style={{ borderBottomWidth: 1, borderBottomColor: colors.border }} />
+      <SectionTitle colors={colors} icon="OctagonAlert" title={m.stuck} color={colors.statusDanger} style={{ borderBottomWidth: 1, borderBottomColor: colors.border }} />
       {items.map((item, index) => (
         <View key={item.key} style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
           {/* Optical: centers the 14px icon on the 18px title line. */}
@@ -410,9 +418,9 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{item.title}</Text>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {item.kind === "overdue" ? `No update for longer than its ${unbroken(formatMinutes(item.estimateMin))} estimate. Last update ` : null}
-            {item.kind === "blocked" ? `Blocked${item.note ? `: ${item.note}` : ""}${narrow ? ", " : ". Since "}` : null}
-            {item.kind === "manual" ? `${item.ticketId ? `${item.reason}. ` : ""}Flagged ` : null}
+            {item.kind === "overdue" ? m.overdueUpdate(unbroken(formatClientMinutes(locale, item.estimateMin))) : null}
+            {item.kind === "blocked" ? m.blockedSince(item.note, narrow) : null}
+            {item.kind === "manual" ? `${item.ticketId ? `${item.reason}${m.sentenceBreak}` : ""}${m.flagged}` : null}
             <When colors={colors} iso={item.since} now={now} />
           </Text>
           </View>
@@ -452,15 +460,16 @@ function TicketList({ colors, dashboard, live, now, workspaceId, onOpen }: { col
 // Sits on the ticket rows' columns: status icon, label, estimate, then the
 // chevron, which points the way the list will move, like "Show 10 older".
 function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tickets: Ticket[]; shown: boolean; onPress(): void }) {
+  const { messages: m, locale } = useProgressLanguage();
   const done = tickets.filter((ticket) => ticket.status === "done").length;
   const skipped = tickets.length - done;
-  const label = [done ? `${done} done` : "", skipped ? `${skipped} skipped` : ""].filter(Boolean).join(", ");
+  const label = [done ? m.doneCount(done) : "", skipped ? m.skippedCount(skipped) : ""].filter(Boolean).join(m.listSeparator);
   const estimateMin = tickets.reduce((sum, ticket) => sum + (ticket.status === "done" ? ticket.estimateMin : 0), 0);
   const chevron = shown ? "ChevronUp" : "ChevronDown";
   const narrow = useNarrow();
   return (
     <PressableRow colors={colors} accessibilityRole="button" accessibilityState={{ expanded: shown }}
-      accessibilityLabel={`${shown ? "Hide" : "Show"} ${label}`} onPress={onPress}
+      accessibilityLabel={m.toggleFinished(shown, label)} onPress={onPress}
       style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
         <Icon name={done ? "Check" : "CircleSlash"} size={14} color={done ? colors.statusSuccess : colors.foregroundMuted} />
@@ -469,7 +478,7 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
       {/* Narrow ticket rows drop their chevron, so this total would sit off their estimate column. */}
       {narrow ? null : <>
         <View style={{ width: 12 }} />
-        <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatMinutes(estimateMin) : ""}</Text>
+        <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatClientMinutes(locale, estimateMin) : ""}</Text>
       </>}
       <View style={{ paddingTop: 2 }}>
         <IconSwap swapKey={chevron} size={14}><Icon name={chevron} size={14} color={colors.foregroundMuted} /></IconSwap>
@@ -480,16 +489,17 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
 
 // Press for the ticket's story. Hover and press only tint the row: it's a list, pressed often.
 function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors: Colors; ticket: Ticket; live: boolean; now: number; onOpen(): void; deliverables: number }) {
+  const { messages: m, locale } = useProgressLanguage();
   const muted = ticket.status === "skipped";
   const working = ticket.status === "working";
   // Narrow: tighter gaps and no chevron (the whole row still presses), so the title keeps its width.
   const narrow = useNarrow();
   return (
     <PressableRow colors={colors} onSurface1={working} transparentAtRest={!working}
-      accessibilityRole="button" accessibilityLabel={`${ticket.id} details`} onPress={onOpen}
+      accessibilityRole="button" accessibilityLabel={m.details(ticket.id)} onPress={onOpen}
       style={{ flexDirection: "row", alignItems: "flex-start", gap: narrow ? 6 : 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       {/* The icon is the only status mark on the row; the ticket dialog spells it out in a badge. */}
-      <View accessible accessibilityLabel={ticket.waitingFor ? "Waiting" : STATUS_LABEL[ticket.status]} style={{ width: 16, paddingTop: 2, alignItems: "center", marginRight: narrow ? 2 : 0 }}>
+      <View accessible accessibilityLabel={ticket.waitingFor ? m.waiting : m.status[ticket.status]} style={{ width: 16, paddingTop: 2, alignItems: "center", marginRight: narrow ? 2 : 0 }}>
         <IconSwap swapKey={ticket.waitingFor || ticket.status === "not_started" ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -498,24 +508,24 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
         </Text>
         {ticket.status === "working" && ticket.stage && ticket.stageSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {ticket.stage} stage started <When colors={colors} iso={ticket.stageSince} now={now} />
+            {m.stageStarted(ticket.stage)}<When colors={colors} iso={ticket.stageSince} now={now} />
           </Text>
         ) : null}
         {ticket.status === "working" && ticket.workingSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {narrow ? "Started working " : "Working since "}<When colors={colors} iso={ticket.workingSince} now={now} />
+            {narrow ? m.startedWorking : m.workingSince}<When colors={colors} iso={ticket.workingSince} now={now} />
           </Text>
         ) : null}
         {ticket.waitingFor ? (
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>Waits for {shortTitle(ticket.waitingFor.title)}</Text>
+          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{m.waitsFor(shortTitle(ticket.waitingFor.title))}</Text>
         ) : null}
         {ticket.note ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{ticket.note}</Text> : null}
       </View>
       {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. The estimate slot fits "45m" up to "9h 45m"; longer ones grow rather than clip. */}
-      <View accessibilityLabel={deliverables ? (deliverables === 1 ? "Has a deliverable" : `Has ${deliverables} deliverables`) : undefined} style={{ width: 12, height: 18, justifyContent: "center" }}>
+      <View accessibilityLabel={deliverables ? m.hasDeliverables(deliverables) : undefined} style={{ width: 12, height: 18, justifyContent: "center" }}>
         {deliverables ? <Icon name="Package" size={12} color={colors.foregroundMuted} /> : null}
       </View>
-      <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatMinutes(ticket.estimateMin)}</Text>
+      <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatClientMinutes(locale, ticket.estimateMin)}</Text>
       {narrow ? null : <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>}
     </PressableRow>
   );

@@ -7,6 +7,7 @@ import { PressScale } from "./motion";
 import { PressableRow } from "./row";
 import { listFolders, setHistoryFolder } from "../shared/rpc";
 import { errorText } from "./errors";
+import { ProgressLanguageProvider, useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 
@@ -18,6 +19,7 @@ export function HistoryRow({ colors, workspaceId, directory, savedTo }: {
   directory: string;
   savedTo: string | null;
 }) {
+  const { messages: m } = useProgressLanguage();
   const [picking, setPicking] = useState(false);
   const set = useRpc(setHistoryFolder);
   const queryClient = useQueryClient();
@@ -26,22 +28,22 @@ export function HistoryRow({ colors, workspaceId, directory, savedTo }: {
     mutationFn: (folder: string | null) => set({ workspaceId, workspaceDirectory: directory, folder }),
     onSuccess: ({ savedTo: next }) => {
       queryClient.invalidateQueries({ queryKey: ["progress", "dashboard"] });
-      toast.show(next ? `Each run will be saved to ${next}.` : "Runs will stay on this computer. Files already saved stay in the repo.", { variant: "success" });
+      toast.show(next ? m.historySaved(next) : m.historyStopped, { variant: "success" });
     },
-    onError: (error) => toast.error(errorText(error, "Could not change where runs are saved.")),
+    onError: (error) => toast.error(errorText(error, m.historyFailure)),
   });
   // While saving, the button that started it says so.
   const busy = mutation.isPending ? (mutation.variables === null ? "stop" : "pick") : null;
   const actions: { label: string; busyLabel: string; kind: "pick" | "stop"; onPress(): void }[] = savedTo
-    ? [{ label: "Change…", busyLabel: "Saving…", kind: "pick", onPress: () => setPicking(true) }, { label: "Stop saving", busyLabel: "Stopping…", kind: "stop", onPress: () => mutation.mutate(null) }]
-    : [{ label: "Save to repo…", busyLabel: "Saving…", kind: "pick", onPress: () => setPicking(true) }];
+    ? [{ label: m.changeFolder, busyLabel: m.saving, kind: "pick", onPress: () => setPicking(true) }, { label: m.stopSaving, busyLabel: m.stopping, kind: "stop", onPress: () => mutation.mutate(null) }]
+    : [{ label: m.saveToRepo, busyLabel: m.saving, kind: "pick", onPress: () => setPicking(true) }];
 
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4, marginHorizontal: 12, marginTop: 16 }}>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, flex: 1, minWidth: 180 }}>
         <View style={{ paddingTop: 2 }}><Icon name="History" size={13} color={colors.foregroundMuted} /></View>
         <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-          {savedTo ? <>Each run is saved to <Text style={{ color: colors.foreground }}>{savedTo}</Text> in this repo.</> : "Run history stays on this computer."}
+          {savedTo ? <>{m.historyInRepo[0]}<Text style={{ color: colors.foreground }}>{savedTo}</Text>{m.historyInRepo[1]}</> : m.localHistory}
         </Text>
       </View>
       <View style={{ flexDirection: "row", gap: 4 }}>
@@ -71,6 +73,7 @@ function FolderPicker({ colors, workspaceId, directory, open, start, onClose, on
   onClose(): void;
   onPick(folder: string): void;
 }) {
+  const { messages: m } = useProgressLanguage();
   const parentOf = (path: string) => path.split("/").slice(0, -1).join("/");
   const [at, setAt] = useState(() => parentOf(start));
   const [naming, setNaming] = useState<string | null>(null);
@@ -86,15 +89,16 @@ function FolderPicker({ colors, workspaceId, directory, open, start, onClose, on
   const newName = naming?.trim().replace(/\/+$/, "") ?? "";
 
   return (
-    <Modal title="Save run history to a folder" icon={<Icon name="FolderOpen" size={16} color={colors.foregroundMuted} />} open={open} onOpenChange={(next) => { if (!next) close(); }}>
+    <Modal title={m.historyFolderTitle} icon={<Icon name="FolderOpen" size={16} color={colors.foregroundMuted} />} open={open} onOpenChange={(next) => { if (!next) close(); }}>
       {/* Paseo sizes a non-scrolling dialog to 85% of the window, so let it size to
           its content; the list's own height cap keeps the buttons in view. */}
       <Modal.Content>
+      <ProgressLanguageProvider>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-          Each run becomes its own file in this folder, in every worktree of this repo. Commit them like any other file.
+          {m.historyFolderHint}
         </Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 2, paddingHorizontal: 4 }}>
-          {["Top of the repo", ...crumbs].map((crumb, index) => (
+          {[m.repoTop, ...crumbs].map((crumb, index) => (
             <React.Fragment key={index}>
               {index ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
               <PressScale accessibilityRole="button" disabled={index === crumbs.length} onPress={() => { setNaming(null); setAt(crumbs.slice(0, index).join("/")); }}
@@ -108,9 +112,9 @@ function FolderPicker({ colors, workspaceId, directory, open, start, onClose, on
 
         {/* Only the list scrolls, so Use and Cancel stay in view in a big repo. */}
         <ScrollView style={{ maxHeight: 320, flexGrow: 0 }} contentContainerStyle={{ gap: 2 }}>
-          {listed.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading folders" style={{ alignSelf: "flex-start", padding: 8 }} /> : null}
+          {listed.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingFolders} style={{ alignSelf: "flex-start", padding: 8 }} /> : null}
           {listed.data?.folders.map((name) => (
-            <PressableRow key={name} colors={colors} accessibilityRole="button" accessibilityLabel={`Open ${name}`} onPress={() => { setNaming(null); setAt(join(name)); }}
+            <PressableRow key={name} colors={colors} accessibilityRole="button" accessibilityLabel={m.openItem(name)} onPress={() => { setNaming(null); setAt(join(name)); }}
               style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6 }}>
               <Icon name="Folder" size={14} color={colors.foregroundMuted} />
               <Text numberOfLines={1} ellipsizeMode="middle" style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 16 }}>{name}</Text>
@@ -118,40 +122,41 @@ function FolderPicker({ colors, workspaceId, directory, open, start, onClose, on
             </PressableRow>
           ))}
           {listed.data && !listed.data.folders.length ? (
-            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, paddingHorizontal: 8, paddingVertical: 6 }}>No folders in here.</Text>
+            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, paddingHorizontal: 8, paddingVertical: 6 }}>{m.noFolders}</Text>
           ) : null}
-          {listed.error ? <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, paddingHorizontal: 8 }}>{errorText(listed.error, "Could not list the folders.")}</Text> : null}
+          {listed.error ? <Text accessibilityRole="alert" style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17, paddingHorizontal: 8 }}>{errorText(listed.error, m.listFoldersFailure)}</Text> : null}
         </ScrollView>
 
         {naming === null ? (
           <PressScale accessibilityRole="button" onPress={() => setNaming("")}
             style={({ pressed, hovered }) => ({ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
             <Icon name="FolderPlus" size={14} color={colors.foreground} />
-            <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>New folder</Text>
+            <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.newFolder}</Text>
           </PressScale>
         ) : (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <TextInput autoFocus value={naming} onChangeText={setNaming} onSubmitEditing={() => { if (newName) onPick(join(newName)); }}
-              autoCapitalize="none" autoCorrect={false} spellCheck={false} accessibilityLabel="New folder name" placeholder="progress-history" placeholderTextColor={colors.foregroundMuted}
+              autoCapitalize="none" autoCorrect={false} spellCheck={false} accessibilityLabel={m.newFolderName} placeholder="progress-history" placeholderTextColor={colors.foregroundMuted}
               style={{ flex: 1, color: colors.foreground, fontSize: 12, lineHeight: 16, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface1 }} />
             <PressScale accessibilityRole="button" disabled={!newName} onPress={() => onPick(join(newName))}
               style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.accent, opacity: !newName ? 0.5 : pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Use new folder</Text>
+              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.useNewFolder}</Text>
             </PressScale>
           </View>
         )}
 
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-          {at ? null : <Text style={{ flex: 1, minWidth: 140, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>Open a folder to use it, or make a new one.</Text>}
+          {at ? null : <Text style={{ flex: 1, minWidth: 140, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{m.pickFolderHint}</Text>}
           <PressScale accessibilityRole="button" onPress={close}
             style={({ pressed, hovered }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
-            <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Cancel</Text>
+            <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.cancel}</Text>
           </PressScale>
           <PressScale accessibilityRole="button" disabled={!at} onPress={() => onPick(at)} outerStyle={{ flexShrink: 1 }}
             style={({ pressed, hovered }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.accent, opacity: !at ? 0.5 : pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-            <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{at ? `Use ${crumbs[crumbs.length - 1]}` : "Use folder"}</Text>
+            <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{at ? m.useNamedFolder(crumbs[crumbs.length - 1]) : m.useFolder}</Text>
           </PressScale>
         </View>
+      </ProgressLanguageProvider>
       </Modal.Content>
     </Modal>
   );

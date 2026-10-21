@@ -1,12 +1,19 @@
 import type { Activity, Deliverable, Question, Ticket } from "./dashboard.ts";
 import type { TicketStatus } from "./events.ts";
 
+export type TimelineLabel =
+  | { kind: "added" }
+  | { kind: "reset" }
+  | { kind: "stage"; stage: string }
+  | { kind: "status"; status: TicketStatus }
+  | { kind: "waiting"; id: string };
+
 // One span in a ticket's life: from a status or stage change to the next one.
 export interface TimelineStep {
   at: string;
   // When the next step began; null while this one is still going (or it's the end).
   until: string | null;
-  label: string;
+  label: TimelineLabel;
   status: TicketStatus;
   notes: string[];
   // Length of the step; null for a finished ticket's last step, which has no end.
@@ -27,15 +34,10 @@ export interface TicketStory {
 
 const OPEN_ENDED: TicketStatus[] = ["working", "blocked", "not_started"];
 
-function labelFor(status: TicketStatus, stage: string | undefined, first: boolean): string {
-  if (first && status === "not_started") return "Added";
-  switch (status) {
-    case "working": return stage ? `${stage} stage` : "Working";
-    case "blocked": return "Blocked";
-    case "done": return "Done";
-    case "skipped": return "Skipped";
-    default: return "Back to not started";
-  }
+function labelFor(status: TicketStatus, stage: string | undefined, first: boolean): TimelineLabel {
+  if (first && status === "not_started") return { kind: "added" };
+  if (status === "working" && stage) return { kind: "stage", stage };
+  return status === "not_started" ? { kind: "reset" } : { kind: "status", status };
 }
 
 export function ticketTimeline(ticket: Ticket, nowMs: number): TimelineStep[] {

@@ -7,6 +7,7 @@ import { NarrowProvider } from "./narrow";
 import { BackButton, galleryFiles, PreviewContent } from "./preview";
 import { QuestionView, useCopy } from "./questions";
 import { TicketStoryView } from "./ticket-dialog";
+import { ProgressLanguageProvider } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type AttachmentContext = { workspaceId: string; workspaceDirectory: string; navigation?: PluginWorkspacePanelProps["navigation"] };
@@ -76,6 +77,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
       open={Boolean(root)} onOpenChange={(next) => { if (!next) onClose(); }}>
       {/* One Modal.Content for every step: replacing it would re-present the sheet on phones. */}
       <Modal.Content scrollable={!(preview && previewLong)}>
+      <ProgressLanguageProvider>
       {/* A dialog has room for clock times, however narrow the panel that opened it. */}
       <NarrowProvider value={false}>
       {preview ? (
@@ -100,6 +102,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
         </>
       )}
       </NarrowProvider>
+      </ProgressLanguageProvider>
       </Modal.Content>
     </Modal>
   );

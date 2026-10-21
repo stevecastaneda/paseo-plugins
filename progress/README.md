@@ -58,6 +58,14 @@ The command, and **Install skill** in the panel, look for Paseo's own command in
 
 Setting `PASEO_PROGRESS_PLUGIN_DIR` to a plugin folder makes the command run that copy without asking Paseo. Use it only for testing, because an installed plugin's folder changes with every update.
 
+## Language
+
+Progress comes in English and Simplified Chinese. To pick one, open the cog in the Progress panel and choose **Display → Language**. **System** follows each device's language and falls back to English for anything other than Simplified Chinese, so Traditional Chinese stays in English for now.
+
+The choice is saved on the Paseo host, so every device connected to it shows the same language. Progress can't follow Paseo's own language setting, because Paseo doesn't share it with plugins. Open dialogs and pills switch as soon as you change it. The **Progress** name and its **Open Progress** and **Settings** entries stay in English.
+
+Progress translates its own labels, not what agents write. Titles, questions, choices, stages, notes, item labels like `Ticket`, file paths and release notes stay as written, and so do error messages from the host. The `paseo-progress` command and the reply you copy for an agent stay in English too.
+
 ## Where progress is kept
 
 Each worktree's progress lives outside the repo, in its own folder under `~/.local/state/paseo-progress/` on the daemon host. There's nothing to set up and nothing to hide: git never sees these files, and the plugin never edits a `.gitignore` or git's exclude file. The panel's empty state shows the exact path.
@@ -136,6 +144,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.5.0
+
+- [New] **Simplified Chinese.** Progress now comes in English and Simplified Chinese. Pick one under Display in Progress settings, or let it follow each device's language. Thanks to @xzthemeofsss for the translation.
 
 ### 1.4.0
 
