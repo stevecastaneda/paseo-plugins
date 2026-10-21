@@ -39,7 +39,6 @@ function harness(opts: { limits?: Partial<Limits>; publish?: (row: RunRow) => Pr
     terminal: opts.terminal,
   });
   const rows = (id: string) => published.filter((row) => row.runId === id);
-  // What the card shows: the last row published under its timeline id.
   const card = (id: string) => published.filter((row) => cardIdOf(row) === id).at(-1)!;
   const phases = (id: string) => rows(id).map((row) => row.phase.kind);
   const text = (id: string) => registry.snapshot(id, 400)!.output.lines.map(lineText);
@@ -485,13 +484,13 @@ posixTest("Rerun runs again in the same card: run 2 on top, run 1 kept below wit
   await ended(h.registry, second);
   await until(() => h.card(first.runId).phase.kind !== "running");
   const shown = h.card(first.runId);
-  assert.deepEqual([shown.runId, shown.run, shown.past?.length], [second, 2, 1]);
+  assert.deepEqual([shown.runId, shown.runNumber, shown.past?.length], [second, 2, 1]);
   const [past] = shown.past!;
-  assert.deepEqual([past.runId, past.run, past.phase.kind, past.output.total], [first.runId, 1, "failed", 50]);
+  assert.deepEqual([past.runId, past.runNumber, past.phase.kind, past.output.total], [first.runId, 1, "failed", 50]);
   assert.equal(past.output.lines.map(lineText).at(-1), "50");
   assert.ok(past.output.lines.length < 50 && JSON.stringify(past.output.lines).length <= 64, "the past run keeps only the end of its output");
   const sleeping = await rerun(h.registry, { ...shown, command: "sleep 30" });
-  await assert.rejects(rerun(h.registry, { ...shown, runId: sleeping, run: 3 }), /still running/);
+  await assert.rejects(rerun(h.registry, { ...shown, runId: sleeping, runNumber: 3 }), /still running/);
   await h.registry.shutdown();
 });
 
@@ -511,13 +510,13 @@ posixTest("two Reruns of the same card start one command and both get its run", 
 posixTest("after a restart, Rerun builds the card's history from the card itself, and keeps at most 10 earlier runs", { timeout: 15_000 }, async () => {
   const h = harness();
   const clock = { startedAt: 1, endedAt: 2 };
-  const pastRuns = Array.from({ length: 10 }, (_, i) => ({ runId: `old-${i}`, run: i + 2, phase: { kind: "ok" as const, ...clock }, output: { lines: [`run ${i + 2}`], total: 1 }, sentAt: null }));
-  const card: RunRow = { runId: "gone-run", cardId: "card-1", run: 12, past: pastRuns, rev: 4, origin: "user", command: "true", cwd: dir(), phase: { kind: "running", startedAt: 5, stopRequestedAt: null }, output: { lines: ["last words"], total: 1 }, sentAt: 7 };
+  const pastRuns = Array.from({ length: 10 }, (_, i) => ({ runId: `old-${i}`, runNumber: i + 2, phase: { kind: "ok" as const, ...clock }, output: { lines: [`run ${i + 2}`], total: 1 }, sentAt: null }));
+  const card: RunRow = { runId: "gone-run", cardId: "card-1", runNumber: 12, past: pastRuns, rev: 4, origin: "user", command: "true", cwd: dir(), phase: { kind: "running", startedAt: 5, stopRequestedAt: null }, output: { lines: ["last words"], total: 1 }, sentAt: 7 };
   const id = await rerun(h.registry, card);
   await ended(h.registry, id);
   const shown = h.card("card-1");
-  assert.deepEqual([shown.runId, shown.run], [id, 13]);
-  assert.deepEqual(shown.past!.map((p) => p.run), [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual([shown.runId, shown.runNumber], [id, 13]);
+  assert.deepEqual(shown.past!.map((p) => p.runNumber), [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const last = shown.past!.at(-1)!;
   assert.deepEqual([last.runId, last.phase.kind, last.output.lines, last.sentAt], ["gone-run", "interrupted", ["last words"], 7]);
   await h.registry.shutdown();
@@ -532,7 +531,7 @@ posixTest("sending an earlier run records it in the card's history, and the card
   await until(() => h.card(first.runId).past?.[0].sentAt != null);
   const shown = h.card(first.runId);
   assert.deepEqual([shown.runId, shown.sentAt], [second, null]);
-  assert.ok(h.published.every((row) => row.runId !== first.runId || row.run === 1 && row.past === undefined), "the earlier run's own row is never published again");
+  assert.ok(h.published.every((row) => row.runId !== first.runId || row.runNumber === 1 && row.past === undefined), "the earlier run's own row is never published again");
   await h.registry.shutdown();
 });
 

@@ -7,7 +7,7 @@ import { basename, errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
 import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/rpc.ts";
-import { agentName, capitalize, describe, formatDuration, pastRow, pastRunView, statusText, switcher, type Action, type NoteIcon, type Presentation } from "../shared/view.ts";
+import { agentName, capitalize, describe, formatDuration, pastRow, pastRunView, statusText, switcher, type Action, type NoteIcon, type Presentation, type RunInView } from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
 import { makePalette, mix, withAlpha, type ThemeColors } from "./palette.ts";
@@ -16,11 +16,10 @@ import { Badge, Button, IconSwap, PressScale, mono, nativeDriver, raised, toneCo
 const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder" };
 const ACTION_ICON: Record<Action["id"], string> = { run: "Play", dismiss: "X", stop: "Square", "force-stop": "SquareX", copy: "Copy", rerun: "RotateCw", send: "Send" };
 const ENTER_WITHIN_MS = 2_000;
-// Narrower than this, the switcher and status leave the command too little of the header.
 const STACK_SWITCHER_BELOW = 560;
 
 // The renderer for kind "run" v1. Reads the row, merges live state, asks describe() what to
-// show, and paints. Holds no run state of its own, only which of the card's runs is in view.
+// show, and paints. Holds no run state of its own.
 export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTimelineItemProps<RunRow>) {
   const row = item.data;
   const colors = theme.colors;
@@ -31,10 +30,9 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const rpcOutput = useRpc(fullOutput);
   const rpcDismiss = useRpc(dismiss);
   const latest = useResolvedRun(row, rpcTail);
-  // An earlier run in view, until a new run arrives.
   const [picked, setPicked] = useState<{ runId: string; at: number } | null>(null);
-  const viewing = picked?.runId === row.runId && row.past?.[picked.at] ? picked.at : null;
-  const past = viewing === null ? null : row.past![viewing];
+  const viewing: RunInView = picked?.runId === row.runId && row.past?.[picked.at] ? picked.at : "latest";
+  const past = viewing === "latest" ? null : row.past![viewing];
   const run = past ? pastRunView(row, past) : latest;
   const steps = switcher(row, viewing);
   const keyBox = useRef<TextInput>(null);
@@ -42,7 +40,6 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const ui = useRunUi(row.runId, rpcTail);
   const running = run.phase.kind === "running" && run.lostAt === null;
   const latestRunning = latest.phase.kind === "running" && latest.lostAt === null;
-  // An earlier run in view while the newest is still going: it can't be rerun yet.
   const newerRunning = past !== null && latestRunning;
   const now = useNow(running ? 1_000 : null);
   const agent = agentName(useAgent(agentId, (a) => a.provider));
@@ -137,9 +134,9 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
 
   return (
     <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
-      <Card colors={colors} tone={pres.tone} running={latestRunning} away={past !== null} seenLive={ui.seenLive} reduced={reduced}>
+      <Card colors={colors} tone={pres.tone} running={latestRunning} showingEarlierRun={past !== null} seenLive={ui.seenLive} reduced={reduced}>
         <Header pres={pres} colors={colors} compact={compact} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)}
-          steps={steps} newerRunning={newerRunning} onStep={(at) => setPicked(at === null ? null : { runId: row.runId, at })} />
+          steps={steps} newerRunning={newerRunning} onStep={(to) => setPicked(to === "latest" ? null : { runId: row.runId, at: to })} />
         {pres.well?.kind === "output" ? (
           <OutputWell
             lines={run.output.lines}
@@ -175,9 +172,8 @@ function buttonTone(action: Action): ButtonTone {
 }
 
 // The card: surface, ring, the running sweep along the top edge, and one flash of the
-// status color when a run this mount watched comes to an end. Both belong to the latest
-// run, so neither shows while an earlier run is in view (`away`).
-function Card({ children, colors, tone, running, away, seenLive, reduced }: { children: React.ReactNode; colors: ThemeColors; tone: Presentation["tone"]; running: boolean; away: boolean; seenLive: boolean; reduced: boolean }) {
+// status color when a run this mount watched comes to an end.
+function Card({ children, colors, tone, running, showingEarlierRun, seenLive, reduced }: { children: React.ReactNode; colors: ThemeColors; tone: Presentation["tone"]; running: boolean; showingEarlierRun: boolean; seenLive: boolean; reduced: boolean }) {
   const [width, setWidth] = useState(0);
   const sweep = useRef(new Animated.Value(0)).current;
   const flash = useRef(new Animated.Value(0)).current;
@@ -190,7 +186,7 @@ function Card({ children, colors, tone, running, away, seenLive, reduced }: { ch
     return () => loop.stop();
   }, [running, reduced, width]);
   useEffect(() => {
-    if (wasRunning.current && !running && seenLive && !reduced && !away) {
+    if (wasRunning.current && !running && seenLive && !reduced && !showingEarlierRun) {
       flash.setValue(1);
       Animated.timing(flash, { toValue: 0, duration: 700, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
     }
@@ -200,7 +196,7 @@ function Card({ children, colors, tone, running, away, seenLive, reduced }: { ch
   const barWidth = Math.round(width * 0.28);
   return (
     <View testID="shell-yeah-run" onLayout={onLayout} style={[{ borderRadius: 12, backgroundColor: colors.surface1, overflow: "hidden", borderWidth: 1, borderColor: "transparent" }, raised(colors)]}>
-      {running && !away ? (
+      {running && !showingEarlierRun ? (
         reduced ? (
           <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1, backgroundColor: withAlpha(colors.accent, 0.4) }} />
         ) : (
@@ -247,15 +243,13 @@ function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeCol
 
 type Steps = ReturnType<typeof switcher>;
 
-function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning, onStep }: { pres: Presentation; colors: ThemeColors; compact: boolean; expanded: boolean; onToggle(): void; steps: Steps; newerRunning: boolean; onStep(at: number | null): void }) {
+function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning, onStep }: { pres: Presentation; colors: ThemeColors; compact: boolean; expanded: boolean; onToggle(): void; steps: Steps; newerRunning: boolean; onStep(to: RunInView): void }) {
   const [first, ...rest] = pres.script.split("\n");
   const [hovered, setHovered] = useState(false);
   const [width, setWidth] = useState(0);
   const stacked = compact || (width > 0 && width < STACK_SWITCHER_BELOW);
-  // A command cut short by the header's width still folds open, so it can always be read whole.
-  const [room, setRoom] = useState(0);
-  const [needs, setNeeds] = useState(0);
-  const foldable = pres.foldable || (room > 0 && needs > room + 1);
+  const command = useCutOff();
+  const foldable = pres.foldable || command.cutOff;
   const rotate = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(rotate, { toValue: expanded ? 1 : 0, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
@@ -270,11 +264,11 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-        <Text onLayout={(event) => setRoom(event.nativeEvent.layout.width)} numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
+        <Text onLayout={command.onShownLayout} numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
           <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
           {first}
         </Text>
-        <Text aria-hidden selectable={false} pointerEvents="none" onLayout={(event) => setNeeds(event.nativeEvent.layout.width)} numberOfLines={1} style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{`$ ${first}`}</Text>
+        <Text aria-hidden selectable={false} pointerEvents="none" onLayout={command.onFullLayout} numberOfLines={1} style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{`$ ${first}`}</Text>
         {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
         {stacked ? null : switcher}
         {status}
@@ -286,8 +280,6 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
           ) : null}
         </IconSwap>
       </View>
-      {/* On a phone or a narrow card the switcher gets its own line, so the command keeps the
-          header's width. The left chevron's glyph lines up under the "$". */}
       {stacked && switcher ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcher}</View> : null}
     </View>
   );
@@ -305,19 +297,16 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
   );
 }
 
-// "‹ Run 2 of 3 ›": steps through the card's runs. Its own presses never fold the card.
-// While an earlier run is in view, the card's sweep is hidden, so the later-run arrow
-// turns the accent color and carries a dot to say the newest run is still going.
-function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: NonNullable<Steps>; colors: ThemeColors; compact: boolean; newerRunning: boolean; onStep(at: number | null): void }) {
+function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: NonNullable<Steps>; colors: ThemeColors; compact: boolean; newerRunning: boolean; onStep(to: RunInView): void }) {
   const size = compact ? 28 : 24;
-  const arrow = (icon: string, label: string, to: number | null | undefined, live = false) => (
+  const arrow = (icon: string, label: string, to: RunInView | null, live = false) => (
     <PressScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: to === undefined }}
-      disabled={to === undefined}
-      onPress={() => to !== undefined && onStep(to)}
-      style={({ hovered }) => ({ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered && to !== undefined ? colors.surface2 : "transparent", opacity: to === undefined ? 0.35 : 1 })}>
+      accessibilityState={{ disabled: to === null }}
+      disabled={to === null}
+      onPress={() => to !== null && onStep(to)}
+      style={({ hovered }) => ({ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered && to !== null ? colors.surface2 : "transparent", opacity: to === null ? 0.35 : 1 })}>
       <Icon name={icon} size={14} color={live ? colors.accent : colors.foregroundMuted} />
       {live ? <View style={{ position: "absolute", top: size / 2 - 7, right: size / 2 - 7, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.accent }} /> : null}
     </PressScale>
@@ -441,6 +430,17 @@ function Elapsed({ from, prefix }: { from: number; prefix: string }) {
   // A stopwatch starts at 0.0s; "<0.1s" is for runs that are already over.
   const ms = Math.max(0, now - from);
   return <>{prefix}{ms < 100 ? "0.0s" : formatDuration(ms)}</>;
+}
+
+// Compares the width a one-line text gets with the width an unconstrained copy of it needs.
+function useCutOff(): { cutOff: boolean; onShownLayout(event: LayoutChangeEvent): void; onFullLayout(event: LayoutChangeEvent): void } {
+  const [shown, setShown] = useState(0);
+  const [full, setFull] = useState(0);
+  return {
+    cutOff: shown > 0 && full > shown + 1,
+    onShownLayout: (event) => setShown(event.nativeEvent.layout.width),
+    onFullLayout: (event) => setFull(event.nativeEvent.layout.width),
+  };
 }
 
 function useNow(intervalMs: number | null): number {

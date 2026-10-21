@@ -189,24 +189,26 @@ test("durations read naturally at every scale", () => {
   assert.equal(formatDuration(3_720_000), "1h 02m");
 });
 
-const pastRun = (n: number, overrides: Partial<PastRun> = {}): PastRun => ({ runId: `r${n}`, run: n, phase: { kind: "ok", ...ended }, output: { lines: [`run ${n}`], total: 1 }, sentAt: null, ...overrides });
+const pastRun = (n: number, overrides: Partial<PastRun> = {}): PastRun => ({ runId: `r${n}`, runNumber: n, phase: { kind: "ok", ...ended }, output: { lines: [`run ${n}`], total: 1 }, sentAt: null, ...overrides });
 
 test("a card with earlier runs switches between them: Run 2 of 3, with no arrow past either end", () => {
-  const card = { run: 3, past: [pastRun(1), pastRun(2)] };
-  assert.equal(switcher({ run: 1 }, null), null);
-  assert.deepEqual(switcher(card, null), { label: "Run 3 of 3", prev: 1, next: undefined });
-  assert.deepEqual(switcher(card, 1), { label: "Run 2 of 3", prev: 0, next: null });
-  assert.deepEqual(switcher(card, 0), { label: "Run 1 of 3", prev: undefined, next: 1 });
-  // Past the cap the earliest runs are gone, and the numbers still count every run.
-  assert.deepEqual(switcher({ run: 12, past: [9, 10, 11].map((n) => pastRun(n)) }, 0), { label: "Run 9 of 12", prev: undefined, next: 1 });
+  const card = { runNumber: 3, past: [pastRun(1), pastRun(2)] };
+  assert.equal(switcher({ runNumber: 1 }, "latest"), null);
+  assert.deepEqual(switcher(card, "latest"), { label: "Run 3 of 3", prev: 1, next: null });
+  assert.deepEqual(switcher(card, 1), { label: "Run 2 of 3", prev: 0, next: "latest" });
+  assert.deepEqual(switcher(card, 0), { label: "Run 1 of 3", prev: null, next: 1 });
+});
+
+test("past the cap, a card's run numbers still count every run", () => {
+  assert.deepEqual(switcher({ runNumber: 12, past: [9, 10, 11].map((n) => pastRun(n)) }, 0), { label: "Run 9 of 12", prev: null, next: 1 });
 });
 
 test("an earlier run shows as its own status and output, with Rerun, Copy and Send", () => {
-  const card: RunRow = { runId: "r3", cardId: "r1", run: 3, rev: 9, origin: "user", command: "npm test", cwd: "/repo", phase: { kind: "running", startedAt: T0, stopRequestedAt: null }, output: { lines: ["now"], total: 1 }, sentAt: null, terminal: true };
+  const card: RunRow = { runId: "r3", cardId: "r1", runNumber: 3, rev: 9, origin: "user", command: "npm test", cwd: "/repo", phase: { kind: "running", startedAt: T0, stopRequestedAt: null }, output: { lines: ["now"], total: 1 }, sentAt: null, terminal: true };
   const failed = pastRun(2, { phase: { kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, output: { lines: ["boom"], total: 40 } });
   const p = describe(pastRunView(card, failed), T0);
   assert.deepEqual([p.layout, p.label, p.elapsed, p.timerFrom, p.keyboard], ["card", "Exit 1", "12s", null, false]);
   assert.deepEqual(ids(p), ["send", "copy", "rerun"]);
   assert.deepEqual(p.notes[1], { icon: "scissors", text: "Last 1 of 40 lines" });
-  assert.deepEqual(pastRow(card, failed), { runId: "r2", rev: 9, origin: "user", command: "npm test", cwd: "/repo", phase: failed.phase, output: failed.output, sentAt: null, terminal: true, cardId: "r1", run: 2 });
+  assert.deepEqual(pastRow(card, failed), { runId: "r2", rev: 9, origin: "user", command: "npm test", cwd: "/repo", phase: failed.phase, output: failed.output, sentAt: null, terminal: true, cardId: "r1", runNumber: 2 });
 });

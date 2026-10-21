@@ -51,11 +51,9 @@ export const isEnded = (p: Phase): p is Ended => p.kind === "ok" || p.kind === "
 export const output = z.object({ lines: z.array(line), total: z.number().int().nonnegative() });
 export type Output = z.infer<typeof output>;
 
-// An earlier run of a card: its status and the end of its output.
 export const pastRun = z.object({
   runId: z.string(),
-  // Its number in the card, from 1.
-  run: z.number().int().positive(),
+  runNumber: z.number().int().positive(),
   phase: endedPhase,
   output,
   sentAt: z.number().nullable(),
@@ -78,17 +76,14 @@ export const runRow = z.object({
   sentAt: z.number().nullable(),
   // The command ran in a real terminal, so it could take typing. Absent on older rows.
   terminal: z.boolean().optional(),
-  // The timeline row this run shows in; Rerun keeps the card. Absent = runId (rows before 1.1.0).
   cardId: z.string().optional(),
-  // This run's number in its card, from 1. Absent = 1.
-  run: z.number().int().positive().optional(),
-  // Earlier runs of this card, oldest first, at most LIMITS.pastRuns. Absent = none.
+  runNumber: z.number().int().positive().optional(),
   past: z.array(pastRun).optional(),
 });
 export type RunRow = z.infer<typeof runRow>;
 
 export const cardIdOf = (row: Pick<RunRow, "runId" | "cardId">): string => row.cardId ?? row.runId;
-export const runNumberOf = (row: Pick<RunRow, "run">): number => row.run ?? 1;
+export const runNumberOf = (row: Pick<RunRow, "runNumber">): number => row.runNumber ?? 1;
 
 // Where the terminal's cursor is, counted from the end of `output.lines`: up 0 is the last
 // line, up -1 the empty line below it. Typing lands here.
