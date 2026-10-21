@@ -23,7 +23,7 @@ The output box holds the last 300 lines and stays on the newest one while the co
 
 **Rerun** runs the command again in the same card. The arrows next to **Run 2 of 2** go back through earlier runs, up to 10. Each shows its result and the end of its output. **Send** and **Copy** use the run you're looking at.
 
-<img src="images/9-rerun.png" alt="Rerun runs the command again in the same card; the arrows next to Run 2 of 2 go back to the run that failed" width="600">
+<img src="images/9-rerun.png" alt="A card after Rerun showing Run 2 of 2, with an arrow back to the run that failed" width="600">
 
 The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over. On Windows, the command runs in PowerShell 7 if it's installed, otherwise in the Windows PowerShell that comes with Windows. It skips your PowerShell profile for the same reason.
 
