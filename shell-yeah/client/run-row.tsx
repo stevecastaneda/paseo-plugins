@@ -112,14 +112,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
     </View>
   );
 
-  if (pres.layout === "dismissed") {
-    return (
-      <View testID="shell-yeah-run" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingHorizontal: 12 }}>
-        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 0 }}>Dismissed · </Text>
-        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 12, lineHeight: 16, flexShrink: 1, minWidth: 0 }}>{pres.script}</Text>
-      </View>
-    );
-  }
+  if (pres.layout === "dismissed") return null;
 
   if (pres.layout === "proposed") {
     return (
@@ -144,7 +137,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
             palette={palette}
             colors={colors}
             tall={ui.expanded}
-            rows={pres.boxLines}
+            box={pres.box}
             compact={compact}
             running={running}
             following={ui.following}
