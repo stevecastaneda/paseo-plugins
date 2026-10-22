@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -17,7 +17,7 @@ import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.t
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
 import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, MAX_PREVIEW_VIDEO_BYTES, openCommand, openDeliverable, previewDeliverable, readDeliverablePiece, VIDEO_PIECE_BYTES } from "./open.ts";
-import { attachmentIcon, canPreview, deliverableAttachment, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
+import { attachmentIcon, canPreview, deliverableAttachment, opensAsPage, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMode } from "./question-mode.ts";
 import type { QuestionMode } from "../shared/question-modes.ts";
@@ -1286,9 +1286,9 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await w.run("deliverable", "add", "Outside", join(tmpdir(), "elsewhere.png"));
   assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "image", dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
   assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "text", text: "# Notes", bytes: 7, truncated: false });
-  await writeFile(join(w.directory, "shots", "page.html"), "<h1>Hi</h1>");
-  await w.run("deliverable", "add", "Page", "shots/page.html");
-  await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image, video or text file/, "HTML is left to the browser");
+  await writeFile(join(w.directory, "shots", "data.bin"), "x");
+  await w.run("deliverable", "add", "Data", "shots/data.bin");
+  await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image, video, text or HTML file/);
   await assert.rejects(previewDeliverable(w.directory, "D3"), /too large to preview/);
   await assert.rejects(previewDeliverable(w.directory, "D4"), /no longer exists|outside this worktree/);
   const longLog = "x".repeat(MAX_PREVIEW_TEXT_BYTES + 10);
@@ -1300,6 +1300,56 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   assert.deepEqual(await previewDeliverable(w.directory, "D7"), { kind: "text", text: "", bytes: 0, truncated: false });
   assert.equal(imageMimeType("a/b.jpeg"), "image/jpeg");
   assert.equal(imageMimeType("report.html"), null);
+});
+
+test("an HTML report previews with the files beside it written in, only from inside the worktree", async (t) => {
+  const w = await screenshotRun(t);
+  await mkdir(join(w.directory, "report", "shots"), { recursive: true });
+  const png = Buffer.from("89504e470d0a1a0a", "hex");
+  await writeFile(join(w.directory, "report", "shots", "home.png"), png);
+  await writeFile(join(w.directory, "report", "views.js"), "document.body.append('</script>');");
+  await writeFile(join(w.directory, "report", "style.css"), "h1 { color: red }");
+  await writeFile(join(w.directory, "secret.png"), png);
+  const outsideDir = await mkdtemp(join(tmpdir(), "progress-outside-"));
+  t.after(() => rm(outsideDir, { recursive: true, force: true }));
+  await writeFile(join(outsideDir, "leak.js"), "steal()");
+  await writeFile(join(outsideDir, "leak.png"), png);
+  const escape = `../../${basename(outsideDir)}/leak.png`;
+  await symlink(join(outsideDir, "leak.js"), join(w.directory, "report", "leak.js"));
+  const page = [
+    `<script src="https://cdn.tailwindcss.com"></script>`,
+    `<link rel="stylesheet" href="style.css">`,
+    `<img alt="Home" src="shots/home.png">`,
+    `<img src="../secret.png">`,
+    `<img src="${escape}">`,
+    `<img src="https://example.com/a.png">`,
+    `<img src="missing.png">`,
+    `<script defer src="views.js"></script>`,
+    `<script src="leak.js"></script>`,
+  ].join("\n");
+  await writeFile(join(w.directory, "report", "index.html"), page);
+  await w.run("deliverable", "add", "Report", "report/index.html");
+  const preview = await previewDeliverable(w.directory, "D1");
+  assert.deepEqual(preview, {
+    kind: "html",
+    bytes: Buffer.byteLength(page),
+    html: [
+      `<script src="https://cdn.tailwindcss.com"></script>`,
+      `<style>h1 { color: red }</style>`,
+      `<img alt="Home" src="data:image/png;base64,${png.toString("base64")}">`,
+      `<img src="data:image/png;base64,${png.toString("base64")}">`,
+      `<img src="${escape}">`,
+      `<img src="https://example.com/a.png">`,
+      `<img src="missing.png">`,
+      `<script defer>document.body.append('<\\/script>');</script>`,
+      `<script src="leak.js"></script>`,
+    ].join("\n"),
+  }, "files in the worktree are written in; web addresses, missing files and anything outside the worktree stay as written");
+  const report = findAttachment((await readProgress(w.store)).dashboard, "D1")!;
+  assert.equal(attachmentIcon(report), "FileCode");
+  assert.equal(canPreview(report, { browser: true }), false, "a page is too wide for the preview dialog");
+  assert.equal(opensAsPage(report, { browser: true }), true, "the desktop app gives the page a screen of its own");
+  assert.equal(opensAsPage(report, { browser: false }), false, "the phone apps open it on the computer running Paseo");
 });
 
 test("a video previews as its type and size, then arrives in pieces", async (t) => {

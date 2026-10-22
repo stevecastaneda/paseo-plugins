@@ -39,22 +39,23 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
   return (
     <>
       <Presence show={Boolean(whatsNew)}>{whatsNew ? (
-        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
-          <View style={{ alignSelf: "flex-start", height: 17, justifyContent: "center" }}><Icon name="Gift" size={14} color={colors.foregroundMuted} /></View>
-          <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            <Text style={{ color: colors.foreground, fontWeight: "500" }}>{whatsNew.releases.length > 1 ? m.updatedTo(whatsNew.version) : m.newVersion(whatsNew.version)}</Text> {whatsNew.headline}
-          </Text>
-          {/* 8px keeps the close button's 6px hit slop off the button beside it. */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <PressScale accessibilityRole="button" onPress={() => { setShown(whatsNew); setOpen(true); }}
-              style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.seeWhatsNew}</Text>
-            </PressScale>
+        // The headline gets the full width, with the button under it on the text's edge.
+        <View style={{ gap: 8, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+            <View style={{ height: 17, justifyContent: "center" }}><Icon name="Gift" size={14} color={colors.foregroundMuted} /></View>
+            <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+              <Text style={{ color: colors.foreground, fontWeight: "500" }}>{whatsNew.releases.length > 1 ? m.updatedTo(whatsNew.version) : m.newVersion(whatsNew.version)}</Text> {whatsNew.headline}
+            </Text>
+            {/* Centered on the first line without making it taller. */}
             <PressScale accessibilityRole="button" accessibilityLabel={m.dismissWhatsNew} hitSlop={6} onPress={() => close(whatsNew.version)}
-              style={({ pressed, hovered }) => ({ padding: 5, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
+              style={({ pressed, hovered }) => ({ marginVertical: -4.5, padding: 5, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
               <Icon name="X" size={16} color={colors.foregroundMuted} />
             </PressScale>
           </View>
+          <PressScale accessibilityRole="button" onPress={() => { setShown(whatsNew); setOpen(true); }}
+            style={({ pressed, hovered }) => ({ alignSelf: "flex-start", marginStart: 24, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
+            <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.seeWhatsNew}</Text>
+          </PressScale>
         </View>
       ) : null}</Presence>
       <Modal title={!shown ? "" : shown.releases.length > 1 ? m.whatsNewAll : m.whatsNewTitle(shown.version)} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}

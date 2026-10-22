@@ -356,7 +356,7 @@ const CHARS_PER_LINE = Math.floor((CONTENT_WIDTH - 20) / 7.2);
 const FOLDER_ROW_HEIGHT = ATTACHMENT_ROW.lineHeight + ATTACHMENT_ROW.paddingVertical * 2 + ATTACHMENT_ROW.gap;
 
 // Roughly how tall the preview draws, including wrapped lines.
-function estimatedHeight(data: { kind: "image" | "video" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
+function estimatedHeight(data: { kind: "image" | "video" | "html" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
   if (!data) return 0;
   if (data.kind === "folder") return Math.max(1, data.entries.length + (data.truncated ? 1 : 0)) * FOLDER_ROW_HEIGHT;
   if (data.kind !== "text") return Math.min(CONTENT_WIDTH / aspectRatio, maxMediaHeight);

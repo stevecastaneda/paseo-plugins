@@ -2,10 +2,11 @@ import { openExternalUrl, type PluginWorkspacePanelProps, useRpc } from "@getpas
 import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import React from "react";
 import { Platform, Text, View } from "react-native";
-import { type Attachment, attachmentIcon, canPreview, shortName } from "../shared/attachments";
+import { type Attachment, attachmentIcon, canPreview, opensAsPage, shortName } from "../shared/attachments";
+import { openPage } from "./page-opener";
 import { errorText } from "./errors";
 import { PressableRow } from "./row";
-import { openDeliverable } from "../shared/rpc";
+import { canOpenOnHost, openDeliverable } from "../shared/rpc";
 import { useProgressLanguage } from "./language";
 
 export { type Attachment, attachmentIcon, deliverableAttachment, questionAttachments, shortName, ticketSourceAttachment } from "../shared/attachments";
@@ -35,6 +36,7 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
   const { messages: m } = useProgressLanguage();
   const toast = useToast();
   const openOnHostRpc = useRpc(openDeliverable);
+  const checkHost = useRpc(canOpenOnHost);
   async function copyPath(attachment: Attachment, prefix = "") {
     try {
       await copyText(absolutePath(attachment.path!, workspaceDirectory));
@@ -59,6 +61,12 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
       } catch {
         toast.error(m.linkFailure);
       }
+      return;
+    }
+    // A page opens on the computer holding it, like a double-click, and in
+    // Paseo only where that computer has no screen to open it on.
+    if (openPage && opensAsPage(attachment, { browser: Platform.OS === "web" }) && !(await checkHost({ workspaceId, workspaceDirectory }).then((result) => result.canOpen, () => false))) {
+      openPage({ workspaceId, workspaceDirectory, ref: attachment.ref, title: attachment.title });
       return;
     }
     if (onPreview && isPreviewable(attachment)) {

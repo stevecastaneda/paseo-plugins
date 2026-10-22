@@ -65,7 +65,7 @@ const VIDEO_TYPES: Record<string, string> = {
 };
 
 // Plain text shown as-is in the preview dialog, and opened in the browser on
-// the host. HTML is left to the browser either way.
+// the host.
 const TEXT_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt", ".log", ".json", ".jsonl", ".yaml", ".yml", ".csv"]);
 
 function extension(path: string): string | null {
@@ -82,10 +82,12 @@ export function videoMimeType(path: string): string | null {
   return VIDEO_TYPES[extension(path) ?? ""] ?? null;
 }
 
-export function previewKind(path: string): "image" | "video" | "text" | null {
+export function previewKind(path: string): "image" | "video" | "text" | "html" | null {
   if (imageMimeType(path)) return "image";
   if (videoMimeType(path)) return "video";
-  return TEXT_EXTENSIONS.has(extension(path) ?? "") ? "text" : null;
+  const ext = extension(path) ?? "";
+  if (ext === ".html" || ext === ".htm") return "html";
+  return TEXT_EXTENSIONS.has(ext) ? "text" : null;
 }
 
 export function isFolder(attachment: Attachment): boolean {
@@ -118,6 +120,7 @@ export function canPreview(attachment: Attachment, where: { browser: boolean }):
   if (!attachment.path) return false;
   if (isFolder(attachment)) return true;
   const kind = previewKind(attachment.path);
+  if (kind === "html") return false;
   if (kind === "video" || (kind === "image" && extension(attachment.path) === ".svg")) return where.browser;
   return kind !== null;
 }
@@ -137,7 +140,13 @@ export function attachmentIcon(attachment: Attachment): string {
   if (attachment.url) return "Globe";
   if (!attachment.path) return "File";
   const kind = previewKind(attachment.path);
-  return kind === "image" ? "Image" : kind === "video" ? "Video" : kind === "text" ? "FileText" : /[\/]$/.test(attachment.path) ? "Folder" : "File";
+  return kind === "image" ? "Image" : kind === "video" ? "Video" : kind === "text" ? "FileText" : kind === "html" ? "FileCode" : /[\/]$/.test(attachment.path) ? "Folder" : "File";
+}
+
+// An HTML page is too wide for the dialog, so where the host can't open it the
+// desktop app gives it a screen of its own. The phone apps can't draw one.
+export function opensAsPage(attachment: Attachment, where: { browser: boolean }): boolean {
+  return where.browser && Boolean(attachment.path) && previewKind(attachment.path!) === "html";
 }
 
 // The short name people recognize: a file or folder's own name, or a link's site.

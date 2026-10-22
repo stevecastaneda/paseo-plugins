@@ -3,6 +3,7 @@ import { ProgressPanel } from "./client/panel";
 import { contributePills, progressPanel } from "./client/pills";
 import { QuestionSettings } from "./client/settings";
 import { ProgressLanguageProvider } from "./client/language";
+import { addPageScreen } from "./client/page-screen";
 
 const SETTINGS_ID = "settings";
 
@@ -29,6 +30,7 @@ export default function contribute(client: PluginClientContext) {
     },
   });
 
+  const stopPage = addPageScreen(client);
   const stopSettings = client.addSettingsScreen({
     id: SETTINGS_ID,
     title: "Settings",
@@ -37,6 +39,7 @@ export default function contribute(client: PluginClientContext) {
   });
 
   return () => {
+    stopPage();
     void stopSettings();
     void stopPanel();
     void stopCommand();
