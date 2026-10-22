@@ -145,6 +145,11 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.8.0
+
+- [New] **HTML reports open on a server with no screen.** An HTML report on a computer that can't open it, like a Linux server, used to fail and copy the file's path. In the desktop app it now opens across Paseo's main area, with its pictures, styles and scripts. Esc or Close takes you back. Where the computer can open it, it still opens in your browser.
+- [Improved] **What's new banner.** The headline gets the banner's full width, with **See what's new** under it.
+
 ### 1.7.0
 
 - [New] **See screenshots full screen.** In an image preview, press **Full screen** or click the image to fill the window with it. Esc takes you back to the preview, still open. The arrow keys still move between images. A long screenshot also gets **Fit to width**, which fills the width so you can scroll down it.

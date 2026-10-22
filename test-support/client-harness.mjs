@@ -20,6 +20,8 @@ export function clientHarness(pluginDirectory, modules = {}) {
   const timelineRenderers = [];
   const attachmentSources = [];
   const settingsScreens = [];
+  const screens = [];
+  const openedScreens = [];
   const responses = { 'time-since.last-reply.list': { lastReplyAt: {} } };
   let nextTimer = 0;
   function timer(callback, delay, repeat = false) { const id = ++nextTimer; timers.set(id, { callback, delay, repeat }); return id; }
@@ -120,6 +122,8 @@ export function clientHarness(pluginDirectory, modules = {}) {
     addSlashCommand(command) { const entry = { ...command, removed: false }; slashCommands.push(entry); return () => { entry.removed = true; }; },
     addTimelineRenderer(renderer) { const entry = { ...renderer, removed: false }; timelineRenderers.push(entry); return () => { entry.removed = true; }; },
     addSettingsScreen(screen) { const entry = { ...screen, removed: false }; settingsScreens.push(entry); return () => { entry.removed = true; }; },
+    addScreen(screen) { const entry = { ...screen, removed: false }; screens.push(entry); return () => { entry.removed = true; }; },
+    openScreen(input) { openedScreens.push(input); },
     addAttachmentSource(source) { const entry = { ...source, removed: false }; attachmentSources.push(entry); return () => { entry.removed = true; }; },
     async rpc(contract, input) {
       requests.push({ name: contract.name, input });
@@ -130,7 +134,7 @@ export function clientHarness(pluginDirectory, modules = {}) {
       throw new Error(`Unexpected RPC ${contract.name}`);
     },
   };
-  return { client, load, agents, workspaces, registrations, requests, watches, opened, panels, commandItems, openedPanels, slashCommands, timelineRenderers, attachmentSources, settingsScreens, timers, responses,
+  return { client, load, agents, workspaces, registrations, requests, watches, opened, panels, commandItems, openedPanels, slashCommands, timelineRenderers, attachmentSources, settingsScreens, screens, openedScreens, timers, responses,
     async flush() { for (let i = 0; i < 10; i++) await Promise.resolve(); },
     async tick(delay) { for (const [id, timer] of [...timers]) if (timer.delay === delay) { if (!timer.repeat) timers.delete(id); await timer.callback(); } },
   };

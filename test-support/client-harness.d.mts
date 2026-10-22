@@ -17,6 +17,8 @@ export function clientHarness(pluginDirectory: string, modules?: Record<string, 
   timelineRenderers: Array<any & { removed: boolean }>;
   attachmentSources: Array<any & { removed: boolean }>;
   settingsScreens: Array<any & { removed: boolean }>;
+  screens: Array<any & { removed: boolean }>;
+  openedScreens: any[];
   /** URLs passed to openExternalUrl. */
   opened: string[];
   timers: Map<number, { callback(): void; delay: number }>;
