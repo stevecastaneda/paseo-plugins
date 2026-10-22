@@ -119,7 +119,8 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   // Phones and narrow windows get Paseo's bottom sheet, whose transforms would
   // keep the full-screen layer inside it.
   const fullScreenFits = Platform.OS === "web" && windowWidth >= COMPACT_BELOW;
-  const canFullScreen = fullScreenFits && preview.data?.kind === "image";
+  // By the file, not the data: while stepping, the data is still the last file's.
+  const canFullScreen = fullScreenFits && previewKind(attachment.path ?? "") === "image" && preview.data?.kind === "image";
   useEffect(() => {
     if (fullScreen && !fullScreenFits) onFullScreen(false);
   }, [fullScreen, fullScreenFits]);
@@ -243,8 +244,8 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
   const light = "rgba(255, 255, 255, 0.85)";
   return (
     <Pressable accessible={false} focusable={false} onPress={onExit}
-      style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "rgba(0, 0, 0, 0.92)" } as unknown as ViewStyle}>
-      <View style={{ height: FULL_SCREEN_BAR, flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: FULL_SCREEN_MARGIN, paddingRight: 12 }}>
+      style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "black" } as unknown as ViewStyle}>
+      <View style={{ height: FULL_SCREEN_BAR, flexDirection: "row", alignItems: "center", gap: 12, paddingStart: FULL_SCREEN_MARGIN, paddingEnd: 12 }}>
         <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: light, fontSize: 13, lineHeight: 18 }}>{title}</Text>
         <PressScale ref={closeButton} accessibilityRole="button" accessibilityLabel={m.exitFullScreen} onPress={onExit}
           style={({ pressed, hovered }) => ({
@@ -255,7 +256,7 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
         </PressScale>
       </View>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: FULL_SCREEN_MARGIN }}>
-        <Image accessibilityLabel={title} source={{ uri }} resizeMode="contain" style={{ width, aspectRatio: ratio, opacity: dimmed ? 0.6 : 1 }} />
+        <Image accessibilityLabel={title} source={{ uri }} resizeMode="contain" style={{ width, aspectRatio: ratio, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)", opacity: dimmed ? 0.6 : 1 }} />
       </View>
     </Pressable>
   );
