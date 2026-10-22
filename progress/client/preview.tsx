@@ -208,25 +208,38 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       </View>
     </View>
   );
-  const fullScreenLayer = fullScreen && showsLayer && preview.data?.kind === "image" ? (
+  const layerShown = fullScreen && showsLayer;
+  const fullScreenLayer = layerShown && preview.data?.kind === "image" ? (
     <FullScreenImage title={attachment.title} uri={preview.data.dataUri} naturalWidth={preview.data.width} ratio={aspectRatio} dimmed={stepping} onExit={() => onFullScreen(false)} />
   ) : null;
-  return long ? (
+  // Paseo's focus trap counts the controls under the layer, so Shift+Tab would
+  // reach a hidden Open. Inert takes them out until full screen ends.
+  const body = useRef<View>(null);
+  useEffect(() => {
+    if (!layerShown) return;
+    const element = body.current as unknown as { setAttribute?(name: string, value: string): void; removeAttribute?(name: string): void } | null;
+    element?.setAttribute?.("inert", "");
+    return () => element?.removeAttribute?.("inert");
+  }, [layerShown]);
+  return (
     <>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
-      <View style={{ marginTop: 8 }}>{path}</View>
-      {actions}
+      {long ? (
+        <View ref={body} style={{ flex: 1 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
+          <View style={{ marginTop: 8 }}>{path}</View>
+          {actions}
+        </View>
+      ) : (
+        <View ref={body} style={{ gap: 20 }}>
+          <View style={{ gap: 8 }}>
+            <View style={{ gap: 12 }}>{content}</View>
+            {path}
+          </View>
+          {actions}
+        </View>
+      )}
       {fullScreenLayer}
     </>
-  ) : (
-    <View style={{ gap: 20 }}>
-      <View style={{ gap: 8 }}>
-        <View style={{ gap: 12 }}>{content}</View>
-        {path}
-      </View>
-      {actions}
-      {fullScreenLayer}
-    </View>
   );
 }
 
