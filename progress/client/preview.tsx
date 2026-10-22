@@ -111,11 +111,9 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   // Next has focus when the preview opens, so Enter or Space moves on too.
   const nextButton = useRef<View>(null);
   const fullScreenButton = useRef<View>(null);
-  // Leaving full screen puts focus back on the Full screen button. Esc is a key, so
-  // the browser would draw its keyboard ring there, as if the arrows now acted on the
-  // button. The ring stays off until focus moves on. It's set during render so the
-  // ring never paints for a frame, and from `leftFullScreen` because leaving can
-  // remount the preview.
+  // Leaving full screen puts focus back on the Full screen button without the ring
+  // Esc would draw, which read as if the arrows now acted on it. Set during render so
+  // the ring never paints, and from `leftFullScreen` because leaving can remount this.
   const [quiet, setQuiet] = useState(leftFullScreen && !fullScreen);
   const [wasFullScreen, setWasFullScreen] = useState(fullScreen);
   if (wasFullScreen !== fullScreen) {
