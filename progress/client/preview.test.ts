@@ -59,6 +59,9 @@ function fullScreenText(size: { width: number; height: number }, window?: Window
 test("full screen offers Fit to width only for an image too long to read whole", () => {
   assert.ok(fullScreenText({ width: 1170, height: 6000 }).includes("Fit to width"));
   assert.ok(!fullScreenText({ width: 1600, height: 900 }).includes("Fit to width"));
+  const desktop = { width: 1848, height: 1150 };
+  assert.ok(!fullScreenText({ width: 2880, height: 2000 }, desktop).includes("Fit to width"), "a window screenshot");
+  assert.ok(fullScreenText({ width: 1170, height: 2532 }, desktop).includes("Fit to width"), "a phone screenshot");
 });
 
 test("full screen ends when the image stepped onto fails to load", () => {

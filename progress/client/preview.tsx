@@ -284,9 +284,10 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
   const room = windowHeight - 2 * FULL_SCREEN_MARGIN - FULL_SCREEN_BAR;
   const widthFit = Math.max(0, Math.min(naturalWidth ?? Infinity, windowWidth - 2 * FULL_SCREEN_MARGIN));
   const screenFit = Math.min(widthFit, room * ratio);
-  // Only an image that would shrink noticeably to fit gets the choice; a near miss
-  // reads fine whole.
-  const long = widthFit / ratio > room * 1.1;
+  // Only an image that fills the width at least half again as large as it fits
+  // whole gets the choice. An ordinary window screenshot gains a little and reads
+  // fine whole; a phone screenshot or a long page doesn't.
+  const long = widthFit >= screenFit * 1.5;
   const scrolls = long && fit === "width";
   const toggle = () => setFit(scrolls ? "screen" : "width");
   // Fit to width hands the keys to the scroll area, so the arrows, Page Up and
