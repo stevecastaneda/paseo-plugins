@@ -64,6 +64,7 @@ test("Esc leaves a full-screen image for the preview dialog, and a second Esc cl
   ({ modal, preview } = render(props));
   assert.equal(closed, 0, "the dialog stays open");
   assert.equal(preview!.props.fullScreen, false);
+  assert.equal(preview!.props.leftFullScreen, true, "focus goes back to the Full screen button");
   assert.equal(modal.props.open, true);
 
   modal.props.onOpenChange(false);

@@ -39,9 +39,10 @@ type PreviewProps = {
 
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, fullScreen, onFullScreen }: PreviewProps & {
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, fullScreen, leftFullScreen, onFullScreen }: PreviewProps & {
   onLong(long: boolean): void;
   fullScreen: boolean;
+  leftFullScreen: boolean;
   onFullScreen(on: boolean): void;
 }) {
   const { messages: m } = useProgressLanguage();
@@ -105,10 +106,10 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const canStep = inGallery && items.length > 1;
   useArrowKeys(canStep ? step : null);
   // Next has focus when the preview opens, so Enter or Space moves on too.
-  // Full screen focuses its own close button. Leaving it focuses Next again.
   const nextButton = useRef<View>(null);
+  const fullScreenButton = useRef<View>(null);
   useEffect(() => {
-    if (!fullScreen) focus(nextButton);
+    if (!fullScreen) focus(leftFullScreen && fullScreenButton.current ? fullScreenButton : nextButton);
   }, [fullScreen]);
   // Screenshots and recordings vary from phone-tall to full-width; size to the real
   // file. While stepping, the dimmed one on screen keeps its shape until the next arrives.
@@ -203,7 +204,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       </View>
       {canStep ? <Stepper colors={colors} index={index} count={items.length} onStep={step} nextRef={nextButton} /> : null}
       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-        {canFullScreen ? <DialogButton colors={colors} icon="Maximize2" accessibilityLabel={m.fullScreen} onPress={() => onFullScreen(true)} /> : null}
+        {canFullScreen ? <DialogButton ref={fullScreenButton} colors={colors} icon="Maximize2" accessibilityLabel={m.fullScreen} onPress={() => onFullScreen(true)} /> : null}
         {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label={m.open} accessibilityLabel={m.openDefault} onPress={onOpenOnHost} /> : null}
       </View>
     </View>
