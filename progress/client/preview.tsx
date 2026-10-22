@@ -81,6 +81,9 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     // Images arrive as data URIs up to ~13 MB and videos run to 200 MB; let them
     // go soon after the dialog moves on.
     gcTime: 30_000,
+    // A file that's missing, too large or outside the worktree fails the same way
+    // every time, so the reason shows at once instead of after seconds of retries.
+    retry: false,
   });
   // Stepping to another file keeps this one on screen (dimmed) until the next loads,
   // so the dialog doesn't collapse to a spinner and back.

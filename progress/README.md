@@ -148,6 +148,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 ### 1.7.0
 
 - [New] **See screenshots full screen.** In an image preview, press the full screen button or the image itself to fill the window with it. A long screenshot gets a **Fit to width** button that fills the width so you can scroll down it. The arrow keys still move between images, and Esc takes you back to the preview.
+- [Fixed] **A preview that can't load says why right away.** A missing file, one too large to preview, or one outside the worktree showed a spinner for several seconds before the reason.
 
 ### 1.6.0
 
