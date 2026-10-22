@@ -171,7 +171,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       {preview.data?.kind === "image" ? (
         // The Full screen button is the keyboard's way in, so the image isn't a second tab stop.
         <Pressable disabled={!canFullScreen} focusable={false} onPress={() => onFullScreen(true)}
-          style={{ width: "100%", ...(canFullScreen ? { cursor: "zoom-in" } : {}) } as ViewStyle}>
+          style={{ width: "100%", cursor: canFullScreen ? "zoom-in" as unknown as ViewStyle["cursor"] : undefined }}>
           <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
         </Pressable>
       ) : null}
@@ -286,14 +286,14 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
     <Pressable accessible={false} focusable={false} onPress={onExit}
       style={{ flexGrow: 1, alignItems: "center", justifyContent: "center", padding: FULL_SCREEN_MARGIN }}>
       <Pressable accessible={false} focusable={false} onPress={long ? toggle : () => {}}
-        style={{ cursor: long ? (scrolls ? "zoom-out" : "zoom-in") : "default" } as unknown as ViewStyle}>
+        style={{ cursor: (long ? (scrolls ? "zoom-out" : "zoom-in") : "default") as unknown as ViewStyle["cursor"] }}>
         <Image accessibilityLabel={title} source={{ uri }} resizeMode="contain"
           style={{ width: scrolls ? widthFit : screenFit, aspectRatio: ratio, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)", opacity: dimmed ? 0.6 : 1 }} />
       </Pressable>
     </Pressable>
   );
   return (
-    <View style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "black" } as unknown as ViewStyle}>
+    <View style={{ position: "fixed" as unknown as ViewStyle["position"], top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "black" }}>
       <View style={{ height: FULL_SCREEN_BAR, flexDirection: "row", alignItems: "center", gap: 12, paddingStart: FULL_SCREEN_MARGIN, paddingEnd: 12 }}>
         <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: light, fontSize: 13, lineHeight: 18 }}>{title}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
