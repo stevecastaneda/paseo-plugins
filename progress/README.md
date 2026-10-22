@@ -145,6 +145,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.7.0
+
+- [New] **See screenshots full screen.** In an image preview, press the full screen button or the image itself to fill the window with it. The arrow keys still move between images, and Esc takes you back to the preview.
+
 ### 1.6.0
 
 - [New] **Read the skill in Settings.** Progress settings has an Agent Skills section. **View skill** shows the instructions agents get, and **Install skill** appears there when the skill isn't installed.
