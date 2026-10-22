@@ -1,8 +1,8 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useRef } from "react";
-import { ActivityIndicator, Image, Platform, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Image, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
 import { folderAttachments, isFolder, previewKind } from "../shared/attachments";
@@ -39,7 +39,12 @@ type PreviewProps = {
 
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, fullScreen, leftFullScreen, onFullScreen }: PreviewProps & {
+  onLong(long: boolean): void;
+  fullScreen: boolean;
+  leftFullScreen: boolean;
+  onFullScreen(on: boolean): void;
+}) {
   const { messages: m } = useProgressLanguage();
   const fetchPreview = useRpc(previewDeliverable);
   const readPiece = useRpc(readDeliverablePiece);
@@ -60,7 +65,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     // and so on, so a tall image made the dialog jump between two sizes until closed.
     queryFn: async () => {
       const data = await fetchPreview({ workspaceId, workspaceDirectory, ref: target.ref });
-      if (data.kind === "image") return { ...data, ratio: await imageRatio(data.dataUri) };
+      if (data.kind === "image") return { ...data, ...await imageSize(data.dataUri) };
       if (data.kind !== "video") return data;
       queryClient.setQueryData(loadingKey(target), 0);
       const video = await loadVideo({
@@ -76,6 +81,9 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     // Images arrive as data URIs up to ~13 MB and videos run to 200 MB; let them
     // go soon after the dialog moves on.
     gcTime: 30_000,
+    // A file that's missing, too large or outside the worktree fails the same way
+    // every time, so the reason shows at once instead of after seconds of retries.
+    retry: false,
   });
   // Stepping to another file keeps this one on screen (dimmed) until the next loads,
   // so the dialog doesn't collapse to a spinner and back.
@@ -102,15 +110,39 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   useArrowKeys(canStep ? step : null);
   // Next has focus when the preview opens, so Enter or Space moves on too.
   const nextButton = useRef<View>(null);
+  const fullScreenButton = useRef<View>(null);
+  // Leaving full screen puts focus back on the Full screen button without the ring
+  // Esc would draw, which read as if the arrows now acted on it. Set during render so
+  // the ring never paints, and from `leftFullScreen` because leaving can remount this.
+  const [quiet, setQuiet] = useState(leftFullScreen && !fullScreen);
+  const [wasFullScreen, setWasFullScreen] = useState(fullScreen);
+  if (wasFullScreen !== fullScreen) {
+    setWasFullScreen(fullScreen);
+    setQuiet(!fullScreen && leftFullScreen);
+  }
   useEffect(() => {
-    (nextButton.current as { focus?(): void } | null)?.focus?.();
-  }, []);
+    if (fullScreen) return;
+    const restore = leftFullScreen && fullScreenButton.current !== null;
+    if (!restore) setQuiet(false);
+    focus(restore ? fullScreenButton : nextButton);
+  }, [fullScreen]);
   // Screenshots and recordings vary from phone-tall to full-width; size to the real
   // file. While stepping, the dimmed one on screen keeps its shape until the next arrives.
   const aspectRatio = preview.data && "ratio" in preview.data && preview.data.ratio ? preview.data.ratio : 16 / 10;
   // A video fits the dialog whole, so the controls along its bottom stay in view
   // without scrolling. A tall image scrolls instead, to keep it readable.
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  // Phones and narrow windows get Paseo's bottom sheet, whose transforms would
+  // keep the full-screen layer inside it.
+  const fullScreenFits = Platform.OS === "web" && windowWidth >= COMPACT_BELOW;
+  // By the file, not the data: while stepping, the data is still the last file's.
+  const canFullScreen = fullScreenFits && previewKind(attachment.path ?? "") === "image" && preview.data?.kind === "image";
+  // While stepping, the last image fills the layer until the next arrives. A file
+  // that fails to load has no data at all, so full screen ends with it.
+  const showsLayer = fullScreenFits && preview.data?.kind === "image";
+  useEffect(() => {
+    if (fullScreen && !preview.isPending && !showsLayer) onFullScreen(false);
+  }, [fullScreen, preview.isPending, showsLayer]);
   const room = roomForContent(windowHeight);
   const maxMediaHeight = preview.data?.kind === "video" ? Math.min(640, Math.max(200, room)) : 640;
   const mediaStyle = { width: "100%", aspectRatio, maxHeight: maxMediaHeight, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1, opacity: stepping ? 0.6 : 1 } as const;
@@ -152,7 +184,11 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           dimmed={stepping} onOpen={onOpenEntry} />
       ) : null}
       {preview.data?.kind === "image" ? (
-        <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
+        // The Full screen button is the keyboard's way in, so the image isn't a second tab stop.
+        <Pressable disabled={!canFullScreen} focusable={false} onPress={() => onFullScreen(true)}
+          style={{ width: "100%", cursor: canFullScreen ? "zoom-in" as unknown as ViewStyle["cursor"] : undefined }}>
+          <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
+        </Pressable>
       ) : null}
       {preview.data?.kind === "video" ? <VideoPlayer video={preview.data.video} label={attachment.title} style={mediaStyle} /> : null}
     </>
@@ -182,27 +218,135 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
         {onBack ? <BackButton colors={colors} onPress={onBack} /> : null}
       </View>
       {canStep ? <Stepper colors={colors} index={index} count={items.length} onStep={step} nextRef={nextButton} /> : null}
-      <View style={{ flex: 1, alignItems: "flex-end" }}>
+      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+        {canFullScreen ? (
+          // An inline outline beats Paseo's :focus-visible ring.
+          <DialogButton ref={fullScreenButton} colors={colors} icon="Maximize2" accessibilityLabel={m.fullScreen} onPress={() => onFullScreen(true)}
+            outerStyle={quiet ? { outlineWidth: 0 } : undefined} onBlur={() => setQuiet(false)} />
+        ) : null}
         {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label={m.open} accessibilityLabel={m.openDefault} onPress={onOpenOnHost} /> : null}
       </View>
     </View>
   );
-  return long ? (
+  const layerShown = fullScreen && showsLayer;
+  // An SVG stays sharp at any size, so only a bitmap stops at its own pixels. An
+  // icon's SVG can say it's 24px wide.
+  const fullScreenLayer = layerShown && preview.data?.kind === "image" ? (
+    <FullScreenImage title={attachment.title} uri={preview.data.dataUri} ratio={aspectRatio} dimmed={stepping} onExit={() => onFullScreen(false)}
+      naturalWidth={preview.data.dataUri.startsWith("data:image/svg+xml") ? null : preview.data.width} />
+  ) : null;
+  // Paseo's focus trap counts the controls under the layer, so Shift+Tab would
+  // reach a hidden Open. Inert takes them out until full screen ends.
+  const body = useRef<View>(null);
+  useEffect(() => {
+    if (!layerShown) return;
+    const element = body.current as unknown as { setAttribute?(name: string, value: string): void; removeAttribute?(name: string): void } | null;
+    element?.setAttribute?.("inert", "");
+    return () => element?.removeAttribute?.("inert");
+  }, [layerShown]);
+  return (
     <>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
-      <View style={{ marginTop: 8 }}>{path}</View>
-      {actions}
+      {long ? (
+        <View ref={body} style={{ flex: 1 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
+          <View style={{ marginTop: 8 }}>{path}</View>
+          {actions}
+        </View>
+      ) : (
+        <View ref={body} style={{ gap: 20 }}>
+          <View style={{ gap: 8 }}>
+            <View style={{ gap: 12 }}>{content}</View>
+            {path}
+          </View>
+          {actions}
+        </View>
+      )}
+      {fullScreenLayer}
     </>
-  ) : (
-    <View style={{ gap: 20 }}>
-      <View style={{ gap: 8 }}>
-        <View style={{ gap: 12 }}>{content}</View>
-        {path}
+  );
+}
+
+const FULL_SCREEN_MARGIN = 24;
+const FULL_SCREEN_BAR = 52;
+
+// The image over the whole window, never past its own pixels. It fits whole, or a
+// long one can fill the width and scroll.
+function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { title: string; uri: string; naturalWidth: number | null; ratio: number; dimmed: boolean; onExit(): void }) {
+  const { messages: m } = useProgressLanguage();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const closeButton = useRef<View>(null);
+  const fitButton = useRef<View>(null);
+  const scrollArea = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  useEffect(() => focus(closeButton), []);
+  const [fit, setFit] = useState<"screen" | "width">("screen");
+  const room = windowHeight - 2 * FULL_SCREEN_MARGIN - FULL_SCREEN_BAR;
+  const widthFit = Math.max(0, Math.min(naturalWidth ?? Infinity, windowWidth - 2 * FULL_SCREEN_MARGIN));
+  const screenFit = Math.min(widthFit, room * ratio);
+  // Only an image that fills the width at least half again as large as it fits
+  // whole gets the choice. An ordinary window screenshot gains a little and reads
+  // fine whole; a phone screenshot or a long page doesn't.
+  const long = widthFit >= screenFit * 1.5;
+  const scrolls = long && fit === "width";
+  const toggle = () => setFit(scrolls ? "screen" : "width");
+  // Fit to width hands the keys to the scroll area, so the arrows, Page Up and
+  // Down, Home, End and Space scroll it. When the area goes, focus goes back to the bar.
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (scrolls) focus(scrollArea);
+    else if (scrolled.current) focus(long ? fitButton : closeButton);
+    scrolled.current = scrolls;
+  }, [scrolls, uri]);
+  const light = "rgba(255, 255, 255, 0.85)";
+  const barButton = ({ pressed, hovered }: { pressed: boolean; hovered: boolean }) => ({
+    height: 36, alignItems: "center", justifyContent: "center", borderRadius: 6,
+    backgroundColor: pressed ? "rgba(255, 255, 255, 0.16)" : hovered ? "rgba(255, 255, 255, 0.1)" : "transparent",
+  }) as const;
+  // A press on the image stops there, so only the black around it exits.
+  // The fit button is the keyboard's way to the toggle, so the image isn't a tab stop.
+  const area = (
+    <Pressable accessible={false} focusable={false} onPress={onExit}
+      style={{ flexGrow: 1, alignItems: "center", justifyContent: "center", padding: FULL_SCREEN_MARGIN }}>
+      <Pressable accessible={false} focusable={false} onPress={long ? toggle : () => {}}
+        style={{ cursor: (long ? (scrolls ? "zoom-out" : "zoom-in") : "default") as unknown as ViewStyle["cursor"] }}>
+        <Image accessibilityLabel={title} source={{ uri }} resizeMode="contain"
+          style={{ width: scrolls ? widthFit : screenFit, aspectRatio: ratio, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)", opacity: dimmed ? 0.6 : 1 }} />
+      </Pressable>
+    </Pressable>
+  );
+  return (
+    <View style={{ position: "fixed" as unknown as ViewStyle["position"], top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "black" }}>
+      <View style={{ height: FULL_SCREEN_BAR, flexDirection: "row", alignItems: "center", gap: 12, paddingStart: FULL_SCREEN_MARGIN, paddingEnd: 12 }}>
+        <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: light, fontSize: 13, lineHeight: 18 }}>{title}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {long ? (
+            <PressScale ref={fitButton} accessibilityRole="button" onPress={toggle}
+              style={(state) => ({ ...barButton(state), flexDirection: "row", gap: 6, paddingHorizontal: 10 })}>
+              <Icon name={scrolls ? "Shrink" : "MoveHorizontal"} size={16} color={light} />
+              <Text style={{ color: light, fontSize: 13, lineHeight: 18 }}>{scrolls ? m.fitToScreen : m.fitToWidth}</Text>
+            </PressScale>
+          ) : null}
+          <PressScale ref={closeButton} accessibilityRole="button" accessibilityLabel={m.exitFullScreen} onPress={onExit}
+            style={(state) => ({ ...barButton(state), width: 36 })}>
+            <Icon name="X" size={18} color={light} />
+          </PressScale>
+        </View>
       </View>
-      {actions}
+      {/* Keyed so the next image starts at its top. The fit button stays the visible
+          keyboard control, so the scroll area draws no focus ring. */}
+      {scrolls ? (
+        <ScrollView key={uri} ref={scrollArea} focusable style={{ flex: 1, outlineWidth: 0 }} contentContainerStyle={{ flexGrow: 1 }}>{area}</ScrollView>
+      ) : area}
     </View>
   );
 }
+
+// Only views on web have focus(); elsewhere this does nothing.
+function focus(ref: React.RefObject<unknown>) {
+  (ref.current as { focus?(): void } | null)?.focus?.();
+}
+
+// Paseo draws dialogs as bottom sheets below this window width.
+const COMPACT_BELOW = 720;
 
 // Width left for content: Paseo's 520px dialog less its 24px padding each side.
 const CONTENT_WIDTH = 472;
@@ -232,11 +376,12 @@ function FolderList({ colors, folder, entries, truncated, dimmed, onOpen }: { co
   );
 }
 
-// An image's width over its height, or null if it can't be read. Read from the data
-// because onLoad doesn't report a size for data URIs on every platform.
-function imageRatio(uri: string): Promise<number | null> {
+// An image's pixel width and its width over its height, or nulls if they can't be read.
+// Read from the data because onLoad doesn't report a size for data URIs on every platform.
+function imageSize(uri: string): Promise<{ width: number | null; ratio: number | null }> {
   return new Promise((resolve) => {
-    Image.getSize(uri, (width, height) => resolve(width && height ? width / height : null), () => resolve(null));
+    Image.getSize(uri, (width, height) => resolve(width && height ? { width, ratio: width / height } : { width: null, ratio: null }),
+      () => resolve({ width: null, ratio: null }));
   });
 }
 
@@ -248,9 +393,9 @@ function roomForContent(windowHeight: number): number {
 }
 
 // A dialog footer button: 13px label and 14px icon, 30px tall. Icon-only is a 30px square.
-export function DialogButton({ colors, icon, label, accessibilityLabel, onPress, outerStyle, ref }: { colors: Colors; icon: string; label?: string; accessibilityLabel?: string; onPress(): void; outerStyle?: ViewStyle; ref?: React.Ref<View> }) {
+export function DialogButton({ colors, icon, label, accessibilityLabel, onPress, onBlur, outerStyle, ref }: { colors: Colors; icon: string; label?: string; accessibilityLabel?: string; onPress(): void; onBlur?(): void; outerStyle?: ViewStyle; ref?: React.Ref<View> }) {
   return (
-    <PressScale ref={ref} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} onPress={onPress} outerStyle={outerStyle}
+    <PressScale ref={ref} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} onPress={onPress} onBlur={onBlur} outerStyle={outerStyle}
       style={({ pressed }) => ({
         flexDirection: "row", alignItems: "center", gap: 6,
         paddingVertical: label ? 6 : 8, paddingLeft: label ? 8 : 8, paddingRight: label ? 10 : 8,

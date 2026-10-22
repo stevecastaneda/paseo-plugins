@@ -59,7 +59,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
         </Text>
       )}
       <StackedDialog colors={colors} now={Date.now()} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory: root }}
-        root={previewing ? { kind: "preview", ...previewing } : null} />
+        root={previewing ? { kind: "preview", ...previewing, fullScreen: false } : null} />
       <View style={{ paddingTop: touch ? 12 : 8, borderTopWidth: 1, borderTopColor: colors.border }}>
         {/* A full 44pt touch target on phones; desktop keeps the compact button. */}
         <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}
