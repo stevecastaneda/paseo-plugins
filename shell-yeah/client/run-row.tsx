@@ -367,7 +367,12 @@ const KeyInput = forwardRef<TextInput, { runId: string; compact: boolean; onTypi
       onSubmitEditing={() => send("\r")}
       submitBehavior="submit"
       onFocus={() => onTypingChange(true)}
-      onBlur={() => onTypingChange(false)}
+      onBlur={() => {
+        onTypingChange(false);
+        // Still focused after a blur means the window went to the background. Coming back would
+        // focus the input again without a click, and the next key would go to the command.
+        if (input.current === (globalThis as { document?: { activeElement: unknown } }).document?.activeElement) input.current?.blur();
+      }}
       autoCapitalize="none"
       autoCorrect={false}
       autoComplete="off"
