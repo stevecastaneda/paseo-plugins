@@ -22,6 +22,8 @@ export const LIMITS = {
   boxLines: 12,
   failedBoxLines: 14,
   tallBoxLines: 21,
+  liveBoxLines: 20,
+  liveBoxAfterMs: 1_000,
   // Past this, the one-line header may cut the command off, so the card unfolds to show it whole.
   headerCommandChars: 80,
   // Lines a card can scroll back through, live and in its row; Copy gets everything kept.

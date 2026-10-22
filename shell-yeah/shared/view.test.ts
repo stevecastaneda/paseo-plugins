@@ -123,9 +123,9 @@ test("truncated output gets a scissors note; empty output gets no well", () => {
   assert.equal(padded.foldable, false, "blank lines at either end don't count toward the box height");
   const tall = describe(run({ kind: "ok", ...ended }, { output: { lines: Array(13).fill("x"), total: 13 } }), T0);
   assert.equal(tall.foldable, true, "past 12 lines the header arrow can make the box taller");
-  assert.equal(tall.boxLines, 12);
+  assert.deepEqual(tall.box, { lines: 12, fixed: false });
   const failed = describe(run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, { output: { lines: Array(13).fill("x"), total: 13 } }), T0);
-  assert.equal(failed.boxLines, 14, "a failure's box is taller, so its cause stays in view");
+  assert.deepEqual(failed.box, { lines: 14, fixed: false }, "a failure's box is taller, so its cause stays in view");
   assert.equal(failed.foldable, false);
   const empty = describe(run({ kind: "ok", ...ended }, { output: { lines: [], total: 0 } }), T0);
   assert.deepEqual(empty.well, { kind: "empty", text: "No output" });
@@ -166,6 +166,22 @@ test("in a terminal, a running card has a box to type into, and a prompt points 
   assert.deepEqual([done.keyboard, done.hint], [false, null]);
 });
 
+test("a command in a terminal has its box before it prints anything, and keeps it while it stops; one without a terminal shows no empty box", () => {
+  const running = { kind: "running" as const, startedAt: T0, stopRequestedAt: null };
+  const silent = { output: { lines: [], total: 0 } };
+  assert.deepEqual(describe(run(running, { ...silent, terminal: true }), T0).well, { kind: "output", skipped: 0 });
+  assert.deepEqual(describe(run({ ...running, stopRequestedAt: T0 }, { ...silent, terminal: true }), T0 + 2_000).well, { kind: "output", skipped: 0 }, "Stop doesn't pull the box out from under the pointer");
+  assert.equal(describe(run(running, silent), T0).well, null);
+});
+
+test("a running card fits its output for its first second, then holds a terminal-sized box until it ends", () => {
+  const running: Phase = { kind: "running", startedAt: T0, stopRequestedAt: null };
+  assert.deepEqual(describe(run(running), T0 + 999).box, { lines: 12, fixed: false }, "a quick command never grows");
+  assert.deepEqual(describe(run(running), T0 + 1_500).box, { lines: 20, fixed: true });
+  assert.deepEqual(describe(run(running, { clockOffset: 300_000 }), T0 - 300_000 + 1_500).box, { lines: 20, fixed: true }, "measured in the daemon's clock");
+  assert.deepEqual(describe(run({ kind: "ok", ...ended }), T0 + 20_000).box, { lines: 12, fixed: false });
+});
+
 test("a running row the daemon lost reads as interrupted at the moment it was lost", () => {
   const p = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { lostAt: T0 + 41_000 }), T0 + 90_000);
   assert.equal(statusText(p), "Interrupted · 41s");
@@ -173,10 +189,9 @@ test("a running row the daemon lost reads as interrupted at the moment it was lo
   assert.equal(p.timerFrom, null);
 });
 
-test("a dismissed proposal is one muted line with no actions", () => {
+test("a dismissed proposal offers no actions", () => {
   const p = describe(run({ kind: "dismissed" }, { origin: "claude" }), T0);
   assert.equal(p.layout, "dismissed");
-  assert.equal(p.label, "Dismissed");
   assert.deepEqual(p.actions, []);
 });
 

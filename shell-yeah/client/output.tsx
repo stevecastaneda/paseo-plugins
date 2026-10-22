@@ -1,7 +1,7 @@
 import { openExternalUrl } from "@getpaseo/plugin/client";
 import { ScrollView } from "@getpaseo/plugin/client/react-native";
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView as NativeScrollView } from "react-native";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Animated, Easing, Platform, Pressable, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView as NativeScrollView } from "react-native";
 import { lineText, type Cursor, type Line, type Segment } from "../shared/row.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { formatCount } from "../shared/view.ts";
@@ -15,15 +15,16 @@ const URL = /https?:\/\/[^\s<>"')\]]+/g;
 
 // The output well: one selectable Text so copy and selection work across lines, spans
 // colored by the palette, in a box that scrolls back through everything the card holds
-// and follows the newest line. https links open outside. While the user types into the
-// command, it shows the terminal's cursor, and a click on the text starts typing.
-export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, rows, compact, running, following, onFollowingChange, commandLines, reduced, cursor, onPress }: {
+// and follows the newest line. https links open outside. A click anywhere else in the box
+// calls onPress, unless it ends a selection. `children` sits in the box: the hidden input
+// that takes the keys. While it listens, the box shows an accent border and the cursor.
+export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, box, compact, running, following, onFollowingChange, commandLines, reduced, cursor, listening, onPress, children }: {
   lines: readonly Line[];
   skipped: number;
   palette: Palette;
   colors: ThemeColors;
   tall: boolean;
-  rows: number;
+  box: { lines: number; fixed: boolean };
   compact: boolean;
   running: boolean;
   following: boolean;
@@ -32,7 +33,9 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   reduced: boolean;
   // Shown while typing goes to the command; null otherwise.
   cursor: Cursor | null;
+  listening: boolean;
   onPress?(): void;
+  children?: React.ReactNode;
 }) {
   const screen = useWindowDimensions();
   // While the user reads above the newest line of a running command, hold what they're
@@ -56,7 +59,7 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   }, [total]);
 
   const body = (
-    <Text selectable onPress={onPress ? () => noSelection() && onPress() : undefined} style={[{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }, onPress ? ({ cursor: "text" } as object) : null]}>
+    <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }}>
       {tall && commandLines.length > 1 ? <Text style={{ color: colors.foregroundMuted }}>{commandLines.map((l) => `$ ${l}`).join("\n")}{"\n"}</Text> : null}
       {skipped > 0 ? <Text style={{ color: colors.foregroundMuted }}>{`… ${formatCount(skipped)} earlier ${skipped === 1 ? "line" : "lines"}\n`}</Text> : null}
       {shown.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === shown.length - 1} cursorCol={i === cursorRow ? cursor!.col : null} />)}
@@ -74,17 +77,28 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
     borderRadius: 6,
     backgroundColor: palette.well,
     borderWidth: 1,
-    borderColor: withAlpha(colors.border, 0.6),
+    borderColor: listening ? colors.accent : withAlpha(colors.border, 0.6),
     overflow: "hidden" as const,
   };
 
   // Vertical padding sits outside the scroller, so a box scrolled to the end never slices its
-  // last line; half a row at the top shows there is more above.
+  // last line; half a row at the top shows there is more above. On a phone the box always fits
+  // its output: with the keyboard up, a held box would leave a short prompt far above the keyboard.
+  const scroller = (
+    <TailScroll height={(boxRows(box.lines, tall, compact, screen.height) + 0.5) * LINE_HEIGHT} fixed={box.fixed && !compact} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
+      <View style={{ paddingHorizontal: 10, minHeight: LINE_HEIGHT }}>{body}</View>
+    </TailScroll>
+  );
+  // Links and Jump to latest take their own clicks. A drag that selects text on web, or a long
+  // press that selects it in the app, cancels the press.
   return (
-    <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...codeSurface()}>
-      <TailScroll maxHeight={(boxRows(rows, tall, compact, screen.height) + 0.5) * LINE_HEIGHT} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
-        <View style={{ paddingHorizontal: 10 }}>{body}</View>
-      </TailScroll>
+    <View style={frame} {...codeSurface()}>
+      {onPress ? (
+        <Pressable accessible={false} tabIndex={-1} onPress={() => noSelection() && onPress()} onLongPress={Platform.OS === "web" ? undefined : () => undefined} style={[{ paddingVertical: WELL_PADDING_V }, { cursor: "text" } as object]}>{scroller}</Pressable>
+      ) : (
+        <View style={{ paddingVertical: WELL_PADDING_V }}>{scroller}</View>
+      )}
+      {children}
     </View>
   );
 }
@@ -108,9 +122,10 @@ function EdgeFade({ color, edge }: { color: string; edge: "top" | "bottom" }) {
 
 // Stays pinned to the newest line until the user scrolls up, and pins again once they
 // scroll back to the bottom or press Jump to latest.
-function TailScroll({ children, maxHeight, compact, following, onFollowingChange, colors, fadeColor }: {
+function TailScroll({ children, height, fixed, compact, following, onFollowingChange, colors, fadeColor }: {
   children: React.ReactNode;
-  maxHeight: number;
+  height: number;
+  fixed: boolean;
   compact: boolean;
   following: boolean;
   onFollowingChange(v: boolean): void;
@@ -140,7 +155,16 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
   };
   useEffect(() => {
     if (following) ref.current?.scrollToEnd({ animated: false });
-  }, [following, maxHeight]);
+  }, [following, height]);
+  // A fixed box eases to its height: Paseo keeps the chat pinned to its newest line through
+  // gradual growth, but one jump of a few hundred pixels leaves the card's buttons below the fold.
+  const held = useRef(new Animated.Value(0)).current;
+  const shown = useRef(0);
+  useLayoutEffect(() => {
+    if (!fixed) return;
+    held.setValue(shown.current);
+    Animated.timing(held, { toValue: height, duration: 250, easing: Easing.out(Easing.ease), useNativeDriver: false }).start();
+  }, [fixed, height]);
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     metrics.current = { offset: contentOffset.y, viewport: layoutMeasurement.height, content: contentSize.height };
@@ -149,8 +173,8 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
     if (bottom !== following) onFollowingChange(bottom);
   };
   return (
-    <View>
-      <ScrollView ref={ref} nestedScrollEnabled style={{ maxHeight }} onScroll={onScroll} onContentSizeChange={onContentSizeChange} scrollEventThrottle={16}>
+    <Animated.View onLayout={(event) => (shown.current = event.nativeEvent.layout.height)} style={fixed ? { height: held } : null}>
+      <ScrollView ref={ref} nestedScrollEnabled style={fixed ? { flex: 1 } : { maxHeight: height }} onLayout={() => following && ref.current?.scrollToEnd({ animated: false })} onScroll={onScroll} onContentSizeChange={onContentSizeChange} scrollEventThrottle={16}>
         {children}
       </ScrollView>
       {scrolled ? <EdgeFade color={fadeColor} edge="top" /> : null}
@@ -170,7 +194,7 @@ function TailScroll({ children, maxHeight, compact, following, onFollowingChange
           />
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 

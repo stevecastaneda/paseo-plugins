@@ -5,7 +5,7 @@ import { cardIdOf, lineText, runNumberOf, type Line, type LiveView, type PastRun
 export type Tone = "muted" | "active" | "success" | "danger" | "warning";
 export type Badge = "play" | "spinner" | "check" | "x" | "square" | "unplug";
 export type ActionId = "run" | "dismiss" | "stop" | "force-stop" | "copy" | "rerun" | "send";
-export type NoteIcon = "eye-off" | "eye" | "scissors" | "clock" | "info" | "folder";
+export type NoteIcon = "eye-off" | "eye" | "scissors" | "clock" | "info" | "folder" | "keyboard";
 
 // A row after merging its data with the freshest live reply (see client/live.ts).
 export type ResolvedRun = Pick<RunRow, "runId" | "origin" | "command" | "cwd"> & { terminal: boolean } &
@@ -30,7 +30,7 @@ export type Well =
   | { kind: "empty"; text: string };
 
 export interface Presentation {
-  // proposed: dashed card with the full command. card: the receipt. dismissed: one muted line.
+  // proposed: dashed card with the full command. card: the receipt. dismissed: draws nothing.
   layout: "proposed" | "card" | "dismissed";
   // The agent's one-line summary of a command it suggested; null for everything else.
   title: string | null;
@@ -50,7 +50,7 @@ export interface Presentation {
   actions: Action[];
   foldable: boolean;
   // Rows the output box shows before it scrolls.
-  boxLines: number;
+  box: { lines: number; fixed: boolean };
   // Left footer chips, most specific first; at most two.
   notes: Array<{ icon: NoteIcon; text: string }>;
   // At most one, below the notes.
@@ -81,10 +81,12 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
   const phase = effectivePhase(run);
   const { lines, total } = run.output;
   const skipped = Math.max(0, total - lines.length);
-  const boxLines = phase.kind === "failed" ? LIMITS.failedBoxLines : LIMITS.boxLines;
+  const box = phase.kind === "running" && now + run.clockOffset - phase.startedAt >= LIMITS.liveBoxAfterMs
+    ? { lines: LIMITS.liveBoxLines, fixed: true }
+    : { lines: phase.kind === "failed" ? LIMITS.failedBoxLines : LIMITS.boxLines, fixed: false };
   const visible = trimBlankEnds(lines, skipped === 0).length;
   const { title, script } = splitTitle(run.command);
-  const foldable = visible > boxLines || script.includes("\n") || script.length > LIMITS.headerCommandChars;
+  const foldable = visible > box.lines || script.includes("\n") || script.length > LIMITS.headerCommandChars;
   const outputText = lines.map(lineText).join("\n");
   const shown = { title: null, script, warning: null };
 
@@ -92,12 +94,12 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
     return {
       layout: "proposed", title, script, warning: warningFor(risksOf(script)), tone: "muted", badge: "play", label: `Suggested by ${agent}`, elapsed: null, timerFrom: null,
       actions: [action("run", "Run", true), action("copy", "Copy"), action("dismiss", "Dismiss")],
-      foldable: false, boxLines, hint: null, well: null, keyboard: false,
+      foldable: false, box, hint: null, well: null, keyboard: false,
       notes: [{ icon: "eye-off", text: `${capitalize(agent)} sees the output only if you send it` }, { icon: "folder", text: basename(run.cwd) }],
     };
   }
   if (phase.kind === "dismissed") {
-    return { layout: "dismissed", ...shown, tone: "muted", badge: "x", label: "Dismissed", elapsed: null, timerFrom: null, actions: [], foldable: false, boxLines, notes: [], hint: null, well: null, keyboard: false };
+    return { layout: "dismissed", ...shown, tone: "muted", badge: "x", label: "Dismissed", elapsed: null, timerFrom: null, actions: [], foldable: false, box, notes: [], hint: null, well: null, keyboard: false };
   }
   if (phase.kind === "running") {
     const stopping = phase.stopRequestedAt !== null;
@@ -106,6 +108,7 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
     const lastLine = lines.length > 0 ? lineText(lines[lines.length - 1]).trimEnd() : "";
     const wantsInput = INPUT_PATTERNS.test(outputText) || (silentFor >= LIMITS.inputHintMs && /[:?]$/.test(lastLine));
     const quiet = silentFor >= LIMITS.quietNoteMs ? ` · quiet for ${Math.floor(silentFor / 1000)}s` : "";
+    const takesKeys = run.terminal;
     return {
       layout: "card", ...shown, tone: "active", badge: "spinner",
       label: stopping ? "Stopping" : "",
@@ -113,11 +116,11 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
       timerFrom: phase.startedAt - run.clockOffset,
       actions: forceReady ? [action("force-stop", "Force stop", true)] : stopping ? [{ ...action("stop", "Stopping…", true), disabled: true }] : [action("stop", "Stop", true)],
       foldable,
-      boxLines,
+      box,
       notes: [{ icon: "clock", text: total === 0 ? "No output yet" : `${formatCount(total)} ${total === 1 ? "line" : "lines"}${quiet}` }],
-      hint: wantsInput ? (run.terminal ? TYPE_HINT : NO_KEYBOARD_HINT) : null,
-      well: total === 0 ? null : { kind: "output", skipped },
-      keyboard: run.terminal && !stopping,
+      hint: wantsInput ? (takesKeys ? TYPE_HINT : NO_KEYBOARD_HINT) : null,
+      well: total === 0 && !takesKeys ? null : { kind: "output", skipped },
+      keyboard: takesKeys && !stopping,
     };
   }
 
@@ -133,7 +136,7 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
   const notFound = (phase.kind === "failed" && phase.exitCode === 127) || /command not found/i.test(outputText);
   const hint = notFound ? NO_SHELL_FILES_HINT : !run.terminal && INPUT_PATTERNS.test(outputText) ? NO_KEYBOARD_HINT : null;
 
-  const base = { layout: "card" as const, ...shown, elapsed, timerFrom: null, actions, foldable, boxLines, notes, hint, keyboard: false };
+  const base = { layout: "card" as const, ...shown, elapsed, timerFrom: null, actions, foldable, box, notes, hint, keyboard: false };
   const well: Well | null = phase.kind === "failed" && phase.message !== null
     ? { kind: "message", text: phase.message }
     : total === 0 ? { kind: "empty", text: "No output" } : { kind: "output", skipped };
