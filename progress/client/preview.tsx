@@ -111,8 +111,22 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   // Next has focus when the preview opens, so Enter or Space moves on too.
   const nextButton = useRef<View>(null);
   const fullScreenButton = useRef<View>(null);
+  // Leaving full screen puts focus back on the Full screen button. Esc is a key, so
+  // the browser would draw its keyboard ring there, as if the arrows now acted on the
+  // button. The ring stays off until focus moves on. It's set during render so the
+  // ring never paints for a frame, and from `leftFullScreen` because leaving can
+  // remount the preview.
+  const [quiet, setQuiet] = useState(leftFullScreen && !fullScreen);
+  const [wasFullScreen, setWasFullScreen] = useState(fullScreen);
+  if (wasFullScreen !== fullScreen) {
+    setWasFullScreen(fullScreen);
+    setQuiet(!fullScreen && leftFullScreen);
+  }
   useEffect(() => {
-    if (!fullScreen) focus(leftFullScreen && fullScreenButton.current ? fullScreenButton : nextButton);
+    if (fullScreen) return;
+    const restore = leftFullScreen && fullScreenButton.current !== null;
+    if (!restore) setQuiet(false);
+    focus(restore ? fullScreenButton : nextButton);
   }, [fullScreen]);
   // Screenshots and recordings vary from phone-tall to full-width; size to the real
   // file. While stepping, the dimmed one on screen keeps its shape until the next arrives.
@@ -207,7 +221,11 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       </View>
       {canStep ? <Stepper colors={colors} index={index} count={items.length} onStep={step} nextRef={nextButton} /> : null}
       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-        {canFullScreen ? <DialogButton ref={fullScreenButton} colors={colors} icon="Maximize2" accessibilityLabel={m.fullScreen} onPress={() => onFullScreen(true)} /> : null}
+        {canFullScreen ? (
+          // An inline outline beats Paseo's :focus-visible ring.
+          <DialogButton ref={fullScreenButton} colors={colors} icon="Maximize2" accessibilityLabel={m.fullScreen} onPress={() => onFullScreen(true)}
+            outerStyle={quiet ? { outlineWidth: 0 } : undefined} onBlur={() => setQuiet(false)} />
+        ) : null}
         {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label={m.open} accessibilityLabel={m.openDefault} onPress={onOpenOnHost} /> : null}
       </View>
     </View>
@@ -376,9 +394,9 @@ function roomForContent(windowHeight: number): number {
 }
 
 // A dialog footer button: 13px label and 14px icon, 30px tall. Icon-only is a 30px square.
-export function DialogButton({ colors, icon, label, accessibilityLabel, onPress, outerStyle, ref }: { colors: Colors; icon: string; label?: string; accessibilityLabel?: string; onPress(): void; outerStyle?: ViewStyle; ref?: React.Ref<View> }) {
+export function DialogButton({ colors, icon, label, accessibilityLabel, onPress, onBlur, outerStyle, ref }: { colors: Colors; icon: string; label?: string; accessibilityLabel?: string; onPress(): void; onBlur?(): void; outerStyle?: ViewStyle; ref?: React.Ref<View> }) {
   return (
-    <PressScale ref={ref} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} onPress={onPress} outerStyle={outerStyle}
+    <PressScale ref={ref} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} onPress={onPress} onBlur={onBlur} outerStyle={outerStyle}
       style={({ pressed }) => ({
         flexDirection: "row", alignItems: "center", gap: 6,
         paddingVertical: label ? 6 : 8, paddingLeft: label ? 8 : 8, paddingRight: label ? 10 : 8,
