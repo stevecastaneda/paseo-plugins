@@ -12,12 +12,12 @@ It's the Paseo version of Claude Code's `!` mode. It's also how an agent hands y
 
 Type `/sh npm test` and press Enter. A card appears in the chat:
 
-- While the command runs: a spinner, a timer, the last lines of output as they arrive, a box to type into, and **Stop**. Progress bars and spinners redraw in place, the way they do in a terminal.
+- While the command runs: a spinner, a timer, the output as it arrives in a box you can type into, and **Stop**. Progress bars and spinners redraw in place, the way they do in a terminal.
 - When it ends: **Done** or **Exit 1** with how long it took, the colored output, and **Send**, **Copy** and **Rerun**. Buttons and notes name the chat's agent: **Send to Claude** in a Claude chat, **Send to Codex** in a Codex chat.
 
 <img src="images/2-running.png" alt="A /sh npm run build card while it runs, with a live progress bar" width="600">
 
-The output box holds the last 300 lines and stays on the newest one while the command runs. Scroll up for earlier lines; **Jump to latest** brings you back. The arrow in the header makes the box taller, up to 60% of the window. **Copy** copies everything the plugin kept, up to 10,000 lines.
+The output box holds the last 300 lines and stays on the newest one while the command runs. Once a command has run for a second, the box opens to 20 lines, like a terminal window, so a setup wizard or a long build has room. When the command ends, the box shrinks to fit the output. On a phone the box always fits the output, so a prompt stays in view when the keyboard opens. Scroll up for earlier lines; **Jump to latest** brings you back. The arrow in the header makes the box taller, up to 60% of the window. **Copy** copies everything the plugin kept, up to 10,000 lines.
 
 <img src="images/6-expanded.png" alt="The failed npm test card made taller to show more lines" width="600">
 
@@ -27,7 +27,7 @@ The output box holds the last 300 lines and stays on the newest one while the co
 
 The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over. On Windows, the command runs in PowerShell 7 if it's installed, otherwise in the Windows PowerShell that comes with Windows. It skips your PowerShell profile for the same reason.
 
-Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, click the output and type, as you would in a terminal. Each key goes to the command as you press it, so a one-key menu takes one key and arrow-key menus work. What you type shows only if the command shows it, so a password stays hidden. **Esc** stops typing. On a phone, tap the box under the output. When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
+Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, click anywhere in the output box and type, as you would in a terminal. The box's border lights up while your keys go to the command. On a computer, after you press **Run** or **Rerun** in a card, they go there without a click. Each key goes to the command as you press it, so a one-key menu takes one key and arrow-key menus work. What you type shows only if the command shows it, so a password stays hidden. **Esc** stops typing. On a phone, tap the output. When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
 
 <img src="images/7-prompt.png" alt="npm asks for a one-time password, and the code goes in as it is typed" width="600">
 
@@ -101,6 +101,12 @@ paseo plugin add npm:@stevecastaneda/paseo-shell-yeah
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
 ## Changelog
+
+### 1.2.0
+
+- You now type into the output box itself, as in a terminal, instead of into a bar under it. Click anywhere in the box and type. Its border lights up while your keys go to the command, and **Esc** stops typing. On a computer, after **Run** or **Rerun**, your keys go there without a click. A command that waits for input before it prints anything now gets an empty box to type into.
+- Once a command has run for a second, its output box opens to 20 lines, like a terminal window, so a setup wizard or a long build has room. When the command ends, the box shrinks to fit the output. A command that finishes within a second never grows. On a phone the box still fits the output.
+- **Dismiss** now removes a suggestion's card instead of leaving a "Dismissed" line behind.
 
 ### 1.1.0
 
