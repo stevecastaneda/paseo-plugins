@@ -121,9 +121,12 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const fullScreenFits = Platform.OS === "web" && windowWidth >= COMPACT_BELOW;
   // By the file, not the data: while stepping, the data is still the last file's.
   const canFullScreen = fullScreenFits && previewKind(attachment.path ?? "") === "image" && preview.data?.kind === "image";
+  // While stepping, the last image fills the layer until the next arrives. A file
+  // that fails to load has no data at all, so full screen ends with it.
+  const showsLayer = fullScreenFits && preview.data?.kind === "image";
   useEffect(() => {
-    if (fullScreen && !fullScreenFits) onFullScreen(false);
-  }, [fullScreen, fullScreenFits]);
+    if (fullScreen && !preview.isPending && !showsLayer) onFullScreen(false);
+  }, [fullScreen, preview.isPending, showsLayer]);
   const room = roomForContent(windowHeight);
   const maxMediaHeight = preview.data?.kind === "video" ? Math.min(640, Math.max(200, room)) : 640;
   const mediaStyle = { width: "100%", aspectRatio, maxHeight: maxMediaHeight, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1, opacity: stepping ? 0.6 : 1 } as const;
@@ -205,7 +208,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       </View>
     </View>
   );
-  const fullScreenLayer = fullScreen && preview.data?.kind === "image" ? (
+  const fullScreenLayer = fullScreen && showsLayer && preview.data?.kind === "image" ? (
     <FullScreenImage title={attachment.title} uri={preview.data.dataUri} naturalWidth={preview.data.width} ratio={aspectRatio} dimmed={stepping} onExit={() => onFullScreen(false)} />
   ) : null;
   return long ? (
