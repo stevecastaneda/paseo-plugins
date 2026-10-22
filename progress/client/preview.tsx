@@ -2,7 +2,7 @@ import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client"
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useRef } from "react";
-import { ActivityIndicator, Image, Platform, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
+import { ActivityIndicator, Image, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
 import { folderAttachments, isFolder, previewKind } from "../shared/attachments";
@@ -39,7 +39,11 @@ type PreviewProps = {
 
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong }: PreviewProps & { onLong(long: boolean): void }) {
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, fullScreen, onFullScreen }: PreviewProps & {
+  onLong(long: boolean): void;
+  fullScreen: boolean;
+  onFullScreen(on: boolean): void;
+}) {
   const { messages: m } = useProgressLanguage();
   const fetchPreview = useRpc(previewDeliverable);
   const readPiece = useRpc(readDeliverablePiece);
@@ -60,7 +64,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     // and so on, so a tall image made the dialog jump between two sizes until closed.
     queryFn: async () => {
       const data = await fetchPreview({ workspaceId, workspaceDirectory, ref: target.ref });
-      if (data.kind === "image") return { ...data, ratio: await imageRatio(data.dataUri) };
+      if (data.kind === "image") return { ...data, ...await imageSize(data.dataUri) };
       if (data.kind !== "video") return data;
       queryClient.setQueryData(loadingKey(target), 0);
       const video = await loadVideo({
@@ -101,16 +105,24 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const canStep = inGallery && items.length > 1;
   useArrowKeys(canStep ? step : null);
   // Next has focus when the preview opens, so Enter or Space moves on too.
+  // Full screen focuses its own close button. Leaving it focuses Next again.
   const nextButton = useRef<View>(null);
   useEffect(() => {
-    (nextButton.current as { focus?(): void } | null)?.focus?.();
-  }, []);
+    if (!fullScreen) (nextButton.current as { focus?(): void } | null)?.focus?.();
+  }, [fullScreen]);
   // Screenshots and recordings vary from phone-tall to full-width; size to the real
   // file. While stepping, the dimmed one on screen keeps its shape until the next arrives.
   const aspectRatio = preview.data && "ratio" in preview.data && preview.data.ratio ? preview.data.ratio : 16 / 10;
   // A video fits the dialog whole, so the controls along its bottom stay in view
   // without scrolling. A tall image scrolls instead, to keep it readable.
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  // Phones and narrow windows get Paseo's bottom sheet, whose transforms would
+  // keep the full-screen layer inside it.
+  const fullScreenFits = Platform.OS === "web" && windowWidth >= COMPACT_BELOW;
+  const canFullScreen = fullScreenFits && preview.data?.kind === "image";
+  useEffect(() => {
+    if (fullScreen && !fullScreenFits) onFullScreen(false);
+  }, [fullScreen, fullScreenFits]);
   const room = roomForContent(windowHeight);
   const maxMediaHeight = preview.data?.kind === "video" ? Math.min(640, Math.max(200, room)) : 640;
   const mediaStyle = { width: "100%", aspectRatio, maxHeight: maxMediaHeight, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1, opacity: stepping ? 0.6 : 1 } as const;
@@ -152,7 +164,11 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           dimmed={stepping} onOpen={onOpenEntry} />
       ) : null}
       {preview.data?.kind === "image" ? (
-        <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
+        // The Full screen button is the keyboard's way in, so the image isn't a second tab stop.
+        <Pressable disabled={!canFullScreen} focusable={false} onPress={() => onFullScreen(true)}
+          style={{ width: "100%", ...(canFullScreen ? { cursor: "zoom-in" } : {}) } as ViewStyle}>
+          <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
+        </Pressable>
       ) : null}
       {preview.data?.kind === "video" ? <VideoPlayer video={preview.data.video} label={attachment.title} style={mediaStyle} /> : null}
     </>
@@ -182,16 +198,21 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
         {onBack ? <BackButton colors={colors} onPress={onBack} /> : null}
       </View>
       {canStep ? <Stepper colors={colors} index={index} count={items.length} onStep={step} nextRef={nextButton} /> : null}
-      <View style={{ flex: 1, alignItems: "flex-end" }}>
+      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+        {canFullScreen ? <DialogButton colors={colors} icon="Maximize2" accessibilityLabel={m.fullScreen} onPress={() => onFullScreen(true)} /> : null}
         {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label={m.open} accessibilityLabel={m.openDefault} onPress={onOpenOnHost} /> : null}
       </View>
     </View>
   );
+  const fullScreenLayer = fullScreen && preview.data?.kind === "image" ? (
+    <FullScreenImage title={attachment.title} uri={preview.data.dataUri} naturalWidth={preview.data.width} ratio={aspectRatio} dimmed={stepping} onExit={() => onFullScreen(false)} />
+  ) : null;
   return long ? (
     <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>{content}</ScrollView>
       <View style={{ marginTop: 8 }}>{path}</View>
       {actions}
+      {fullScreenLayer}
     </>
   ) : (
     <View style={{ gap: 20 }}>
@@ -200,9 +221,48 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
         {path}
       </View>
       {actions}
+      {fullScreenLayer}
     </View>
   );
 }
+
+const FULL_SCREEN_MARGIN = 24;
+const FULL_SCREEN_BAR = 52;
+
+// The image over the whole window, sized to fit whole and never past its own pixels.
+// Position fixed reaches the window only when no ancestor has a transform, so it
+// sits outside the preview's scroll view and the dialog turns its scrolling off.
+function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { title: string; uri: string; naturalWidth: number | null; ratio: number; dimmed: boolean; onExit(): void }) {
+  const { messages: m } = useProgressLanguage();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const closeButton = useRef<View>(null);
+  useEffect(() => {
+    (closeButton.current as { focus?(): void } | null)?.focus?.();
+  }, []);
+  const width = Math.max(0, Math.min(naturalWidth ?? Infinity, windowWidth - 2 * FULL_SCREEN_MARGIN, (windowHeight - 2 * FULL_SCREEN_MARGIN - FULL_SCREEN_BAR) * ratio));
+  const light = "rgba(255, 255, 255, 0.85)";
+  return (
+    <Pressable accessible={false} focusable={false} onPress={onExit}
+      style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "rgba(0, 0, 0, 0.92)" } as unknown as ViewStyle}>
+      <View style={{ height: FULL_SCREEN_BAR, flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: FULL_SCREEN_MARGIN, paddingRight: 12 }}>
+        <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: light, fontSize: 13, lineHeight: 18 }}>{title}</Text>
+        <PressScale ref={closeButton} accessibilityRole="button" accessibilityLabel={m.exitFullScreen} onPress={onExit}
+          style={({ pressed, hovered }) => ({
+            width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 6,
+            backgroundColor: pressed ? "rgba(255, 255, 255, 0.16)" : hovered ? "rgba(255, 255, 255, 0.1)" : "transparent",
+          })}>
+          <Icon name="X" size={18} color={light} />
+        </PressScale>
+      </View>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: FULL_SCREEN_MARGIN }}>
+        <Image accessibilityLabel={title} source={{ uri }} resizeMode="contain" style={{ width, aspectRatio: ratio, opacity: dimmed ? 0.6 : 1 }} />
+      </View>
+    </Pressable>
+  );
+}
+
+// Paseo draws dialogs as bottom sheets below this window width.
+const COMPACT_BELOW = 720;
 
 // Width left for content: Paseo's 520px dialog less its 24px padding each side.
 const CONTENT_WIDTH = 472;
@@ -232,11 +292,12 @@ function FolderList({ colors, folder, entries, truncated, dimmed, onOpen }: { co
   );
 }
 
-// An image's width over its height, or null if it can't be read. Read from the data
-// because onLoad doesn't report a size for data URIs on every platform.
-function imageRatio(uri: string): Promise<number | null> {
+// An image's pixel width and its width over its height, or nulls if they can't be read.
+// Read from the data because onLoad doesn't report a size for data URIs on every platform.
+function imageSize(uri: string): Promise<{ width: number | null; ratio: number | null }> {
   return new Promise((resolve) => {
-    Image.getSize(uri, (width, height) => resolve(width && height ? width / height : null), () => resolve(null));
+    Image.getSize(uri, (width, height) => resolve(width && height ? { width, ratio: width / height } : { width: null, ratio: null }),
+      () => resolve({ width: null, ratio: null }));
   });
 }
 

@@ -62,7 +62,7 @@ export function DeliverablesList({ colors, deliverables, now, workspaceId, works
       ))}
       <ShowMoreRow colors={colors} total={deliverables.length} paged={paged} />
       <StackedDialog colors={colors} now={now} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory, navigation }}
-        root={previewing ? { kind: "preview", attachment: previewing, group: galleryFiles(deliverables.map(deliverableAttachment)) } : null} />
+        root={previewing ? { kind: "preview", attachment: previewing, group: galleryFiles(deliverables.map(deliverableAttachment)), fullScreen: false } : null} />
     </View>
   );
 }

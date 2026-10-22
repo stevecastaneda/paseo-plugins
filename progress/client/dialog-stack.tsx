@@ -5,6 +5,7 @@ import type { Dashboard, Question } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, useAttachmentOpener } from "./attachments";
 import { NarrowProvider } from "./narrow";
 import { BackButton, galleryFiles, PreviewContent } from "./preview";
+import { previewKind } from "../shared/attachments";
 import { QuestionView, useCopy } from "./questions";
 import { TicketStoryView } from "./ticket-dialog";
 import { ProgressLanguageProvider } from "./language";
@@ -12,11 +13,12 @@ import { ProgressLanguageProvider } from "./language";
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 type AttachmentContext = { workspaceId: string; workspaceDirectory: string; navigation?: PluginWorkspacePanelProps["navigation"] };
 
-// What the dialog is showing. A preview keeps the files beside it for Previous and Next.
+// What the dialog is showing. A preview keeps the files beside it for Previous and Next,
+// and whether its image fills the window.
 export type Step =
   | { kind: "ticket"; id: string }
   | { kind: "question"; id: string }
-  | { kind: "preview"; attachment: Attachment; group: Attachment[] };
+  | { kind: "preview"; attachment: Attachment; group: Attachment[]; fullScreen: boolean };
 
 // Paseo gives each dialog its own backdrop, so opening a second one darkens
 // the screen while the first fades out; steps swap content inside this one instead.
@@ -43,7 +45,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
   const group = useRef<Attachment[]>([]);
   const push = (step: Step) => setSteps((current) => [...current, step]);
   const replaceTop = (step: Step) => setSteps((current) => [...current.slice(0, -1), step]);
-  const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment, group: galleryFiles(group.current) }) });
+  const opener = useAttachmentOpener({ ...context, onPreview: (attachment) => push({ kind: "preview", attachment, group: galleryFiles(group.current), fullScreen: false }) });
   const openAttachment = (attachment: Attachment, from: Attachment[]) => {
     group.current = from;
     // A link opens elsewhere in Paseo; close first so it isn't left behind the dialog.
@@ -74,9 +76,15 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
 
   return (
     <Modal title={title} icon={<Icon name={icon} size={16} color={colors.foregroundMuted} />}
-      open={Boolean(root)} onOpenChange={(next) => { if (!next) onClose(); }}>
-      {/* One Modal.Content for every step: replacing it would re-present the sheet on phones. */}
-      <Modal.Content scrollable={!(preview && previewLong)}>
+      open={Boolean(root)} onOpenChange={(next) => {
+        if (next) return;
+        // Esc leaves full screen first; the dialog stays open under it.
+        if (preview?.fullScreen) replaceTop({ ...preview, fullScreen: false });
+        else onClose();
+      }}>
+      {/* One Modal.Content for every step: replacing it would re-present the sheet on phones.
+          Full screen turns its scrolling off, since the scroll view would hold the image inside the dialog. */}
+      <Modal.Content scrollable={!(preview && (previewLong || preview.fullScreen))}>
       <ProgressLanguageProvider>
       {/* A dialog has room for clock times, however narrow the panel that opened it. */}
       <NarrowProvider value={false}>
@@ -84,7 +92,8 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
         <PreviewContent colors={colors} attachment={preview.attachment} workspaceId={context.workspaceId} workspaceDirectory={context.workspaceDirectory}
           onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }}
           onCopyPath={() => void opener.copyPath(preview.attachment)} onBack={back}
-          gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment }) }} onLong={setPreviewLong}
+          gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment, fullScreen: preview.fullScreen && previewKind(attachment.path ?? "") === "image" }) }}
+          onLong={setPreviewLong} fullScreen={preview.fullScreen} onFullScreen={(on) => replaceTop({ ...preview, fullScreen: on })}
           onOpenEntry={openAttachment} />
       ) : (
         <>

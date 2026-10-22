@@ -96,6 +96,8 @@ export const messages: ProgressMessages = {
   back: "Back",
   previousFile: "Previous file",
   nextFile: "Next file",
+  fullScreen: "Full screen",
+  exitFullScreen: "Exit full screen",
   videoChanged: "the video changed while it was loading. Try again.",
   localHistory: "Run history stays on this computer.",
   historyStopped: "Runs will stay on this computer. Files already saved stay in the repo.",
