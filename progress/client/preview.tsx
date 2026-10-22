@@ -108,7 +108,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   // Full screen focuses its own close button. Leaving it focuses Next again.
   const nextButton = useRef<View>(null);
   useEffect(() => {
-    if (!fullScreen) (nextButton.current as { focus?(): void } | null)?.focus?.();
+    if (!fullScreen) focus(nextButton);
   }, [fullScreen]);
   // Screenshots and recordings vary from phone-tall to full-width; size to the real
   // file. While stepping, the dimmed one on screen keeps its shape until the next arrives.
@@ -254,9 +254,9 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
   const { messages: m } = useProgressLanguage();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const closeButton = useRef<View>(null);
-  useEffect(() => {
-    (closeButton.current as { focus?(): void } | null)?.focus?.();
-  }, []);
+  const fitButton = useRef<View>(null);
+  const scrollArea = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  useEffect(() => focus(closeButton), []);
   const [fit, setFit] = useState<"screen" | "width">("screen");
   const room = windowHeight - 2 * FULL_SCREEN_MARGIN - FULL_SCREEN_BAR;
   const widthFit = Math.max(0, Math.min(naturalWidth ?? Infinity, windowWidth - 2 * FULL_SCREEN_MARGIN));
@@ -266,6 +266,14 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
   const long = widthFit / ratio > room * 1.1;
   const scrolls = long && fit === "width";
   const toggle = () => setFit(scrolls ? "screen" : "width");
+  // Fit to width hands the keys to the scroll area, so the arrows, Page Up and
+  // Down, Home, End and Space scroll it. When the area goes, focus goes back to the bar.
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (scrolls) focus(scrollArea);
+    else if (scrolled.current) focus(long ? fitButton : closeButton);
+    scrolled.current = scrolls;
+  }, [scrolls, uri]);
   const light = "rgba(255, 255, 255, 0.85)";
   const barButton = ({ pressed, hovered }: { pressed: boolean; hovered: boolean }) => ({
     height: 36, alignItems: "center", justifyContent: "center", borderRadius: 6,
@@ -289,7 +297,7 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
         <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: light, fontSize: 13, lineHeight: 18 }}>{title}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {long ? (
-            <PressScale accessibilityRole="button" onPress={toggle}
+            <PressScale ref={fitButton} accessibilityRole="button" onPress={toggle}
               style={(state) => ({ ...barButton(state), flexDirection: "row", gap: 6, paddingHorizontal: 10 })}>
               <Icon name={scrolls ? "Shrink" : "MoveHorizontal"} size={16} color={light} />
               <Text style={{ color: light, fontSize: 13, lineHeight: 18 }}>{scrolls ? m.fitToScreen : m.fitToWidth}</Text>
@@ -301,10 +309,18 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
           </PressScale>
         </View>
       </View>
-      {/* Keyed so the next image starts at its top. */}
-      {scrolls ? <ScrollView key={uri} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>{area}</ScrollView> : area}
+      {/* Keyed so the next image starts at its top. The fit button stays the visible
+          keyboard control, so the scroll area draws no focus ring. */}
+      {scrolls ? (
+        <ScrollView key={uri} ref={scrollArea} focusable style={{ flex: 1, outlineWidth: 0 }} contentContainerStyle={{ flexGrow: 1 }}>{area}</ScrollView>
+      ) : area}
     </View>
   );
+}
+
+// Only views on web have focus(); elsewhere this does nothing.
+function focus(ref: React.RefObject<unknown>) {
+  (ref.current as { focus?(): void } | null)?.focus?.();
 }
 
 // Paseo draws dialogs as bottom sheets below this window width.
