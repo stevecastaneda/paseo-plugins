@@ -147,7 +147,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.7.0
 
-- [New] **See screenshots full screen.** In an image preview, press the full screen button or the image itself to fill the window with it. The arrow keys still move between images, and Esc takes you back to the preview.
+- [New] **See screenshots full screen.** In an image preview, press the full screen button or the image itself to fill the window with it. A long screenshot gets a **Fit to width** button that fills the width so you can scroll down it. The arrow keys still move between images, and Esc takes you back to the preview.
 
 ### 1.6.0
 

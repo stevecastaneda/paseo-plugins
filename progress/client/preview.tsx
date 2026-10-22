@@ -1,7 +1,7 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
@@ -230,7 +230,8 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
 const FULL_SCREEN_MARGIN = 24;
 const FULL_SCREEN_BAR = 52;
 
-// The image over the whole window, sized to fit whole and never past its own pixels.
+// The image over the whole window, never past its own pixels. It fits whole, or a
+// long one can fill the width and scroll.
 // Position fixed reaches the window only when no ancestor has a transform, so it
 // sits outside the preview's scroll view and the dialog turns its scrolling off.
 function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { title: string; uri: string; naturalWidth: number | null; ratio: number; dimmed: boolean; onExit(): void }) {
@@ -240,25 +241,53 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
   useEffect(() => {
     (closeButton.current as { focus?(): void } | null)?.focus?.();
   }, []);
-  const width = Math.max(0, Math.min(naturalWidth ?? Infinity, windowWidth - 2 * FULL_SCREEN_MARGIN, (windowHeight - 2 * FULL_SCREEN_MARGIN - FULL_SCREEN_BAR) * ratio));
+  const [fit, setFit] = useState<"screen" | "width">("screen");
+  const room = windowHeight - 2 * FULL_SCREEN_MARGIN - FULL_SCREEN_BAR;
+  const widthFit = Math.max(0, Math.min(naturalWidth ?? Infinity, windowWidth - 2 * FULL_SCREEN_MARGIN));
+  const screenFit = Math.min(widthFit, room * ratio);
+  // Only an image that would shrink noticeably to fit gets the choice; a near miss
+  // reads fine whole.
+  const long = widthFit / ratio > room * 1.1;
+  const scrolls = long && fit === "width";
+  const toggle = () => setFit(scrolls ? "screen" : "width");
   const light = "rgba(255, 255, 255, 0.85)";
-  return (
+  const barButton = ({ pressed, hovered }: { pressed: boolean; hovered: boolean }) => ({
+    height: 36, alignItems: "center", justifyContent: "center", borderRadius: 6,
+    backgroundColor: pressed ? "rgba(255, 255, 255, 0.16)" : hovered ? "rgba(255, 255, 255, 0.1)" : "transparent",
+  }) as const;
+  // A press on the image stops there, so only the black around it exits.
+  // The fit button is the keyboard's way to the toggle, so the image isn't a tab stop.
+  const area = (
     <Pressable accessible={false} focusable={false} onPress={onExit}
-      style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "black" } as unknown as ViewStyle}>
+      style={{ flexGrow: 1, alignItems: "center", justifyContent: "center", padding: FULL_SCREEN_MARGIN }}>
+      <Pressable accessible={false} focusable={false} onPress={long ? toggle : () => {}}
+        style={{ cursor: long ? (scrolls ? "zoom-out" : "zoom-in") : "default" } as unknown as ViewStyle}>
+        <Image accessibilityLabel={title} source={{ uri }} resizeMode="contain"
+          style={{ width: scrolls ? widthFit : screenFit, aspectRatio: ratio, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)", opacity: dimmed ? 0.6 : 1 }} />
+      </Pressable>
+    </Pressable>
+  );
+  return (
+    <View style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: "black" } as unknown as ViewStyle}>
       <View style={{ height: FULL_SCREEN_BAR, flexDirection: "row", alignItems: "center", gap: 12, paddingStart: FULL_SCREEN_MARGIN, paddingEnd: 12 }}>
         <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: light, fontSize: 13, lineHeight: 18 }}>{title}</Text>
-        <PressScale ref={closeButton} accessibilityRole="button" accessibilityLabel={m.exitFullScreen} onPress={onExit}
-          style={({ pressed, hovered }) => ({
-            width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 6,
-            backgroundColor: pressed ? "rgba(255, 255, 255, 0.16)" : hovered ? "rgba(255, 255, 255, 0.1)" : "transparent",
-          })}>
-          <Icon name="X" size={18} color={light} />
-        </PressScale>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {long ? (
+            <PressScale accessibilityRole="button" onPress={toggle}
+              style={(state) => ({ ...barButton(state), flexDirection: "row", gap: 6, paddingHorizontal: 10 })}>
+              <Icon name={scrolls ? "Shrink" : "MoveHorizontal"} size={16} color={light} />
+              <Text style={{ color: light, fontSize: 13, lineHeight: 18 }}>{scrolls ? m.fitToScreen : m.fitToWidth}</Text>
+            </PressScale>
+          ) : null}
+          <PressScale ref={closeButton} accessibilityRole="button" accessibilityLabel={m.exitFullScreen} onPress={onExit}
+            style={(state) => ({ ...barButton(state), width: 36 })}>
+            <Icon name="X" size={18} color={light} />
+          </PressScale>
+        </View>
       </View>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: FULL_SCREEN_MARGIN }}>
-        <Image accessibilityLabel={title} source={{ uri }} resizeMode="contain" style={{ width, aspectRatio: ratio, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)", opacity: dimmed ? 0.6 : 1 }} />
-      </View>
-    </Pressable>
+      {/* Keyed so the next image starts at its top. */}
+      {scrolls ? <ScrollView key={uri} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>{area}</ScrollView> : area}
+    </View>
   );
 }
 

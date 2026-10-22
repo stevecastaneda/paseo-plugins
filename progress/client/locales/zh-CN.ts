@@ -98,6 +98,8 @@ export const messages: ProgressMessages = {
   nextFile: "下一个文件",
   fullScreen: "全屏",
   exitFullScreen: "退出全屏",
+  fitToWidth: "适应宽度",
+  fitToScreen: "适应屏幕",
   videoChanged: "视频在加载过程中发生了变化。请重试。",
   localHistory: "运行记录保存在这台电脑上。",
   historyStopped: "运行记录将保存在这台电脑上。已保存的文件会保留在仓库中。",

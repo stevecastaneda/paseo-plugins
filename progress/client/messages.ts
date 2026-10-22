@@ -80,6 +80,8 @@ export interface ProgressMessages {
   nextFile: string;
   fullScreen: string;
   exitFullScreen: string;
+  fitToWidth: string;
+  fitToScreen: string;
   videoChanged: string;
   localHistory: string;
   historyStopped: string;
