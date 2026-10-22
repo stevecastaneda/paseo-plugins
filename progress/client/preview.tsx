@@ -249,8 +249,6 @@ const FULL_SCREEN_BAR = 52;
 
 // The image over the whole window, never past its own pixels. It fits whole, or a
 // long one can fill the width and scroll.
-// Position fixed reaches the window only when no ancestor has a transform, so it
-// sits outside the preview's scroll view and the dialog turns its scrolling off.
 function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { title: string; uri: string; naturalWidth: number | null; ratio: number; dimmed: boolean; onExit(): void }) {
   const { messages: m } = useProgressLanguage();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();

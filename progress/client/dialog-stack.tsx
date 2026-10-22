@@ -85,7 +85,8 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
         else onClose();
       }}>
       {/* One Modal.Content for every step: replacing it would re-present the sheet on phones.
-          Full screen turns its scrolling off, since the scroll view would hold the image inside the dialog. */}
+          Full screen turns its scrolling off. The image's fixed position reaches the window only
+          when no ancestor has a transform, and a scroll view has one. */}
       <Modal.Content scrollable={!(preview && (previewLong || preview.fullScreen))}>
       <ProgressLanguageProvider>
       {/* A dialog has room for clock times, however narrow the panel that opened it. */}
