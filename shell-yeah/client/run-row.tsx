@@ -13,7 +13,7 @@ import { OutputWell } from "./output.tsx";
 import { makePalette, mix, withAlpha, type ThemeColors } from "./palette.ts";
 import { Badge, Button, IconSwap, PressScale, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
 
-const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder" };
+const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder", keyboard: "Keyboard" };
 const ACTION_ICON: Record<Action["id"], string> = { run: "Play", dismiss: "X", stop: "Square", "force-stop": "SquareX", copy: "Copy", rerun: "RotateCw", send: "Send" };
 const ENTER_WITHIN_MS = 2_000;
 const STACK_SWITCHER_BELOW = 560;
@@ -35,8 +35,10 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const past = viewing === "latest" ? null : row.past![viewing];
   const run = past ? pastRunView(row, past) : latest;
   const steps = switcher(row, viewing);
-  const keyBox = useRef<TextInput>(null);
+  const keyInput = useRef<TextInput>(null);
   const [typing, setTyping] = useState(false);
+  // Set by Run and Rerun. Not on a phone, where focusing opens the keyboard over the chat.
+  const focusWhenListening = useRef(false);
   const ui = useRunUi(row.runId, rpcTail);
   const running = run.phase.kind === "running" && run.lostAt === null;
   const latestRunning = latest.phase.kind === "running" && latest.lostAt === null;
@@ -50,15 +52,26 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const [busy, setBusy] = useState<Action["id"] | null>(null);
   const [copied, setCopied] = useState(false);
   const compact = layout.compact;
+  const listening = pres.keyboard && typing;
+  // Unmounting a focused input may not fire onBlur on web.
+  useEffect(() => {
+    if (!pres.keyboard) setTyping(false);
+    else if (focusWhenListening.current) {
+      focusWhenListening.current = false;
+      keyInput.current?.focus();
+    }
+  }, [pres.keyboard]);
 
   async function act(action: Action) {
     setBusy(action.id);
     try {
       switch (action.id) {
         case "run":
+          focusWhenListening.current = !compact;
           await rpcStart({ agentId, cwd: run.cwd, command: run.command, origin: "claude", runId: run.runId });
           return;
         case "rerun":
+          focusWhenListening.current = !compact;
           await rpcStart({ agentId, cwd: row.cwd, command: row.command, origin: row.origin, rerunOf: row });
           return;
         case "dismiss":
@@ -85,6 +98,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
         }
       }
     } catch (error) {
+      focusWhenListening.current = false;
       toast.error(errorMessage(error));
     } finally {
       setBusy(null);
@@ -144,19 +158,27 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
             onFollowingChange={ui.setFollowing}
             commandLines={pres.script.split("\n")}
             reduced={reduced}
-            cursor={pres.keyboard && typing ? run.cursor : null}
-            onPress={pres.keyboard ? () => keyBox.current?.focus() : undefined}
-          />
+            cursor={listening ? run.cursor : null}
+            listening={listening}
+            onPress={pres.keyboard ? () => keyInput.current?.focus() : undefined}>
+            {pres.keyboard ? <KeyInput ref={keyInput} runId={run.runId} compact={compact} onTypingChange={setTyping} /> : null}
+          </OutputWell>
         ) : pres.well?.kind === "message" ? (
           <View style={{ marginHorizontal: 6, borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: withAlpha(colors.border, 0.6), paddingVertical: 8, paddingHorizontal: 10 }}>
             <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: 18, color: colors.foreground }}>{pres.well.text}</Text>
           </View>
         ) : null}
-        {pres.keyboard ? <KeyBox ref={keyBox} runId={run.runId} colors={colors} well={palette.well} compact={compact} typing={typing} onTypingChange={setTyping} /> : null}
-        <Footer pres={typing ? { ...pres, hint: null } : pres} colors={colors} compact={compact} actions={actions} />
+        <Footer pres={withTypingCue(pres, listening, compact)} colors={colors} compact={compact} actions={actions} />
       </Card>
     </Enter>
   );
+}
+
+function withTypingCue(pres: Presentation, listening: boolean, compact: boolean): Presentation {
+  if (listening) return { ...pres, hint: null, notes: compact ? pres.notes : [{ icon: "keyboard", text: "Esc to stop typing" }, ...pres.notes] };
+  const hintSaysHowToType = pres.hint !== null;
+  if (!pres.keyboard || hintSaysHowToType) return pres;
+  return { ...pres, notes: [{ icon: "keyboard", text: `${compact ? "Tap" : "Click"} the output to type` }, ...pres.notes] };
 }
 
 function buttonTone(action: Action): ButtonTone {
@@ -313,53 +335,49 @@ function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: Non
   );
 }
 
-// Typing into the command, as in a terminal: each key goes to it as it's pressed. The box
-// itself stays empty. What the command shows lands in the output, so a password prompt shows
-// nothing. Esc stops typing.
-const KeyBox = forwardRef<TextInput, { runId: string; colors: ThemeColors; well: string; compact: boolean; typing: boolean; onTypingChange(typing: boolean): void }>(function KeyBox({ runId, colors, well, compact, typing, onTypingChange }, ref) {
+// Typing into the command, as in a terminal: each key goes to it as it's pressed. The input
+// is invisible and stays empty, at the bottom of the output box, so focusing it keeps the card in
+// view and a phone keyboard opens just under the newest output. What the command shows lands in
+// the output, so a password prompt shows nothing. Esc stops typing.
+const KeyInput = forwardRef<TextInput, { runId: string; compact: boolean; onTypingChange(typing: boolean): void }>(function KeyInput({ runId, compact, onTypingChange }, ref) {
   const send = useKeySender(runId);
-  const box = useRef<TextInput | null>(null);
+  const input = useRef<TextInput | null>(null);
   const setRef = (node: TextInput | null) => {
-    box.current = node;
+    input.current = node;
     if (typeof ref === "function") ref(node);
     else if (ref) ref.current = node;
   };
   return (
-    <View style={{ marginHorizontal: 10, marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8, height: compact ? 40 : 34, paddingStart: 10, paddingEnd: 3, borderRadius: 6, backgroundColor: well, borderWidth: 1, borderColor: typing ? colors.accent : withAlpha(colors.border, 0.6) }}>
-      <Icon name="Keyboard" size={14} color={typing ? colors.foreground : colors.foregroundMuted} />
-      <TextInput
-        ref={setRef}
-        value=""
-        onChangeText={(text) => {
-          if (text) send(text);
-        }}
-        onKeyPress={(event) => {
-          const press = event.nativeEvent as KeyPress;
-          if (press.key === "Escape") return box.current?.blur();
-          // On phones Enter arrives as a submit instead.
-          if (press.key === "Enter" && Platform.OS !== "web") return;
-          const keys = terminalKeys(press);
-          if (keys === null) return;
-          event.preventDefault();
-          send(keys);
-        }}
-        onSubmitEditing={() => send("\r")}
-        submitBehavior="submit"
-        onFocus={() => onTypingChange(true)}
-        onBlur={() => onTypingChange(false)}
-        autoCapitalize="none"
-        autoCorrect={false}
-        autoComplete="off"
-        spellCheck={false}
-        placeholder={typing ? `Keys go to the command as you type${compact ? "" : " · Esc to stop"}` : `${compact ? "Tap" : "Click"} here or on the output to type`}
-        placeholderTextColor={colors.foregroundMuted}
-        accessibilityLabel="Type into the command"
-        accessibilityHint="Each key goes to the command as you press it"
-        // 16 px on phones: iOS Safari zooms the page into a smaller box when it's tapped.
-        style={{ flex: 1, minWidth: 0, height: "100%", paddingVertical: 0, fontSize: compact ? 16 : 13, color: colors.foreground, outlineWidth: 0 }}
-      />
-      <Button icon="CornerDownLeft" label="Enter" tone="quiet" onPress={() => send("\r")} compact={compact} iconOnly radius={3} colors={colors} accessibilityLabel="Press Enter" />
-    </View>
+    <TextInput
+      ref={setRef}
+      value=""
+      onChangeText={(text) => {
+        if (text) send(text);
+      }}
+      onKeyPress={(event) => {
+        const press = event.nativeEvent as KeyPress;
+        if (press.key === "Escape") return input.current?.blur();
+        // On phones Enter arrives as a submit instead.
+        if (press.key === "Enter" && Platform.OS !== "web") return;
+        const keys = terminalKeys(press);
+        if (keys === null) return;
+        event.preventDefault();
+        send(keys);
+      }}
+      onSubmitEditing={() => send("\r")}
+      submitBehavior="submit"
+      onFocus={() => onTypingChange(true)}
+      onBlur={() => onTypingChange(false)}
+      autoCapitalize="none"
+      autoCorrect={false}
+      autoComplete="off"
+      spellCheck={false}
+      caretHidden
+      accessibilityLabel="Type into the command"
+      accessibilityHint="Each key goes to the command as you press it"
+      // 16 px on phones: iOS Safari zooms the page into a smaller box when it's tapped.
+      style={{ position: "absolute", left: 0, bottom: 0, width: 1, height: 1, padding: 0, opacity: 0, fontSize: compact ? 16 : 13, color: "transparent", outlineWidth: 0 }}
+    />
   );
 });
 

@@ -15,9 +15,10 @@ const URL = /https?:\/\/[^\s<>"')\]]+/g;
 
 // The output well: one selectable Text so copy and selection work across lines, spans
 // colored by the palette, in a box that scrolls back through everything the card holds
-// and follows the newest line. https links open outside. While the user types into the
-// command, it shows the terminal's cursor, and a click on the text starts typing.
-export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, box, compact, running, following, onFollowingChange, commandLines, reduced, cursor, onPress }: {
+// and follows the newest line. https links open outside. A click anywhere else in the box
+// calls onPress, unless it ends a selection. `children` sits in the box: the hidden input
+// that takes the keys. While it listens, the box shows an accent border and the cursor.
+export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, colors, tall, box, compact, running, following, onFollowingChange, commandLines, reduced, cursor, listening, onPress, children }: {
   lines: readonly Line[];
   skipped: number;
   palette: Palette;
@@ -32,7 +33,9 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   reduced: boolean;
   // Shown while typing goes to the command; null otherwise.
   cursor: Cursor | null;
+  listening: boolean;
   onPress?(): void;
+  children?: React.ReactNode;
 }) {
   const screen = useWindowDimensions();
   // While the user reads above the newest line of a running command, hold what they're
@@ -56,7 +59,7 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
   }, [total]);
 
   const body = (
-    <Text selectable onPress={onPress ? () => noSelection() && onPress() : undefined} style={[{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }, onPress ? ({ cursor: "text" } as object) : null]}>
+    <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: LINE_HEIGHT, color: palette.text }}>
       {tall && commandLines.length > 1 ? <Text style={{ color: colors.foregroundMuted }}>{commandLines.map((l) => `$ ${l}`).join("\n")}{"\n"}</Text> : null}
       {skipped > 0 ? <Text style={{ color: colors.foregroundMuted }}>{`… ${formatCount(skipped)} earlier ${skipped === 1 ? "line" : "lines"}\n`}</Text> : null}
       {shown.slice(0, freshFrom).map((line, i) => <LineSpans key={i} line={line} palette={palette} last={i === shown.length - 1} cursorCol={i === cursorRow ? cursor!.col : null} />)}
@@ -74,18 +77,28 @@ export function OutputWell({ lines: liveLines, skipped: liveSkipped, palette, co
     borderRadius: 6,
     backgroundColor: palette.well,
     borderWidth: 1,
-    borderColor: withAlpha(colors.border, 0.6),
+    borderColor: listening ? colors.accent : withAlpha(colors.border, 0.6),
     overflow: "hidden" as const,
   };
 
   // Vertical padding sits outside the scroller, so a box scrolled to the end never slices its
   // last line; half a row at the top shows there is more above. On a phone the box always fits
-  // its output: with the keyboard up, a held box would leave a short prompt far above the typing box.
+  // its output: with the keyboard up, a held box would leave a short prompt far above the keyboard.
+  const scroller = (
+    <TailScroll height={(boxRows(box.lines, tall, compact, screen.height) + 0.5) * LINE_HEIGHT} fixed={box.fixed && !compact} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
+      <View style={{ paddingHorizontal: 10, minHeight: LINE_HEIGHT }}>{body}</View>
+    </TailScroll>
+  );
+  // Links and Jump to latest take their own clicks. A drag that selects text on web, or a long
+  // press that selects it in the app, cancels the press.
   return (
-    <View style={[frame, { paddingVertical: WELL_PADDING_V }]} {...codeSurface()}>
-      <TailScroll height={(boxRows(box.lines, tall, compact, screen.height) + 0.5) * LINE_HEIGHT} fixed={box.fixed && !compact} compact={compact} following={following} onFollowingChange={onFollowingChange} colors={colors} fadeColor={palette.well}>
-        <View style={{ paddingHorizontal: 10 }}>{body}</View>
-      </TailScroll>
+    <View style={frame} {...codeSurface()}>
+      {onPress ? (
+        <Pressable accessible={false} tabIndex={-1} onPress={() => noSelection() && onPress()} onLongPress={Platform.OS === "web" ? undefined : () => undefined} style={[{ paddingVertical: WELL_PADDING_V }, { cursor: "text" } as object]}>{scroller}</Pressable>
+      ) : (
+        <View style={{ paddingVertical: WELL_PADDING_V }}>{scroller}</View>
+      )}
+      {children}
     </View>
   );
 }

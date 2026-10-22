@@ -166,6 +166,14 @@ test("in a terminal, a running card has a box to type into, and a prompt points 
   assert.deepEqual([done.keyboard, done.hint], [false, null]);
 });
 
+test("a command in a terminal has its box before it prints anything, and keeps it while it stops; one without a terminal shows no empty box", () => {
+  const running = { kind: "running" as const, startedAt: T0, stopRequestedAt: null };
+  const silent = { output: { lines: [], total: 0 } };
+  assert.deepEqual(describe(run(running, { ...silent, terminal: true }), T0).well, { kind: "output", skipped: 0 });
+  assert.deepEqual(describe(run({ ...running, stopRequestedAt: T0 }, { ...silent, terminal: true }), T0 + 2_000).well, { kind: "output", skipped: 0 }, "Stop doesn't pull the box out from under the pointer");
+  assert.equal(describe(run(running, silent), T0).well, null);
+});
+
 test("a running card fits its output for its first second, then holds a terminal-sized box until it ends", () => {
   const running: Phase = { kind: "running", startedAt: T0, stopRequestedAt: null };
   assert.deepEqual(describe(run(running), T0 + 999).box, { lines: 12, fixed: false }, "a quick command never grows");

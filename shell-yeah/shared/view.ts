@@ -5,7 +5,7 @@ import { cardIdOf, lineText, runNumberOf, type Line, type LiveView, type PastRun
 export type Tone = "muted" | "active" | "success" | "danger" | "warning";
 export type Badge = "play" | "spinner" | "check" | "x" | "square" | "unplug";
 export type ActionId = "run" | "dismiss" | "stop" | "force-stop" | "copy" | "rerun" | "send";
-export type NoteIcon = "eye-off" | "eye" | "scissors" | "clock" | "info" | "folder";
+export type NoteIcon = "eye-off" | "eye" | "scissors" | "clock" | "info" | "folder" | "keyboard";
 
 // A row after merging its data with the freshest live reply (see client/live.ts).
 export type ResolvedRun = Pick<RunRow, "runId" | "origin" | "command" | "cwd"> & { terminal: boolean } &
@@ -108,6 +108,7 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
     const lastLine = lines.length > 0 ? lineText(lines[lines.length - 1]).trimEnd() : "";
     const wantsInput = INPUT_PATTERNS.test(outputText) || (silentFor >= LIMITS.inputHintMs && /[:?]$/.test(lastLine));
     const quiet = silentFor >= LIMITS.quietNoteMs ? ` · quiet for ${Math.floor(silentFor / 1000)}s` : "";
+    const takesKeys = run.terminal;
     return {
       layout: "card", ...shown, tone: "active", badge: "spinner",
       label: stopping ? "Stopping" : "",
@@ -117,9 +118,9 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
       foldable,
       box,
       notes: [{ icon: "clock", text: total === 0 ? "No output yet" : `${formatCount(total)} ${total === 1 ? "line" : "lines"}${quiet}` }],
-      hint: wantsInput ? (run.terminal ? TYPE_HINT : NO_KEYBOARD_HINT) : null,
-      well: total === 0 ? null : { kind: "output", skipped },
-      keyboard: run.terminal && !stopping,
+      hint: wantsInput ? (takesKeys ? TYPE_HINT : NO_KEYBOARD_HINT) : null,
+      well: total === 0 && !takesKeys ? null : { kind: "output", skipped },
+      keyboard: takesKeys && !stopping,
     };
   }
 
