@@ -210,8 +210,11 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     </View>
   );
   const layerShown = fullScreen && showsLayer;
+  // An SVG stays sharp at any size, so only a bitmap stops at its own pixels. An
+  // icon's SVG can say it's 24px wide.
   const fullScreenLayer = layerShown && preview.data?.kind === "image" ? (
-    <FullScreenImage title={attachment.title} uri={preview.data.dataUri} naturalWidth={preview.data.width} ratio={aspectRatio} dimmed={stepping} onExit={() => onFullScreen(false)} />
+    <FullScreenImage title={attachment.title} uri={preview.data.dataUri} ratio={aspectRatio} dimmed={stepping} onExit={() => onFullScreen(false)}
+      naturalWidth={preview.data.dataUri.startsWith("data:image/svg+xml") ? null : preview.data.width} />
   ) : null;
   // Paseo's focus trap counts the controls under the layer, so Shift+Tab would
   // reach a hidden Open. Inert takes them out until full screen ends.

@@ -28,17 +28,18 @@ function renderFullScreen(query: Query): { layer: Element | undefined; fullScree
   const fullScreenCalls: boolean[] = [];
   const preview = PreviewContent({ colors: { surface0: "#000000", surface1: "#000000" }, attachment: shot, workspaceId: "w", workspaceDirectory: "/w", fullScreen: true,
     onFullScreen(on: boolean) { fullScreenCalls.push(on); }, onLong() {}, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
-  const find = (node: unknown): Element | undefined => {
-    if (!node || typeof node !== "object") return undefined;
-    if (Array.isArray(node)) return node.map(find).find(Boolean);
-    const element = node as Element;
-    return "onExit" in (element.props ?? {}) ? element : find(element.props?.children);
-  };
-  return { layer: find(preview), fullScreenCalls };
+  return { layer: findElement(preview, (props) => "onExit" in props), fullScreenCalls };
 }
 
-function image(size: { width: number; height: number }) {
-  return { kind: "image", dataUri: "data:image/png;base64,", width: size.width, ratio: size.width / size.height };
+function findElement(node: unknown, matches: (props: Record<string, any>) => boolean): Element | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  if (Array.isArray(node)) return node.map((child) => findElement(child, matches)).find(Boolean);
+  const element = node as Element;
+  return matches(element.props ?? {}) ? element : findElement(element.props?.children, matches);
+}
+
+function image(size: { width: number; height: number }, type = "image/png") {
+  return { kind: "image", dataUri: `data:${type};base64,`, width: size.width, ratio: size.width / size.height };
 }
 
 function fullScreenText(size: { width: number; height: number }): string[] {
@@ -66,4 +67,15 @@ test("full screen stays on the last image while the next one loads", () => {
   const { layer, fullScreenCalls } = renderFullScreen({ data: image({ width: 1600, height: 900 }), isPlaceholderData: true });
   assert.ok(layer);
   assert.deepEqual(fullScreenCalls, []);
+});
+
+// The width the full-screen image is drawn at.
+function drawnWidth(data: unknown): number {
+  const { layer } = renderFullScreen({ data });
+  return findElement((layer!.type as (props: unknown) => unknown)(layer!.props), (props) => "source" in props)!.props.style.width;
+}
+
+test("full screen draws a small bitmap at its own pixels, and an SVG as big as the screen allows", () => {
+  assert.equal(drawnWidth(image({ width: 24, height: 24 })), 24);
+  assert.equal(drawnWidth(image({ width: 24, height: 24 }, "image/svg+xml")), 800 - 48 - 52);
 });
