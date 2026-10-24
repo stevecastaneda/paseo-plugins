@@ -102,6 +102,10 @@ Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.j
 
 ## Changelog
 
+### 1.2.2
+
+- [Fixed] **Run cards show up on Paseo 0.13, and each command gets one card.** Paseo 0.13 stopped handing Claude's reply to plugins when a turn ends, so no Run card appeared under a reply. Shell Yeah now reads the reply back from Paseo, and only from the turn that just ended. Before, a turn started by another agent's message or by a schedule offered a second card for a command from the reply before it.
+
 ### 1.2.1
 
 - Leaving the Paseo window now stops typing into a command. When you come back, click the output to type again, so a key meant for something else can't reach the command.

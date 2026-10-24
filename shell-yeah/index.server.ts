@@ -1,5 +1,5 @@
 import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
-import { agentOf, attachItems, latestAssistantText, proposeFromReply, scanProposals, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
+import { agentOf, attachItems, fetchTurn, latestAssistantText, proposeFromReply, scanProposals, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
 import { createLogStore, defaultLogRoot } from "./server/logs.ts";
 import { createRunRegistry } from "./server/runs.ts";
 import { commandFinder } from "./server/shells.ts";
@@ -34,28 +34,27 @@ export default function contribute(server: PluginServerContext) {
   server.handle(attachSearch, async ({ query }) => ({ items: await attachItems({ runs, logs, saved }, query) }));
   server.handle(dismiss, (input, ctx) => (bind(ctx), runs.dismiss(input).then(() => ({ ok: true as const }))));
 
-  const recentTimeline = async (agentId: string, ctx: PluginHandlerContext) => {
+  // `refetch` also updates the ref's agent, so `cwd` is set after it.
+  const latestTurn = async (agentId: string, ctx: PluginHandlerContext) => {
     bind(ctx);
     const ref = ctx.paseo.agents.ref(agentId);
-    const page = await ref.timeline.refetch({ direction: "tail", limit: 400, projection: "projected" });
-    if (page.error) throw new Error(page.error);
-    await ref.refresh();
+    const turn = await fetchTurn((options) => ref.timeline.refetch(options), null);
     if (!ref.cwd) throw new Error("Paseo doesn't have this agent loaded.");
-    return { cwd: ref.cwd, timeline: page.entries.map((entry) => entry.item) };
+    return { cwd: ref.cwd, turn };
   };
 
   // `/sh` with no command: look at Claude's latest reply again, this time counting plain shell blocks.
   server.handle(scan, async ({ agentId }, ctx) => {
-    const { cwd, timeline } = await recentTimeline(agentId, ctx);
-    const { found, proposed } = await proposeFromReply({ registry: runs, agentId, cwd, timeline, turnId: null, mode: "any" });
+    const { cwd, turn } = await latestTurn(agentId, ctx);
+    const { found, proposed } = await proposeFromReply({ registry: runs, agentId, cwd, turn, mode: "any" });
     if (found === 0) throw new Error("The last reply has no commands to run. Type /sh and a command to run one.");
     if (proposed === 0) throw new Error("Those commands are already in the chat.");
     return { found: proposed };
   });
 
   server.handle(suggest, async ({ agentId }, ctx) => {
-    const { cwd, timeline } = await recentTimeline(agentId, ctx);
-    return { commands: scanProposals(latestAssistantText(timeline), "all", commandFinder(process.env, cwd)) };
+    const { cwd, turn } = await latestTurn(agentId, ctx);
+    return { commands: scanProposals(latestAssistantText(turn.timeline), "all", commandFinder(process.env, cwd)) };
   });
 
   // New agents only: one tagged block in the system prompt, merged after whatever is there.
@@ -68,7 +67,11 @@ export default function contribute(server: PluginServerContext) {
   server.on("agent.turn_ended", async (event, ctx) => {
     bind(ctx);
     if (event.outcome.kind !== "completed") return;
-    await proposeFromReply({ registry: runs, agentId: event.agent.id, cwd: event.agent.cwd, timeline: event.timeline, turnId: event.turnId, mode: "marked" });
+    // Paseo 0.13 sends the event with an empty timeline.
+    const ref = ctx.paseo.agents.ref(event.agent.id);
+    const turn = await fetchTurn((options) => ref.timeline.refetch(options), event.turnId).catch(() => null);
+    if (!turn) return;
+    await proposeFromReply({ registry: runs, agentId: event.agent.id, cwd: event.agent.cwd, turn, mode: "marked" });
   });
 
   // An archived chat is done with: its saved logs go with it. Archiving a workspace archives its chats.
