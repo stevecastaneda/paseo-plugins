@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { access } from "node:fs/promises";
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { LIMITS } from "../shared/limits.ts";
 import { PLUGIN_ID, RUN_KIND, isEnded, lineText, runRow, type Phase, type RunRow } from "../shared/row.ts";
@@ -11,7 +10,9 @@ import { formatCount, formatDuration } from "../shared/view.ts";
 import type { LogStore } from "./logs.ts";
 import type { RunRegistry } from "./runs.ts";
 
-type TimelinePayload = Awaited<ReturnType<PaseoAgentTimelineHandle["refetch"]>>;
+// Read through the plugin SDK, which Paseo provides. Paseo fails to build a type import from @getpaseo/client.
+type Refetch = ReturnType<PluginHandlerContext["paseo"]["agents"]["ref"]>["timeline"]["refetch"];
+type TimelinePayload = Awaited<ReturnType<Refetch>>;
 type TimelineEntry = Pick<TimelinePayload["entries"][number], "item" | "turnId">;
 export type Timeline = TimelineEntry["item"][];
 type TimelineItem = Timeline[number];
@@ -210,7 +211,7 @@ export function selectTurn(entries: TimelineEntry[], turnId: string | null): Tur
   return { id, timeline: entries.slice(first, end).map((e) => e.item) };
 }
 
-export async function fetchTurn(refetch: PaseoAgentTimelineHandle["refetch"], turnId: string | null): Promise<Turn> {
+export async function fetchTurn(refetch: Refetch, turnId: string | null): Promise<Turn> {
   let page = await refetch({ direction: "tail", limit: PAGE, projection: "projected" });
   let entries = page.entries;
   const id = targetTurn(entries, turnId);
