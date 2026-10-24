@@ -42,11 +42,12 @@ export function parseEntries(text: string): HistoryEntry[] {
         return parseOpenCodeEntry(data, raw);
       }
       const payload = record(data.payload);
-      const message = record(data.message);
-      const body = Object.keys(payload).length ? payload : Object.keys(message).length ? message : data;
       const kind = string(data.type) || "object";
+      const chat = kind === "user" || kind === "assistant";
+      const message = chat ? record(data.message) : {};
+      const body = Object.keys(payload).length ? payload : Object.keys(message).length ? message : data;
       const subtype = string(body.type);
-      const role = string(body.role) || (kind === "user" || kind === "assistant" ? kind : "");
+      const role = string(body.role) || (chat ? kind : "");
       const title = role ? `${role[0]!.toUpperCase()}${role.slice(1)}`
         : (subtype || kind).replace(/[_-]/g, " ");
       const preview = contentText(body.content) || string(body.message) || string(body.text)
