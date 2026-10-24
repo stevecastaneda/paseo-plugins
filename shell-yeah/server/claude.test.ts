@@ -11,7 +11,7 @@ import { commandFinder } from "./shells.ts";
 import { PLUGIN_ID, type RunRow } from "../shared/row.ts";
 import {
   HANDOFF_PROMPT, MAYBE_SENT, PERMISSION_PENDING, RUN_GONE, attachItems, commandsAlreadyShown, formatReport, latestAssistantText,
-  proposeFromReply, scanProposals, sendToClaude, withHandoffPrompt, type AgentState, type SendDeps, type Timeline,
+  proposeFromReply, scanProposals, selectTurn, sendToClaude, withHandoffPrompt, type AgentState, type SendDeps, type Timeline,
 } from "./claude.ts";
 
 const T0 = 1_700_000_000_000;
@@ -150,19 +150,39 @@ test("a rescan proposes only commands that have no run row after the latest repl
   const otherPlugin = { type: "plugin", pluginId: "someone-else", id: "q", kind: "run", version: 1, data: row({ command: "npm publish" }) };
   const timeline = [{ type: "user_message", text: "go" }, reply, shownCard, otherPlugin] as unknown as Timeline;
   assert.deepEqual([...commandsAlreadyShown(timeline)], ["gh auth login"]);
-  const result = await proposeFromReply({ registry, agentId: "a", cwd: "/w", timeline, turnId: "turn-1", mode: "marked" });
+  const result = await proposeFromReply({ registry, agentId: "a", cwd: "/w", turn: { id: "turn-1", timeline }, mode: "marked" });
   assert.deepEqual(result, { found: 2, proposed: 1 });
   assert.equal(proposed[0].command, "npm publish");
   assert.deepEqual(proposed[0].phase, { kind: "proposed" });
   assert.equal(proposed[0].cwd, "/w");
   assert.match(proposed[0].runId, /^p-[0-9a-f]{12}$/);
   // The same reply again yields the same id, so the row is replaced rather than duplicated.
-  const again = await proposeFromReply({ registry, agentId: "a", cwd: "/w", timeline: timeline.slice(0, 2), turnId: "turn-1", mode: "marked" });
+  const again = await proposeFromReply({ registry, agentId: "a", cwd: "/w", turn: { id: "turn-1", timeline: timeline.slice(0, 2) }, mode: "marked" });
   assert.equal(again.proposed, 2);
   assert.equal(proposed[2].runId, proposed[0].runId);
   // A card that ran earlier in the chat (before the latest reply) does not block a fresh suggestion.
   const earlier = [shownCard, { type: "user_message", text: "go" }, reply] as unknown as Timeline;
   assert.deepEqual([...commandsAlreadyShown(earlier)], []);
+});
+
+test("a turn is its own rows and the cards after them, up to the next turn", () => {
+  const card = { type: "plugin", pluginId: PLUGIN_ID, id: "p-x", kind: "run", version: 1, data: row({ command: "fly deploy" }) };
+  const entries = [
+    { item: { type: "user_message", text: "deploy" }, turnId: "t1" },
+    { item: { type: "assistant_message", text: "a" }, turnId: "t1" },
+    { item: card },
+    { item: { type: "assistant_message", text: "b" }, turnId: "t2" },
+    { item: card },
+    { item: { type: "user_message", text: "next" } },
+    { item: { type: "assistant_message", text: "c" }, turnId: "t3" },
+  ] as unknown as Parameters<typeof selectTurn>[0];
+  const items = entries.map((e) => e.item);
+  assert.deepEqual(selectTurn(entries, "t1"), { id: "t1", timeline: items.slice(0, 3) });
+  assert.deepEqual(selectTurn(entries, "t2"), { id: "t2", timeline: items.slice(3, 5) }, "an earlier turn's card is outside; a user message with no turn id ends it");
+  assert.deepEqual(selectTurn(entries, null), { id: "t3", timeline: items.slice(6) });
+  assert.deepEqual(selectTurn(entries, "t5"), { id: "t5", timeline: [] });
+  const turnless = entries.map(({ item }) => ({ item }));
+  assert.deepEqual(selectTurn(turnless, "t9"), { id: "t9", timeline: items });
 });
 
 test("the report reads like Claude Code's own ! transcript, names the folder and result, and always carries the tip", () => {
@@ -348,9 +368,6 @@ test("a long run in the attach menu saves its full log once per revision, from e
 type Entry = { item: Record<string, unknown>; turnId?: string };
 type Cursor = { epoch: string; seq: number };
 
-// The server entry wired to a fake Paseo. Its timeline pages like the daemon's: entries oldest first,
-// each with the turn id it was recorded in, `before` pages from a cursor, and a replaced timeline
-// (new epoch) answering a stale cursor with its tail. Appended cards join the history with no turn id.
 function fakeServer() {
   const appended: Array<{ agentId: string; id: string; data: RunRow }> = [];
   const fetches: Array<{ direction: string; limit: number | undefined }> = [];
@@ -367,7 +384,6 @@ function fakeServer() {
         cwd: "/w",
         status: "idle",
         pendingPermissions: [],
-        refresh: async () => null,
         timeline: {
           append: async (item: { id: string; data: RunRow }) => {
             appended.push({ agentId, id: item.id, data: item.data });
@@ -405,22 +421,20 @@ function fakeServer() {
   const ctx = { paseo, signal: new AbortController().signal };
   return {
     appended, fetches, ctx, cleanup, handlers, hooks, befores,
-    // Rows with no turn id, as provider history loads them.
-    setPage: (items: unknown[]) => { history = items.map((item) => ({ item: item as Entry["item"] })); },
+    loadProviderHistory: (items: unknown[]) => { history = items.map((item) => ({ item: item as Entry["item"] })); },
+    history: () => history.map((e) => e.item),
     record: (turnId: string, ...items: unknown[]) => { history.push(...items.map((item) => ({ item: item as Entry["item"], turnId }))); },
-    items: () => history.map((e) => e.item),
     replaceTimelineAfterFetch: (count: number, entries: Entry[]) => { afterFetch = (n) => { if (n === count) { history = entries; epoch = "e2"; } }; },
     failFetches: (message: string) => { fetchError = message; },
   };
 }
 
-const turnEnded = (s: ReturnType<typeof fakeServer>, turnId: string | null, timeline: unknown[] = []) =>
-  s.hooks.get("agent.turn_ended")!({ agent: { id: "agent-9", cwd: "/w/proj" }, turnId, outcome: { kind: "completed" }, timeline }, s.ctx);
+const turnEnded = (s: ReturnType<typeof fakeServer>, turnId: string | null, paseo: "0.12" | "0.13" = "0.13") =>
+  s.hooks.get("agent.turn_ended")!({ agent: { id: "agent-9", cwd: "/w/proj" }, turnId, outcome: { kind: "completed" }, timeline: paseo === "0.12" ? s.history() : [] }, s.ctx);
 
 test("a completed turn with a `sh run` block appends one proposed card with the agent's folder, read from the fetched timeline; failed turns and repeats append nothing", async () => {
   const s = fakeServer();
   s.record("t1", { type: "user_message", text: "login" }, { type: "assistant_message", text: fence("sh run", "gh auth login --web") });
-  // Paseo 0.13 sends the event with an empty timeline.
   await turnEnded(s, "t1");
   assert.equal(s.appended.length, 1);
   assert.deepEqual([s.appended[0].agentId, s.appended[0].data.command, s.appended[0].data.cwd, s.appended[0].data.phase.kind, s.appended[0].data.origin], ["agent-9", "gh auth login --web", "/w/proj", "proposed", "claude"]);
@@ -436,18 +450,15 @@ test("a completed turn with a `sh run` block appends one proposed card with the 
 test("a turn started by another agent's message offers nothing from the reply before it", async () => {
   const s = fakeServer();
   s.record("t1", { type: "user_message", text: "deploy it" }, { type: "assistant_message", text: "Needs your login.\n" + fence("sh run", "# Deploy\nfly deploy") });
-  await turnEnded(s, "t1", s.items());
+  await turnEnded(s, "t1", "0.12");
   assert.equal(s.appended.length, 1);
-  // Paseo records an agent's message as a tool call, and drops scheduled prompts, so the turn has no user message.
   s.record("t2",
     { type: "tool_call", callId: "paseo-agent-message:m1", name: "agent_message", status: "completed", error: null, detail: { type: "plain_text", text: "subagent done" } },
     { type: "assistant_message", text: "The subagent finished; nothing else to do." });
-  // Paseo 0.12 sends the whole history with the event.
-  await turnEnded(s, "t2", s.items());
+  await turnEnded(s, "t2", "0.12");
   assert.equal(s.appended.length, 1);
   await assert.rejects(s.handlers.get("shell-yeah.scan")!({ agentId: "agent-9" }, s.ctx) as Promise<unknown>, /has no commands/);
   assert.deepEqual(await s.handlers.get("shell-yeah.suggest")!({ agentId: "agent-9" }, s.ctx), { commands: [] });
-  // The same command in the new turn's reply is a fresh suggestion.
   s.record("t3", { type: "tool_call", callId: "paseo-agent-message:m2", name: "agent_message", status: "completed", error: null }, { type: "assistant_message", text: fence("sh run", "# Deploy\nfly deploy") });
   await turnEnded(s, "t3");
   assert.equal(s.appended.length, 2);
@@ -486,7 +497,7 @@ test("paging back stops when the timeline is replaced, and a failed fetch skips 
 
 test("a timeline with no turn ids falls back to the reply since the last user message", async () => {
   const s = fakeServer();
-  s.setPage([{ type: "user_message", text: "a" }, { type: "assistant_message", text: fence("sh run", "echo a") }, { type: "user_message", text: "b" }, { type: "assistant_message", text: fence("sh run", "echo b") }]);
+  s.loadProviderHistory([{ type: "user_message", text: "a" }, { type: "assistant_message", text: fence("sh run", "echo a") }, { type: "user_message", text: "b" }, { type: "assistant_message", text: fence("sh run", "echo b") }]);
   await turnEnded(s, "t9");
   assert.deepEqual(s.appended.map((a) => a.data.command), ["echo b"]);
   await s.cleanup();
@@ -504,13 +515,13 @@ test("new agents get the handoff block merged into their system prompt", async (
 test("/sh alone rescans the latest reply in any mode, and says so when there is nothing to run or it is already shown", async () => {
   const s = fakeServer();
   const scan = s.handlers.get("shell-yeah.scan")!;
-  s.setPage([{ type: "user_message", text: "hi" }, { type: "assistant_message", text: "Nothing here." }]);
+  s.loadProviderHistory([{ type: "user_message", text: "hi" }, { type: "assistant_message", text: "Nothing here." }]);
   await assert.rejects(scan({ agentId: "a" }, s.ctx) as Promise<unknown>, /has no commands/);
-  s.setPage([{ type: "user_message", text: "hi" }, { type: "assistant_message", text: fence("bash", "npm ci") }]);
+  s.loadProviderHistory([{ type: "user_message", text: "hi" }, { type: "assistant_message", text: fence("bash", "npm ci") }]);
   assert.deepEqual(await scan({ agentId: "a" }, s.ctx), { found: 1 });
   assert.equal(s.appended[0].data.command, "npm ci");
   const shown = { type: "plugin", pluginId: PLUGIN_ID, id: s.appended[0].id, kind: "run", version: 1, data: s.appended[0].data };
-  s.setPage([{ type: "user_message", text: "hi" }, { type: "assistant_message", text: fence("bash", "npm ci") }, shown]);
+  s.loadProviderHistory([{ type: "user_message", text: "hi" }, { type: "assistant_message", text: fence("bash", "npm ci") }, shown]);
   await assert.rejects(scan({ agentId: "a" }, s.ctx) as Promise<unknown>, /already in the chat/);
   assert.equal(s.appended.length, 1);
   await s.cleanup();
@@ -519,14 +530,14 @@ test("/sh alone rescans the latest reply in any mode, and says so when there is 
 test("the Run window lists every command in the latest reply, prose included, and nothing from earlier replies", async () => {
   const s = fakeServer();
   const suggest = s.handlers.get("shell-yeah.suggest")!;
-  s.setPage([
+  s.loadProviderHistory([
     { type: "assistant_message", text: "Earlier: `echo old`" },
     { type: "user_message", text: "how do I publish?" },
     { type: "assistant_message", text: "Run `echo hi there` in `src/index.ts`, then:" },
     { type: "assistant_message", text: "\n" + fence("bash", "echo done") },
   ]);
   assert.deepEqual(await suggest({ agentId: "a" }, s.ctx), { commands: ["echo hi there", "echo done"] });
-  s.setPage([{ type: "user_message", text: "hi" }]);
+  s.loadProviderHistory([{ type: "user_message", text: "hi" }]);
   assert.deepEqual(await suggest({ agentId: "a" }, s.ctx), { commands: [] });
   assert.equal(s.appended.length, 0, "listing shows no cards");
   await s.cleanup();

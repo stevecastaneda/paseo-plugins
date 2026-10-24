@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { access } from "node:fs/promises";
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { PluginHandlerContext, PluginLifecycleEvents } from "@getpaseo/plugin/server";
+import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { LIMITS } from "../shared/limits.ts";
 import { PLUGIN_ID, RUN_KIND, isEnded, lineText, runRow, type Phase, type RunRow } from "../shared/row.ts";
 import { shortCommand } from "../shared/text.ts";
@@ -10,8 +11,11 @@ import { formatCount, formatDuration } from "../shared/view.ts";
 import type { LogStore } from "./logs.ts";
 import type { RunRegistry } from "./runs.ts";
 
-export type Timeline = PluginLifecycleEvents["agent.turn_ended"]["timeline"];
+type TimelinePayload = Awaited<ReturnType<PaseoAgentTimelineHandle["refetch"]>>;
+type TimelineEntry = Pick<TimelinePayload["entries"][number], "item" | "turnId">;
+export type Timeline = TimelineEntry["item"][];
 type TimelineItem = Timeline[number];
+export type Turn = { id: string | null; timeline: Timeline };
 
 // ---- teaching Claude (new agents) ----
 
@@ -186,18 +190,51 @@ export function commandsAlreadyShown(timeline: Timeline): Set<string> {
   return shown;
 }
 
+const PAGE = 200;
+const MAX_PAGES = 3;
+
+// Provider history loads rows with no turn id.
+function targetTurn(entries: TimelineEntry[], turnId: string | null): string | undefined {
+  if (!entries.some((e) => e.turnId)) return undefined;
+  return turnId ?? entries.findLast((e) => e.item.type === "assistant_message")?.turnId;
+}
+
+// Cards carry no turn id. An agent message or a scheduled prompt starts a turn with no user message.
+export function selectTurn(entries: TimelineEntry[], turnId: string | null): Turn {
+  const id = targetTurn(entries, turnId);
+  if (id === undefined) return { id: turnId, timeline: entries.map((e) => e.item) };
+  const first = entries.findIndex((e) => e.turnId === id);
+  if (first < 0) return { id, timeline: [] };
+  let end = first + 1;
+  while (end < entries.length && (entries[end].turnId ? entries[end].turnId === id : entries[end].item.type !== "user_message")) end++;
+  return { id, timeline: entries.slice(first, end).map((e) => e.item) };
+}
+
+export async function fetchTurn(refetch: PaseoAgentTimelineHandle["refetch"], turnId: string | null): Promise<Turn> {
+  let page = await refetch({ direction: "tail", limit: PAGE, projection: "projected" });
+  let entries = page.entries;
+  const id = targetTurn(entries, turnId);
+  for (let pages = 1; pages < MAX_PAGES && id && entries[0]?.turnId === id && page.hasOlder && page.startCursor; pages++) {
+    const older = await refetch({ direction: "before", cursor: page.startCursor, limit: PAGE, projection: "projected" });
+    // A replaced timeline answers with its own tail, which doesn't join onto ours.
+    if (older.reset || older.staleCursor) break;
+    entries = [...older.entries, ...entries];
+    page = older;
+  }
+  return selectTurn(entries, turnId);
+}
+
 export async function proposeFromReply(input: {
   registry: Pick<RunRegistry, "propose">;
   agentId: string;
   cwd: string;
-  timeline: Timeline;
-  turnId: string | null;
+  turn: Turn;
   mode: ScanMode;
 }): Promise<{ found: number; proposed: number }> {
-  const text = latestAssistantText(input.timeline);
+  const text = latestAssistantText(input.turn.timeline);
   const commands = scanProposals(text, input.mode);
-  const shown = commandsAlreadyShown(input.timeline);
-  const turnKey = input.turnId ?? sha1(text);
+  const shown = commandsAlreadyShown(input.turn.timeline);
+  const turnKey = input.turn.id ?? sha1(text);
   let proposed = 0;
   for (const [index, command] of commands.entries()) {
     if (shown.has(command)) continue;
