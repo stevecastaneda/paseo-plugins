@@ -34,6 +34,11 @@ Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 
 ## Changelog
 
+### 1.0.0
+
+- Version 1.0. From now on, a new first number means an update breaks something, a new middle number means a new feature, and a new last number means a fix.
+- [Fixed] **Claude Code's request records no longer show as messages.** Newer Claude Code versions save a copy of each request they send in the chat's log. History showed those copies as extra You and Assistant messages. They repeated instructions and replies, and they split one prompt into several turns. They now appear under the turn's Events tag. Source still shows every record.
+
 ### 0.5.0
 
 - Needs Paseo 0.11 or later. The plugin now carries its own icon and screenshots, and Paseo 0.9 and 0.10 refuse to load a plugin that does. On an older Paseo, the version you already have keeps working.

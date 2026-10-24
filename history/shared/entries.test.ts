@@ -54,6 +54,47 @@ test("Claude tool results do not start a new turn or render as user messages", (
   assert.deepEqual(turns[0]!.entries.filter((entry) => entry.category === "message").map((entry) => entry.preview), ["Hello", "Done"]);
 });
 
+test("Claude Code request records stay out of the conversation", () => {
+  const blob = (role: string, content: unknown[], extra = {}) => ({
+    type: "api-request-blob", sessionId: "11111111-2222-3333-4444-555555555555", hash: "a".repeat(64), message: { role, content }, ...extra,
+  });
+  const blobs = [
+    blob("user", [
+      { type: "text", text: "<system-reminder>\nCodebase and user instructions are shown below.\n</system-reminder>" },
+      { type: "text", text: "List the files" },
+    ]),
+    blob("system", [
+      { type: "text", text: "You are Claude Code." },
+      { type: "tool_addition", tool: { type: "tool_definition", definition: { name: "Read", description: "Read a file.", input_schema: { type: "object", properties: { file_path: { type: "string" } } } } } },
+    ]),
+    blob("assistant", [
+      { type: "thinking", thinking: "I should list them.", signature: "sig" },
+      { type: "tool_use", id: "toolu_01abc", name: "Bash", input: { command: "ls" }, caller: { type: "direct" } },
+    ]),
+    blob("assistant", [{ type: "text", text: "Here are the files." }]),
+    blob("user", [{ type: "text", text: "Explore the repo" }], { agentId: "agent-1" }),
+  ];
+  const text = lines(
+    { type: "user", message: { role: "user", content: "List the files" } },
+    blobs[0], blobs[1],
+    { type: "assistant", message: { role: "assistant", content: [{ type: "tool_use", id: "toolu_01abc", name: "Bash", input: { command: "ls" } }] } },
+    { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_01abc", content: "a.txt" }] } },
+    blobs[2],
+    { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Here are the files." }] } },
+    blobs[3], blobs[4],
+  );
+  const turns = groupTurns(parseEntries(text));
+  assert.equal(turns.length, 1);
+  assert.deepEqual(turns[0]!.entries.filter((entry) => entry.category === "message").map((entry) => entry.preview), ["List the files", "Here are the files."]);
+  const blobEntries = turns[0]!.entries.filter((entry) => entry.kind.startsWith("api-request-blob"));
+  assert.deepEqual(blobEntries.map((entry) => entry.raw), blobs.map((record) => JSON.stringify(record)));
+  for (const entry of blobEntries) {
+    assert.equal(entry.category, "events");
+    assert.equal(entry.title, "api request blob");
+    assert.ok(!entry.hasTools && !entry.hasReasoning);
+  }
+});
+
 test("preserves malformed lines and hides injected context behind its tag", () => {
   const entries = parseEntries(lines({ type: "response_item", payload: { type: "message", role: "user", content: [{ text: "<environment_context>workspace</environment_context>" }] } }) + '{"partial":');
   assert.equal(entries[0]!.category, "context");
