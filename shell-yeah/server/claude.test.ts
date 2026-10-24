@@ -345,12 +345,22 @@ test("a long run in the attach menu saves its full log once per revision, from e
   assert.equal(saves, 2, "new output saves it again");
 });
 
-// The server entry wired to a fake Paseo: only timeline appends and prompt edits are observed.
+type Entry = { item: Record<string, unknown>; turnId?: string };
+type Cursor = { epoch: string; seq: number };
+
+// The server entry wired to a fake Paseo. Its timeline pages like the daemon's: entries oldest first,
+// each with the turn id it was recorded in, `before` pages from a cursor, and a replaced timeline
+// (new epoch) answering a stale cursor with its tail. Appended cards join the history with no turn id.
 function fakeServer() {
   const appended: Array<{ agentId: string; id: string; data: RunRow }> = [];
+  const fetches: Array<{ direction: string; limit: number | undefined }> = [];
   const handlers = new Map<string, (input: unknown, ctx: unknown) => unknown>();
   const hooks = new Map<string, (event: unknown, ctx: unknown) => unknown>();
   const befores = new Map<string, (input: unknown, ctx: unknown) => unknown>();
+  let history: Entry[] = [];
+  let epoch = "e1";
+  let afterFetch: (count: number) => void = () => undefined;
+  let fetchError: string | null = null;
   const paseo = {
     agents: {
       ref: (agentId: string) => ({
@@ -359,13 +369,30 @@ function fakeServer() {
         pendingPermissions: [],
         refresh: async () => null,
         timeline: {
-          append: async (item: { id: string; data: RunRow }) => { appended.push({ agentId, id: item.id, data: item.data }); return { seq: 1, epoch: "e" }; },
-          refetch: async () => ({ error: null, entries: lastPage.map((item) => ({ item })) }),
+          append: async (item: { id: string; data: RunRow }) => {
+            appended.push({ agentId, id: item.id, data: item.data });
+            const entry = { item: { ...item, pluginId: PLUGIN_ID } };
+            const at = history.findIndex((e) => e.item.id === item.id);
+            if (at >= 0) history[at] = entry;
+            else history.push(entry);
+            return { seq: history.length, epoch };
+          },
+          refetch: async (options: { direction?: string; cursor?: Cursor; limit?: number } = {}) => {
+            if (fetchError) throw new Error(fetchError);
+            const direction = options.direction ?? "tail";
+            fetches.push({ direction, limit: options.limit });
+            const stale = options.cursor !== undefined && options.cursor.epoch !== epoch;
+            const end = direction === "before" && options.cursor && !stale ? options.cursor.seq : history.length;
+            const start = Math.max(0, end - (options.limit ?? 200));
+            const entries = history.slice(start, end).map((e, i) => ({ ...e, seqStart: start + i }));
+            const page = { error: null, epoch, direction, reset: stale, staleCursor: stale, hasOlder: start > 0, startCursor: entries.length ? { epoch, seq: start } : null, entries };
+            afterFetch(fetches.length);
+            return page;
+          },
         },
       }),
     },
   };
-  let lastPage: unknown[] = [];
   const server = {
     handle: (contract: { name: string }, handler: (input: unknown, ctx: unknown) => unknown) => { handlers.set(contract.name, handler); },
     on: (name: string, handler: (event: unknown, ctx: unknown) => unknown) => { hooks.set(name, handler); return () => undefined; },
@@ -376,23 +403,92 @@ function fakeServer() {
   } as unknown as PluginServerContext;
   const cleanup = contribute(server);
   const ctx = { paseo, signal: new AbortController().signal };
-  return { appended, ctx, cleanup, handlers, hooks, befores, setPage: (items: unknown[]) => { lastPage = items; } };
+  return {
+    appended, fetches, ctx, cleanup, handlers, hooks, befores,
+    // Rows with no turn id, as provider history loads them.
+    setPage: (items: unknown[]) => { history = items.map((item) => ({ item: item as Entry["item"] })); },
+    record: (turnId: string, ...items: unknown[]) => { history.push(...items.map((item) => ({ item: item as Entry["item"], turnId }))); },
+    items: () => history.map((e) => e.item),
+    replaceTimelineAfterFetch: (count: number, entries: Entry[]) => { afterFetch = (n) => { if (n === count) { history = entries; epoch = "e2"; } }; },
+    failFetches: (message: string) => { fetchError = message; },
+  };
 }
 
-test("a completed turn with a `sh run` block appends one proposed card with the agent's folder; failed turns append nothing; a repeat replaces the same id", async () => {
+const turnEnded = (s: ReturnType<typeof fakeServer>, turnId: string | null, timeline: unknown[] = []) =>
+  s.hooks.get("agent.turn_ended")!({ agent: { id: "agent-9", cwd: "/w/proj" }, turnId, outcome: { kind: "completed" }, timeline }, s.ctx);
+
+test("a completed turn with a `sh run` block appends one proposed card with the agent's folder, read from the fetched timeline; failed turns and repeats append nothing", async () => {
   const s = fakeServer();
-  const timeline = [{ type: "user_message", text: "login" }, { type: "assistant_message", text: fence("sh run", "gh auth login --web") }];
-  const agent = { id: "agent-9", cwd: "/w/proj" };
-  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "completed" }, timeline }, s.ctx);
+  s.record("t1", { type: "user_message", text: "login" }, { type: "assistant_message", text: fence("sh run", "gh auth login --web") });
+  // Paseo 0.13 sends the event with an empty timeline.
+  await turnEnded(s, "t1");
   assert.equal(s.appended.length, 1);
   assert.deepEqual([s.appended[0].agentId, s.appended[0].data.command, s.appended[0].data.cwd, s.appended[0].data.phase.kind, s.appended[0].data.origin], ["agent-9", "gh auth login --web", "/w/proj", "proposed", "claude"]);
   assert.equal(s.appended[0].id, s.appended[0].data.runId);
-  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "failed", error: { message: "x" } }, timeline }, s.ctx);
-  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "canceled", reason: "user" }, timeline }, s.ctx);
+  const agent = { id: "agent-9", cwd: "/w/proj" };
+  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "failed", error: { message: "x" } }, timeline: [] }, s.ctx);
+  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "canceled", reason: "user" }, timeline: [] }, s.ctx);
+  await turnEnded(s, "t1");
+  assert.equal(s.appended.length, 1, "the card is already after the reply");
+  await s.cleanup();
+});
+
+test("a turn started by another agent's message offers nothing from the reply before it", async () => {
+  const s = fakeServer();
+  s.record("t1", { type: "user_message", text: "deploy it" }, { type: "assistant_message", text: "Needs your login.\n" + fence("sh run", "# Deploy\nfly deploy") });
+  await turnEnded(s, "t1", s.items());
   assert.equal(s.appended.length, 1);
-  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "completed" }, timeline }, s.ctx);
+  // Paseo records an agent's message as a tool call, and drops scheduled prompts, so the turn has no user message.
+  s.record("t2",
+    { type: "tool_call", callId: "paseo-agent-message:m1", name: "agent_message", status: "completed", error: null, detail: { type: "plain_text", text: "subagent done" } },
+    { type: "assistant_message", text: "The subagent finished; nothing else to do." });
+  // Paseo 0.12 sends the whole history with the event.
+  await turnEnded(s, "t2", s.items());
+  assert.equal(s.appended.length, 1);
+  await assert.rejects(s.handlers.get("shell-yeah.scan")!({ agentId: "agent-9" }, s.ctx) as Promise<unknown>, /has no commands/);
+  assert.deepEqual(await s.handlers.get("shell-yeah.suggest")!({ agentId: "agent-9" }, s.ctx), { commands: [] });
+  // The same command in the new turn's reply is a fresh suggestion.
+  s.record("t3", { type: "tool_call", callId: "paseo-agent-message:m2", name: "agent_message", status: "completed", error: null }, { type: "assistant_message", text: fence("sh run", "# Deploy\nfly deploy") });
+  await turnEnded(s, "t3");
   assert.equal(s.appended.length, 2);
-  assert.equal(s.appended[1].id, s.appended[0].id);
+  assert.notEqual(s.appended[1].id, s.appended[0].id);
+  await s.cleanup();
+});
+
+test("a turn longer than one page is read back to its start, and a turn with no id reads the newest reply's turn", async () => {
+  const s = fakeServer();
+  s.record("t1", { type: "user_message", text: "old" }, { type: "assistant_message", text: fence("sh run", "echo old") });
+  const tools = Array.from({ length: 450 }, (_, i) => ({ type: "tool_call", callId: `c${i}`, name: "Bash", status: "completed", error: null }));
+  s.record("t2", { type: "user_message", text: "publish" }, { type: "assistant_message", text: fence("sh run", "npm publish") }, ...tools, { type: "assistant_message", text: "Done." });
+  await turnEnded(s, null);
+  assert.deepEqual(s.appended.map((a) => a.data.command), ["npm publish"]);
+  assert.ok(s.fetches.length <= 3, `${s.fetches.length} fetches`);
+  assert.deepEqual(s.fetches.slice(1).map((f) => f.direction), s.fetches.slice(1).map(() => "before"));
+  await s.cleanup();
+});
+
+test("paging back stops when the timeline is replaced, and a failed fetch skips the turn", async () => {
+  const s = fakeServer();
+  const tools = Array.from({ length: 450 }, (_, i) => ({ type: "tool_call", callId: `c${i}`, name: "Bash", status: "completed", error: null }));
+  s.record("t1", { type: "user_message", text: "go" }, ...tools, { type: "assistant_message", text: fence("sh run", "make release") });
+  s.replaceTimelineAfterFetch(1, [{ item: { type: "assistant_message", text: fence("sh run", "echo replaced") } }]);
+  await turnEnded(s, "t1");
+  assert.deepEqual(s.appended.map((a) => a.data.command), ["make release"]);
+  assert.equal(s.fetches.length, 2);
+  const broken = fakeServer();
+  broken.record("t1", { type: "assistant_message", text: fence("sh run", "ls") });
+  broken.failFetches("agent not found");
+  await turnEnded(broken, "t1");
+  assert.equal(broken.appended.length, 0);
+  await s.cleanup();
+  await broken.cleanup();
+});
+
+test("a timeline with no turn ids falls back to the reply since the last user message", async () => {
+  const s = fakeServer();
+  s.setPage([{ type: "user_message", text: "a" }, { type: "assistant_message", text: fence("sh run", "echo a") }, { type: "user_message", text: "b" }, { type: "assistant_message", text: fence("sh run", "echo b") }]);
+  await turnEnded(s, "t9");
+  assert.deepEqual(s.appended.map((a) => a.data.command), ["echo b"]);
   await s.cleanup();
 });
 
