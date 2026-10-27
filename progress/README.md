@@ -148,6 +148,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 ### 1.9.0
 
 - [Improved] **The pill's popover shows one question at a time.** You used to scroll past every open question to reach the one you wanted. Now **Question 2 of 3** sits at the top with back and next arrows. Copy an answer and the popover opens on the next question the next time you press the pill.
+- [Improved] **A long question shows there's more below.** When a question runs past the bottom of the popover, its last lines fade out until you scroll to the end. Before, it stopped at the edge and looked finished.
 
 ### 1.8.0
 
