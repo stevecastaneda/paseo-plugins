@@ -19,7 +19,7 @@ type Question = Dashboard["questions"]["open"][number];
 
 // On desktop, Paseo caps the popover at 440px and scrolls all of it, padding included. The
 // list scrolls on its own below that cap so Open Progress stays in view. The question
-// header, when shown, takes its height and the 8px gap below it out of this.
+// header, when shown, takes its height and the 12px below it out of this.
 const LIST_MAX_HEIGHT = 340;
 
 // The question each workspace's popover shows. Paseo unmounts the popover when it
@@ -119,8 +119,8 @@ export function AttentionList({ colors, dashboard, workspaceId, compact, touch, 
   return (
     <>
       {stepping ? (
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontVariant: ["tabular-nums"] }}>
             {position[0]}<Text style={{ color: colors.foreground, fontWeight: "600" }}>{index + 1}</Text>{position[1]}
           </Text>
           <View style={{ flexDirection: "row", gap: touch ? 8 : 4 }}>
@@ -130,7 +130,7 @@ export function AttentionList({ colors, dashboard, workspaceId, compact, touch, 
         </View>
       ) : null}
       {/* Keyed so each question starts scrolled to its top. */}
-      <List key={question?.id} compact={compact} maxHeight={stepping ? LIST_MAX_HEIGHT - stepSize(touch) - 8 : LIST_MAX_HEIGHT}>
+      <List key={question?.id} compact={compact} maxHeight={stepping ? LIST_MAX_HEIGHT - stepSize(touch) - 12 : LIST_MAX_HEIGHT}>
         {question ? (
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
@@ -186,7 +186,7 @@ function StepButton({ colors, touch, onSurface1, icon, label, target, onPress }:
   return (
     <PressScale accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !target }} disabled={!target}
       onPress={target ? () => onPress(target) : undefined} hitSlop={touch ? 4 : undefined}
-      style={({ pressed }) => ({ width: size, height: size, alignItems: "center", justifyContent: "center", borderRadius: touch ? 8 : 6, opacity: target ? 1 : 0.35, ...raised(colors),
+      style={({ pressed }) => ({ width: size, height: size, alignItems: "center", justifyContent: "center", borderRadius: touch ? 8 : 4, opacity: target ? 1 : 0.35, ...raised(colors),
         backgroundColor: pressed ? button.pressed : button.rest })}>
       <Icon name={icon} size={touch ? 16 : 14} color={colors.foreground} />
     </PressScale>
