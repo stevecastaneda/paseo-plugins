@@ -1,0 +1,93 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import * as React from "react";
+import { clientHarness } from "../../test-support/client-harness.mjs";
+
+const directory = fileURLToPath(new URL("..", import.meta.url));
+
+type Element = { type: unknown; props: Record<string, any> };
+
+function find(node: unknown, matches: (props: Record<string, any>) => boolean): Element | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  if (Array.isArray(node)) return node.map((child) => find(child, matches)).find(Boolean);
+  const element = node as Element;
+  return matches(element.props ?? {}) ? element : find(element.props?.children, matches);
+}
+
+function text(node: unknown): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(text).join("");
+  return node && typeof node === "object" ? text((node as Element).props?.children) : "";
+}
+
+// Draws the popover's list by calling it with state kept between calls, the way
+// React would across re-renders. `open()` mounts it afresh, as Paseo does on each open.
+function popover(questions: string[]) {
+  let messages: unknown;
+  let slots: unknown[] = [];
+  let cursor = 0;
+  const h = clientHarness(directory, {
+    react: { ...React, useContext: () => ({ locale: "en", messages }), useState(initial: unknown) {
+      const slot = cursor++;
+      if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
+      return [slots[slot], (value: unknown) => { slots[slot] = value; }];
+    } },
+    "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },
+    "@getpaseo/plugin/client/react-native": { Icon: () => null, ScrollView: "ScrollView", useToast: () => ({}), copyText: async () => {} },
+  });
+  messages = h.load("client/i18n.ts").messagesFor("en");
+  const { AttentionList } = h.load("client/pill-popover.tsx");
+  const copied: string[] = [];
+  const dashboard = { questions: { open: questions.map((id) => ({ id, question: `Question ${id}`, options: [] })) }, stuck: [] };
+  const render = () => {
+    cursor = 0;
+    const tree = AttentionList({ colors: {}, dashboard, workspaceId: "w", compact: false, touch: false, onSurface1: true,
+      onCopy: (question: { id: string }, letter: string) => copied.push(`${question.id} ${letter}`), onOpenAttachment() {} });
+    const shown = find(tree, (props) => "question" in props && "onCopy" in props);
+    // The back and next buttons are their own component; draw it to reach the pressable.
+    const button = (label: string): Record<string, any> => {
+      const step = find(tree, (props) => props.label === label);
+      return step ? (step.type as (props: unknown) => Element)(step.props).props : {};
+    };
+    return { shown: shown?.props.question.id, header: text(find(tree, (props) => typeof props.children?.[0] === "string" && props.children[0].startsWith("Question "))),
+      back: button("Previous question"), next: button("Next question"), copy: (letter: string) => shown!.props.onCopy(letter) };
+  };
+  return { render, copied, open() { slots = []; return render(); } };
+}
+
+test("the pill popover shows one question at a time and steps with back and next", () => {
+  const p = popover(["Q1", "Q2", "Q3"]);
+  let view = p.open();
+  assert.equal(view.shown, "Q1");
+  assert.equal(view.header, "Question 1 of 3");
+  assert.equal(view.back.accessibilityLabel, "Previous question");
+  assert.deepEqual({ ...view.back.accessibilityState }, { disabled: true });
+  assert.equal(view.back.onPress, undefined);
+  view.next.onPress();
+  view = p.render();
+  assert.equal(view.shown, "Q2");
+  assert.equal(view.header, "Question 2 of 3");
+  assert.equal(view.back.disabled, false);
+  view.next.onPress();
+  view = p.render();
+  assert.equal(view.shown, "Q3");
+  assert.equal(view.next.disabled, true, "no wrap past the last question");
+  view.back.onPress();
+  assert.equal(p.render().shown, "Q2");
+});
+
+test("reopening the popover returns to the shown question, and after a copy to the one after it", () => {
+  const p = popover(["Q1", "Q2", "Q3"]);
+  p.open().next.onPress();
+  assert.equal(p.open().shown, "Q2", "reopened where the user left off");
+  p.render().copy("A");
+  assert.deepEqual(p.copied, ["Q2 A"]);
+  assert.equal(p.open().shown, "Q3", "the copy closed the popover; the next open lands on the next question");
+});
+
+test("a single question has no stepping header", () => {
+  const view = popover(["Q1"]).open();
+  assert.equal(view.shown, "Q1");
+  assert.equal(view.header, "");
+});
