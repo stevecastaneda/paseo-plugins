@@ -32,6 +32,10 @@ function popover(questions: string[]) {
       const slot = cursor++;
       if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
       return [slots[slot], (value: unknown) => { slots[slot] = value; }];
+    }, useRef(initial: unknown) {
+      const slot = cursor++;
+      if (!(slot in slots)) slots[slot] = { current: initial };
+      return slots[slot];
     } },
     "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },
     "@getpaseo/plugin/client/react-native": { Icon: () => null, ScrollView: "ScrollView", useToast: () => ({}), copyText: async () => {} },
@@ -42,7 +46,7 @@ function popover(questions: string[]) {
   const dashboard = { questions: { open: questions.map((id) => ({ id, question: `Question ${id}`, options: [] })) }, stuck: [] };
   const render = () => {
     cursor = 0;
-    const tree = AttentionList({ colors: {}, dashboard, workspaceId: "w", compact: false, touch: false, onSurface1: true,
+    const tree = AttentionList({ colors: { surface0: "#ffffff", surface1: "#f4f4f5" }, dashboard, workspaceId: "w", compact: false, touch: false, onSurface1: true,
       onCopy: (question: { id: string }, letter: string) => copied.push(`${question.id} ${letter}`), onOpenAttachment() {} });
     const shown = find(tree, (props) => "question" in props && "onCopy" in props);
     // The back and next buttons are their own component; draw it to reach the pressable.
@@ -50,7 +54,18 @@ function popover(questions: string[]) {
       const step = find(tree, (props) => props.label === label);
       return step ? (step.type as (props: unknown) => Element)(step.props).props : {};
     };
-    return { shown: shown?.props.question.id, header: text(find(tree, (props) => typeof props.children?.[0] === "string" && props.children[0].startsWith("Question "))),
+    // The scroll list is its own component too; draw it with the sizes the ScrollView reports.
+    const listState = cursor;
+    const list = () => {
+      cursor = listState;
+      const element = find(tree, (props) => "maxHeight" in props)!;
+      const drawn = (element.type as (props: unknown) => Element)(element.props);
+      const scroll = find(drawn, (props) => "onScroll" in props)!.props;
+      // The fade sits beside the ScrollView; drawn, it must let presses through to Copy below it.
+      const fade = drawn.props.children[1] as Element | null;
+      return { scroll, faded: fade ? (fade.type as (props: unknown) => Element)(fade.props).props.pointerEvents === "none" : false };
+    };
+    return { list, shown: shown?.props.question.id, header: text(find(tree, (props) => typeof props.children?.[0] === "string" && props.children[0].startsWith("Question "))),
       back: button("Previous question"), next: button("Next question"), copy: (letter: string) => shown!.props.onCopy(letter) };
   };
   return { render, copied, open() { slots = []; return render(); } };
@@ -90,4 +105,23 @@ test("a single question has no stepping header", () => {
   const view = popover(["Q1"]).open();
   assert.equal(view.shown, "Q1");
   assert.equal(view.header, "");
+});
+
+test("a question taller than the list fades at the bottom until scrolled to the end", () => {
+  const view = popover(["Q1"]).open();
+  // Each report comes from the latest draw, as React would hand the ScrollView fresh handlers.
+  const report = (event: string, ...args: unknown[]) => { view.list().scroll[event](...args); return view.list().faded; };
+  assert.equal(view.list().faded, false, "nothing measured yet");
+  report("onLayout", { nativeEvent: { layout: { height: 300 } } });
+  assert.equal(report("onContentSizeChange", 360, 500), true, "content continues below the viewport");
+  assert.equal(report("onScroll", { nativeEvent: { contentOffset: { y: 100 } } }), true, "still 100px left");
+  assert.equal(report("onScroll", { nativeEvent: { contentOffset: { y: 200 } } }), false, "scrolled to the end");
+  assert.equal(report("onScroll", { nativeEvent: { contentOffset: { y: 150 } } }), true, "scrolled back up");
+});
+
+test("a question that fits the list shows no fade", () => {
+  const view = popover(["Q1"]).open();
+  view.list().scroll.onLayout({ nativeEvent: { layout: { height: 200 } } });
+  view.list().scroll.onContentSizeChange(360, 200);
+  assert.equal(view.list().faded, false);
 });

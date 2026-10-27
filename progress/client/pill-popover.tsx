@@ -11,7 +11,7 @@ import { StackedDialog } from "./dialog-stack";
 import { galleryFiles } from "./preview";
 import { QuestionDetail, QuestionState, useCopy } from "./questions";
 import { errorText } from "./errors";
-import { raised } from "./surfaces";
+import { raised, withAlpha } from "./surfaces";
 import { useProgressLanguage } from "./language";
 
 type Colors = PluginButtonContentProps["theme"]["colors"];
@@ -82,9 +82,40 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
 // On a phone the popover is a sheet that already scrolls, and sizes itself to
 // whichever scroll view reports last. Paseo 0.10.1 turns a ScrollView inside it
 // into one of those, so a short list would shrink the sheet to its title.
-function List({ compact, maxHeight, children }: { compact: boolean; maxHeight: number; children: React.ReactNode }) {
+function List({ compact, maxHeight, surface, children }: { compact: boolean; maxHeight: number; surface: string; children: React.ReactNode }) {
+  // macOS hides scrollbars until you scroll, so a fade is the only sign a long question continues.
+  const [moreBelow, setMoreBelow] = useState(false);
+  const size = useRef({ viewport: 0, content: 0, offset: 0 });
   if (compact) return <View style={{ gap: 12 }}>{children}</View>;
-  return <ScrollView style={{ maxHeight }} contentContainerStyle={{ gap: 12 }}>{children}</ScrollView>;
+  const measure = (next: Partial<typeof size.current>) => {
+    const s = Object.assign(size.current, next);
+    const below = s.offset + s.viewport < s.content - 1;
+    if (below !== moreBelow) setMoreBelow(below);
+  };
+  return (
+    <View style={{ position: "relative" }}>
+      <ScrollView style={{ maxHeight }} contentContainerStyle={{ gap: 12 }} scrollEventThrottle={16}
+        onLayout={(event) => measure({ viewport: event.nativeEvent.layout.height })}
+        onContentSizeChange={(_, height) => measure({ content: height })}
+        onScroll={(event) => measure({ offset: event.nativeEvent.contentOffset.y })}>
+        {children}
+      </ScrollView>
+      {moreBelow ? <BottomFade color={surface} /> : null}
+    </View>
+  );
+}
+
+const FADE_SLICES = 8;
+
+// Stacked slices rather than a CSS gradient, which iPad's native views can't draw.
+function BottomFade({ color }: { color: string }) {
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}>
+      {Array.from({ length: FADE_SLICES }, (_, i) => (
+        <View key={i} style={{ height: 3, backgroundColor: withAlpha(color, (0.9 * i) / (FADE_SLICES - 1)) ?? undefined }} />
+      ))}
+    </View>
+  );
 }
 
 // One open question at a time, with back and next above it when there are more.
@@ -130,7 +161,7 @@ export function AttentionList({ colors, dashboard, workspaceId, compact, touch, 
         </View>
       ) : null}
       {/* Keyed so each question starts scrolled to its top. */}
-      <List key={question?.id} compact={compact} maxHeight={stepping ? LIST_MAX_HEIGHT - stepSize(touch) - 12 : LIST_MAX_HEIGHT}>
+      <List key={question?.id} compact={compact} surface={onSurface1 ? colors.surface1 : colors.surface0} maxHeight={stepping ? LIST_MAX_HEIGHT - stepSize(touch) - 12 : LIST_MAX_HEIGHT}>
         {question ? (
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
