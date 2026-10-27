@@ -51,7 +51,10 @@ export function raised(colors: Colors): ViewStyle {
 // drifting second color. Paseo's own status badges use 12% in light themes and
 // 16% in dark ones, where the surface swallows more of it.
 export function tint(color: string, colors: Colors): string {
+  return withAlpha(color, isLight(colors) ? 0.12 : 0.16) ?? colors.surface2;
+}
+
+export function withAlpha(color: string, alpha: number): string | null {
   const rgb = channels(color);
-  if (!rgb) return colors.surface2;
-  return `rgba(${rgb.join(", ")}, ${isLight(colors) ? 0.12 : 0.16})`;
+  return rgb ? `rgba(${rgb.join(", ")}, ${alpha})` : null;
 }
