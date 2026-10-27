@@ -49,7 +49,6 @@ export interface ProgressMessages {
   openProgress: string;
   needsYou: string;
   nothingNeedsYou: string;
-  // Around the shown question's number.
   questionPosition: (total: number) => Around;
   previousQuestion: string;
   nextQuestion: string;

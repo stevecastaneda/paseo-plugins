@@ -21,8 +21,6 @@ function text(node: unknown): string {
   return node && typeof node === "object" ? text((node as Element).props?.children) : "";
 }
 
-// Draws the popover's list by calling it with state kept between calls, the way
-// React would across re-renders. `open()` mounts it afresh, as Paseo does on each open.
 function popover(questions: string[]) {
   let messages: unknown;
   let slots: unknown[] = [];
@@ -49,23 +47,20 @@ function popover(questions: string[]) {
     const tree = AttentionList({ colors: { surface0: "#ffffff", surface1: "#f4f4f5" }, dashboard, workspaceId: "w", compact: false, touch: false, onSurface1: true,
       onCopy: (question: { id: string }, letter: string) => copied.push(`${question.id} ${letter}`), onOpenAttachment() {} });
     const shown = find(tree, (props) => "question" in props && "onCopy" in props);
-    // The back and next buttons are their own component; draw it to reach the pressable.
     const button = (label: string): Record<string, any> => {
       const step = find(tree, (props) => props.label === label);
       return step ? (step.type as (props: unknown) => Element)(step.props).props : {};
     };
-    // The scroll list is its own component too; draw it with the sizes the ScrollView reports.
-    const listState = cursor;
-    const list = () => {
-      cursor = listState;
+    const listHookCursor = cursor;
+    const drawList = () => {
+      cursor = listHookCursor;
       const element = find(tree, (props) => "maxHeight" in props)!;
       const drawn = (element.type as (props: unknown) => Element)(element.props);
       const scroll = find(drawn, (props) => "onScroll" in props)!.props;
-      // The fade sits beside the ScrollView; drawn, it must let presses through to Copy below it.
       const fade = drawn.props.children[1] as Element | null;
-      return { scroll, faded: fade ? (fade.type as (props: unknown) => Element)(fade.props).props.pointerEvents === "none" : false };
+      return { scroll, fade: fade && (fade.type as (props: unknown) => Element)(fade.props) };
     };
-    return { list, shown: shown?.props.question.id, header: text(find(tree, (props) => typeof props.children?.[0] === "string" && props.children[0].startsWith("Question "))),
+    return { drawList, shown: shown?.props.question.id, header: text(find(tree, (props) => typeof props.children?.[0] === "string" && props.children[0].startsWith("Question "))),
       back: button("Previous question"), next: button("Next question"), copy: (letter: string) => shown!.props.onCopy(letter) };
   };
   return { render, copied, open() { slots = []; return render(); } };
@@ -109,11 +104,11 @@ test("a single question has no stepping header", () => {
 
 test("a question taller than the list fades at the bottom until scrolled to the end", () => {
   const view = popover(["Q1"]).open();
-  // Each report comes from the latest draw, as React would hand the ScrollView fresh handlers.
-  const report = (event: string, ...args: unknown[]) => { view.list().scroll[event](...args); return view.list().faded; };
-  assert.equal(view.list().faded, false, "nothing measured yet");
+  const report = (event: string, ...args: unknown[]) => { view.drawList().scroll[event](...args); return Boolean(view.drawList().fade); };
+  assert.equal(Boolean(view.drawList().fade), false, "nothing measured yet");
   report("onLayout", { nativeEvent: { layout: { height: 300 } } });
   assert.equal(report("onContentSizeChange", 360, 500), true, "content continues below the viewport");
+  assert.equal(view.drawList().fade!.props.pointerEvents, "none", "presses reach the Copy buttons under the fade");
   assert.equal(report("onScroll", { nativeEvent: { contentOffset: { y: 100 } } }), true, "still 100px left");
   assert.equal(report("onScroll", { nativeEvent: { contentOffset: { y: 200 } } }), false, "scrolled to the end");
   assert.equal(report("onScroll", { nativeEvent: { contentOffset: { y: 150 } } }), true, "scrolled back up");
@@ -121,7 +116,7 @@ test("a question taller than the list fades at the bottom until scrolled to the 
 
 test("a question that fits the list shows no fade", () => {
   const view = popover(["Q1"]).open();
-  view.list().scroll.onLayout({ nativeEvent: { layout: { height: 200 } } });
-  view.list().scroll.onContentSizeChange(360, 200);
-  assert.equal(view.list().faded, false);
+  view.drawList().scroll.onLayout({ nativeEvent: { layout: { height: 200 } } });
+  view.drawList().scroll.onContentSizeChange(360, 200);
+  assert.equal(view.drawList().fade, null);
 });

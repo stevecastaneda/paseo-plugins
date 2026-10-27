@@ -54,7 +54,6 @@ export function tint(color: string, colors: Colors): string {
   return withAlpha(color, isLight(colors) ? 0.12 : 0.16) ?? colors.surface2;
 }
 
-// The color at the given opacity, or null when the color is unreadable.
 export function withAlpha(color: string, alpha: number): string | null {
   const rgb = channels(color);
   return rgb ? `rgba(${rgb.join(", ")}, ${alpha})` : null;
