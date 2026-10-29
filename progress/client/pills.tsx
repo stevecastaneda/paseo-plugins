@@ -18,13 +18,17 @@ export const PILL_POLL_MS = 5_000;
 // still trigger a check, at most once a poll interval.
 export const IDLE_POLL_EVERY = 6;
 
-// Paseo's desktop app shows the panel in Explorer, beside the chat. The phone
-// apps never draw Explorer's pane, so there the panel is a tab of its own.
-// It has its own id on phones: Paseo 0.10.1 reopens an existing tab where it
+// Phones on Paseo before 0.13 have no Explorer, so there the panel is a tab of
+// its own. addFilePanel arrived in 0.13, the release that gave phones Explorer.
+// The tab has its own id: Paseo 0.10.1 reopens an existing tab where it
 // already is, and earlier versions of this plugin left a "progress" tab in the
 // phone's hidden Explorer pane, which a plugin can't move or close.
-export function progressPanel(): { id: string; location: "explorer" | "workspace" } {
-  return Platform.OS === "web" ? { id: "progress", location: "explorer" } : { id: "progress-tab", location: "workspace" };
+type ProgressPanelPlacement = { id: "progress"; location: "explorer" } | { id: "progress-tab"; location: "workspace" };
+
+export function progressPanel(client: PluginClientContext): ProgressPanelPlacement {
+  return Platform.OS === "web" || "addFilePanel" in client
+    ? { id: "progress", location: "explorer" }
+    : { id: "progress-tab", location: "workspace" };
 }
 
 type Workspace = { id: string; workspaceDirectory?: string; projectRootPath: string };
@@ -83,9 +87,9 @@ export function contributePills(client: PluginClientContext) {
     );
   }
 
+  const panel = progressPanel(client);
   const openPanel = (workspaceId: string) => {
-    const { id, location } = progressPanel();
-    client.openPanel(id, { workspaceId, location });
+    client.openPanel(panel.id, { workspaceId, location: panel.location });
   };
 
   const buttonFor = (workspaceId: string, mode: Pill["mode"], label: string) => mode === "attention"
