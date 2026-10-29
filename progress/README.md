@@ -24,7 +24,7 @@ The panel lives in Explorer, beside the agent chat, so you can watch both. Open 
 
 <img src="images/4-pill.png" alt="The pill above the message box, showing two questions waiting" width="600">
 
-On phones, where Paseo has no Explorer pane, Progress opens as a tab of its own, and the pill stays above the message box while a run is open so there's always a way in. SVG files and videos preview on desktop; on phones they open on the daemon host.
+On phones with Paseo 0.13 or later, Progress opens in Explorer too. Older phone apps have no Explorer, so there it opens as a tab of its own. On any phone, the pill stays above the message box while a run is open, so there's always a way in. SVG files and videos preview on desktop; on phones they open on the daemon host.
 
 The first time a run starts in a worktree whose Progress panel has never been opened, the pill shows a spinner and reads **Progress** instead; pressing it opens the panel. Once the panel has been opened there, the plugin writes an empty `progress-panel-opened` file next to the progress file and the nudge never comes back, even for later runs. It doesn't open the panel by itself because Paseo switches to a workspace to open its panel, which would pull you away from whatever you're looking at.
 
@@ -144,6 +144,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.10.0
+
+- [Improved] **Progress opens in Explorer on phones.** On Paseo 0.13 or later, the phone app opens Progress in Explorer, as the desktop app does, and lists it in Explorer's New tab menu. If a Progress tab from an earlier version is still open on your phone, you can close it.
 
 ### 1.9.0
 
