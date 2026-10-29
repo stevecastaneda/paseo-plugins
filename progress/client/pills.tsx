@@ -44,7 +44,7 @@ export function contributePills(client: PluginClientContext) {
   // The last report per workspace; pillFor turns it into what the pill shows.
   const reports = new Map<string, AttentionResult>();
   let locale = resolveLocale("system");
-  const where = { phone: progressPanel().location === "workspace" };
+  const where = { phone: Platform.OS !== "web" };
   const pillOf = (workspaceId: string) => pillFor(reports.get(workspaceId), where, messagesFor(locale));
   // Bumped on each report so a poll that was already in flight can't bring the pill back.
   let openedReports = 0;

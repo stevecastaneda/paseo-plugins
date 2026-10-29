@@ -5,8 +5,7 @@ import type { AttentionResult } from "../shared/rpc";
 // icon and what pressing it does can't disagree.
 // - "attention": questions waiting or something stuck; opens a popover.
 // - "started": a run whose panel has never been opened; a one-time nudge.
-// - "open": on a phone, the way into the panel while a run is open, since
-//   phones have no Explorer to open it from.
+// - "open": on a phone, a one-tap way into the panel while a run is open.
 export type Pill =
   | { mode: "attention"; label: string; icon: "stuck" | "questions" }
   | { mode: "started"; label: "Progress"; icon: "started" }
