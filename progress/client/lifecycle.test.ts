@@ -26,7 +26,17 @@ test("registers the Progress panel and a Command Center item that opens it as a 
   assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed) && h.settingsScreens.every((entry) => entry.removed) && h.screens.every((entry) => entry.removed));
 });
 
-test("on a phone, where Paseo doesn't draw Explorer, Progress opens as a tab", () => {
+test("on a phone with Paseo 0.13 or later, Progress opens in Explorer", () => {
+  const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
+  Object.assign(h.client, { addFilePanel: () => () => {} });
+  const stop = h.load("index.client.tsx").default(h.client);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.panels.map(({ id, locations }) => ({ id, locations })))), [{ id: "progress", locations: ["explorer"] }]);
+  h.commandItems[0].onSelect({ openPanel: (id: string, options?: object) => h.client.openPanel(id, { workspaceId: "w", ...options }) });
+  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }]);
+  stop();
+});
+
+test("on a phone with Paseo before 0.13, which has no Explorer there, Progress opens as a tab", () => {
   const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
   const stop = h.load("index.client.tsx").default(h.client);
   assert.deepEqual(JSON.parse(JSON.stringify(h.panels.map(({ id, locations }) => ({ id, locations })))), [{ id: "progress-tab", locations: ["workspace"] }],
@@ -235,7 +245,7 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   stop();
 });
 
-test("on a phone, an open run keeps a Progress pill that opens the panel as a tab", async () => {
+test("on a phone with Paseo before 0.13, an open run keeps a Progress pill that opens the panel as a tab", async () => {
   const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
   h.responses["progress.attention"] = attentionWith(0, 0, { open: true, panelOpened: true });
@@ -251,6 +261,22 @@ test("on a phone, an open run keeps a Progress pill that opens the panel as a ta
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().length, 0, "a finished run has no pill");
+  stop();
+});
+
+test("on a phone with Paseo 0.13 or later, an open run keeps a Progress pill that opens the panel in Explorer", async () => {
+  const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
+  Object.assign(h.client, { addFilePanel: () => () => {} });
+  const { contributePills } = h.load("client/pills.tsx");
+  h.responses["progress.attention"] = attentionWith(0, 0, { open: true, panelOpened: true });
+  const stop = contributePills(h.client);
+  h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
+  h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
+  await h.flush();
+  const active = () => h.registrations.filter((entry) => !entry.removed) as unknown as Array<{ button: any }>;
+  assert.equal(active()[0]?.button.label, "Progress", "shown even after the panel has been opened");
+  active()[0].button.behavior.onPress();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }]);
   stop();
 });
 
