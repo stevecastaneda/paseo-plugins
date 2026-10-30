@@ -14,8 +14,8 @@ export function TaskNotificationBody({ notification, colors, copy }: {
   const [details, setDetails] = useState(false);
   const usage = notificationUsage(notification);
   const summary = notification.summary.replace(/^Agent "(.+)" finished$/, "$1");
-  return <View style={{ gap: 10 }}>
-    <Text selectable style={{ color: colors.foreground, fontSize: 13, fontWeight: "600", lineHeight: 21 }}>{summary}</Text>
+  return <View style={{ gap: 12 }}>
+    <Text selectable style={{ color: colors.foreground, fontSize: 14, fontWeight: "600", lineHeight: 20 }}>{summary}</Text>
     {notification.result ? <Markdown>{hideCitations(notification.result)}</Markdown> : null}
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {usage ? <Text style={{ color: colors.foregroundMuted, fontSize: 11, flexShrink: 1 }}>{usage}</Text> : null}

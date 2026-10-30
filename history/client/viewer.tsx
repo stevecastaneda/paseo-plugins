@@ -62,7 +62,7 @@ function Message({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors;
     : entry.role === "user" ? "You" : "Assistant";
   const icon = notification ? notification.status === "completed" ? "Check" : notification.status === "failed" ? "CircleAlert" : "Activity"
     : entry.role === "user" ? "User" : "Sparkles";
-  return <View style={{ gap: 6, paddingVertical: 10 }}>
+  return <View style={{ gap: 8, paddingVertical: 12 }}>
     <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
       <Icon name={icon} size={14} color={colors.foregroundMuted} />
       <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", flex: 1 }}>{label}</Text>
