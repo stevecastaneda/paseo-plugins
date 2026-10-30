@@ -1,5 +1,5 @@
 import { openExternalUrl } from "@getpaseo/plugin/client";
-import { ScrollView } from "@getpaseo/plugin/client/react-native";
+import { ScrollView } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView as NativeScrollView } from "react-native";
 import { lineText, type Cursor, type Line, type Segment } from "../shared/row.ts";

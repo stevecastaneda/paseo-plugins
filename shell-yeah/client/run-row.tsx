@@ -1,5 +1,5 @@
 import { useAgent, useRpc, type PluginTimelineItemProps } from "@getpaseo/plugin/client";
-import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
 import { terminalKeys, type KeyPress } from "../shared/keys.ts";
