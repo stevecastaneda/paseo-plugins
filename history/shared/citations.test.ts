@@ -22,6 +22,11 @@ test("leaves text without citations untouched", () => {
   assert.equal(hideCitations(source), source);
 });
 
+test("collapses the blank lines a citation leaves in CRLF text", () => {
+  const source = "Found it.\r\n\r\n<oai-mem-citation>MEMORY.md:4</oai-mem-citation>\r\n\r\nHere is the fix.";
+  assert.equal(hideCitations(source), "Found it.\r\n\r\nHere is the fix.");
+});
+
 test("keeps blank lines inside code blocks", () => {
   const code = "```\na\n\n\n\nb\n```";
   assert.equal(hideCitations(code + "\n<oai-mem-citation>x</oai-mem-citation>"), code);
