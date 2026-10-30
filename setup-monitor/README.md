@@ -34,6 +34,7 @@ and popover share that result instead of making separate requests.
 
 - [Fixed] **Setup status on phones.** On a phone, Paseo lists the setup button as a row in the workspace ··· menu. That row now reads "Worktree setup 42s" or "Worktree setup failed". It used to read only "Worktree setup". The desktop tooltip shows the same words.
 - [Fixed] **Setup timer when no window was open.** If a worktree's setup started while no Paseo window was open, the timer started when you first opened one. Now it counts from when setup started.
+- [Fixed] **Screen readers on web and desktop.** They now hear which setup command's log is showing and when the Run button is busy. Before, they heard neither. Phones already did.
 
 ### 1.1.0
 

@@ -163,7 +163,7 @@ export function SetupPopover({
           {runError ? <Text style={styles.error} selectable>{runError}</Text> : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ busy: starting }}
+            aria-busy={starting}
             disabled={starting}
             onPress={async () => {
               setStarting(true);
@@ -200,7 +200,7 @@ export function SetupPopover({
               <Pressable
                 key={`${command.index}:${command.command}`}
                 accessibilityRole="button"
-                accessibilityState={{ selected: isSelected }}
+                aria-selected={isSelected}
                 accessibilityLabel={`Show log for ${command.command}`}
                 onPress={() => setPinned(command.index)}
                 style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
