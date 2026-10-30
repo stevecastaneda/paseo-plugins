@@ -1,5 +1,5 @@
 import { type PluginButtonContentProps, useWorkspace } from "@getpaseo/plugin/client";
-import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { Dashboard } from "../shared/dashboard";

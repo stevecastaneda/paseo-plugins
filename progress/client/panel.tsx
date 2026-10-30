@@ -1,5 +1,5 @@
 import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { DeliverablesList } from "./deliverables";
 import { LauncherBanner, SkillBanner } from "./launcher";
 import { WhatsNewBanner } from "./whats-new";

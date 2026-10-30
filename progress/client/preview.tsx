@@ -1,8 +1,8 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
-import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Icon, Markdown, ScrollView } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Image, type LayoutChangeEvent, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
 import { folderAttachments, isFolder, previewKind } from "../shared/attachments";
@@ -39,8 +39,9 @@ type PreviewProps = {
 
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, fullScreen, leftFullScreen, onFullScreen }: PreviewProps & {
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, ownScroll, fullScreen, leftFullScreen, onFullScreen }: PreviewProps & {
   onLong(long: boolean): void;
+  ownScroll: boolean;
   fullScreen: boolean;
   leftFullScreen: boolean;
   onFullScreen(on: boolean): void;
@@ -146,22 +147,40 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const room = roomForContent(windowHeight);
   const maxMediaHeight = preview.data?.kind === "video" ? Math.min(640, Math.max(200, room)) : 640;
   const mediaStyle = { width: "100%", aspectRatio, maxHeight: maxMediaHeight, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1, opacity: stepping ? 0.6 : 1 } as const;
+  // Markdown's height depends on the user's text size, which a plugin can't read,
+  // so only a file far too tall for any size is long before it's drawn. Anything
+  // else is measured, and once it's too tall it stays long: Paseo remounting the
+  // content when the dialog stops scrolling, an image that fails and shrinks, or a
+  // diagram that grows can't flip it back. Kept in the query cache to survive the remount.
+  const longKey = ["progress", "preview-long", workspaceId, attachment.ref, attachment.path];
+  const latched = useQuery({ queryKey: longKey, queryFn: () => false, enabled: false }).data === true;
+  const data = preview.data;
+  const markdown = data?.kind === "markdown" ? data.markdown : null;
+  const floor = useMemo(() => (markdown === null ? 0 : markdownFloor(markdown)), [markdown]);
+  const certainlyLong = floor > 2 * room;
+  const lastLong = useRef(false);
   // A long file gets its own scroll area so the actions below it stay in view.
   // Short ones keep the dialog sized to them.
-  const long = estimatedHeight(preview.data, aspectRatio, maxMediaHeight) > room;
+  const long = data?.kind === "markdown" ? (stepping ? lastLong.current : certainlyLong || latched) : estimatedHeight(data, aspectRatio, maxMediaHeight) > room;
+  lastLong.current = long;
   useEffect(() => onLong(long), [long]);
+  const measure = !long && !stepping ? (event: LayoutChangeEvent) => {
+    if (event.nativeEvent.layout.height > room) queryClient.setQueryData(longKey, true);
+  } : undefined;
   // How far a video has loaded: under the spinner, or in place of the path while
   // the last file stays on screen, so nothing moves.
   const videoLoading = preview.isFetching && loading !== undefined && loading < 1 ? m.loadingVideo(Math.floor(loading * 100)) : null;
   const caption = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
+  const loadingState = (
+    <View style={{ alignItems: "center", gap: 8, padding: 24 }}>
+      <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingPreview} />
+      {videoLoading ? <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{videoLoading}</Text> : null}
+    </View>
+  );
+  const truncatedNote = (paddingTop: number) => <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingTop }}>{m.truncatedText}{canOpen ? m.openRest : ""}</Text>;
   const content = (
     <>
-      {preview.isPending ? (
-        <View style={{ alignItems: "center", gap: 8, padding: 24 }}>
-          <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingPreview} />
-          {videoLoading ? <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{videoLoading}</Text> : null}
-        </View>
-      ) : null}
+      {preview.isPending ? loadingState : null}
       {preview.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
           {m.previewError(preview.error instanceof VideoChangedError ? m.videoChanged : errorText(preview.error, m.unknownError))}
@@ -172,13 +191,16 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           <Text selectable style={{ color: colors.foreground, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 12, lineHeight: 18 }}>
             {preview.data.text}
           </Text>
-          {preview.data.truncated ? (
-            <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingTop: 8 }}>
-              {m.truncatedText}{canOpen ? m.openRest : ""}
-            </Text>
-          ) : null}
+          {preview.data.truncated ? truncatedNote(8) : null}
         </View>
       ) : null}
+      {/* Straight on the dialog: Paseo's code blocks and tables bring their own fills. */}
+      {preview.data?.kind === "markdown" ? (certainlyLong && !ownScroll ? loadingState : (
+        <View onLayout={measure} style={{ gap: 12, opacity: stepping ? 0.6 : 1 }}>
+          <Markdown>{preview.data.markdown}</Markdown>
+          {preview.data.truncated ? truncatedNote(0) : null}
+        </View>
+      )) : null}
       {preview.data?.kind === "folder" ? (
         <FolderList colors={colors} folder={attachment} entries={folderAttachments(attachment, preview.data.entries)} truncated={preview.data.truncated}
           dimmed={stepping} onOpen={onOpenEntry} />
@@ -364,6 +386,17 @@ function estimatedHeight(data: { kind: "image" | "video" | "html" } | { kind: "t
   return lines * 18 + 20;
 }
 
+// Paseo's smallest text sizes draw no line under 13px: 9px code at 1.45, 10px
+// prose at 1.4. Paseo draws every line break in Markdown, so each non-blank line
+// takes at least one line.
+const MIN_MARKDOWN_LINE = 12;
+
+export function markdownFloor(markdown: string): number {
+  let lines = 0;
+  for (const line of markdown.split("\n")) if (line.trim()) lines++;
+  return lines * MIN_MARKDOWN_LINE;
+}
+
 function FolderList({ colors, folder, entries, truncated, dimmed, onOpen }: { colors: Colors; folder: Attachment; entries: Attachment[]; truncated: boolean; dimmed: boolean; onOpen(attachment: Attachment, group: Attachment[]): void }) {
   const { messages: m } = useProgressLanguage();
   const caption = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
@@ -388,7 +421,7 @@ function imageSize(uri: string): Promise<{ width: number | null; ratio: number |
 // Height the dialog has for the preview before it must scroll: Paseo caps the card
 // at 85% of the window (inside a 24px margin), less its header and padding, the
 // path caption (17px after an 8px gap) and the footer (30px after a 20px gap).
-function roomForContent(windowHeight: number): number {
+export function roomForContent(windowHeight: number): number {
   return (windowHeight - 48) * 0.85 - 57 - 48 - (8 + 17) - (20 + 30);
 }
 

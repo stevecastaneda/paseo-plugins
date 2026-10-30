@@ -36,7 +36,7 @@ function popover(questions: string[]) {
       return slots[slot];
     } },
     "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },
-    "@getpaseo/plugin/client/react-native": { Icon: () => null, ScrollView: "ScrollView", useToast: () => ({}), copyText: async () => {} },
+    "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", useToast: () => ({}), copyText: async () => {} },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { AttentionList } = h.load("client/pill-popover.tsx");

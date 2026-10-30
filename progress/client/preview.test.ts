@@ -17,12 +17,12 @@ type Window = { width: number; height: number };
 function renderPreview(query: Query, { window = { width: 1200, height: 800 }, fullScreen = true, leftFullScreen = false }: { window?: Window; fullScreen?: boolean; leftFullScreen?: boolean } = {}): { preview: unknown; layer: Element | undefined; fullScreenCalls: boolean[] } {
   let messages: unknown;
   const h = clientHarness(directory, {
-    react: { ...React, useState: (initial: unknown) => [initial, () => {}], useRef: (current: unknown) => ({ current }), useEffect: (effect: () => void) => effect(),
+    react: { ...React, useState: (initial: unknown) => [initial, () => {}], useRef: (current: unknown) => ({ current }), useEffect: (effect: () => void) => effect(), useMemo: (make: () => unknown) => make(),
       useContext: () => ({ locale: "en", messages }) },
     "react-native": { Platform: { OS: "web" }, useWindowDimensions: () => window },
     "@tanstack/react-query": { useQueryClient: () => ({}), useQuery: () => ({ isPending: false, isPlaceholderData: false, ...query }) },
     "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
-    "@getpaseo/plugin/client/react-native": { Icon: () => null, ScrollView: () => null, useToast: () => ({}), copyText: async () => {} },
+    "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: () => null, useToast: () => ({}), copyText: async () => {} },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { PreviewContent } = h.load("client/preview.tsx");
@@ -96,4 +96,109 @@ function fullScreenButtonStyle(options: { fullScreen: boolean; leftFullScreen: b
 test("leaving full screen puts focus back on the Full screen button without a focus ring", () => {
   assert.equal(fullScreenButtonStyle({ fullScreen: false, leftFullScreen: true })?.outlineWidth, 0);
   assert.equal(fullScreenButtonStyle({ fullScreen: false, leftFullScreen: false }), undefined);
+});
+
+type MarkdownCase = { markdown: string; truncated?: boolean; ownScroll?: boolean; latched?: boolean; stepping?: boolean };
+
+function renderMarkdown({ markdown, truncated = false, ownScroll = false, latched = false, stepping = false }: MarkdownCase) {
+  let messages: unknown;
+  const Markdown = () => null;
+  const latches: unknown[] = [];
+  const h = clientHarness(directory, {
+    react: { ...React, useState: (initial: unknown) => [initial, () => {}], useRef: (current: unknown) => ({ current }), useEffect: (effect: () => void) => effect(),
+      useMemo: (make: () => unknown) => make(), useContext: () => ({ locale: "en", messages }) },
+    "react-native": { Platform: { OS: "web" }, useWindowDimensions: () => ({ width: 1200, height: 800 }), View: "View", Text: "Text", ActivityIndicator: "ActivityIndicator" },
+    "@tanstack/react-query": {
+      useQueryClient: () => ({ setQueryData: (key: unknown, value: unknown) => latches.push([key, value]) }),
+      useQuery: ({ queryKey }: { queryKey: unknown[] }) => queryKey[1] === "preview-long" ? { data: latched ? true : undefined }
+        : queryKey[1] === "preview" ? { isPending: false, isPlaceholderData: stepping, data: { kind: "markdown", markdown, bytes: markdown.length, truncated } } : {},
+    },
+    "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
+    "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", Markdown, useToast: () => ({}), copyText: async () => {} },
+  });
+  messages = h.load("client/i18n.ts").messagesFor("en");
+  const { PreviewContent, markdownFloor, roomForContent } = h.load("client/preview.tsx");
+  const doc = { ref: "D1", title: "Report", path: "docs/report.md" };
+  const longCalls: boolean[] = [];
+  const preview = PreviewContent({ colors: { surface0: "#000000", surface1: "#000000" }, attachment: doc, workspaceId: "w", workspaceDirectory: "/w", fullScreen: false, leftFullScreen: false,
+    ownScroll, onFullScreen() {}, onLong(long: boolean) { longCalls.push(long); }, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
+  return {
+    long: longCalls.at(-1),
+    markdown: findType(preview, Markdown),
+    wrapper: findElement(preview, (props) => [props.children].flat().some((child) => (child as Element)?.type === Markdown)),
+    spinner: findElement(preview, (props) => props.accessibilityLabel === "Loading preview"),
+    scrolls: findType(preview, "ScrollView") !== undefined,
+    latches: () => JSON.parse(JSON.stringify(latches)),
+    markdownFloor: markdownFloor as (markdown: string) => number,
+    room: (roomForContent as (windowHeight: number) => number)(800),
+  };
+}
+
+function findType(node: unknown, type: unknown): Element | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  if (Array.isArray(node)) return node.map((child) => findType(child, type)).find(Boolean);
+  const element = node as Element;
+  return element.type === type ? element : findType(element.props?.children, type);
+}
+
+const lines = (count: number) => Array.from({ length: count }, (_, index) => `Line ${index + 1}`).join("\n");
+
+test("a short Markdown file draws formatted in the dialog sized to it, and is measured there", () => {
+  const short = renderMarkdown({ markdown: "# Report\n\nAll good." });
+  assert.equal(short.long, false);
+  assert.equal(short.markdown?.props.children, "# Report\n\nAll good.");
+  assert.equal(short.scrolls, false);
+  assert.equal(typeof short.wrapper?.props.onLayout, "function");
+});
+
+test("a Markdown file drawn taller than the dialog latches long; one that fits doesn't", () => {
+  const { wrapper, latches, room } = renderMarkdown({ markdown: lines(30) });
+  wrapper!.props.onLayout({ nativeEvent: { layout: { height: 0 } } });
+  wrapper!.props.onLayout({ nativeEvent: { layout: { height: room - 50 } } });
+  assert.deepEqual(latches(), [], "Paseo's first empty layout and a height that fits leave it alone");
+  wrapper!.props.onLayout({ nativeEvent: { layout: { height: room * 2 } } });
+  assert.deepEqual(latches(), [[["progress", "preview-long", "w", "D1", "docs/report.md"], true]]);
+});
+
+test("a latched Markdown file stays long and isn't measured again", () => {
+  for (const ownScroll of [false, true]) {
+    const latched = renderMarkdown({ markdown: lines(30), latched: true, ownScroll });
+    assert.equal(latched.long, true);
+    assert.ok(latched.markdown, "drawn until the host's remount replaces it");
+    assert.equal(latched.wrapper?.props.onLayout, undefined);
+  }
+});
+
+test("a Markdown file too tall for any text size is long at once, and waits for the host's scroll area", () => {
+  const waiting = renderMarkdown({ markdown: lines(200) });
+  assert.equal(waiting.long, true);
+  assert.equal(waiting.markdown, undefined, "not parsed in the dialog it's about to leave");
+  assert.ok(waiting.spinner);
+  const drawn = renderMarkdown({ markdown: lines(200), ownScroll: true });
+  assert.equal(drawn.long, true);
+  assert.ok(drawn.markdown);
+  assert.equal(drawn.scrolls, true);
+  assert.equal(drawn.wrapper?.props.onLayout, undefined);
+});
+
+test("while stepping, the dimmed Markdown file on screen isn't measured", () => {
+  const { wrapper } = renderMarkdown({ markdown: lines(30), stepping: true });
+  assert.equal(wrapper?.props.onLayout, undefined);
+  assert.equal(wrapper?.props.style.opacity, 0.6);
+});
+
+test("a cut Markdown file says so below the Markdown, not inside it", () => {
+  const { wrapper, markdown } = renderMarkdown({ markdown: "```\nopen fence", truncated: true });
+  const note = [wrapper!.props.children].flat().find((child) => (child as Element)?.type === "Text") as Element;
+  assert.match([note.props.children].flat().join(""), /^Showing the first 256 KB\./);
+  assert.equal(markdown?.props.children, "```\nopen fence");
+});
+
+test("the Markdown floor stays under the real height at Paseo's smallest text sizes", () => {
+  const { markdownFloor } = renderMarkdown({ markdown: "" });
+  // Paseo 0.13 clamps content text to 10px (drawn at 1.4: 14px lines) and code to 9px
+  // (1.45: 13px), so no line draws under 13px.
+  const document = ["# Title", "", "Prose", "- item", "1. item", "| a | b |", "```", "code", "```", "> quote"].join("\n");
+  const drawnLines = document.split("\n").filter((line) => line.trim()).length;
+  assert.ok(markdownFloor(document) <= drawnLines * 13);
 });

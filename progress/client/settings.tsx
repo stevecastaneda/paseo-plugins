@@ -1,5 +1,5 @@
 import { type PluginSurfaceProps, useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { SettingsAction, SettingsCard, SettingsSelect } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
 import React, { type ReactNode, useState } from "react";
@@ -7,11 +7,11 @@ import { Text, View } from "react-native";
 import { DEFAULT_QUESTION_MODE, QUESTION_MODES } from "../shared/question-modes";
 import { readSkill } from "../shared/rpc";
 import { questionSettings, LANGUAGE_PREFERENCES } from "../shared/settings";
-import { parseWriteUp, withoutTitle } from "../shared/write-up";
+import { parseBlocks, withoutTitle } from "../shared/blocks";
 import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
 import { useSkill } from "./launcher";
-import { BlockView } from "./write-up";
+import { BlockView } from "./blocks";
 
 export function QuestionSettings({ theme, host }: PluginSurfaceProps) {
   return <><QuestionModeSettings theme={theme} /><DisplaySettings theme={theme} /><SkillSettings colors={theme.colors} hostId={host.id} /></>;
@@ -53,7 +53,7 @@ function SkillSettings({ colors, hostId }: { colors: Colors; hostId: string }) {
   const fetchSkill = useRpc(readSkill);
   const document = useQuery({ queryKey: ["progress", "skill-document", hostId], queryFn: () => fetchSkill({}), staleTime: 60_000 });
   const [open, setOpen] = useState(false);
-  const blocks = document.data ? withoutTitle(parseWriteUp(document.data.markdown)) : [];
+  const blocks = document.data ? withoutTitle(parseBlocks(document.data.markdown)) : [];
   const muted = { color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 };
   return (
     <Section colors={colors} icon="Sparkles" title={m.agentSkill}>

@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-progress",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "A live progress dashboard per worktree for Paseo, drawn from a file agents write with the paseo-progress command.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -50,8 +50,8 @@
     "postpack": "rm -rf dist"
   },
   "devDependencies": {
-    "@getpaseo/client": "^0.11.2",
-    "@getpaseo/plugin": "^0.11.2",
+    "@getpaseo/client": "0.13.0",
+    "@getpaseo/plugin": "0.13.0",
     "@tanstack/react-query": "^5.90.11",
     "@types/node": "^20.9.0",
     "@types/react": "~19.2.0",

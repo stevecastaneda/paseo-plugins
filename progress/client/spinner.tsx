@@ -1,4 +1,4 @@
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, Animated, Easing, Platform, View } from "react-native";
 import { useProgressLanguage } from "./language";

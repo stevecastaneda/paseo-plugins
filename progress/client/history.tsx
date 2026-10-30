@@ -1,5 +1,5 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
-import { Icon, Modal, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";

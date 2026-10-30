@@ -1,8 +1,3 @@
-// A ticket's write-up (its Markdown source file) as simple blocks the dialog
-// can draw without a Markdown renderer: headings, paragraphs, list items and
-// code. Inline marks are kept as spans: `code` stays code, **bold** stays
-// bold, _emphasis_ loses its markers, and [links](url) keep only their text.
-
 export type Span = { text: string; code?: boolean; strong?: boolean };
 
 export type Block =
@@ -30,7 +25,7 @@ export function spans(text: string): Span[] {
   return result;
 }
 
-export function parseWriteUp(markdown: string): Block[] {
+export function parseBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   let paragraph: string[] = [];
   // A fence opened inside a list item is indented like the item; its lines
@@ -75,21 +70,6 @@ export function parseWriteUp(markdown: string): Block[] {
   return blocks;
 }
 
-// The write-up without a leading top heading, which only repeats the ticket's title.
 export function withoutTitle(blocks: Block[]): Block[] {
   return blocks[0]?.kind === "heading" && blocks[0].level === 1 ? blocks.slice(1) : blocks;
-}
-
-// The first blocks of the write-up, up to about `maxChars` of text, for the excerpt.
-export function writeUpExcerpt(blocks: Block[], maxChars = 420): { blocks: Block[]; more: boolean } {
-  const body = withoutTitle(blocks);
-  const shown: Block[] = [];
-  let chars = 0;
-  for (const block of body) {
-    const length = block.kind === "code" ? block.text.length : block.spans.reduce((sum, span) => sum + span.text.length, 0);
-    if (shown.length && chars + length > maxChars) break;
-    shown.push(block);
-    chars += length;
-  }
-  return { blocks: shown, more: shown.length < body.length };
 }

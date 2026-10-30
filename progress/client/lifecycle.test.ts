@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clientHarness } from "../../test-support/client-harness.mjs";
 
@@ -10,8 +12,8 @@ test("registers the Progress panel and a Command Center item that opens it as a 
   const stop = h.load("index.client.tsx").default(h.client);
   // The harness runs plugin code in its own realm; compare plain copies.
   const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
-  assert.deepEqual(plain(h.panels.map(({ id, title, context, locations }) => ({ id, title, context, locations }))), [
-    { id: "progress", title: "Progress", context: "workspace", locations: ["explorer"] },
+  assert.deepEqual(plain(h.panels.map(({ id, title, locations }) => ({ id, title, locations }))), [
+    { id: "progress", title: "Progress", locations: ["explorer"] },
   ]);
   const [item] = h.commandItems;
   assert.equal(item.title, "Open Progress");
@@ -26,23 +28,12 @@ test("registers the Progress panel and a Command Center item that opens it as a 
   assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed) && h.settingsScreens.every((entry) => entry.removed) && h.screens.every((entry) => entry.removed));
 });
 
-test("on a phone with Paseo 0.13 or later, Progress opens in Explorer", () => {
+test("on a phone, Progress opens in Explorer", () => {
   const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
-  Object.assign(h.client, { addFilePanel: () => () => {} });
   const stop = h.load("index.client.tsx").default(h.client);
   assert.deepEqual(JSON.parse(JSON.stringify(h.panels.map(({ id, locations }) => ({ id, locations })))), [{ id: "progress", locations: ["explorer"] }]);
   h.commandItems[0].onSelect({ openPanel: (id: string, options?: object) => h.client.openPanel(id, { workspaceId: "w", ...options }) });
   assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }]);
-  stop();
-});
-
-test("on a phone with Paseo before 0.13, which has no Explorer there, Progress opens as a tab", () => {
-  const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
-  const stop = h.load("index.client.tsx").default(h.client);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.panels.map(({ id, locations }) => ({ id, locations })))), [{ id: "progress-tab", locations: ["workspace"] }],
-    "its own id, so a tab an older version left in the phone's hidden Explorer pane isn't reused");
-  h.commandItems[0].onSelect({ openPanel: (id: string, options?: object) => h.client.openPanel(id, { workspaceId: "w", ...options }) });
-  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress-tab", workspaceId: "w", location: "workspace" }]);
   stop();
 });
 
@@ -85,7 +76,7 @@ test("an unchanged reply keeps the dashboard the panel already has", async () =>
 });
 
 test("tapping a question reference copies it in the reply format", () => {
-  const h = clientHarness(directory, { "@getpaseo/plugin/client/react-native": {} });
+  const h = clientHarness(directory, { "@getpaseo/plugin/client/ui": {} });
   const { replyPrefix, replyWithChoice } = h.load("client/questions.tsx");
   assert.equal(replyPrefix({ id: "Q7", title: "Row spacing" }), "Q7 (Row spacing): ");
   assert.equal(replyWithChoice({ id: "Q7", title: "Row spacing" }, "B"), "Q7 (Row spacing): B", "an option's Copy button adds its letter");
@@ -245,28 +236,8 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   stop();
 });
 
-test("on a phone with Paseo before 0.13, an open run keeps a Progress pill that opens the panel as a tab", async () => {
+test("on a phone, an open run keeps a Progress pill that opens the panel in Explorer", async () => {
   const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
-  const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
-  h.responses["progress.attention"] = attentionWith(0, 0, { open: true, panelOpened: true });
-  const stop = contributePills(h.client);
-  h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
-  h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
-  await h.flush();
-  const active = () => h.registrations.filter((entry) => !entry.removed) as unknown as Array<{ button: any }>;
-  assert.equal(active()[0]?.button.label, "Progress", "shown even after the panel has been opened");
-  active()[0].button.behavior.onPress();
-  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress-tab", workspaceId: "w", location: "workspace" }]);
-  h.responses["progress.attention"] = attentionWith(0, 0, { open: false, panelOpened: true });
-  await h.tick(PILL_POLL_MS);
-  await h.flush();
-  assert.equal(active().length, 0, "a finished run has no pill");
-  stop();
-});
-
-test("on a phone with Paseo 0.13 or later, an open run keeps a Progress pill that opens the panel in Explorer", async () => {
-  const h = clientHarness(directory, { "react-native": { Platform: { OS: "ios" } } });
-  Object.assign(h.client, { addFilePanel: () => () => {} });
   const { contributePills } = h.load("client/pills.tsx");
   h.responses["progress.attention"] = attentionWith(0, 0, { open: true, panelOpened: true });
   const stop = contributePills(h.client);
@@ -281,7 +252,7 @@ test("on a phone with Paseo 0.13 or later, an open run keeps a Progress pill tha
 });
 
 test("local deliverable paths resolve against the workspace directory", () => {
-  const h = clientHarness(directory, { "@getpaseo/plugin/client/react-native": {} });
+  const h = clientHarness(directory, { "@getpaseo/plugin/client/ui": {} });
   const { absolutePath } = h.load("client/deliverables.tsx");
   assert.equal(absolutePath(".scratch/shots", "/repo/"), "/repo/.scratch/shots");
   assert.equal(absolutePath("/tmp/x.png", "/repo"), "/tmp/x.png");
@@ -296,7 +267,7 @@ test("a failed request shows the handler's own words, without Paseo's log wrappe
 });
 
 test("the install banner shows until the command is installed and reachable", () => {
-  const h = clientHarness(directory, { "@getpaseo/plugin/client/react-native": {} });
+  const h = clientHarness(directory, { "@getpaseo/plugin/client/ui": {} });
   const { launcherNotice } = h.load("client/launcher.tsx");
   const path = "/Users/s/.local/bin/paseo-progress";
   assert.equal(launcherNotice({ path, state: "missing", onPath: true }).action, "Install command");
@@ -305,4 +276,11 @@ test("the install banner shows until the command is installed and reachable", ()
   assert.equal(launcherNotice({ path, state: "foreign", onPath: true }).action, undefined, "never offers to replace another file");
   assert.equal(launcherNotice({ path, state: "current", onPath: true }), null);
   assert.match(launcherNotice({ path, state: "current", onPath: false }).text, /need the full path/);
+});
+
+test("app-side code imports no Node modules, which Paseo refuses to bundle into the app", () => {
+  const files = ["client", "shared"].flatMap((folder) => readdirSync(join(directory, folder))
+    .filter((name) => /\.tsx?$/.test(name) && !name.endsWith(".test.ts")).map((name) => join(folder, name)));
+  const offenders = files.filter((file) => /from\s+["']node:|require\(["']node:/.test(readFileSync(join(directory, file), "utf8")));
+  assert.deepEqual(offenders, []);
 });

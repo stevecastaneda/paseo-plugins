@@ -1,5 +1,5 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { opensAsPage } from "../shared/attachments";
@@ -98,7 +98,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
           onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }}
           onCopyPath={() => void opener.copyPath(preview.attachment)} onBack={back}
           gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment, fullScreen: preview.fullScreen && previewKind(attachment.path ?? "") === "image", leftFullScreen: false }) }}
-          onLong={setPreviewLong} fullScreen={preview.fullScreen} leftFullScreen={preview.leftFullScreen === true} onFullScreen={setFullScreen}
+          onLong={setPreviewLong} ownScroll={previewLong || preview.fullScreen} fullScreen={preview.fullScreen} leftFullScreen={preview.leftFullScreen === true} onFullScreen={setFullScreen}
           onOpenEntry={openAttachment} />
       ) : (
         <>

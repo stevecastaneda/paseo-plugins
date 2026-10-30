@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { NOTE_KINDS, type NoteKind, type WhatsNew, type WhatsNewNote, type WhatsNewRelease } from "../shared/whats-new.ts";
-import { spans } from "../shared/write-up.ts";
+import { spans } from "../shared/blocks.ts";
 import { findPluginDirectory } from "./skill.ts";
 import { stateRoot, writeAtomic } from "./store.ts";
 
