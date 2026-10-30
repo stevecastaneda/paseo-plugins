@@ -38,18 +38,19 @@ function strip(overflow: "wrap" | "fit" | "scroll" | undefined, selected: Id) {
   const { TabStrip } = h.load("client/tabs.tsx");
   const chosen: Id[] = [];
   const scrolledTo: number[] = [];
-  const render = () => {
+  const animated: boolean[] = [];
+  const render = (shown: Id[] = ids, mode = overflow) => {
     cursor = 0;
     const outer: Element = TabStrip({ colors: { border: "#333", accent: "#55f", foreground: "#fff", foregroundMuted: "#999", surface0: "#000000", surface2: "#222" },
-      tabs: ids.map((id) => ({ id, label: id, icon: "Dot", count: 2 })), selected, onSelect: (id: Id) => chosen.push(id), overflow });
+      tabs: shown.map((id) => ({ id, label: id, icon: "Dot", count: 2 })), selected, onSelect: (id: Id) => chosen.push(id), overflow: mode });
     // A scrolling row is its scroll view plus the edge fades laid over it.
     const [root, before, after]: Array<Element | null> = outer.props.children?.[0]?.type === "ScrollView" ? outer.props.children : [outer, null, null];
-    if (root!.props.ref) root!.props.ref.current = { scrollTo: ({ x }: { x: number }) => scrolledTo.push(Math.round(x)) };
+    if (root!.props.ref) root!.props.ref.current = { scrollTo: ({ x, animated: moving }: { x: number; animated: boolean }) => { scrolledTo.push(Math.round(x)); animated.push(moving); } };
     const tabs: Element[] = root!.props.children;
     const tab = (id: Id) => tabs.find((element) => element.props.entry.id === id)!;
-    return { root: root!, fades: { before: Boolean(before), after: Boolean(after) }, more: () => after!.props.onPress(), back: () => before!.props.onPress(), tab, layOut: (id: Id) => tab(id).props.onLayout({ nativeEvent: { layout: spans[id] } }) };
+    return { root: root!, fades: { before: Boolean(before), after: Boolean(after) }, more: () => after!.props.onPress(), back: () => before!.props.onPress(), tab, layOut: (id: Id, layout = spans[id]) => tab(id).props.onLayout({ nativeEvent: { layout } }) };
   };
-  return { render, chosen, scrolledTo };
+  return { render, chosen, scrolledTo, animated };
 }
 
 test("on a phone the ticket tabs stay in one row that scrolls sideways", () => {
@@ -64,7 +65,7 @@ test("on a phone the ticket tabs stay in one row that scrolls sideways", () => {
 test("pressing a tab past the edge scrolls it into view", () => {
   const s = strip("scroll", "write-up");
   const view = s.render();
-  ids.forEach(view.layOut);
+  ids.forEach((id) => view.layOut(id));
   view.root.props.onLayout({ nativeEvent: { layout: { width: 340 } } });
   assert.deepEqual(s.scrolledTo, [0], "the first tab is already in view");
   view.tab("deliverables").props.onPress();
@@ -77,7 +78,7 @@ test("a tab chosen earlier is scrolled into view when the dialog opens", () => {
   const s = strip("scroll", "deliverables");
   const view = s.render();
   view.root.props.onLayout({ nativeEvent: { layout: { width: 340 } } });
-  ids.forEach(view.layOut);
+  ids.forEach((id) => view.layOut(id));
   assert.equal(s.scrolledTo.at(-1), 238);
 });
 
@@ -111,4 +112,61 @@ test("on desktop the tabs keep wrapping, dropping their icons first", () => {
   assert.equal(view.tab("deliverables").props.entry.icon, null);
   view.tab("timeline").props.onPress();
   assert.deepEqual(s.scrolledTo, [], "nothing to scroll");
+});
+
+test("a tab that shows up mid-run before the chosen one doesn't throw off where tabs scroll to", () => {
+  const s = strip("scroll", "write-up");
+  const early = ids.filter((id) => id !== "activity");
+  let view = s.render(early);
+  // Before Activity shows up, Questions and Deliverables sit 86pt further left.
+  early.forEach((id) => view.layOut(id, id === "questions" || id === "deliverables" ? { ...spans[id], x: spans[id].x - 86 } : spans[id]));
+  view.root.props.onLayout({ nativeEvent: { layout: { width: 340 } } });
+  // Activity lays out; its neighbours keep their size, so they never report the move.
+  view = s.render();
+  view.layOut("activity");
+  view.tab("deliverables").props.onPress();
+  assert.equal(s.scrolledTo.at(-1), 238, "centred on where Deliverables is now");
+});
+
+test("a reopened ticket jumps to its saved tab, and later updates leave the row where the user scrolled it", () => {
+  const s = strip("scroll", "deliverables");
+  let view = s.render();
+  view.root.props.onLayout({ nativeEvent: { layout: { width: 340 } } });
+  ids.forEach((id) => view.layOut(id));
+  assert.deepEqual(s.scrolledTo, [238]);
+  assert.deepEqual(s.animated, [false], "the first scroll jumps, even before reduce motion is known");
+  view.root.props.onScroll({ nativeEvent: { contentOffset: { x: 0 } } });
+  view = s.render();
+  view.layOut("deliverables", { ...spans.deliverables, width: 104 });
+  view.root.props.onLayout({ nativeEvent: { layout: { width: 360 } } });
+  assert.deepEqual(s.scrolledTo, [238], "a new count or a resize doesn't snap the row back");
+  view.tab("timeline").props.onPress();
+  assert.deepEqual(s.animated, [false, true], "a tapped tab glides into place");
+});
+
+test("a row that stops and starts scrolling again starts from the left edge", () => {
+  const s = strip("scroll", "write-up");
+  let view = s.render();
+  view.root.props.onLayout({ nativeEvent: { layout: { width: 340 } } });
+  view.root.props.onContentSizeChange(456, 34);
+  view.root.props.onScroll({ nativeEvent: { contentOffset: { x: 116 } } });
+  assert.deepEqual(s.render().fades, { before: true, after: false });
+  s.render(ids, "fit");
+  view = s.render();
+  assert.deepEqual(view.fades, { before: false, after: false }, "no fades left over from the old row");
+  view.root.props.onLayout({ nativeEvent: { layout: { width: 340 } } });
+  view.root.props.onContentSizeChange(456, 34);
+  assert.deepEqual(s.render().fades, { before: false, after: true }, "the new row starts at the left");
+});
+
+test("the left chevron never pages past the start of a row that shrank", () => {
+  const s = strip("scroll", "write-up");
+  let view = s.render();
+  view.root.props.onLayout({ nativeEvent: { layout: { width: 340 } } });
+  view.root.props.onContentSizeChange(456, 34);
+  view.root.props.onScroll({ nativeEvent: { contentOffset: { x: 116 } } });
+  view = s.render();
+  view.root.props.onContentSizeChange(300, 34);
+  view.back();
+  assert.equal(s.scrolledTo.at(-1), 0);
 });
