@@ -25,5 +25,5 @@ export function hideCitations(source: string): string {
 }
 
 function strip(prose: string): string {
-  return prose.replace(INLINE, (match, ticks) => ticks ? match : "").replace(/\n{3,}/g, "\n\n");
+  return prose.replace(INLINE, (match, ticks) => ticks ? match : "").replace(/(\r?\n){3,}/g, "$1$1");
 }
