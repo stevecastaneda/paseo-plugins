@@ -120,8 +120,13 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
-  // Where an arrow's animated scroll is heading. The arrows count from there until the view arrives or the user scrolls away.
-  const [jump, setJump] = useState<{ y: number; distance: number } | null>(null);
+  // Where an arrow's animated scroll is heading. The arrows count from there until the view arrives or scrolling goes quiet.
+  const [jump, setJump] = useState<number | null>(null);
+  const jumpTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const endJump = () => { clearTimeout(jumpTimer.current); setJump(null); };
+  // Scroll events fire every frame while anything scrolls, so a gap means the jump finished, stopped short or never moved.
+  const holdJump = () => { clearTimeout(jumpTimer.current); jumpTimer.current = setTimeout(endJump, 250); };
+  useEffect(() => () => clearTimeout(jumpTimer.current), []);
   const [positions, setPositions] = useState<Record<string, number>>({});
   const measure = (key: string, y: number) => setPositions(previous => previous[key] === y ? previous : { ...previous, [key]: y });
   const colors = theme.colors;
@@ -136,7 +141,7 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
       const result = await loadConversationBatch(rpc, { agentId, offset: append && page ? page.nextOffset : 0,
         ...(append && page ? { source: page.source } : {}) }, () => request.current !== id);
       if (!result || request.current !== id) return;
-      if (!append) { setScrollY(0); setJump(null); if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false }); }
+      if (!append) { setScrollY(0); endJump(); if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false }); }
       setPage(result.page); setText((current) => append ? current + result.text : result.text);
     } catch (reason) {
       if (request.current === id) setError(reason instanceof Error ? reason.message : "Could not read the log. Try again.");
@@ -149,33 +154,32 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const copy = (value: string) => {
     void copyText(value).then(() => setNotice("Copied")).catch(() => setError("Could not copy. You can select the text instead."));
   };
-  const maxScrollY = viewportHeight > 0 ? Math.max(0, contentHeight - viewportHeight) : Infinity;
+  // Before the scroll area has its size nothing can scroll, so every stop is at the top.
+  const maxScrollY = viewportHeight > 0 ? Math.max(0, contentHeight - viewportHeight) : 0;
   // A short turn near the end can't reach the top of the view, so it stops at the end of the chat.
   const stops = turns.flatMap((_, index) => {
     const y = positions[`turn-${index}`];
     return y === undefined ? [] : [Math.min(y, maxScrollY)];
   });
-  const from = jump?.y ?? scrollY;
+  const from = jump === null ? scrollY : Math.min(jump, maxScrollY);
   const previousStop = stops.findLast(y => y < from - 2);
   const nextStop = stops.find(y => y > from + 2);
   const jumpTo = (y: number | undefined) => {
     if (y === undefined) return;
-    setJump({ y, distance: Math.abs(y - scrollY) });
+    setJump(y);
+    holdJump();
     conversationScroll.current?.scrollTo({ y, animated: true });
   };
   const onScroll = (y: number) => {
     setScrollY(y);
-    setJump(current => {
-      if (!current) return null;
-      const distance = Math.abs(y - current.y);
-      return distance <= 2 || distance > current.distance + 1 ? null : { ...current, distance };
-    });
+    if (jump === null) return;
+    if (Math.abs(y - from) <= 2) endJump(); else holdJump();
   };
   const hasMore = page && page.nextOffset < page.totalBytes;
   return <View style={{ flex: 1, minHeight: 0 }}>
     <View style={{ flexDirection: "row", gap: 4, alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-      <Action colors={colors} label="Conversation" text="Conversation" icon="MessagesSquare" active={!source} onPress={() => { if (source) { setScrollY(0); setJump(null); } setSource(false); }} />
-      <Action colors={colors} label="Raw source" text="Source" icon="FileJson" active={source} onPress={() => setSource(true)} />
+      <Action colors={colors} label="Conversation" text="Conversation" icon="MessagesSquare" active={!source} onPress={() => { if (source) setScrollY(0); setSource(false); }} />
+      <Action colors={colors} label="Raw source" text="Source" icon="FileJson" active={source} onPress={() => { endJump(); setSource(true); }} />
       <View style={{ flex: 1 }} />
       {busy ? <ActivityIndicator size="small" color={colors.foregroundMuted} accessibilityLabel="Loading history" />
         : <Action colors={colors} label="Refresh history" icon="RefreshCw" onPress={() => void load()} />}
