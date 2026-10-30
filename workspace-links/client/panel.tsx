@@ -41,7 +41,7 @@ function CompactSelect<Value extends string>({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${label}, ${selected}`}
-          accessibilityState={{ expanded: open }}
+          aria-expanded={open}
           onPress={() => setOpen((current) => !current)}
           style={({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => ({
             flexDirection: "row",
@@ -76,7 +76,7 @@ function CompactSelect<Value extends string>({
               <Pressable
                 key={option.value}
                 accessibilityRole="menuitem"
-                accessibilityState={{ selected: isSelected }}
+                aria-selected={isSelected}
                 onPress={() => {
                   onValueChange(option.value);
                   setOpen(false);
@@ -186,7 +186,7 @@ function WorkspaceLinks({ theme, layout, workspaceId, host }: PluginWorkspacePan
           Edit it by hand or generate it during setup. This panel picks up changes on its&nbsp;own.
         </Text>
         <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 6, overflow: "hidden" }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: exampleExpanded }}
+          <Pressable accessibilityRole="button" aria-expanded={exampleExpanded}
             onPress={() => setExampleExpanded((expanded) => !expanded)}
             style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, minHeight: compact ? TOUCH_TARGET : undefined, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
             <Icon name="Code" size={14} color={colors.foregroundMuted} />
@@ -324,7 +324,7 @@ function WorkspaceLinks({ theme, layout, workspaceId, host }: PluginWorkspacePan
       </View>
       {result && !isEmpty ? (
         <View>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: guideExpanded }}
+          <Pressable accessibilityRole="button" aria-expanded={guideExpanded}
             onPress={() => setGuideExpanded((expanded) => !expanded)}
             style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, minHeight: compact ? TOUCH_TARGET : undefined, padding: 12, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
             <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Setup guide</Text>

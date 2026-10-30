@@ -62,7 +62,7 @@ plugin.
 - Copy buttons show on every row on a phone, including in a phone's web browser, where there's no hover to reveal them.
 - On a phone, the copy buttons, **Manage links**, **Show as** and its choices, and **Setup guide** are at least 44 points tall, big enough for a finger.
 - The Links panel on a phone no longer shows the **Show label** switch. Paseo never shows header button labels at phone width, so the switch did nothing there.
-- Screen readers now hear whether **Show label** is on or off.
+- Screen readers now hear whether **Show label** is on or off, whether **Show as** and the setup guide are open, and which **Show as** choice is picked.
 
 ### 1.1.0
 
