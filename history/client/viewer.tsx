@@ -120,7 +120,8 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
-  const [jumpTarget, setJumpTarget] = useState<{ index: number; y: number } | null>(null);
+  // Where an arrow's animated scroll is heading. The arrows count from there until the view arrives or the user scrolls away.
+  const [jump, setJump] = useState<{ y: number; distance: number } | null>(null);
   const [positions, setPositions] = useState<Record<string, number>>({});
   const measure = (key: string, y: number) => setPositions(previous => previous[key] === y ? previous : { ...previous, [key]: y });
   const colors = theme.colors;
@@ -135,7 +136,7 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
       const result = await loadConversationBatch(rpc, { agentId, offset: append && page ? page.nextOffset : 0,
         ...(append && page ? { source: page.source } : {}) }, () => request.current !== id);
       if (!result || request.current !== id) return;
-      if (!append) { setScrollY(0); setJumpTarget(null); if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false }); }
+      if (!append) { setScrollY(0); setJump(null); if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false }); }
       setPage(result.page); setText((current) => append ? current + result.text : result.text);
     } catch (reason) {
       if (request.current === id) setError(reason instanceof Error ? reason.message : "Could not read the log. Try again.");
@@ -148,24 +149,32 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const copy = (value: string) => {
     void copyText(value).then(() => setNotice("Copied")).catch(() => setError("Could not copy. You can select the text instead."));
   };
-  const turnOffsets = turns.map((_, index) => positions[`turn-${index}`]);
-  const maxScrollY = Math.max(0, contentHeight - viewportHeight);
-  // The last turn is often too short to reach the top, so the end of the chat counts as being on it.
-  const atEnd = viewportHeight > 0 && maxScrollY > 2 && scrollY >= maxScrollY - 2;
-  const currentTurn = jumpTarget && Math.abs(scrollY - jumpTarget.y) <= 2 ? jumpTarget.index
-    : atEnd ? turnOffsets.length - 1 : Math.max(0, turnOffsets.findLastIndex(y => y !== undefined && y <= scrollY + 2));
-  const jumpTurn = (direction: number) => {
-    const y = turnOffsets[currentTurn + direction];
-    if (y !== undefined) {
-      const targetY = viewportHeight > 0 ? Math.min(y, maxScrollY) : y;
-      setJumpTarget({ index: currentTurn + direction, y: targetY });
-      conversationScroll.current?.scrollTo({ y: targetY, animated: true });
-    }
+  const maxScrollY = viewportHeight > 0 ? Math.max(0, contentHeight - viewportHeight) : Infinity;
+  // A short turn near the end can't reach the top of the view, so it stops at the end of the chat.
+  const stops = turns.flatMap((_, index) => {
+    const y = positions[`turn-${index}`];
+    return y === undefined ? [] : [Math.min(y, maxScrollY)];
+  });
+  const from = jump?.y ?? scrollY;
+  const previousStop = stops.findLast(y => y < from - 2);
+  const nextStop = stops.find(y => y > from + 2);
+  const jumpTo = (y: number | undefined) => {
+    if (y === undefined) return;
+    setJump({ y, distance: Math.abs(y - scrollY) });
+    conversationScroll.current?.scrollTo({ y, animated: true });
+  };
+  const onScroll = (y: number) => {
+    setScrollY(y);
+    setJump(current => {
+      if (!current) return null;
+      const distance = Math.abs(y - current.y);
+      return distance <= 2 || distance > current.distance + 1 ? null : { ...current, distance };
+    });
   };
   const hasMore = page && page.nextOffset < page.totalBytes;
   return <View style={{ flex: 1, minHeight: 0 }}>
     <View style={{ flexDirection: "row", gap: 4, alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-      <Action colors={colors} label="Conversation" text="Conversation" icon="MessagesSquare" active={!source} onPress={() => { if (source) { setScrollY(0); setJumpTarget(null); } setSource(false); }} />
+      <Action colors={colors} label="Conversation" text="Conversation" icon="MessagesSquare" active={!source} onPress={() => { if (source) { setScrollY(0); setJump(null); } setSource(false); }} />
       <Action colors={colors} label="Raw source" text="Source" icon="FileJson" active={source} onPress={() => setSource(true)} />
       <View style={{ flex: 1 }} />
       {busy ? <ActivityIndicator size="small" color={colors.foregroundMuted} accessibilityLabel="Loading history" />
@@ -184,15 +193,15 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }} renderItem={({ item }) => <RawEntry entry={item} colors={colors} copy={copy} />} />
       : <ScrollView ref={conversationScroll} style={{ flex: 1, minHeight: 0 }} scrollEventThrottle={16}
         onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => setContentHeight(height)}
-        onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+        onScroll={event => onScroll(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
         {turns.map((turn, index) => <Turn key={index} turn={turn} colors={colors} copy={copy}
           onLayout={event => measure(`turn-${index}`, event.nativeEvent.layout.y)} />)}
         {turns.length === 0 ? <Text style={{ color: colors.foregroundMuted, padding: 32 }}>{busy ? "Reading history…" : "No messages saved yet"}</Text> : null}
       </ScrollView>}
     <View style={{ flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
       {!source ? <View style={{ flexDirection: "row" }}>
-        <Action colors={colors} label="Previous turn" icon="ChevronUp" disabled={busy || currentTurn === 0} onPress={() => jumpTurn(-1)} />
-        <Action colors={colors} label="Next turn" icon="ChevronDown" disabled={busy || currentTurn >= turnOffsets.length - 1} onPress={() => jumpTurn(1)} />
+        <Action colors={colors} label="Previous turn" icon="ChevronUp" disabled={busy || previousStop === undefined} onPress={() => jumpTo(previousStop)} />
+        <Action colors={colors} label="Next turn" icon="ChevronDown" disabled={busy || nextStop === undefined} onPress={() => jumpTo(nextStop)} />
       </View> : null}
       <View style={{ flex: 1 }} />
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 }}>
