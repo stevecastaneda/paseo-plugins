@@ -142,8 +142,9 @@ export const canOpenOnHost = defineRpc({
   output: z.object({ canOpen: z.boolean() }),
 });
 
-// An image, text, Markdown or HTML file's contents, for the preview dialog. A video comes
-// back as its type and size only; its bytes follow in pieces (readDeliverablePiece).
+// An image, text, Markdown or HTML file's contents, for the preview dialog. A
+// video comes back as its type and size only; its bytes follow in pieces
+// (readDeliverablePiece).
 export const previewDeliverable = defineRpc({
   name: "progress.deliverable.preview",
   input: z.object({
