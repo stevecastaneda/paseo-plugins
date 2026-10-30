@@ -114,14 +114,18 @@ async function popover(compact: boolean) {
   return r.render(LinksPopover, { ...hostProps(compact), close() {}, onManage() {} });
 }
 
-async function panel(compact: boolean, settings: { placement: string; headerShowsLabel: boolean }) {
+// Each call renders the same panel again, so state such as an open picker carries over.
+function panelRenderer(compact: boolean, settings: { placement: string; headerShowsLabel: boolean }) {
   const r = renderer({
     "@getpaseo/plugin/client": { useWorkspace: () => "/w", useRpc: () => async () => settings, openExternalUrl: async () => {} },
     "@tanstack/react-query": { useQuery: () => ({ data: { configured: true, links: LINKS }, isPending: false }) },
   });
   const { LinksPanel } = r.load("client/panel.tsx");
-  const props = hostProps(compact);
-  return r.render(LinksPanel, props);
+  return () => r.render(LinksPanel, hostProps(compact));
+}
+
+function panel(compact: boolean, settings: { placement: string; headerShowsLabel: boolean }) {
+  return panelRenderer(compact, settings)();
 }
 
 test("the desktop popover keeps its Links title and count, and shows copy buttons on hover", async () => {
@@ -158,4 +162,19 @@ test("phones get no Show label switch, and the Show as picker is 44pt", async ()
   assert.equal(pressable(tree, "Show as, Header Button").style.minHeight, 44);
   const desktop = await panel(false, { placement: "header", headerShowsLabel: false });
   assert.equal(pressable(desktop, "Show as, Header Button").style.minHeight, undefined, "desktop keeps the compact picker");
+});
+
+test("the open Show as picker tells screen readers on the web and on phones which choice is picked", async () => {
+  for (const [placement, picked] of [["header", "Header Button"], ["composer", "Composer Pill"]]) {
+    const render = panelRenderer(false, { placement, headerShowsLabel: false });
+    pressable(await render(), `Show as, ${picked}`).onPress();
+    const tree = await render();
+    for (const name of ["Header Button", "Composer Pill"]) {
+      const [choice] = all(tree, (element) => element.type === "Pressable" && !element.props.accessibilityLabel && text(element).join("") === name);
+      assert.ok(choice, `${name} is in the open picker`);
+      assert.equal(choice.props.accessibilityRole, "button");
+      assert.equal(choice.props["aria-pressed"], name === picked, "Chromium reads aria-pressed on a button");
+      assert.equal(choice.props["aria-selected"], name === picked, "phones read aria-selected");
+    }
+  }
 });

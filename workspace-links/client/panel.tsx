@@ -75,8 +75,9 @@ function CompactSelect<Value extends string>({
             return (
               <Pressable
                 key={option.value}
-                accessibilityRole="menuitem"
+                accessibilityRole="button"
                 aria-selected={isSelected}
+                aria-pressed={isSelected}
                 onPress={() => {
                   onValueChange(option.value);
                   setOpen(false);
