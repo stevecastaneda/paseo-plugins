@@ -22,7 +22,7 @@ import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMode } from "./question-mode.ts";
 import type { QuestionMode } from "../shared/question-modes.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
-import { parseWriteUp, writeUpExcerpt } from "../shared/write-up.ts";
+import { parseWriteUp } from "../shared/write-up.ts";
 
 // Real repos in these tests; the user's own git config stays out of them.
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
@@ -513,7 +513,7 @@ test("a ticket links to where it's written up: a file in the worktree or a link,
   assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, undefined, { path: "specs/01-login.md", label: "Shared spec" }]);
 });
 
-test("a write-up reads as headings, paragraphs, list items and code, and its excerpt drops the title", () => {
+test("Progress's own Markdown reads as headings, paragraphs, list items and code", () => {
   const blocks = parseWriteUp([
     "# Ticket 01: Login",
     "",
@@ -538,11 +538,6 @@ test("a write-up reads as headings, paragraphs, list items and code, and its exc
     { kind: "item", marker: "1.", depth: 1, spans: [{ text: "Nested step" }] },
     { kind: "code", text: "npm test" },
   ]);
-  const short = writeUpExcerpt(blocks, 90);
-  assert.equal(short.blocks[0].kind, "paragraph", "the title is the ticket's own, so it's left out");
-  assert.equal(short.blocks.length, 2);
-  assert.equal(short.more, true);
-  assert.equal(writeUpExcerpt(blocks).more, false);
 });
 
 test("a code block inside a list item drops the item's indentation", () => {

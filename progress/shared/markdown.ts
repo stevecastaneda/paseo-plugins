@@ -58,9 +58,6 @@ function fenceFrontMatter(text: string): string {
   return `${fence}yaml\n${body}${fence}${text.slice(open[0].length + end.index + end[0].length)}`;
 }
 
-// ---------------------------------------------------------------------------
-// The line scanner
-
 type LineKind = "blank" | "text" | "fence-open" | "fence-body" | "fence-close" | "indented-code" | "comment";
 
 interface Line {
@@ -87,8 +84,7 @@ const DEFINITION = /^ {0,3}\[(?!\^)(?:[^\\\]]|\\.)+\]:/;
 
 // Each line of LF text, by what it is. A small state machine: inside a fence,
 // inside an HTML comment, or in a list (where indented lines continue an item
-// instead of being code). When it can't tell, a line is code, so the worst
-// mistake is a link left as written.
+// instead of being code).
 function scanLines(source: string): Line[] {
   const lines: Line[] = [];
   let fence: Fence | null = null;
@@ -189,9 +185,6 @@ function runLength(text: string, index: number): number {
   return end - index;
 }
 
-// ---------------------------------------------------------------------------
-// The rewrite
-
 type Edit = { start: number; end: number; text: string };
 
 // Inline links and images (also an image inside a link), reference definitions,
@@ -251,7 +244,6 @@ function inlineTargets(text: string, mask: Uint8Array, add: (start: number, end:
   }
 }
 
-// The `[` that the `]` at `close` closes, or -1.
 function linkOpen(text: string, mask: Uint8Array, close: number): number {
   let depth = 0;
   for (let index = close - 1; index >= 0; index--) {
@@ -365,7 +357,8 @@ function localTarget(written: string, where: FileLocation, image: boolean): stri
   if (inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside)) return null;
   const folder = decoded.endsWith("/") || decoded.endsWith(sep);
   const slashed = absolute.split(sep).join("/") + (folder && !absolute.endsWith(sep) ? "/" : "");
-  // Paseo reads `//server/share` as a web address, so a file on a network share keeps its relative target.
+  // Paseo reads `//server/share` as a web address, so a file on a network
+  // share keeps its relative targets.
   if (slashed.startsWith("//")) return null;
   return encodeTarget(slashed) + (fragment ? `#${encodeTarget(decode(fragment))}` : "");
 }
@@ -392,4 +385,129 @@ function encodeTarget(path: string): string {
     }
   }
   return encoded;
+}
+
+// Every ATX heading outside code at one level, so a write-up's headings don't
+// outrank the dialog it sits in.
+export function demoteHeadings(markdown: string, level: number): string {
+  let result = "";
+  let last = 0;
+  for (const line of scanLines(markdown)) {
+    if (!line.heading) continue;
+    const marks = /^((?:[ ]{0,3}>[ ]?)*[ ]{0,3})#+/.exec(markdown.slice(line.start, line.end))!;
+    result += markdown.slice(last, line.start + marks[1].length) + "#".repeat(level);
+    last = line.start + marks[0].length;
+  }
+  return result + markdown.slice(last);
+}
+
+// The write-up without its leading title, which only repeats the ticket's: an
+// ATX or setext level-one heading, after front matter if it has some.
+export function dropTitle(markdown: string): string {
+  const lines = scanLines(markdown);
+  let index = lines.findIndex((line) => line.kind !== "blank");
+  if (lines[index]?.kind === "fence-open" && /^```+yaml\s*$/.test(markdown.slice(lines[index].start, lines[index].end))) {
+    while (index < lines.length && lines[index].kind !== "fence-close") index++;
+    while (++index < lines.length && lines[index].kind === "blank");
+  }
+  const title = lines[index];
+  if (!title || title.kind !== "text") return markdown;
+  const underline = lines[index + 1]?.kind === "text" && /^ {0,3}=+[ \t]*$/.test(markdown.slice(lines[index + 1].start, lines[index + 1].end));
+  if (title.heading !== 1 && (title.heading || title.item || !underline)) return markdown;
+  let next = index + (underline && title.heading !== 1 ? 2 : 1);
+  while (lines[next]?.kind === "blank") next++;
+  return markdown.slice(0, title.start) + (next < lines.length ? markdown.slice(lines[next].start) : "");
+}
+
+type Unit = { kind: "paragraph" | "item" | "fence" | "code"; start: number; end: number; visible: number; heading: boolean; lines: Line[] };
+
+// The start of a write-up without its title, cut after whole blocks
+// (paragraphs, tables, code blocks, top-level list items) once about `maxChars`
+// of visible text is in. The first block always shows; a long one is cut at a
+// line. A heading left last goes, and the document's reference definitions
+// come along so its reference links still work. An image counts as the whole
+// budget, so an excerpt has at most one.
+export function markdownExcerpt(markdown: string, maxChars: number): { text: string; more: boolean } {
+  const body = dropTitle(markdown);
+  const lines = scanLines(body);
+  const units: Unit[] = [];
+  const definitions: Line[] = [];
+  let unit: Unit | null = null;
+  let afterBlank = false;
+  const close = () => {
+    if (unit) units.push(unit);
+    unit = null;
+  };
+  for (const line of lines) {
+    const text = body.slice(line.start, line.end);
+    const current = unit as Unit | null;
+    const inFence = line.kind === "fence-body" || line.kind === "fence-close";
+    const continues = current !== null && (
+      (current.kind === "fence" && inFence)
+      || (current.kind === "code" && line.kind === "indented-code")
+      || (current.kind === "item" && !line.item && line.kind !== "blank" && (inFence || indentOf(text) >= 2 || (!afterBlank && line.kind === "text" && !line.heading)))
+      || (current.kind === "paragraph" && line.kind === "text" && !line.heading && !line.item && !line.definition));
+    if (continues) {
+      current.end = line.end;
+      current.lines.push(line);
+      if (current.kind === "fence" && line.kind === "fence-close") close();
+    } else if (line.definition) {
+      definitions.push(line);
+    } else if (line.kind === "blank") {
+      if (current?.kind === "paragraph" || current?.kind === "fence") close();
+    } else if (line.kind !== "comment") {
+      close();
+      const kind = line.kind === "fence-open" || inFence ? "fence" : line.kind === "indented-code" ? "code" : line.item ? "item" : "paragraph";
+      unit = { kind, start: line.start, end: line.end, visible: 0, heading: line.heading > 0, lines: [line] };
+      if (line.heading) close();
+    }
+    afterBlank = line.kind === "blank";
+  }
+  close();
+  if (!units.length) return { text: "", more: false };
+  for (const each of units) each.visible = visibleLength(body, each, maxChars);
+  let taken = 0;
+  for (let total = 0; taken < units.length && (taken === 0 || total + units[taken].visible <= maxChars); taken++) total += units[taken].visible;
+  if (taken > 1 && units[taken - 1].heading) taken--;
+  const first = units[0];
+  let end = units[taken - 1].end;
+  let closing = "";
+  if (taken === 1 && first.visible > 2 * maxChars) {
+    const counted = first.kind === "fence" ? first.lines.filter((line) => line.kind === "fence-body") : first.lines;
+    let kept = 0;
+    for (let visible = 0; kept < counted.length; kept++) {
+      visible += counted[kept].end - counted[kept].start;
+      if (kept && visible > maxChars) break;
+    }
+    if (kept < counted.length) {
+      end = counted[kept - 1].end;
+      const fence = first.kind === "fence" ? /^([ \t>]*)(`{3,}|~{3,})/.exec(body.slice(first.start, first.lines[0].end)) : null;
+      if (fence) closing = `\n${fence[1]}${fence[2]}`;
+    }
+  }
+  const references = definitions.filter((line) => line.start < first.start || line.start >= end).map((line) => body.slice(line.start, line.end));
+  const text = body.slice(first.start, end) + closing + (references.length ? `\n\n${references.join("\n")}` : "");
+  return { text, more: taken < units.length || end < units[taken - 1].end };
+}
+
+function visibleLength(body: string, unit: Unit, maxChars: number): number {
+  const text = body.slice(unit.start, unit.end);
+  if (unit.kind === "fence" || unit.kind === "code") return (unit.kind === "fence" ? unit.lines.slice(1, -1) : unit.lines).reduce((sum, line) => sum + line.end - line.start, 0);
+  if (/!\[[^\]]*\]\(|<img\b/i.test(text)) return maxChars;
+  return text
+    .replace(/<!--[\s\S]*?-->|<[^>]+>/g, "")
+    .replace(/\]\([^)]*\)/g, "]")
+    .replace(/^[ \t>]*(?:(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?|#{1,6}[ \t]+)?/gm, "")
+    .replace(/[*_`~[\]|\\]/g, "").length;
+}
+
+// The start of a plain-text write-up: whole lines up to `maxChars`, or the first
+// line cut at a space when it alone is longer.
+export function textExcerpt(text: string, maxChars: number): { text: string; more: boolean } {
+  const whole = text.trimEnd();
+  if (whole.length <= maxChars) return { text: whole, more: false };
+  const line = whole.lastIndexOf("\n", maxChars);
+  if (line > 0) return { text: whole.slice(0, line).trimEnd(), more: true };
+  const space = whole.lastIndexOf(" ", maxChars);
+  return { text: `${whole.slice(0, space > 0 ? space : maxChars)}…`, more: true };
 }

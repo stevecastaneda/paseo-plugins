@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { posix, win32 } from "node:path";
-import { type FileLocation, prepareMarkdown, previewText } from "./markdown.ts";
+import { demoteHeadings, dropTitle, type FileLocation, markdownExcerpt, prepareMarkdown, previewText, textExcerpt } from "./markdown.ts";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 // The first `count` bytes of `text`, as the server reads them from a longer file.
@@ -179,4 +179,67 @@ test("rewriting a rewritten file changes nothing", () => {
   assert.equal(prepare(once), once);
   const windows: FileLocation = { root: "C:\\r", folder: "C:\\r\\docs", path: win32 };
   assert.equal(prepare(prepare(source, windows), windows), prepare(source, windows));
+});
+
+const writeUp = [
+  "# Ticket 01: Login",
+  "",
+  "Let people sign in with **email** and a [magic link](https://example.com/a/very/long/address/that/does/not/count/toward/the/budget).",
+  "",
+  "## Acceptance",
+  "",
+  "1. Sends the link within a minute, to the address the person typed in the form.",
+  "2. The link works once, and only for fifteen minutes after it was sent out.",
+  "3. A used or expired link explains what happened and offers to send another one.",
+  "",
+  "See [the design][design].",
+  "",
+  "[design]: /r/docs/design.md",
+].join("\n");
+
+test("a write-up excerpt drops the title and stops after whole blocks", () => {
+  const short = markdownExcerpt(writeUp, 280);
+  assert.equal(short.more, true);
+  assert.ok(!short.text.includes("Ticket 01"), "the title is the ticket's own");
+  assert.ok(short.text.startsWith("Let people sign in"));
+  assert.ok(short.text.includes("2. The link works once") && !short.text.includes("3. A used"), "cut after a whole list item, numbering kept");
+  assert.ok(short.text.endsWith("\n\n[design]: /r/docs/design.md"), "reference definitions come along");
+  const whole = markdownExcerpt(writeUp, 2000);
+  assert.deepEqual(whole, { text: writeUp.slice("# Ticket 01: Login\n\n".length), more: false });
+});
+
+test("a write-up excerpt keeps its first block, cuts a long one at a line, and leaves no heading last", () => {
+  const paragraph = "word ".repeat(600).trim();
+  assert.deepEqual(markdownExcerpt(`# T\n\n${paragraph}\n\nNext.`, 280), { text: paragraph, more: true }, "a long first line shows whole");
+  const code = ["```sh", ...Array.from({ length: 200 }, (_, index) => `echo line ${index}`), "```", "", "After."].join("\n");
+  const excerpt = markdownExcerpt(code, 280);
+  assert.equal(excerpt.more, true);
+  assert.ok(excerpt.text.startsWith("```sh\necho line 0\n") && excerpt.text.endsWith("\n```") && excerpt.text.length < 400, "its first lines, with the fence closed");
+  assert.deepEqual(markdownExcerpt("Intro sentence.\n\n## Details\n\n" + "More text here. ".repeat(30), 280), { text: "Intro sentence.", more: true }, "no heading left hanging");
+  assert.deepEqual(markdownExcerpt("![one](/a.png)\n\n![two](/b.png)", 280), { text: "![one](/a.png)", more: true }, "one image at most");
+  assert.deepEqual(markdownExcerpt("# Only a title", 280), { text: "", more: false });
+});
+
+test("a write-up's title comes off whatever its form, and other headings stay", () => {
+  assert.equal(dropTitle("Title\n=====\n\nBody"), "Body");
+  assert.equal(dropTitle("\n# Title #\nBody"), "\nBody");
+  assert.equal(dropTitle("```yaml\nid: 1\n```\n\n# Title\n\nBody"), "```yaml\nid: 1\n```\n\nBody", "after front matter");
+  assert.equal(dropTitle("## Section\n\nBody"), "## Section\n\nBody");
+  assert.equal(dropTitle("Body first\n\n# Title"), "Body first\n\n# Title");
+  assert.equal(dropTitle("- item\n=\n"), "- item\n=\n");
+});
+
+test("a write-up's headings all draw at one small level, outside code", () => {
+  assert.equal(demoteHeadings("# A\n## B\n### C #\n> ## Quoted\nText #1\n```\n# comment\n```\n    # indented", 5),
+    "##### A\n##### B\n##### C #\n> ##### Quoted\nText #1\n```\n# comment\n```\n    # indented");
+  assert.equal(demoteHeadings("#hashtag", 5), "#hashtag");
+});
+
+test("a plain-text write-up shows whole lines up to the budget", () => {
+  assert.deepEqual(textExcerpt("short\nnote\n", 280), { text: "short\nnote", more: false });
+  const log = Array.from({ length: 40 }, (_, index) => `line ${index}`).join("\n");
+  const excerpt = textExcerpt(log, 50);
+  assert.equal(excerpt.more, true);
+  assert.ok(log.startsWith(excerpt.text) && excerpt.text.length <= 50 && log[excerpt.text.length] === "\n");
+  assert.deepEqual(textExcerpt("one very long line ".repeat(30), 50), { text: "one very long line one very long line one very…", more: true });
 });
