@@ -9,17 +9,28 @@ export function previewText(bytes: Uint8Array, truncated: boolean): string {
 }
 
 function cleanCut(bytes: Uint8Array): Uint8Array {
-  let end = bytes.length;
-  for (let back = 1; back <= Math.min(4, end); back++) {
-    const byte = bytes[end - back];
-    if ((byte & 0xc0) === 0x80) continue;
-    const length = byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : byte >= 0xc0 ? 2 : 1;
-    if (length > back) end -= back;
-    break;
-  }
+  let end = wholeCharacters(bytes);
   const newline = end ? bytes.lastIndexOf(0x0a, end - 1) : -1;
   if (newline >= 0 && end - (newline + 1) <= LINE_SEARCH_BYTES) end = newline + 1;
   return bytes.subarray(0, end);
+}
+
+function wholeCharacters(bytes: Uint8Array): number {
+  const end = bytes.length;
+  for (let back = 1; back <= Math.min(4, end); back++) {
+    const byte = bytes[end - back];
+    if (isContinuationByte(byte)) continue;
+    return sequenceLength(byte) > back ? end - back : end;
+  }
+  return end;
+}
+
+function isContinuationByte(byte: number): boolean {
+  return (byte & 0xc0) === 0x80;
+}
+
+function sequenceLength(leadByte: number): number {
+  return leadByte >= 0xf0 ? 4 : leadByte >= 0xe0 ? 3 : leadByte >= 0xc0 ? 2 : 1;
 }
 
 // `path` is the daemon's node:path, passed in because Paseo refuses Node modules
@@ -53,9 +64,9 @@ interface Line {
   start: number;
   end: number;
   kind: LineKind;
-  item: boolean;
+  topLevelItem: boolean;
   definition: boolean;
-  heading: number;
+  headingLevel: number;
 }
 
 type Fence = { run: string; quotes: number; indent: number };
@@ -80,7 +91,7 @@ function scanLines(source: string): Line[] {
     const rest = raw.slice(quotePrefix.length);
     const blank = !rest.trim();
     const indent = indentOf(rest);
-    const line: Line = { start, end, kind: "text", item: false, definition: false, heading: 0 };
+    const line: Line = { start, end, kind: "text", topLevelItem: false, definition: false, headingLevel: 0 };
     if (fence && (quotes < fence.quotes || (!blank && indent < fence.indent))) fence = null;
     if (fence) {
       const close = FENCE.exec(rest);
@@ -89,24 +100,24 @@ function scanLines(source: string): Line[] {
       if (closes) fence = null;
     } else if (comment) {
       line.kind = "comment";
-      comment = !raw.includes("-->") || codeMask(raw.slice(raw.lastIndexOf("-->") + 3)).comment;
+      comment = !raw.includes("-->") || codeAndCommentMask(raw.slice(raw.lastIndexOf("-->") + 3)).comment;
     } else if (blank) {
       line.kind = "blank";
     } else {
       const item = ITEM.test(rest);
       const heading = /^ {0,3}(#{1,6})(?:[ \t]|$)/.exec(rest)?.[1].length ?? 0;
       if (list && indent === 0 && !item && (previous?.kind === "blank" || heading)) list = false;
-      const paragraphAbove = previous?.kind === "text" && !previous.heading && !previous.definition;
+      const paragraphAbove = previous?.kind === "text" && !previous.headingLevel && !previous.definition;
       if (indent >= 4 && !list && !paragraphAbove) line.kind = "indented-code";
       else if (FENCE.test(rest) && (indent < 4 || list)) {
         line.kind = "fence-open";
         fence = { run: FENCE.exec(rest)![1], quotes, indent: list ? indent : 0 };
       } else {
         if (item) list = true;
-        line.item = item && quotes === 0 && indent < 2;
-        line.heading = heading;
+        line.topLevelItem = item && quotes === 0 && indent < 2;
+        line.headingLevel = heading;
         line.definition = DEFINITION.test(rest) && !paragraphAbove;
-        comment = codeMask(raw).comment;
+        comment = codeAndCommentMask(raw).comment;
       }
     }
     lines.push(line);
@@ -126,7 +137,7 @@ function indentOf(text: string): number {
   return columns;
 }
 
-function codeMask(text: string): { mask: Uint8Array; comment: boolean } {
+function codeAndCommentMask(text: string): { mask: Uint8Array; comment: boolean } {
   const mask = new Uint8Array(text.length);
   for (let index = 0; index < text.length;) {
     if (text[index] === "\\") {
@@ -174,7 +185,7 @@ function rewriteTargets(source: string, where: FileLocation): string {
     while (last + 1 < lines.length && lines[last + 1].kind === "text") last++;
     const offset = lines[first].start;
     const text = source.slice(offset, lines[last].end);
-    const { mask } = codeMask(text);
+    const { mask } = codeAndCommentMask(text);
     const add = (start: number, end: number, target: string, image: boolean) => {
       const replacement = localTarget(target, where, image);
       if (replacement !== null) edits.push({ start: offset + start, end: offset + end, text: replacement });
@@ -351,11 +362,11 @@ function encodeTarget(path: string): string {
   return encoded;
 }
 
-export function demoteHeadings(markdown: string, level: number): string {
+export function flattenHeadings(markdown: string, level: number): string {
   let result = "";
   let last = 0;
   for (const line of scanLines(markdown)) {
-    if (!line.heading) continue;
+    if (!line.headingLevel) continue;
     const marks = /^((?:[ ]{0,3}>[ ]?)*[ ]{0,3})#+/.exec(markdown.slice(line.start, line.end))!;
     result += markdown.slice(last, line.start + marks[1].length) + "#".repeat(level);
     last = line.start + marks[0].length;
@@ -373,8 +384,8 @@ export function dropTitle(markdown: string): string {
   const title = lines[index];
   if (!title || title.kind !== "text") return markdown;
   const underline = lines[index + 1]?.kind === "text" && /^ {0,3}=+[ \t]*$/.test(markdown.slice(lines[index + 1].start, lines[index + 1].end));
-  if (title.heading !== 1 && (title.heading || title.item || !underline)) return markdown;
-  let next = index + (underline && title.heading !== 1 ? 2 : 1);
+  if (title.headingLevel !== 1 && (title.headingLevel || title.topLevelItem || !underline)) return markdown;
+  let next = index + (underline && title.headingLevel !== 1 ? 2 : 1);
   while (lines[next]?.kind === "blank") next++;
   return markdown.slice(0, title.start) + (next < lines.length ? markdown.slice(lines[next].start) : "");
 }
@@ -387,7 +398,20 @@ type Unit = { kind: "paragraph" | "item" | "fence" | "code"; start: number; end:
 
 export function markdownExcerpt(markdown: string, maxChars: number): { text: string; more: boolean } {
   const body = dropTitle(markdown);
-  const lines = scanLines(body);
+  const { units, definitions } = blockUnits(body);
+  if (!units.length) return { text: "", more: false };
+  for (const each of units) each.visible = visibleLength(body, each, maxChars);
+  let taken = 0;
+  for (let total = 0; taken < units.length && (taken === 0 || total + units[taken].visible <= maxChars); taken++) total += units[taken].visible;
+  if (taken > 1 && units[taken - 1].heading) taken--;
+  const first = units[0];
+  const { end, closing } = taken === 1 && first.visible > 2 * maxChars ? cutFirstBlock(body, first, maxChars) : { end: units[taken - 1].end, closing: "" };
+  const references = definitions.filter((line) => line.start < first.start || line.start >= end).map((line) => body.slice(line.start, line.end));
+  const text = body.slice(first.start, end) + closing + (references.length ? `\n\n${references.join("\n")}` : "");
+  return { text, more: taken < units.length || end < units[taken - 1].end };
+}
+
+function blockUnits(body: string): { units: Unit[]; definitions: Line[] } {
   const units: Unit[] = [];
   const definitions: Line[] = [];
   let unit: Unit | null = null;
@@ -396,15 +420,15 @@ export function markdownExcerpt(markdown: string, maxChars: number): { text: str
     if (unit) units.push(unit);
     unit = null;
   };
-  for (const line of lines) {
+  for (const line of scanLines(body)) {
     const text = body.slice(line.start, line.end);
     const current = unit as Unit | null;
     const inFence = line.kind === "fence-body" || line.kind === "fence-close";
     const continues = current !== null && (
       (current.kind === "fence" && inFence)
       || (current.kind === "code" && line.kind === "indented-code")
-      || (current.kind === "item" && !line.item && line.kind !== "blank" && (inFence || indentOf(text) >= 2 || (!afterBlank && line.kind === "text" && !line.heading)))
-      || (current.kind === "paragraph" && line.kind === "text" && !line.heading && !line.item && !line.definition));
+      || (current.kind === "item" && !line.topLevelItem && line.kind !== "blank" && (inFence || indentOf(text) >= 2 || (!afterBlank && line.kind === "text" && !line.headingLevel)))
+      || (current.kind === "paragraph" && line.kind === "text" && !line.headingLevel && !line.topLevelItem && !line.definition));
     if (continues) {
       current.end = line.end;
       current.lines.push(line);
@@ -415,38 +439,27 @@ export function markdownExcerpt(markdown: string, maxChars: number): { text: str
       if (current?.kind === "paragraph" || current?.kind === "fence") close();
     } else if (line.kind !== "comment") {
       close();
-      const kind = line.kind === "fence-open" || inFence ? "fence" : line.kind === "indented-code" ? "code" : line.item ? "item" : "paragraph";
-      unit = { kind, start: line.start, end: line.end, visible: 0, heading: line.heading > 0, lines: [line] };
-      if (line.heading) close();
+      const kind = line.kind === "fence-open" || inFence ? "fence" : line.kind === "indented-code" ? "code" : line.topLevelItem ? "item" : "paragraph";
+      unit = { kind, start: line.start, end: line.end, visible: 0, heading: line.headingLevel > 0, lines: [line] };
+      if (line.headingLevel) close();
     }
     afterBlank = line.kind === "blank";
   }
   close();
   if (units.length && isFrontMatter(body, units[0].lines[0])) units.shift();
-  if (!units.length) return { text: "", more: false };
-  for (const each of units) each.visible = visibleLength(body, each, maxChars);
-  let taken = 0;
-  for (let total = 0; taken < units.length && (taken === 0 || total + units[taken].visible <= maxChars); taken++) total += units[taken].visible;
-  if (taken > 1 && units[taken - 1].heading) taken--;
-  const first = units[0];
-  let end = units[taken - 1].end;
-  let closing = "";
-  if (taken === 1 && first.visible > 2 * maxChars) {
-    const counted = first.kind === "fence" ? first.lines.filter((line) => line.kind === "fence-body") : first.lines;
-    let kept = 0;
-    for (let visible = 0; kept < counted.length; kept++) {
-      visible += counted[kept].end - counted[kept].start;
-      if (kept && visible > maxChars) break;
-    }
-    if (kept < counted.length) {
-      end = counted[kept - 1].end;
-      const fence = first.kind === "fence" ? /^([ \t>]*)(`{3,}|~{3,})/.exec(body.slice(first.start, first.lines[0].end)) : null;
-      if (fence) closing = `\n${fence[1]}${fence[2]}`;
-    }
+  return { units, definitions };
+}
+
+function cutFirstBlock(body: string, first: Unit, maxChars: number): { end: number; closing: string } {
+  const counted = first.kind === "fence" ? first.lines.filter((line) => line.kind === "fence-body") : first.lines;
+  let kept = 0;
+  for (let visible = 0; kept < counted.length; kept++) {
+    visible += counted[kept].end - counted[kept].start;
+    if (kept && visible > maxChars) break;
   }
-  const references = definitions.filter((line) => line.start < first.start || line.start >= end).map((line) => body.slice(line.start, line.end));
-  const text = body.slice(first.start, end) + closing + (references.length ? `\n\n${references.join("\n")}` : "");
-  return { text, more: taken < units.length || end < units[taken - 1].end };
+  if (kept === counted.length) return { end: first.end, closing: "" };
+  const fence = first.kind === "fence" ? /^([ \t>]*)(`{3,}|~{3,})/.exec(body.slice(first.start, first.lines[0].end)) : null;
+  return { end: counted[kept - 1].end, closing: fence ? `\n${fence[1]}${fence[2]}` : "" };
 }
 
 function visibleLength(body: string, unit: Unit, maxChars: number): number {

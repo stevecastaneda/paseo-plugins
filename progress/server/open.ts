@@ -54,7 +54,7 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
-async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string; root: string; worktree: string }> {
+async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; realTarget: string; realRoot: string; worktree: string }> {
   const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
@@ -62,18 +62,18 @@ async function resolveAttachment(directory: string, ref: string, verb: string): 
   if (!folder) throw new Error(`No local ${base.startsWith("Q") ? "attachment" : "deliverable"} ${base} in this worktree.`);
   const path = inner ? join(folder, inner) : folder;
   if (outside(relative(resolve(worktree, folder), resolve(worktree, path)))) throw new Error(`${path} is outside ${folder}, so it was not ${verb}.`);
-  const root = await realpath(worktree);
-  const target = await realpath(resolve(root, path)).catch(() => null);
-  if (!target) throw new Error(`${path} no longer exists.`);
-  const inside = relative(root, target);
+  const realRoot = await realpath(worktree);
+  const realTarget = await realpath(resolve(realRoot, path)).catch(() => null);
+  if (!realTarget) throw new Error(`${path} no longer exists.`);
+  const inside = relative(realRoot, realTarget);
   if (outside(inside)) throw new Error(`${path} is outside this worktree, so it was not ${verb}.`);
-  return { path, target, root, worktree };
+  return { path, realTarget, realRoot, worktree };
 }
 
 export async function openDeliverable(directory: string, id: string, opener: Opener): Promise<{ opened: string }> {
-  const { target } = await resolveAttachment(directory, id, "opened");
-  await opener(target);
-  return { opened: target };
+  const { realTarget } = await resolveAttachment(directory, id, "opened");
+  await opener(realTarget);
+  return { opened: realTarget };
 }
 
 // Large enough for full-page screenshots; the image travels over the socket.
@@ -99,24 +99,24 @@ export type Preview =
   | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
 
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
-  const { path, target, root, worktree } = await resolveAttachment(directory, id, "previewed");
-  const stats = await stat(target);
-  if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(target)) };
-  const kind = previewKind(target);
+  const { path, realTarget, realRoot, worktree } = await resolveAttachment(directory, id, "previewed");
+  const stats = await stat(realTarget);
+  if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(realTarget)) };
+  const kind = previewKind(realTarget);
   if (!kind) throw new Error(`${path} isn't an image, video, text or HTML file, so it can't be previewed.`);
   const { size } = stats;
   if (kind === "video") {
     if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));
-    return { kind, mimeType: videoMimeType(target)!, bytes: size };
+    return { kind, mimeType: videoMimeType(realTarget)!, bytes: size };
   }
   if (kind === "text") {
     // Read only what's shown, so a huge log doesn't load whole.
-    const file = await open(target);
+    const file = await open(realTarget);
     try {
       const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(Math.min(size, MAX_PREVIEW_TEXT_BYTES)), position: 0 });
       const bytes = buffer.subarray(0, bytesRead);
       const truncated = size > MAX_PREVIEW_TEXT_BYTES;
-      if (textFormat(target) === "plain") return { kind, text: previewText(bytes, truncated), bytes: size, truncated };
+      if (textFormat(realTarget) === "plain") return { kind, text: previewText(bytes, truncated), bytes: size, truncated };
       const where = { root: worktree, folder: dirname(resolve(worktree, path)), path: nodePath };
       return { kind: "markdown", markdown: prepareMarkdown(bytes, truncated, where), bytes: size, truncated };
     } finally {
@@ -124,9 +124,9 @@ export async function previewDeliverable(directory: string, id: string): Promise
     }
   }
   if (size > MAX_PREVIEW_BYTES) throw new Error(tooLarge(path, size));
-  if (kind === "html") return { kind, html: await inlineLocalFiles(await readFile(target, "utf8"), dirname(target), root), bytes: size };
-  const data = await readFile(target);
-  return { kind, dataUri: `data:${imageMimeType(target)};base64,${data.toString("base64")}`, bytes: size };
+  if (kind === "html") return { kind, html: await inlineLocalFiles(await readFile(realTarget, "utf8"), dirname(realTarget), realRoot), bytes: size };
+  const data = await readFile(realTarget);
+  return { kind, dataUri: `data:${imageMimeType(realTarget)};base64,${data.toString("base64")}`, bytes: size };
 }
 
 async function listFolder(target: string): Promise<{ entries: FolderEntry[]; truncated: boolean }> {
@@ -198,9 +198,9 @@ function tooLarge(path: string, size: number): string {
 // One piece of a video, from `offset`. Resolved by reference each time, like the
 // preview, so a piece can only come from a video the agent recorded.
 export async function readDeliverablePiece(directory: string, id: string, offset: number): Promise<{ data: string; bytes: number }> {
-  const { path, target } = await resolveAttachment(directory, id, "previewed");
-  if (previewKind(target) !== "video") throw new Error(`${path} isn't a video.`);
-  const file = await open(target);
+  const { path, realTarget } = await resolveAttachment(directory, id, "previewed");
+  if (previewKind(realTarget) !== "video") throw new Error(`${path} isn't a video.`);
+  const file = await open(realTarget);
   try {
     const { size } = await file.stat();
     if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));

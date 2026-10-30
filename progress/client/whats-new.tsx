@@ -5,10 +5,10 @@ import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { dismissWhatsNew, getWhatsNew } from "../shared/rpc";
 import { NOTE_KINDS, type NoteKind, type NoteTone, type WhatsNew, type WhatsNewNote, type WhatsNewRelease } from "../shared/whats-new";
-import { spans } from "../shared/write-up";
+import { spans } from "../shared/blocks";
 import { PressScale, Presence } from "./motion";
 import { isLight, raised, tint } from "./surfaces";
-import { BlockView, Spans } from "./write-up";
+import { BlockView, Spans } from "./blocks";
 import { ProgressLanguageProvider, useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];

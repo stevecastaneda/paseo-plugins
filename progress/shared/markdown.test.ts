@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { posix, win32 } from "node:path";
-import { demoteHeadings, dropTitle, type FileLocation, markdownExcerpt, prepareMarkdown, previewText, textExcerpt } from "./markdown.ts";
+import { flattenHeadings, dropTitle, type FileLocation, markdownExcerpt, prepareMarkdown, previewText, textExcerpt } from "./markdown.ts";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 const head = (text: string, count: number) => bytes(text).subarray(0, count);
@@ -229,9 +229,9 @@ test("a write-up's title comes off whatever its form, and other headings stay", 
 });
 
 test("a write-up's headings all draw at one small level, outside code", () => {
-  assert.equal(demoteHeadings("# A\n## B\n### C #\n> ## Quoted\nText #1\n```\n# comment\n```\n    # indented", 5),
+  assert.equal(flattenHeadings("# A\n## B\n### C #\n> ## Quoted\nText #1\n```\n# comment\n```\n    # indented", 5),
     "##### A\n##### B\n##### C #\n> ##### Quoted\nText #1\n```\n# comment\n```\n    # indented");
-  assert.equal(demoteHeadings("#hashtag", 5), "#hashtag");
+  assert.equal(flattenHeadings("#hashtag", 5), "#hashtag");
 });
 
 test("a plain-text write-up shows whole lines up to the budget", () => {

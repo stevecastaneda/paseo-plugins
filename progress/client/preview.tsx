@@ -39,9 +39,9 @@ type PreviewProps = {
 
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, hostLong, fullScreen, leftFullScreen, onFullScreen }: PreviewProps & {
+export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, ownScroll, fullScreen, leftFullScreen, onFullScreen }: PreviewProps & {
   onLong(long: boolean): void;
-  hostLong: boolean;
+  ownScroll: boolean;
   fullScreen: boolean;
   leftFullScreen: boolean;
   onFullScreen(on: boolean): void;
@@ -195,7 +195,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
         </View>
       ) : null}
       {/* Straight on the dialog: Paseo's code blocks and tables bring their own fills. */}
-      {preview.data?.kind === "markdown" ? (certainlyLong && !hostLong ? loadingState : (
+      {preview.data?.kind === "markdown" ? (certainlyLong && !ownScroll ? loadingState : (
         <View onLayout={measure} style={{ gap: 12, opacity: stepping ? 0.6 : 1 }}>
           <Markdown>{preview.data.markdown}</Markdown>
           {preview.data.truncated ? truncatedNote(0) : null}
@@ -421,7 +421,7 @@ function imageSize(uri: string): Promise<{ width: number | null; ratio: number |
 // Height the dialog has for the preview before it must scroll: Paseo caps the card
 // at 85% of the window (inside a 24px margin), less its header and padding, the
 // path caption (17px after an 8px gap) and the footer (30px after a 20px gap).
-function roomForContent(windowHeight: number): number {
+export function roomForContent(windowHeight: number): number {
   return (windowHeight - 48) * 0.85 - 57 - 48 - (8 + 17) - (20 + 30);
 }
 

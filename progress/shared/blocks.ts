@@ -25,7 +25,7 @@ export function spans(text: string): Span[] {
   return result;
 }
 
-export function parseWriteUp(markdown: string): Block[] {
+export function parseBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   let paragraph: string[] = [];
   // A fence opened inside a list item is indented like the item; its lines

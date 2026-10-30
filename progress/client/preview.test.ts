@@ -98,9 +98,9 @@ test("leaving full screen puts focus back on the Full screen button without a fo
   assert.equal(fullScreenButtonStyle({ fullScreen: false, leftFullScreen: false }), undefined);
 });
 
-type MarkdownCase = { markdown: string; truncated?: boolean; hostLong?: boolean; latched?: boolean; stepping?: boolean };
+type MarkdownCase = { markdown: string; truncated?: boolean; ownScroll?: boolean; latched?: boolean; stepping?: boolean };
 
-function renderMarkdown({ markdown, truncated = false, hostLong = false, latched = false, stepping = false }: MarkdownCase) {
+function renderMarkdown({ markdown, truncated = false, ownScroll = false, latched = false, stepping = false }: MarkdownCase) {
   let messages: unknown;
   const Markdown = () => null;
   const latches: unknown[] = [];
@@ -117,11 +117,11 @@ function renderMarkdown({ markdown, truncated = false, hostLong = false, latched
     "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", Markdown, useToast: () => ({}), copyText: async () => {} },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
-  const { PreviewContent, markdownFloor } = h.load("client/preview.tsx");
+  const { PreviewContent, markdownFloor, roomForContent } = h.load("client/preview.tsx");
   const doc = { ref: "D1", title: "Report", path: "docs/report.md" };
   const longCalls: boolean[] = [];
   const preview = PreviewContent({ colors: { surface0: "#000000", surface1: "#000000" }, attachment: doc, workspaceId: "w", workspaceDirectory: "/w", fullScreen: false, leftFullScreen: false,
-    hostLong, onFullScreen() {}, onLong(long: boolean) { longCalls.push(long); }, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
+    ownScroll, onFullScreen() {}, onLong(long: boolean) { longCalls.push(long); }, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
   return {
     long: longCalls.at(-1),
     markdown: findType(preview, Markdown),
@@ -130,6 +130,7 @@ function renderMarkdown({ markdown, truncated = false, hostLong = false, latched
     scrolls: findType(preview, "ScrollView") !== undefined,
     latches: () => JSON.parse(JSON.stringify(latches)),
     markdownFloor: markdownFloor as (markdown: string) => number,
+    room: (roomForContent as (windowHeight: number) => number)(800),
   };
 }
 
@@ -151,17 +152,17 @@ test("a short Markdown file draws formatted in the dialog sized to it, and is me
 });
 
 test("a Markdown file drawn taller than the dialog latches long; one that fits doesn't", () => {
-  const { wrapper, latches } = renderMarkdown({ markdown: lines(30) });
+  const { wrapper, latches, room } = renderMarkdown({ markdown: lines(30) });
   wrapper!.props.onLayout({ nativeEvent: { layout: { height: 0 } } });
-  wrapper!.props.onLayout({ nativeEvent: { layout: { height: 400 } } });
+  wrapper!.props.onLayout({ nativeEvent: { layout: { height: room - 50 } } });
   assert.deepEqual(latches(), [], "Paseo's first empty layout and a height that fits leave it alone");
-  wrapper!.props.onLayout({ nativeEvent: { layout: { height: 900 } } });
+  wrapper!.props.onLayout({ nativeEvent: { layout: { height: room * 2 } } });
   assert.deepEqual(latches(), [[["progress", "preview-long", "w", "D1", "docs/report.md"], true]]);
 });
 
 test("a latched Markdown file stays long and isn't measured again", () => {
-  for (const hostLong of [false, true]) {
-    const latched = renderMarkdown({ markdown: lines(30), latched: true, hostLong });
+  for (const ownScroll of [false, true]) {
+    const latched = renderMarkdown({ markdown: lines(30), latched: true, ownScroll });
     assert.equal(latched.long, true);
     assert.ok(latched.markdown, "drawn until the host's remount replaces it");
     assert.equal(latched.wrapper?.props.onLayout, undefined);
@@ -173,7 +174,7 @@ test("a Markdown file too tall for any text size is long at once, and waits for 
   assert.equal(waiting.long, true);
   assert.equal(waiting.markdown, undefined, "not parsed in the dialog it's about to leave");
   assert.ok(waiting.spinner);
-  const drawn = renderMarkdown({ markdown: lines(200), hostLong: true });
+  const drawn = renderMarkdown({ markdown: lines(200), ownScroll: true });
   assert.equal(drawn.long, true);
   assert.ok(drawn.markdown);
   assert.equal(drawn.scrolls, true);

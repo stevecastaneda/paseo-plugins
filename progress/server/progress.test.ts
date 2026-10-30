@@ -22,7 +22,7 @@ import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMode } from "./question-mode.ts";
 import type { QuestionMode } from "../shared/question-modes.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
-import { parseWriteUp } from "../shared/write-up.ts";
+import { parseBlocks } from "../shared/blocks.ts";
 
 // Real repos in these tests; the user's own git config stays out of them.
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
@@ -514,7 +514,7 @@ test("a ticket links to where it's written up: a file in the worktree or a link,
 });
 
 test("Progress's own Markdown reads as headings, paragraphs, list items and code", () => {
-  const blocks = parseWriteUp([
+  const blocks = parseBlocks([
     "# Ticket 01: Login",
     "",
     "Let people sign in with **email** and a [magic link](https://x.y).",
@@ -541,7 +541,7 @@ test("Progress's own Markdown reads as headings, paragraphs, list items and code
 });
 
 test("a code block inside a list item drops the item's indentation", () => {
-  assert.deepEqual(parseWriteUp(["- Run it:", "  ```sh", "  npm test \\", "      --watch", " x", "  ```"].join("\n")), [
+  assert.deepEqual(parseBlocks(["- Run it:", "  ```sh", "  npm test \\", "      --watch", " x", "  ```"].join("\n")), [
     { kind: "item", marker: "•", depth: 0, spans: [{ text: "Run it:" }] },
     { kind: "code", text: "npm test \\\n    --watch\nx" },
   ]);
