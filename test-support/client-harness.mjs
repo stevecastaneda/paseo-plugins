@@ -41,7 +41,6 @@ export function clientHarness(pluginDirectory, modules = {}) {
       if (name === '@getpaseo/plugin') return { defineRpc: (contract) => contract, defineAttachmentSource: (source) => source, defineSettings: (definition) => definition };
       if (name === '@getpaseo/plugin/client') return { openExternalUrl: async (url) => { opened.push(url); } };
       if (name === 'react-native') return { Platform: { OS: 'web' } };
-      if (name === '@getpaseo/plugin/client/react-native') return {};
       if (name === '@getpaseo/plugin/client/ui') return {};
       return require(name);
     };
