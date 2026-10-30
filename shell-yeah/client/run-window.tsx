@@ -1,5 +1,5 @@
 import { useAgent, useRpc, type PluginButtonContentProps } from "@getpaseo/plugin/client";
-import { Icon, TextInput, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View, type TextInput as NativeTextInput } from "react-native";
 import { LIMITS } from "../shared/limits.ts";
