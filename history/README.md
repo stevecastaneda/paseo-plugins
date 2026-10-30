@@ -37,7 +37,7 @@ Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 ### 1.2.0
 
 - [Improved] **Messages look the way they do in Paseo's chat.** History now draws messages and task results with Paseo's own Markdown, so code is highlighted and diagrams draw. Codex's memory citations stay hidden. Code blocks no longer name their language. HTML in a message is drawn instead of shown as text. Images load the way they do in the chat, and a link that isn't a web address no longer copies its destination.
-- [Fixed] **The turn arrows work at the end of a chat.** The last turn is often too short to reach the top of the window. At the bottom of a chat, Previous turn stayed off and Next turn stayed on. Now the last turn counts as the current one there.
+- [Fixed] **The turn arrows are on only when a press moves the view.** Next turn scrolls down to the next turn, and Previous turn scrolls up to the one above. At the end of a chat Next turn is off, and in a chat that fits without scrolling both arrows are off. Two quick presses move two turns.
 - [Fixed] **Screen readers on the web hear which buttons are on.** In Paseo's web and desktop apps, screen readers now hear whether Conversation, Source, a turn's tags and Raw are on, and whether a record is open.
 
 ### 1.1.0

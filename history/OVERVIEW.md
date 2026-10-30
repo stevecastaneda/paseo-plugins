@@ -12,4 +12,4 @@ The plugin reads these logs on the computer running the Paseo daemon and never c
 
 Custom providers that extend Codex, Claude Code or OpenCode in `~/.paseo/config.json` work too. When a provider sets `CODEX_HOME` or `CLAUDE_CONFIG_DIR` in its `env`, the plugin reads that folder, so each Claude Code profile shows its own sessions.
 
-The plugin makes no network requests of its own. Messages use Paseo's Markdown, so links and images in them work the same way they do in the chat. Chats from other providers still get the pill, but the window only says their history isn't supported yet.
+Messages use Paseo's Markdown, so links and images in them work the same way they do in the chat, and an image with a web address loads from the web. The plugin makes no other network requests. Chats from other providers still get the pill, but the window only says their history isn't supported yet.
