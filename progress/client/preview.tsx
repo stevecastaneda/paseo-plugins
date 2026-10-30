@@ -362,9 +362,11 @@ function FullScreenImage({ title, uri, naturalWidth, ratio, dimmed, onExit }: { 
   );
 }
 
-// Only views on web have focus(); elsewhere this does nothing.
+// Without preventScroll, focusing a button in a phone sheet that's still sliding
+// up scrolls the sheet's frame, so the sheet sits at the top of the screen with
+// its content laid out for where it stopped.
 function focus(ref: React.RefObject<unknown>) {
-  (ref.current as { focus?(): void } | null)?.focus?.();
+  (ref.current as { focus?(options: { preventScroll: boolean }): void } | null)?.focus?.({ preventScroll: true });
 }
 
 // Paseo draws dialogs as bottom sheets below this window width.
