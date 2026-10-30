@@ -12,6 +12,7 @@ import type { SetupSnapshot } from "../shared/setup";
 import { getSetupStatus, runSetup } from "../shared/setup";
 import {
   buttonLabel,
+  buttonTitle,
   completedDurationMs,
   shouldShowButton,
   statusIconName,
@@ -159,7 +160,7 @@ export function contributeClient(client: PluginClientContext) {
           id: "setup-monitor",
           workspaceId,
           button: {
-            title: "Worktree setup",
+            title: buttonTitle(label),
             icon: SetupIcon,
             label,
             behavior: { kind: "popover", Content: SetupContent },
@@ -167,7 +168,7 @@ export function contributeClient(client: PluginClientContext) {
         });
         buttons.set(workspaceId, { label, button });
       } else if (current.label !== label) {
-        current.button.update({ label });
+        current.button.update({ label, title: buttonTitle(label) });
         current.label = label;
       }
     }
