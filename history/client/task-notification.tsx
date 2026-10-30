@@ -25,7 +25,7 @@ export function TaskNotificationBody({ notification, colors, copy }: {
           <Icon name="Copy" size={13} color={color} />
         </>}
       </HoverButton> : null}
-      <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Task details" accessibilityState={{ expanded: details }}
+      <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Task details" aria-expanded={details}
         onPress={() => setDetails(!details)} style={({ pressed }) => ({ flexDirection: "row", gap: 5, alignItems: "center", minHeight: 32, paddingHorizontal: 6, opacity: pressed ? 0.6 : 1 })}>
         {color => <>
           <Icon name={details ? "ChevronDown" : "ChevronRight"} size={12} color={color} />

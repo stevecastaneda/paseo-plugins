@@ -24,12 +24,14 @@ test("shows result Markdown immediately, expands details, and copies the result"
   assert.ok(initial.includes("Check chart"));
   assert.equal(renderer.root.findByType("Markdown").props.children, "## Findings\n\n**Everything passed.**");
   const details = () => renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Task details");
+  assert.equal(details().props["aria-expanded"], false);
   assert.ok(!initial.includes("private-task-id"));
   assert.ok(!initial.includes("/tmp/private.output"));
   await act(async () => {
     details().props.onPress();
     renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Copy task result").props.onPress();
   });
+  assert.equal(details().props["aria-expanded"], true);
   const expanded = JSON.stringify(renderer.toJSON());
   assert.ok(expanded.includes("private-task-id"));
   assert.ok(expanded.includes("/tmp/private.output"));

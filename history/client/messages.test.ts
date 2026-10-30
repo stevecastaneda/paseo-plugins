@@ -28,3 +28,21 @@ test("draws messages with Paseo's Markdown and hides memory citations", async ()
   assert.ok(!JSON.stringify(renderer.toJSON()).includes("PRIVATE_METADATA"));
   await act(async () => renderer.unmount());
 });
+
+test("tells screen readers on the web which toggles are on and whether a record is expanded", async () => {
+  let renderer;
+  await act(async () => { renderer = renderViewer(); });
+  const raw = () => renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Raw turn entries");
+  assert.equal(raw().props["aria-selected"], false);
+  assert.equal(raw().props["aria-pressed"], false);
+  act(() => raw().props.onPress());
+  assert.equal(raw().props["aria-selected"], true);
+  assert.equal(raw().props["aria-pressed"], true);
+  const copy = renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Copy message");
+  assert.equal(copy.props["aria-pressed"], undefined, "a plain button is not a toggle");
+  const expand = () => renderer.root.findAllByType("Pressable").find((node) => /^Expand /.test(node.props.accessibilityLabel));
+  assert.equal(expand().props["aria-expanded"], false);
+  act(() => expand().props.onPress());
+  assert.equal(renderer.root.findAllByType("Pressable").find((node) => /^Collapse /.test(node.props.accessibilityLabel)).props["aria-expanded"], true);
+  await act(async () => renderer.unmount());
+});

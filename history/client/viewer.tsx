@@ -13,11 +13,11 @@ import { TaskNotificationBody } from "./task-notification";
 type Colors = PluginButtonIconProps["theme"]["colors"];
 const mono = () => Platform.OS === "ios" ? "Menlo" : "monospace";
 
-function Action({ label, icon, text, disabled = false, active = false, onPress, colors }: {
+function Action({ label, icon, text, disabled = false, active, onPress, colors }: {
   label: string; icon: string; text?: string; disabled?: boolean; active?: boolean; onPress(): void; colors: Colors;
 }) {
   return <HoverButton colors={colors} active={active} accessibilityRole="button" accessibilityLabel={label}
-    accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={onPress}
+    aria-selected={active} aria-pressed={active} disabled={disabled} onPress={onPress}
     style={({ pressed }) => ({ paddingHorizontal: text ? 10 : 7, minHeight: 32, minWidth: 32,
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 6,
       backgroundColor: pressed || active ? colors.surface2 : "transparent", opacity: disabled ? 0.4 : 1 })}>
@@ -33,7 +33,7 @@ function RawEntry({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors
   return <View>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
       <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${entry.kind}`}
-        accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)}
+        aria-expanded={expanded} onPress={() => setExpanded(!expanded)}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", gap: 8, alignItems: "center", minHeight: 36,
           paddingHorizontal: 6, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
         {color => <>
@@ -201,7 +201,7 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
         </Text>
         {hasMore ? <>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>·</Text>
-          <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Load more history" accessibilityState={{ disabled: busy }}
+          <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Load more history"
             disabled={busy} onPress={() => void load(true)}
             style={({ pressed }) => ({ minHeight: 32, paddingHorizontal: 4, justifyContent: "center", borderRadius: 4,
               opacity: busy ? 0.4 : 1, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
