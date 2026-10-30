@@ -11,6 +11,9 @@ type Colors = PluginButtonContentProps["theme"]["colors"];
 type Styles = ReturnType<typeof makeStyles>;
 type PressState = { hovered?: boolean; pressed: boolean };
 
+// Phone-sized layouts are pressed with a finger.
+const TOUCH_TARGET = 44;
+
 const STATUS_LABEL: Record<LinkStatus, string> = { up: "running", down: "not responding" };
 
 // Touch screens have no hover, so row actions stay visible there.
@@ -20,12 +23,14 @@ const ALWAYS_SHOW_ACTIONS = Platform.OS !== "web";
 export function LinksPopover({
   theme,
   host,
+  layout,
   workspaceId,
   close,
   onManage,
 }: PluginButtonContentProps & { onManage(): void }) {
   const { colors } = theme;
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { compact } = layout;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const query = useLinks(host.id, workspaceId, directory);
   const links = query.data?.links ?? [];
@@ -78,6 +83,7 @@ export function LinksPopover({
             link={link}
             status={statuses[index]}
             disabled={!directory}
+            compact={compact}
             styles={styles}
             colors={colors}
             onOpen={() => {
@@ -86,6 +92,30 @@ export function LinksPopover({
             }}
           />
         ))}
+      </View>
+    );
+  }
+
+  // On phones the popover opens as a sheet page that Paseo already titles "Workspace Links",
+  // so the header gives way to a Manage links row under the list.
+  if (compact) {
+    return (
+      <View style={styles.root}>
+        {body}
+        {links.length > 0 ? (
+          <View style={styles.footer}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={manage}
+              style={({ pressed }: PressState) => [styles.manageRow, pressed && styles.rowActive]}
+            >
+              <View style={styles.linkIcon}>
+                <Icon name="Settings2" size={16} color={colors.foregroundMuted} />
+              </View>
+              <Text style={styles.label}>Manage links</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -114,6 +144,7 @@ function LinkRow({
   link,
   status,
   disabled,
+  compact,
   styles,
   colors,
   onOpen,
@@ -121,6 +152,7 @@ function LinkRow({
   link: WorkspaceLink;
   status: LinkStatus | undefined;
   disabled: boolean;
+  compact: boolean;
   styles: Styles;
   colors: Colors;
   onOpen(): void;
@@ -136,7 +168,7 @@ function LinkRow({
     return () => clearTimeout(id);
   }, [copied]);
 
-  const showActions = ALWAYS_SHOW_ACTIONS || hovered || copied;
+  const showActions = ALWAYS_SHOW_ACTIONS || compact || hovered || copied;
 
   // Hover lives on the row's container, the way Paseo's own rows do it: pointer enter and leave
   // ignore moves between children, so reaching for the copy button keeps the row lit.
@@ -168,6 +200,7 @@ function LinkRow({
           </View>
         </View>
       </Pressable>
+      {/* The pressable is the touch target and the inner view draws the button; on desktop they're the same size. */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={copied ? `Copied ${link.label} URL` : `Copy ${link.label} URL`}
@@ -177,13 +210,17 @@ function LinkRow({
             () => toast.error("Couldn’t copy this URL."),
           );
         }}
-        style={({ hovered: over, pressed: down }: PressState) => [
-          styles.iconButton,
-          (over || down) && styles.iconButtonOnRow,
-          !showActions && styles.hidden,
-        ]}
+        style={[compact && styles.touchTarget, !showActions && styles.hidden]}
       >
-        <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? colors.statusSuccess : colors.foregroundMuted} />
+        {({ hovered: over, pressed: down }: PressState) => (
+          <View style={[styles.iconButton, compact && styles.iconButtonCompact, (over || down) && styles.iconButtonOnRow]}>
+            <Icon
+              name={copied ? "Check" : "Copy"}
+              size={compact ? 16 : 14}
+              color={copied ? colors.statusSuccess : colors.foregroundMuted}
+            />
+          </View>
+        )}
       </Pressable>
     </View>
   );
@@ -246,6 +283,13 @@ function makeStyles(colors: Colors) {
       justifyContent: "center",
       borderRadius: 6,
     } satisfies ViewStyle,
+    iconButtonCompact: { width: 32, height: 32, borderRadius: 8 } satisfies ViewStyle,
+    touchTarget: {
+      width: TOUCH_TARGET,
+      height: TOUCH_TARGET,
+      alignItems: "center",
+      justifyContent: "center",
+    } satisfies ViewStyle,
     iconButtonActive: { backgroundColor: colors.surface2 } satisfies ViewStyle,
     iconButtonOnRow: { backgroundColor: colors.surface1 } satisfies ViewStyle,
     waiting: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 } satisfies ViewStyle,
@@ -262,6 +306,16 @@ function makeStyles(colors: Colors) {
       paddingVertical: 6,
       paddingLeft: 6,
       paddingRight: 4,
+    } satisfies ViewStyle,
+    footer: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 4 } satisfies ViewStyle,
+    manageRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      minHeight: TOUCH_TARGET,
+      marginHorizontal: -6,
+      paddingHorizontal: 6,
+      borderRadius: 6,
     } satisfies ViewStyle,
     rowActive: { backgroundColor: colors.surface2 } satisfies ViewStyle,
     disabled: { opacity: 0.5 } satisfies ViewStyle,
