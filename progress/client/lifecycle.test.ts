@@ -23,9 +23,17 @@ test("registers the Progress panel and a Command Center item that opens it as a 
   const [page] = h.screens;
   assert.equal(page.id, "page", "an HTML deliverable has a screen of its own");
   assert.equal(page.title({ title: "How Mortly runs" }), "How Mortly runs", "the screen is titled after the deliverable");
+  assert.deepEqual(plain(h.filePanels.map(({ id, files }) => ({ id, files }))), [{ id: "pdf", files: { extensions: ["pdf"] } }], "Progress shows PDFs opened in a tab");
   assert.equal(h.requests.length, 0, "nothing is read until a panel is shown");
   stop();
-  assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed) && h.settingsScreens.every((entry) => entry.removed) && h.screens.every((entry) => entry.removed));
+  assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed) && h.settingsScreens.every((entry) => entry.removed) && h.screens.every((entry) => entry.removed)
+    && h.filePanels.every((entry) => entry.removed));
+});
+
+test("on Android, PDFs opened in a tab keep Paseo's own panel", () => {
+  const h = clientHarness(directory, { "react-native": { Platform: { OS: "android" } } });
+  h.load("index.client.tsx").default(h.client)();
+  assert.equal(h.filePanels.length, 0);
 });
 
 test("on a phone, Progress opens in Explorer", () => {
