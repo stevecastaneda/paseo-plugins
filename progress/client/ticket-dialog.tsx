@@ -22,27 +22,30 @@ type AttachmentContext = { workspaceId: string; workspaceDirectory: string; navi
 
 // A ticket's story, opened from its row: where its time went, and what came out
 // of it. Its questions and previews open in the same dialog (see StackedDialog).
-export function TicketDialogs({ colors, dashboard, openId, setOpenId, now, live, context }: {
+export function TicketDialogs({ colors, dashboard, openId, setOpenId, now, live, compact, context }: {
   colors: Colors;
   dashboard: Dashboard;
   openId: string | null;
   setOpenId(id: string | null): void;
   now: number;
   live: boolean;
+  compact: boolean;
   context: AttachmentContext;
 }) {
   return (
     <StackedDialog colors={colors} root={openId ? { kind: "ticket", id: openId } : null} onClose={() => setOpenId(null)}
-      questions={[...dashboard.questions.open, ...dashboard.questions.answered]} dashboard={dashboard} now={now} live={live} context={context} />
+      questions={[...dashboard.questions.open, ...dashboard.questions.answered]} dashboard={dashboard} now={now} live={live} compact={compact} context={context} />
   );
 }
 
-export function TicketStoryView({ colors, dashboard, ticket, now, live, context, onOpenAttachment, onOpenQuestion, onOpenAgent }: {
+export function TicketStoryView({ colors, dashboard, ticket, now, live, compact, context, onOpenAttachment, onOpenQuestion, onOpenAgent }: {
   colors: Colors;
   dashboard: Dashboard;
   ticket: Ticket;
   now: number;
   live: boolean;
+  // Paseo's phone-sized layout.
+  compact: boolean;
   context: AttachmentContext;
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   onOpenQuestion(id: string): void;
@@ -138,7 +141,7 @@ export function TicketStoryView({ colors, dashboard, ticket, now, live, context,
       </View>
 
       <View style={{ gap: 12 }}>
-        {tabs.length > 1 ? <TabStrip colors={colors} tabs={tabs} selected={current.id} onSelect={choose} fit /> : null}
+        {tabs.length > 1 ? <TabStrip colors={colors} tabs={tabs} selected={current.id} onSelect={choose} overflow={compact ? "scroll" : "fit"} /> : null}
         {current.content}
       </View>
 

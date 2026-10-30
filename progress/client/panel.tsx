@@ -253,7 +253,7 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
             ) : (
               <TicketList colors={colors} dashboard={dashboard} live={live} now={now} workspaceId={workspaceId} onOpen={setOpenTicket} />
             )}
-            <TicketDialogs colors={colors} dashboard={dashboard} openId={openTicket} setOpenId={setOpenTicket} now={now} live={live} context={attachmentContext} />
+            <TicketDialogs colors={colors} dashboard={dashboard} openId={openTicket} setOpenId={setOpenTicket} now={now} live={live} compact={compact} context={attachmentContext} />
           </Card>
           </Presence>
         </View>

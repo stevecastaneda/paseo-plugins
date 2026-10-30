@@ -25,7 +25,7 @@ export type Step =
 
 // Paseo gives each dialog its own backdrop, so opening a second one darkens
 // the screen while the first fades out; steps swap content inside this one instead.
-export function StackedDialog({ colors, root, onClose, questions = [], dashboard, now, live = true, context }: {
+export function StackedDialog({ colors, root, onClose, questions = [], dashboard, now, live = true, compact = false, context }: {
   colors: Colors;
   root: Step | null;
   onClose(): void;
@@ -34,6 +34,8 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
   dashboard?: Dashboard;
   now: number;
   live?: boolean;
+  // Paseo's phone-sized layout; the ticket's tabs scroll sideways there.
+  compact?: boolean;
   context: AttachmentContext;
 }) {
   // Paseo's Modal keeps drawing its content while it fades out, so closing keeps the steps.
@@ -103,7 +105,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
       ) : (
         <>
           {ticket && dashboard ? (
-            <TicketStoryView colors={colors} dashboard={dashboard} ticket={ticket} now={now} live={live} context={context} onOpenAgent={openAgent}
+            <TicketStoryView colors={colors} dashboard={dashboard} ticket={ticket} now={now} live={live} compact={compact} context={context} onOpenAgent={openAgent}
               onOpenAttachment={openAttachment} onOpenQuestion={(id) => push({ kind: "question", id })} />
           ) : null}
           {question ? (
