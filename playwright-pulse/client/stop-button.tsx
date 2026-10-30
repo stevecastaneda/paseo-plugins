@@ -46,7 +46,7 @@ export function StopButton({ colors, runId, workspaceId, workspaceDirectory }: {
   const label = phase === "confirm" ? "Stop run?" : phase === "stopping" ? "Stopping…" : phase === "force" ? "Force stop" : "Stop";
   return (
     <PressScale accessibilityRole="button" accessibilityLabel={phase === "idle" ? "Stop the test run" : label}
-      accessibilityState={{ busy: phase === "stopping" }} disabled={phase === "stopping"} onPress={onPress}
+      aria-busy={phase === "stopping"} disabled={phase === "stopping"} onPress={onPress}
       style={({ pressed, hovered }) => ({
         flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 4, paddingStart: 7, paddingEnd: 9, borderRadius: 4,
         ...(asking ? {} : raised(colors)),
