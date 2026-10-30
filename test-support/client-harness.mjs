@@ -1,10 +1,23 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import vm from 'node:vm';
 
+// Paseo's web and desktop apps run react-native-web, which never reads accessibilityState.
+function rejectAccessibilityState(pluginDirectory) {
+  const client = resolve(pluginDirectory, 'client');
+  const files = ['index.client.tsx', ...(existsSync(client) ? readdirSync(client, { recursive: true }).map((name) => `client/${name}`) : [])];
+  for (const file of files.filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.'))) {
+    const path = resolve(pluginDirectory, file);
+    if (existsSync(path) && readFileSync(path, 'utf8').includes('accessibilityState')) {
+      throw new Error(`${file} uses accessibilityState, which screen readers on web and desktop never hear. Use aria-checked, aria-expanded, aria-selected, aria-busy or aria-disabled.`);
+    }
+  }
+}
+
 // Execute the real client contribution with only the host boundary mocked.
 export function clientHarness(pluginDirectory, modules = {}) {
+  rejectAccessibilityState(pluginDirectory);
   const require = createRequire(resolve(pluginDirectory, 'package.json'));
   const ts = require('typescript');
   const cache = new Map();
