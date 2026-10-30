@@ -35,7 +35,9 @@ export function TabStrip<Id extends string>({ colors, tabs, selected, onSelect, 
   const ids = tabs.map((entry) => entry.id).join();
   const [wrappedFor, setWrappedFor] = useState<string | null>(null);
   const scroller = useRef<ScrollView>(null);
-  const spans = useRef(new Map<string, { x: number; width: number }>());
+  const widths = useRef(new Map<string, number>());
+  // The tab the row last scrolled to; null until the first scroll, which jumps.
+  const revealed = useRef<string | null>(null);
   const size = useRef({ viewport: 0, content: 0, offset: 0 });
   const [hidden, setHidden] = useState({ before: false, after: false });
   const reduced = useReducedMotion();
@@ -44,17 +46,29 @@ export function TabStrip<Id extends string>({ colors, tabs, selected, onSelect, 
   const iconless = scroll || (overflow === "fit" && wrappedFor === ids);
   const gap = narrow ? 10 : 16;
   const rule = { borderBottomWidth: 1, borderBottomColor: colors.border };
+  // The next scrolling row is a new scroll view, which starts at the left.
+  if (!scroll) {
+    size.current.offset = 0;
+    revealed.current = null;
+    if (hidden.before || hidden.after) setHidden({ before: false, after: false });
+  }
   // Centers a tab in the visible part of the row, so the ones beside it show too.
+  // Positions come from widths, since a tab that moves without resizing never reports it.
   const reveal = (id: string) => {
-    const span = spans.current.get(id);
+    const upTo = tabs.slice(0, tabs.findIndex((entry) => entry.id === id) + 1).map((entry) => widths.current.get(entry.id));
     const { viewport } = size.current;
-    if (!span || !viewport) return;
-    scroller.current?.scrollTo({ x: Math.max(0, span.x + span.width / 2 - viewport / 2), animated: !reduced });
+    if (!upTo.length || !viewport || upTo.includes(undefined)) return;
+    const width = upTo.pop()!;
+    const x = upTo.reduce((sum: number, w) => sum + w! + gap, 0);
+    scroller.current?.scrollTo({ x: Math.max(0, x + width / 2 - viewport / 2), animated: !reduced && revealed.current !== null });
+    revealed.current = id;
   };
+  // Scrolls to the chosen tab once it can be measured, and not again until the choice changes.
+  const settle = () => { if (revealed.current !== selected) reveal(selected); };
   // A chevron press moves the row most of its width that way.
   const page = (direction: 1 | -1) => {
     const { viewport, content, offset } = size.current;
-    const x = Math.min(Math.max(0, offset + direction * (viewport - 48)), content - viewport);
+    const x = Math.max(0, Math.min(offset + direction * (viewport - 48), content - viewport));
     scroller.current?.scrollTo({ x, animated: !reduced });
   };
   // Which ends have tabs scrolled out of sight, so those edges fade.
@@ -67,19 +81,14 @@ export function TabStrip<Id extends string>({ colors, tabs, selected, onSelect, 
   const items = tabs.map((entry) => (
     <Tab key={entry.id} colors={colors} narrow={narrow} entry={iconless ? { ...entry, icon: null } : entry} selected={entry.id === selected}
       onPress={() => { onSelect(entry.id); if (scroll) reveal(entry.id); }}
-      onLayout={scroll ? (event) => {
-        const { x, width } = event.nativeEvent.layout;
-        spans.current.set(entry.id, { x, width });
-        // A tab chosen earlier may sit past the edge when the dialog opens.
-        if (entry.id === selected) reveal(entry.id);
-      } : undefined} />
+      onLayout={scroll ? (event) => { widths.current.set(entry.id, event.nativeEvent.layout.width); settle(); } : undefined} />
   ));
   if (scroll) {
     // Scrolling rows sit on Paseo's phone sheet, which is surface0.
     return (
       <View style={[{ position: "relative" }, style]}>
         <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} accessibilityRole="tablist" scrollEventThrottle={16}
-          onLayout={(event) => { measure({ viewport: event.nativeEvent.layout.width }); reveal(selected); }}
+          onLayout={(event) => { measure({ viewport: event.nativeEvent.layout.width }); settle(); }}
           onContentSizeChange={(width) => measure({ content: width })}
           onScroll={(event) => measure({ offset: event.nativeEvent.contentOffset.x })}
           contentContainerStyle={{ flexGrow: 1, flexDirection: "row", columnGap: gap, ...rule }}>
