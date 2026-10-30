@@ -1,7 +1,7 @@
 import { HoverButton } from "./hover-button";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { PluginButtonIconProps } from "@getpaseo/plugin/client";
 import { notificationUsage, type TaskNotification } from "../shared/task-notification";
 import { MarkdownMessage } from "./markdown";

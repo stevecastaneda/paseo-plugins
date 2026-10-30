@@ -34,6 +34,10 @@ Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 
 ## Changelog
 
+### 1.1.0
+
+- [Improved] **Needs Paseo 0.13 or later.** History now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
+
 ### 1.0.0
 
 - Version 1.0. From now on, a new first number means an update breaks something, a new middle number means a new feature, and a new last number means a fix.

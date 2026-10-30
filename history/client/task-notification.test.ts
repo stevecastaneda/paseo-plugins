@@ -11,7 +11,7 @@ test("shows result Markdown immediately, expands details, and copies the result"
   const copied: string[] = [];
   const h = clientHarness(fileURLToPath(new URL("..", import.meta.url)), {
     "react-native": { Text: "Text", View: "View", Pressable: "Pressable", ScrollView: "ScrollView", Platform: { OS: "web" } },
-    "@getpaseo/plugin/client/react-native": { Icon: "Icon" },
+    "@getpaseo/plugin/client/ui": { Icon: "Icon" },
   });
   const Body = h.load("client/task-notification.tsx").TaskNotificationBody;
   const result = "## Findings\n\n**Everything passed.**";

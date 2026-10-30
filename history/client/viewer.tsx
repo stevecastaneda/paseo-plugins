@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, View, type ScrollView as NativeScrollView, type LayoutChangeEvent } from "react-native";
 import { useRpc, type PluginButtonIconProps } from "@getpaseo/plugin/client";
-import { FlatList, ScrollView, Icon, copyText } from "@getpaseo/plugin/client/react-native";
+import { FlatList, ScrollView, Icon, copyText } from "@getpaseo/plugin/client/ui";
 import type { RpcOutput } from "@getpaseo/plugin";
 import { readHistory } from "../shared/history";
 import { groupTurns, parseEntries, type HistoryEntry, type HistoryTurn } from "../shared/entries";

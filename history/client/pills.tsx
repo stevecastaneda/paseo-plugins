@@ -1,7 +1,7 @@
 import React, { useSyncExternalStore } from "react";
 import { View } from "react-native";
 import type { PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { observeDirectory, type PaseoAgentUpdate } from "./directory";
 import { HistoryViewer } from "./viewer";
 import { modalEventBoundary } from "./web";

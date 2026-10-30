@@ -14,7 +14,7 @@ test("renders messages and safe HTML, copies code, and keeps metadata out of the
     "react-native": { Text: "Text", View: "View", Pressable: "Pressable", ScrollView: "ScrollView",
       Platform: { OS: "web" } },
     "@getpaseo/plugin/client": { openExternalUrl: async (href) => { opened.push(href); } },
-    "@getpaseo/plugin/client/react-native": { Icon: "Icon" },
+    "@getpaseo/plugin/client/ui": { Icon: "Icon" },
   });
   const Markdown = h.load("client/markdown.tsx").MarkdownMessage;
   const code = 'const text = "<script>literal</script>";';

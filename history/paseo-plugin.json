@@ -7,6 +7,6 @@
     "images/3-source.png"
   ],
   "requirements": {
-    "paseo": ">=0.11.0"
+    "paseo": ">=0.13.0"
   }
 }
