@@ -1,3 +1,4 @@
+import type { PiecedKind } from "../shared/attachments";
 import type { TicketStatus } from "../shared/events";
 import type { QuestionMode } from "../shared/question-modes";
 import type { NoteKind } from "../shared/whats-new";
@@ -85,7 +86,8 @@ export interface ProgressMessages {
   exitFullScreen: string;
   fitToWidth: string;
   fitToScreen: string;
-  videoChanged: string;
+  fileChanged: string;
+  openInTab: (title: string) => string;
   localHistory: string;
   historyStopped: string;
   historyFailure: string;
@@ -175,7 +177,8 @@ export interface ProgressMessages {
   newVersion: (version: string) => string;
   updatedTo: (version: string) => string;
   whatsNewTitle: (version: string) => string;
-  loadingVideo: (percent: number) => string;
+  loadingPieces: (kind: PiecedKind, percent: number) => string;
+  pdfTooLarge: (megabytes: number) => string;
   previewError: (error: string) => string;
   emptyFolder: (title: string) => string;
   firstEntries: (count: number) => string;

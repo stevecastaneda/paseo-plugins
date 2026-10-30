@@ -348,6 +348,10 @@ function decode(text: string): string {
   }
 }
 
+export function localLinkTarget(path: string): string {
+  return encodeTarget(/^[A-Za-z]:[\\/]/.test(path) ? path.replace(/\\/g, "/") : path);
+}
+
 // A Windows drive's colon stays, so Paseo still sees `C:/`.
 function encodeTarget(path: string): string {
   const drive = /^[A-Za-z]:\//.exec(path)?.[0] ?? "";

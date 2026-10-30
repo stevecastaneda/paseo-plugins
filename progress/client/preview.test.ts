@@ -202,3 +202,47 @@ test("the Markdown floor stays under the real height at Paseo's smallest text si
   const drawnLines = document.split("\n").filter((line) => line.trim()).length;
   assert.ok(markdownFloor(document) <= drawnLines * 13);
 });
+
+function renderPdf(query: Query & { isFetching?: boolean }, loading?: number) {
+  let messages: unknown;
+  const h = clientHarness(directory, {
+    react: { ...React, useState: (initial: unknown) => [initial, () => {}], useRef: (current: unknown) => ({ current }), useEffect: (effect: () => void) => effect(),
+      useMemo: (make: () => unknown) => make(), useContext: () => ({ locale: "en", messages }) },
+    "react-native": { Platform: { OS: "web" }, useWindowDimensions: () => ({ width: 1200, height: 800 }), View: "View", Text: "Text", ActivityIndicator: "ActivityIndicator" },
+    "@tanstack/react-query": {
+      useQueryClient: () => ({}),
+      useQuery: ({ queryKey }: { queryKey: unknown[] }) => queryKey[1] === "preview-loading" ? { data: loading }
+        : queryKey[1] === "preview" ? { isPending: false, isPlaceholderData: false, ...query } : {},
+    },
+    "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
+    "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", useToast: () => ({}), copyText: async () => {} },
+  });
+  messages = h.load("client/i18n.ts").messagesFor("en");
+  const { PreviewContent, roomForContent } = h.load("client/preview.tsx");
+  const { PdfFrame } = h.load("client/pdf.tsx");
+  const spec = { ref: "D1", title: "Spec", path: "docs/spec.pdf" };
+  const longCalls: boolean[] = [];
+  const preview = PreviewContent({ colors: { surface0: "#000000", surface1: "#000000" }, attachment: spec, workspaceId: "w", workspaceDirectory: "/w", fullScreen: false, leftFullScreen: false,
+    ownScroll: false, onFullScreen() {}, onLong(long: boolean) { longCalls.push(long); }, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
+  const text = (node: unknown): string[] => {
+    if (typeof node === "string") return [node];
+    if (Array.isArray(node)) return node.flatMap(text);
+    return node && typeof node === "object" ? text((node as Element).props?.children) : [];
+  };
+  return { frame: findType(preview, PdfFrame), long: longCalls.at(-1), text: text(preview), room: (roomForContent as (windowHeight: number) => number)(800) };
+}
+
+test("a PDF fills the width and the dialog's room, like a video, without scrolling the dialog", () => {
+  const blob = { size: 10 };
+  const pdf = renderPdf({ data: { kind: "pdf", bytes: 10, blob } });
+  assert.equal(pdf.frame?.props.blob, blob);
+  assert.equal(pdf.frame?.props.style.width, "100%");
+  assert.equal(pdf.frame?.props.style.height, Math.min(640, Math.max(200, pdf.room)));
+  assert.equal(pdf.long, false, "the PDF scrolls its own pages, so the dialog doesn't scroll");
+});
+
+test("a PDF shows how much of it has arrived while it loads", () => {
+  const pdf = renderPdf({ isPending: true, isFetching: true }, 0.4);
+  assert.ok(pdf.text.includes("Loading PDF, 40%"));
+  assert.equal(pdf.frame, undefined);
+});

@@ -5,11 +5,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, type LayoutChangeEvent, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
-import { folderAttachments, isFolder, previewKind } from "../shared/attachments";
+import { folderAttachments, isFolder, isPieced, PDF_MIME_TYPE, previewKind } from "../shared/attachments";
 import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
 import { PressScale } from "./motion";
 import { imageOutline, raised } from "./surfaces";
-import { loadVideo, VideoChangedError, VideoPlayer } from "./video";
+import { FileChangedError, loadPieces } from "./pieces";
+import { PdfFrame } from "./pdf";
+import { videoRatio, VideoPlayer } from "./video";
 import { useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
@@ -56,7 +58,6 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     queryFn: () => checkHost({ workspaceId, workspaceDirectory }),
     staleTime: Infinity,
   }).data?.canOpen === true;
-  // How much of a video has arrived, for the line under the spinner.
   const loadingKey = (target: Attachment) => ["progress", "preview-loading", workspaceId, target.ref, target.path];
   const previewQuery = (target: Attachment) => ({
     queryKey: ["progress", "preview", workspaceId, target.ref, target.path],
@@ -67,20 +68,17 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     queryFn: async () => {
       const data = await fetchPreview({ workspaceId, workspaceDirectory, ref: target.ref });
       if (data.kind === "image") return { ...data, ...await imageSize(data.dataUri) };
-      if (data.kind !== "video") return data;
+      if (data.kind !== "video" && data.kind !== "pdf") return data;
       queryClient.setQueryData(loadingKey(target), 0);
-      const video = await loadVideo({
+      const blob = await loadPieces({
         bytes: data.bytes,
-        mimeType: data.mimeType,
+        mimeType: data.kind === "video" ? data.mimeType : PDF_MIME_TYPE,
         readPiece: (offset) => readPiece({ workspaceId, workspaceDirectory, ref: target.ref, offset }),
         onProgress: (loaded) => queryClient.setQueryData(loadingKey(target), loaded / data.bytes),
       });
-      return { ...data, video, ratio: video.ratio };
+      return data.kind === "video" ? { ...data, blob, ratio: await videoRatio(blob) } : { ...data, blob };
     },
-    // A video isn't refetched while it's open: that would load it again and stop it playing.
-    staleTime: previewKind(target.path ?? "") === "video" ? Infinity : 30_000,
-    // Images arrive as data URIs up to ~13 MB and videos run to 200 MB; let them
-    // go soon after the dialog moves on.
+    staleTime: isPieced(previewKind(target.path ?? "")) ? Infinity : 30_000,
     gcTime: 30_000,
     // A file that's missing, too large or outside the worktree fails the same way
     // every time, so the reason shows at once instead of after seconds of retries.
@@ -92,8 +90,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const stepping = preview.isPlaceholderData;
   const loading = useQuery({ queryKey: loadingKey(attachment), queryFn: () => 0, enabled: false }).data;
   // Load the next file in the direction of travel ahead of time, so stepping is
-  // instant without holding both neighbors in memory. Not a video: it can be
-  // 200 MB, so it loads only when opened.
+  // instant without holding both neighbors in memory.
   const items = gallery?.items ?? [];
   const index = items.findIndex((item) => item.ref === attachment.ref);
   const lastIndex = useRef(index);
@@ -102,7 +99,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     const step = (lastIndex.current - index + items.length) % items.length === 1 ? -1 : 1;
     lastIndex.current = index;
     const next = items[(index + step + items.length) % items.length];
-    if (previewKind(next.path ?? "") !== "video") void queryClient.prefetchQuery(previewQuery(next));
+    if (!isPieced(previewKind(next.path ?? ""))) void queryClient.prefetchQuery(previewQuery(next));
   }, [attachment.ref, items.length]);
   // Previous and Next, wrapping at the ends. Left and right arrows do the same.
   const step = (offset: number) => gallery?.onSelect(items[(index + offset + items.length) % items.length]);
@@ -145,8 +142,9 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
     if (fullScreen && !preview.isPending && !showsLayer) onFullScreen(false);
   }, [fullScreen, preview.isPending, showsLayer]);
   const room = roomForContent(windowHeight);
-  const maxMediaHeight = preview.data?.kind === "video" ? Math.min(640, Math.max(200, room)) : 640;
-  const mediaStyle = { width: "100%", aspectRatio, maxHeight: maxMediaHeight, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1, opacity: stepping ? 0.6 : 1 } as const;
+  const maxMediaHeight = preview.data?.kind === "video" || preview.data?.kind === "pdf" ? Math.min(640, Math.max(200, room)) : 640;
+  const mediaFrame = { borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1, opacity: stepping ? 0.6 : 1 } as const;
+  const mediaStyle = { width: "100%", aspectRatio, maxHeight: maxMediaHeight, ...mediaFrame } as const;
   // Markdown's height depends on the user's text size, which a plugin can't read,
   // so only a file far too tall for any size is long before it's drawn. Anything
   // else is measured, and once it's too tall it stays long: Paseo remounting the
@@ -167,14 +165,13 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const measure = !long && !stepping ? (event: LayoutChangeEvent) => {
     if (event.nativeEvent.layout.height > room) queryClient.setQueryData(longKey, true);
   } : undefined;
-  // How far a video has loaded: under the spinner, or in place of the path while
-  // the last file stays on screen, so nothing moves.
-  const videoLoading = preview.isFetching && loading !== undefined && loading < 1 ? m.loadingVideo(Math.floor(loading * 100)) : null;
+  const fileKind = previewKind(attachment.path ?? "");
+  const piecesLoading = isPieced(fileKind) && preview.isFetching && loading !== undefined && loading < 1 ? m.loadingPieces(fileKind, Math.floor(loading * 100)) : null;
   const caption = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
   const loadingState = (
     <View style={{ alignItems: "center", gap: 8, padding: 24 }}>
       <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingPreview} />
-      {videoLoading ? <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{videoLoading}</Text> : null}
+      {piecesLoading ? <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{piecesLoading}</Text> : null}
     </View>
   );
   const truncatedNote = (paddingTop: number) => <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingTop }}>{m.truncatedText}{canOpen ? m.openRest : ""}</Text>;
@@ -183,7 +180,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
       {preview.isPending ? loadingState : null}
       {preview.error ? (
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
-          {m.previewError(preview.error instanceof VideoChangedError ? m.videoChanged : errorText(preview.error, m.unknownError))}
+          {m.previewError(preview.error instanceof FileChangedError ? m.fileChanged : errorText(preview.error, m.unknownError))}
         </Text>
       ) : null}
       {preview.data?.kind === "text" ? (
@@ -212,14 +209,15 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           <Image accessibilityLabel={attachment.title} source={{ uri: preview.data.dataUri }} resizeMode="contain" style={mediaStyle} />
         </Pressable>
       ) : null}
-      {preview.data?.kind === "video" ? <VideoPlayer video={preview.data.video} label={attachment.title} style={mediaStyle} /> : null}
+      {preview.data?.kind === "video" ? <VideoPlayer blob={preview.data.blob} label={attachment.title} style={mediaStyle} /> : null}
+      {preview.data?.kind === "pdf" ? <PdfFrame blob={preview.data.blob} style={{ width: "100%", height: maxMediaHeight, ...mediaFrame }} /> : null}
     </>
   );
   // The path as a caption under the file, where it has the full width, with Copy
   // beside it so it can go into a message without leaving the dialog. A long
   // file scrolls above it, so it stays in view with the actions.
-  const path = !preview.isPending && videoLoading ? (
-    <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{videoLoading}</Text>
+  const path = !preview.isPending && piecesLoading ? (
+    <Text style={[caption, { fontVariant: ["tabular-nums"] }]}>{piecesLoading}</Text>
   ) : (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
       <Text selectable numberOfLines={1} ellipsizeMode="middle" style={[caption, { flex: 1, minWidth: 0 }]}>
@@ -380,9 +378,10 @@ const CHARS_PER_LINE = Math.floor((CONTENT_WIDTH - 20) / 7.2);
 const FOLDER_ROW_HEIGHT = ATTACHMENT_ROW.lineHeight + ATTACHMENT_ROW.paddingVertical * 2 + ATTACHMENT_ROW.gap;
 
 // Roughly how tall the preview draws, including wrapped lines.
-function estimatedHeight(data: { kind: "image" | "video" | "html" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
+function estimatedHeight(data: { kind: "image" | "video" | "pdf" | "html" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
   if (!data) return 0;
   if (data.kind === "folder") return Math.max(1, data.entries.length + (data.truncated ? 1 : 0)) * FOLDER_ROW_HEIGHT;
+  if (data.kind === "pdf") return maxMediaHeight;
   if (data.kind !== "text") return Math.min(CONTENT_WIDTH / aspectRatio, maxMediaHeight);
   const lines = data.text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0);
   return lines * 18 + 20;

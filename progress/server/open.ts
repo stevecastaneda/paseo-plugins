@@ -5,7 +5,7 @@ import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import nodePath, { delimiter, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { findAttachment, type FolderEntry, imageMimeType, previewKind, splitRef, textFormat, videoMimeType } from "../shared/attachments.ts";
+import { findAttachment, type FolderEntry, imageMimeType, isPieced, type PiecedKind, previewKind, splitRef, textFormat, videoMimeType } from "../shared/attachments.ts";
 import { prepareMarkdown, previewText } from "../shared/markdown.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
@@ -82,17 +82,20 @@ export const MAX_PREVIEW_BYTES = 10 * 1024 * 1024;
 // Text past this is cut off in the preview; the full file is a click away.
 export const MAX_PREVIEW_TEXT_BYTES = 256 * 1024;
 
-// A video travels in pieces, so it's capped by what the app can hold, not the socket.
-export const MAX_PREVIEW_VIDEO_BYTES = 200 * 1024 * 1024;
+export const PIECED_LIMIT_BYTES: Record<PiecedKind, number> = {
+  video: 200 * 1024 * 1024,
+  pdf: 100 * 1024 * 1024,
+};
 
 // Small enough that one piece doesn't hold up the agent output sharing the socket.
-export const VIDEO_PIECE_BYTES = 4 * 1024 * 1024;
+export const PIECE_BYTES = 4 * 1024 * 1024;
 
 export const MAX_FOLDER_ENTRIES = 500;
 
 export type Preview =
   | { kind: "image"; dataUri: string; bytes: number }
   | { kind: "video"; mimeType: string; bytes: number }
+  | { kind: "pdf"; bytes: number }
   | { kind: "text"; text: string; bytes: number; truncated: boolean }
   | { kind: "markdown"; markdown: string; bytes: number; truncated: boolean }
   | { kind: "html"; html: string; bytes: number }
@@ -103,11 +106,11 @@ export async function previewDeliverable(directory: string, id: string): Promise
   const stats = await stat(realTarget);
   if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(realTarget)) };
   const kind = previewKind(realTarget);
-  if (!kind) throw new Error(`${path} isn't an image, video, text or HTML file, so it can't be previewed.`);
+  if (!kind) throw new Error(`${path} isn't an image, video, PDF, text or HTML file, so it can't be previewed.`);
   const { size } = stats;
-  if (kind === "video") {
-    if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));
-    return { kind, mimeType: videoMimeType(realTarget)!, bytes: size };
+  if (isPieced(kind)) {
+    if (size > PIECED_LIMIT_BYTES[kind]) throw new Error(tooLarge(path, size));
+    return kind === "video" ? { kind, mimeType: videoMimeType(realTarget)!, bytes: size } : { kind, bytes: size };
   }
   if (kind === "text") {
     // Read only what's shown, so a huge log doesn't load whole.
@@ -195,16 +198,15 @@ function tooLarge(path: string, size: number): string {
   return `${path} is ${Math.round(size / 1024 / 1024)} MB, too large to preview.`;
 }
 
-// One piece of a video, from `offset`. Resolved by reference each time, like the
-// preview, so a piece can only come from a video the agent recorded.
 export async function readDeliverablePiece(directory: string, id: string, offset: number): Promise<{ data: string; bytes: number }> {
   const { path, realTarget } = await resolveAttachment(directory, id, "previewed");
-  if (previewKind(realTarget) !== "video") throw new Error(`${path} isn't a video.`);
+  const kind = previewKind(realTarget);
+  if (!isPieced(kind)) throw new Error(`${path} isn't a video or PDF.`);
   const file = await open(realTarget);
   try {
     const { size } = await file.stat();
-    if (size > MAX_PREVIEW_VIDEO_BYTES) throw new Error(tooLarge(path, size));
-    const length = Math.max(0, Math.min(VIDEO_PIECE_BYTES, size - offset));
+    if (size > PIECED_LIMIT_BYTES[kind]) throw new Error(tooLarge(path, size));
+    const length = Math.max(0, Math.min(PIECE_BYTES, size - offset));
     if (!length) return { data: "", bytes: size };
     const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(length), position: offset });
     return { data: buffer.subarray(0, bytesRead).toString("base64"), bytes: size };

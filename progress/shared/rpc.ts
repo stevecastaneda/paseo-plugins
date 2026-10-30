@@ -142,9 +142,7 @@ export const canOpenOnHost = defineRpc({
   output: z.object({ canOpen: z.boolean() }),
 });
 
-// An image, text, Markdown or HTML file's contents, for the preview dialog. A
-// video comes back as its type and size only; its bytes follow in pieces
-// (readDeliverablePiece).
+// An image, text, Markdown or HTML file's contents, for the preview dialog.
 export const previewDeliverable = defineRpc({
   name: "progress.deliverable.preview",
   input: z.object({
@@ -156,6 +154,7 @@ export const previewDeliverable = defineRpc({
   output: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("image"), dataUri: z.string(), bytes: z.number() }),
     z.object({ kind: z.literal("video"), mimeType: z.string(), bytes: z.number() }),
+    z.object({ kind: z.literal("pdf"), bytes: z.number() }),
     z.object({ kind: z.literal("text"), text: z.string(), bytes: z.number(), truncated: z.boolean() }),
     z.object({ kind: z.literal("markdown"), markdown: z.string(), bytes: z.number(), truncated: z.boolean() }),
     z.object({ kind: z.literal("html"), html: z.string(), bytes: z.number() }),
@@ -163,8 +162,6 @@ export const previewDeliverable = defineRpc({
   ]),
 });
 
-// One piece of a video from `offset`, base64, with the file's size so the client
-// knows when it has it all.
 export const readDeliverablePiece = defineRpc({
   name: "progress.deliverable.piece",
   input: z.object({

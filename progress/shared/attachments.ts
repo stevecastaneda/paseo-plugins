@@ -97,12 +97,25 @@ export function textFormat(path: string): "markdown" | "plain" | null {
   return TEXT_FORMATS[extension(path) ?? ""] ?? null;
 }
 
-export function previewKind(path: string): "image" | "video" | "text" | "html" | null {
+export type PiecedKind = "video" | "pdf";
+export type PreviewKind = "image" | PiecedKind | "text" | "html";
+
+export function isPieced(kind: PreviewKind | null): kind is PiecedKind {
+  return kind === "video" || kind === "pdf";
+}
+
+export const PDF_MIME_TYPE = "application/pdf";
+
+const DOCUMENT_KINDS: Record<string, "pdf" | "html"> = {
+  ".pdf": "pdf",
+  ".html": "html",
+  ".htm": "html",
+};
+
+export function previewKind(path: string): PreviewKind | null {
   if (imageMimeType(path)) return "image";
   if (videoMimeType(path)) return "video";
-  const ext = extension(path) ?? "";
-  if (ext === ".html" || ext === ".htm") return "html";
-  return textFormat(path) ? "text" : null;
+  return DOCUMENT_KINDS[extension(path) ?? ""] ?? (textFormat(path) ? "text" : null);
 }
 
 export function isFolder(attachment: Attachment): boolean {
@@ -128,17 +141,25 @@ export function folderAttachments(folder: Attachment, entries: FolderEntry[]): A
   return entries.map((entry) => ({ ref: entryRef(folder.ref, entry.name), title: entry.name, path: `${base}${entry.name}${entry.folder ? "/" : ""}` }));
 }
 
-// Whether the preview dialog can show it. Only a browser draws SVG and plays
-// video: Paseo's desktop app can, the phone apps can't, so there they open on
-// the host like any other file.
+// Whether the preview dialog can show it. Only a browser draws SVG, plays video
+// and shows a PDF from memory: Paseo's desktop and web apps can, the phone apps
+// can't, so there they open on the host like any other file.
 export function canPreview(attachment: Attachment, where: { browser: boolean }): boolean {
   if (!attachment.path) return false;
   if (isFolder(attachment)) return true;
   const kind = previewKind(attachment.path);
   if (kind === "html") return false;
-  if (kind === "video" || (kind === "image" && extension(attachment.path) === ".svg")) return where.browser;
+  if (kind === "video" || kind === "pdf" || (kind === "image" && extension(attachment.path) === ".svg")) return where.browser;
   return kind !== null;
 }
+
+const PREVIEW_ICON: Record<PreviewKind, string> = {
+  image: "Image",
+  video: "Video",
+  pdf: "BookOpenText",
+  text: "FileText",
+  html: "FileCode",
+};
 
 const KIND_ICON: Record<NonNullable<Deliverable["kind"]>, string> = {
   file: "File",
@@ -155,13 +176,22 @@ export function attachmentIcon(attachment: Attachment): string {
   if (attachment.url) return "Globe";
   if (!attachment.path) return "File";
   const kind = previewKind(attachment.path);
-  return kind === "image" ? "Image" : kind === "video" ? "Video" : kind === "text" ? "FileText" : kind === "html" ? "FileCode" : /[\/]$/.test(attachment.path) ? "Folder" : "File";
+  return kind ? PREVIEW_ICON[kind] : /[\/]$/.test(attachment.path) ? "Folder" : "File";
 }
 
 // An HTML page is too wide for the dialog, so where the host can't open it the
 // desktop app gives it a screen of its own. The phone apps can't draw one.
 export function opensAsPage(attachment: Attachment, where: { browser: boolean }): boolean {
   return where.browser && Boolean(attachment.path) && previewKind(attachment.path!) === "html";
+}
+
+// Android's viewer has no PDF support.
+export function showsPdfs(platform: string): boolean {
+  return platform !== "android";
+}
+
+export function opensInTab(attachment: Attachment, where: { platform: string }): boolean {
+  return showsPdfs(where.platform) && previewKind(attachment.path ?? "") === "pdf";
 }
 
 // The short name people recognize: a file or folder's own name, or a link's site.
