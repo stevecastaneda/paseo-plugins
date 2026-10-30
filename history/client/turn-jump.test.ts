@@ -50,6 +50,10 @@ test("footer arrows navigate turns without replacing the conversation", async ()
     scroller.props.onLayout({ nativeEvent: { layout: { height: 600 } } });
     scroller.props.onContentSizeChange(400, 1300);
   });
+  act(() => scroller.props.onScroll({ nativeEvent: { contentOffset: { y: 700 } } }));
+  assert.equal(button("Next turn").props.disabled, true, "scrolled to the end, the last turn is current");
+  assert.equal(button("Previous turn").props.disabled, false);
+  act(() => scroller.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } }));
   act(() => button("Next turn").props.onPress());
   assert.equal(jumps.at(-1).y, 700); // Last short turn cannot reach the viewport top.
   act(() => scroller.props.onScroll({ nativeEvent: { contentOffset: { y: 700 } } }));

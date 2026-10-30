@@ -149,11 +149,15 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
     void copyText(value).then(() => setNotice("Copied")).catch(() => setError("Could not copy. You can select the text instead."));
   };
   const turnOffsets = turns.map((_, index) => positions[`turn-${index}`]);
-  const currentTurn = jumpTarget && Math.abs(scrollY - jumpTarget.y) <= 2 ? jumpTarget.index : Math.max(0, turnOffsets.findLastIndex(y => y !== undefined && y <= scrollY + 2));
+  const maxScrollY = Math.max(0, contentHeight - viewportHeight);
+  // The last turn is often too short to reach the top, so the end of the chat counts as being on it.
+  const atEnd = viewportHeight > 0 && maxScrollY > 2 && scrollY >= maxScrollY - 2;
+  const currentTurn = jumpTarget && Math.abs(scrollY - jumpTarget.y) <= 2 ? jumpTarget.index
+    : atEnd ? turnOffsets.length - 1 : Math.max(0, turnOffsets.findLastIndex(y => y !== undefined && y <= scrollY + 2));
   const jumpTurn = (direction: number) => {
     const y = turnOffsets[currentTurn + direction];
     if (y !== undefined) {
-      const targetY = viewportHeight > 0 ? Math.min(y, Math.max(0, contentHeight - viewportHeight)) : y;
+      const targetY = viewportHeight > 0 ? Math.min(y, maxScrollY) : y;
       setJumpTarget({ index: currentTurn + direction, y: targetY });
       conversationScroll.current?.scrollTo({ y: targetY, animated: true });
     }
