@@ -187,7 +187,7 @@ function AgentRow({ colors, agentId, onOpen }: { colors: Colors; agentId: string
       <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{title}</Text>
       {alert ? <Text numberOfLines={1} style={{ flexShrink: 0, color: alert.danger ? colors.statusDanger : colors.statusWarning, fontSize: 12, lineHeight: 17 }}>{alert.text}</Text> : null}
       <View style={{ flex: 1 }} />
-      {open ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontWeight: "500" }}>{m.openChat}</Text> : null}
+      {open ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontWeight: "500" }}>{m.openChat}</Text> : null}
     </PressableRow>
   );
 }
