@@ -53,8 +53,7 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
 
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
-// worktree resolve. `root` is the worktree with symlinks resolved; `worktree`
-// is the same folder as the workspace names it.
+// worktree resolve.
 async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string; root: string; worktree: string }> {
   const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
@@ -95,8 +94,6 @@ export type Preview =
   | { kind: "image"; dataUri: string; bytes: number }
   | { kind: "video"; mimeType: string; bytes: number }
   | { kind: "text"; text: string; bytes: number; truncated: boolean }
-  // Ready for Paseo's Markdown: cut like text, with relative links and images
-  // made absolute against the file's own folder.
   | { kind: "markdown"; markdown: string; bytes: number; truncated: boolean }
   | { kind: "html"; html: string; bytes: number }
   | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
@@ -120,7 +117,6 @@ export async function previewDeliverable(directory: string, id: string): Promise
       const bytes = buffer.subarray(0, bytesRead);
       const truncated = size > MAX_PREVIEW_TEXT_BYTES;
       if (textFormat(target) === "plain") return { kind, text: previewText(bytes, truncated), bytes: size, truncated };
-      // Where the agent put the file, not where a link in its path leads.
       const where = { root: worktree, folder: dirname(resolve(worktree, path)), path: nodePath };
       return { kind: "markdown", markdown: prepareMarkdown(bytes, truncated, where), bytes: size, truncated };
     } finally {

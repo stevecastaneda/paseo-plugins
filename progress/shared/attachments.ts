@@ -64,9 +64,8 @@ const VIDEO_TYPES: Record<string, string> = {
   ".webm": "video/webm",
 };
 
-// Text files, opened in the browser on the host. The preview dialog draws
-// Markdown formatted and the rest as written. MDX stays plain: Paseo's Markdown
-// would drop its components without a trace and run its imports into prose.
+// MDX stays plain: Paseo's Markdown would drop its components without a trace
+// and run its imports into prose.
 const TEXT_FORMATS: Record<string, "markdown" | "plain"> = {
   ".md": "markdown",
   ".markdown": "markdown",
@@ -94,7 +93,6 @@ export function videoMimeType(path: string): string | null {
   return VIDEO_TYPES[extension(path) ?? ""] ?? null;
 }
 
-// How the preview dialog draws a text file, or null when it isn't one.
 export function textFormat(path: string): "markdown" | "plain" | null {
   return TEXT_FORMATS[extension(path) ?? ""] ?? null;
 }

@@ -15,7 +15,6 @@ import { useProgressLanguage } from "./language";
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
 
-// The one heading level a write-up draws, so its headings sit under the dialog's title.
 const WRITE_UP_HEADING = 5;
 const EXCERPT_CHARS = 280;
 

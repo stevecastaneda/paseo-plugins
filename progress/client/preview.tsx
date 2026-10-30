@@ -39,7 +39,6 @@ type PreviewProps = {
 
 // `onLong` says when the file is too tall for the dialog, so the host turns off
 // its own scrolling and the file scrolls with the actions pinned below.
-// `hostLong` is whether the host has done that.
 export function PreviewContent({ colors, attachment, workspaceId, workspaceDirectory, onOpenOnHost, onCopyPath, onBack, gallery, onOpenEntry, onLong, hostLong, fullScreen, leftFullScreen, onFullScreen }: PreviewProps & {
   onLong(long: boolean): void;
   hostLong: boolean;
@@ -150,16 +149,15 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
   const mediaStyle = { width: "100%", aspectRatio, maxHeight: maxMediaHeight, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1, opacity: stepping ? 0.6 : 1 } as const;
   // Markdown's height depends on the user's text size, which a plugin can't read,
   // so only a file far too tall for any size is long before it's drawn. Anything
-  // else is measured, and once it's too tall it stays long: the remount that
-  // follows, an image that fails and shrinks, or a diagram that grows can't flip
-  // it back. Kept in the query cache, like an image's shape, to survive the remount.
+  // else is measured, and once it's too tall it stays long: Paseo remounting the
+  // content when the dialog stops scrolling, an image that fails and shrinks, or a
+  // diagram that grows can't flip it back. Kept in the query cache to survive the remount.
   const longKey = ["progress", "preview-long", workspaceId, attachment.ref, attachment.path];
   const latched = useQuery({ queryKey: longKey, queryFn: () => false, enabled: false }).data === true;
   const data = preview.data;
   const markdown = data?.kind === "markdown" ? data.markdown : null;
   const floor = useMemo(() => (markdown === null ? 0 : markdownFloor(markdown)), [markdown]);
   const certainlyLong = floor > 2 * room;
-  // While stepping, the last file stays on screen and keeps its verdict.
   const lastLong = useRef(false);
   // A long file gets its own scroll area so the actions below it stay in view.
   // Short ones keep the dialog sized to them.
@@ -196,10 +194,7 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           {preview.data.truncated ? truncatedNote(8) : null}
         </View>
       ) : null}
-      {/* Straight on the dialog: Paseo's code blocks and tables bring their own fills.
-          A file that's long for certain waits for the host's scroll area, so it isn't
-          drawn once for nothing in the dialog it's about to leave. The note sits
-          outside the Markdown, where a cut fence can't take it in. */}
+      {/* Straight on the dialog: Paseo's code blocks and tables bring their own fills. */}
       {preview.data?.kind === "markdown" ? (certainlyLong && !hostLong ? loadingState : (
         <View onLayout={measure} style={{ gap: 12, opacity: stepping ? 0.6 : 1 }}>
           <Markdown>{preview.data.markdown}</Markdown>
@@ -396,7 +391,6 @@ function estimatedHeight(data: { kind: "image" | "video" | "html" } | { kind: "t
 // takes at least one line.
 const MIN_MARKDOWN_LINE = 12;
 
-// The least height a Markdown file can draw at, whatever the user's text size.
 export function markdownFloor(markdown: string): number {
   let lines = 0;
   for (const line of markdown.split("\n")) if (line.trim()) lines++;

@@ -1,8 +1,3 @@
-// Progress's own Markdown (its skill in Settings, What's new) as simple blocks
-// drawn in Progress's own type: headings, paragraphs, list items and code.
-// Inline marks are kept as spans: `code` stays code, **bold** stays bold,
-// _emphasis_ loses its markers, and [links](url) keep only their text.
-
 export type Span = { text: string; code?: boolean; strong?: boolean };
 
 export type Block =
@@ -75,7 +70,6 @@ export function parseWriteUp(markdown: string): Block[] {
   return blocks;
 }
 
-// Without a leading top heading, which only repeats the screen's own title.
 export function withoutTitle(blocks: Block[]): Block[] {
   return blocks[0]?.kind === "heading" && blocks[0].level === 1 ? blocks.slice(1) : blocks;
 }

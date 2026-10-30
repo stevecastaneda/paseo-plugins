@@ -15,7 +15,6 @@ function find(node: unknown, matches: (element: Element) => boolean): Element | 
   return matches(element) ? element : find(element.props?.children, matches);
 }
 
-// Renders a ticket's write-up whose source came back as `data`, read in full or not.
 function renderWriteUp(data: unknown, path: string, all = false) {
   let messages: unknown;
   const Markdown = () => null;

@@ -1,23 +1,15 @@
-// Text files as the preview dialog gets them. A Markdown file also has its
-// relative links and images pointed at its own folder, because Paseo's Markdown
-// resolves them from the workspace and plugins can't tell it otherwise. One line
-// scanner decides what is code, so a link in a code block is never touched.
+// A Markdown file has its relative links and images pointed at its own folder,
+// because Paseo's Markdown resolves them from the workspace and plugins can't
+// tell it otherwise.
 
-// How far back from a cut to look for a line break. A file with none that close
-// (minified, or one long line) is cut mid-line rather than lose that much.
 const LINE_SEARCH_BYTES = 8 * 1024;
 
-// The text of the first bytes of a file. When the file goes on past them, the
-// text ends after its last whole line, so the preview never ends on half a
-// character, half a table row or half a link.
 export function previewText(bytes: Uint8Array, truncated: boolean): string {
   return new TextDecoder().decode(truncated ? cleanCut(bytes) : bytes);
 }
 
 function cleanCut(bytes: Uint8Array): Uint8Array {
   let end = bytes.length;
-  // Back over UTF-8 continuation bytes to the last character's first byte, and
-  // drop that character when the cut left it short.
   for (let back = 1; back <= Math.min(4, end); back++) {
     const byte = bytes[end - back];
     if ((byte & 0xc0) === 0x80) continue;
@@ -30,23 +22,20 @@ function cleanCut(bytes: Uint8Array): Uint8Array {
   return bytes.subarray(0, end);
 }
 
-// Where a Markdown file sits, in the daemon's own path format: `path` is the
-// daemon's node:path, passed in because Paseo refuses Node modules in shared
-// code. Targets that resolve outside `root` are left as written.
+// `path` is the daemon's node:path, passed in because Paseo refuses Node modules
+// in shared code.
 export interface FileLocation {
   root: string;
   folder: string;
   path: { resolve(...paths: string[]): string; relative(from: string, to: string): string; isAbsolute(path: string): boolean; sep: string };
 }
 
-// A Markdown file's first bytes as Paseo's Markdown should get them: cut like
-// any text, front matter shown as YAML (otherwise it draws as a rule and a
-// heading), and every relative link and image made absolute against its folder.
 export function prepareMarkdown(bytes: Uint8Array, truncated: boolean, where: FileLocation): string {
   const text = previewText(bytes, truncated).replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   return rewriteTargets(fenceFrontMatter(text), where);
 }
 
+// Paseo's Markdown would draw front matter as a rule and a heading.
 function fenceFrontMatter(text: string): string {
   const close = /^(?:---|\.\.\.)[ \t]*$/m;
   const open = /^---[ \t]*\n/.exec(text);
@@ -61,20 +50,14 @@ function fenceFrontMatter(text: string): string {
 type LineKind = "blank" | "text" | "fence-open" | "fence-body" | "fence-close" | "indented-code" | "comment";
 
 interface Line {
-  // Offsets into the source; `end` is the line break or the end of the source.
   start: number;
   end: number;
   kind: LineKind;
-  // Starts a list item that isn't nested in another.
   item: boolean;
-  // A reference definition, `[label]: target`, which draws nothing.
   definition: boolean;
-  // An ATX heading's level, 0 for anything else.
   heading: number;
 }
 
-// The code a fence opened: closed by the same character run, or ended early by
-// leaving the quote or list item it sits in.
 type Fence = { run: string; quotes: number; indent: number };
 
 const QUOTES = /^(?:[ ]{0,3}>[ ]?)*/;
@@ -82,9 +65,6 @@ const FENCE = /^[ \t]*(`{3,}(?=[^`]*$)|~{3,})/;
 const ITEM = /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 const DEFINITION = /^ {0,3}\[(?!\^)(?:[^\\\]]|\\.)+\]:/;
 
-// Each line of LF text, by what it is. A small state machine: inside a fence,
-// inside an HTML comment, or in a list (where indented lines continue an item
-// instead of being code).
 function scanLines(source: string): Line[] {
   const lines: Line[] = [];
   let fence: Fence | null = null;
@@ -146,9 +126,6 @@ function indentOf(text: string): number {
   return columns;
 }
 
-// Which characters of a run of text lines are inline code or an HTML comment,
-// and whether the text ends inside an unclosed comment. Backtick runs pair with
-// the next run of the same length; one without a partner is literal.
 function codeMask(text: string): { mask: Uint8Array; comment: boolean } {
   const mask = new Uint8Array(text.length);
   for (let index = 0; index < text.length;) {
@@ -187,9 +164,7 @@ function runLength(text: string, index: number): number {
 
 type Edit = { start: number; end: number; text: string };
 
-// Inline links and images (also an image inside a link), reference definitions,
-// and HTML <img src> and <a href>, which Paseo turns into Markdown first. Only the
-// target changes; text and titles stay as written.
+// HTML <img src> and <a href> count too: Paseo turns them into Markdown first.
 function rewriteTargets(source: string, where: FileLocation): string {
   const lines = scanLines(source);
   const edits: Edit[] = [];
@@ -225,7 +200,6 @@ function rewriteTargets(source: string, where: FileLocation): string {
   let result = "";
   let last = 0;
   for (const edit of edits.sort((a, b) => a.start - b.start)) {
-    // `[a](<img src=b.png>)` reads as both a link and a tag; the first edit wins.
     if (edit.start < last) continue;
     result += source.slice(last, edit.start) + edit.text;
     last = edit.end;
@@ -233,7 +207,6 @@ function rewriteTargets(source: string, where: FileLocation): string {
   return result + source.slice(last);
 }
 
-// Each `](` that closes a link's or image's text, with the destination after it.
 function inlineTargets(text: string, mask: Uint8Array, add: (start: number, end: number, target: string, image: boolean) => void) {
   for (let close = text.indexOf("]("); close >= 0; close = text.indexOf("](", close + 1)) {
     if (mask[close] || escaped(text, close)) continue;
@@ -260,9 +233,6 @@ function escaped(text: string, index: number): boolean {
   return slashes % 2 === 1;
 }
 
-// The destination of an inline link that starts at `from` (just after its `(`):
-// `<...>` or a bare run with balanced parentheses, then an optional title and
-// `)`. Null when that isn't a well-formed link, which Markdown shows as text.
 function inlineDestination(text: string, from: number): { start: number; end: number; target: string } | null {
   let index = skipSpace(text, from);
   const start = index;
@@ -292,8 +262,6 @@ function inlineDestination(text: string, from: number): { start: number; end: nu
   return { start, end, target: unescape(text[start] === "<" ? text.slice(start + 1, end - 1) : text.slice(start, end)) };
 }
 
-// A definition line's target, with its offsets in the line, if the rest of the
-// line is a well-formed definition.
 function definitionTarget(line: string): { start: number; end: number; target: string } | null {
   const label = DEFINITION.exec(line.slice(QUOTES.exec(line)![0].length));
   if (!label) return null;
@@ -339,10 +307,8 @@ function unescape(text: string): string {
   return text.replace(/\\([!-/:-@[-`{-~])/g, "$1");
 }
 
-// The absolute target a relative one becomes, or null to leave it as written:
-// web addresses and other schemes, anchors, and paths that are already absolute
-// or home-relative. A link keeps its fragment (`#L12` jumps to a line); an
-// image doesn't need one. A query never reaches a local file.
+// A link keeps its fragment (`#L12` jumps to a line); an image doesn't need one.
+// A query never reaches a local file.
 function localTarget(written: string, where: FileLocation, image: boolean): string | null {
   if (/^(?:[a-z][a-z0-9+.-]*:|[#/\\~])/i.test(written)) return null;
   const split = written.search(/[?#]/);
@@ -371,8 +337,6 @@ function decode(text: string): string {
   }
 }
 
-// Percent-encodes everything that could end the target or change what it means
-// wherever it lands: a Markdown destination, a table cell, an HTML attribute.
 // A Windows drive's colon stays, so Paseo still sees `C:/`.
 function encodeTarget(path: string): string {
   const drive = /^[A-Za-z]:\//.exec(path)?.[0] ?? "";
@@ -387,8 +351,6 @@ function encodeTarget(path: string): string {
   return encoded;
 }
 
-// Every ATX heading outside code at one level, so a write-up's headings don't
-// outrank the dialog it sits in.
 export function demoteHeadings(markdown: string, level: number): string {
   let result = "";
   let last = 0;
@@ -401,8 +363,6 @@ export function demoteHeadings(markdown: string, level: number): string {
   return result + markdown.slice(last);
 }
 
-// The write-up without its leading title, which only repeats the ticket's: an
-// ATX or setext level-one heading, after front matter if it has some.
 export function dropTitle(markdown: string): string {
   const lines = scanLines(markdown);
   let index = lines.findIndex((line) => line.kind !== "blank");
@@ -425,12 +385,6 @@ function isFrontMatter(markdown: string, line: Line | undefined): boolean {
 
 type Unit = { kind: "paragraph" | "item" | "fence" | "code"; start: number; end: number; visible: number; heading: boolean; lines: Line[] };
 
-// The start of a write-up without its title or front matter, cut after whole blocks
-// (paragraphs, tables, code blocks, top-level list items) once about `maxChars`
-// of visible text is in. The first block always shows; a long one is cut at a
-// line. A heading left last goes, and the document's reference definitions
-// come along so its reference links still work. An image counts as the whole
-// budget, so an excerpt has at most one.
 export function markdownExcerpt(markdown: string, maxChars: number): { text: string; more: boolean } {
   const body = dropTitle(markdown);
   const lines = scanLines(body);
@@ -506,8 +460,6 @@ function visibleLength(body: string, unit: Unit, maxChars: number): number {
     .replace(/[*_`~[\]|\\]/g, "").length;
 }
 
-// The start of a plain-text write-up: whole lines up to `maxChars`, or the first
-// line cut at a space when it alone is longer.
 export function textExcerpt(text: string, maxChars: number): { text: string; more: boolean } {
   const whole = text.trimEnd();
   if (whole.length <= maxChars) return { text: whole, more: false };

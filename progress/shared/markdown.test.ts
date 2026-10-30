@@ -4,7 +4,6 @@ import { posix, win32 } from "node:path";
 import { demoteHeadings, dropTitle, type FileLocation, markdownExcerpt, prepareMarkdown, previewText, textExcerpt } from "./markdown.ts";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
-// The first `count` bytes of `text`, as the server reads them from a longer file.
 const head = (text: string, count: number) => bytes(text).subarray(0, count);
 
 test("a cut file ends after its last whole line", () => {
@@ -40,7 +39,6 @@ test("a file that isn't cut comes back whole, ending as it ends", () => {
 
 const posixFile: FileLocation = { root: "/r", folder: "/r/docs", path: posix };
 const prepare = (text: string, where = posixFile) => prepareMarkdown(bytes(text), false, where);
-// What `[a](target)` becomes in a file in /r/docs.
 const link = (target: string, where = posixFile) => prepare(`[a](${target})`, where).slice("[a](".length, -1);
 
 test("a relative link or image points at the file's own folder", () => {

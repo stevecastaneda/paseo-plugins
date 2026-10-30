@@ -100,8 +100,6 @@ test("leaving full screen puts focus back on the Full screen button without a fo
 
 type MarkdownCase = { markdown: string; truncated?: boolean; hostLong?: boolean; latched?: boolean; stepping?: boolean };
 
-// Renders a Markdown preview in an 800px-tall window, whose dialog has about 459px
-// of room. Returns what it drew, what it told the host, and what it latched.
 function renderMarkdown({ markdown, truncated = false, hostLong = false, latched = false, stepping = false }: MarkdownCase) {
   let messages: unknown;
   const Markdown = () => null;
@@ -127,7 +125,6 @@ function renderMarkdown({ markdown, truncated = false, hostLong = false, latched
   return {
     long: longCalls.at(-1),
     markdown: findType(preview, Markdown),
-    // The view around the Markdown and its cut-off note.
     wrapper: findElement(preview, (props) => [props.children].flat().some((child) => (child as Element)?.type === Markdown)),
     spinner: findElement(preview, (props) => props.accessibilityLabel === "Loading preview"),
     scrolls: findType(preview, "ScrollView") !== undefined,
