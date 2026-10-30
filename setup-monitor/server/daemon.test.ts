@@ -5,6 +5,7 @@ import {
   createSetupRunner,
   createSetupProgressCache,
   createSetupStatusFetcher,
+  createSetupWatcher,
   parsePaseoFrame,
   readFreshSetupStatus,
   type DaemonPort,
@@ -313,4 +314,79 @@ test("Run setup asks the daemon to run the workspace's setup", async () => {
   assert.deepEqual(outbound, { type: "session", message: { type: "workspace.setup.run.request", workspaceId: "wks_r", requestId: "req-run" } });
   port.emitSession("workspace.setup.run.response", { requestId: "req-run", workspaceId: "wks_r", started: true, error: null });
   assert.deepEqual(await pending, { started: true, error: null });
+});
+
+function sentMessages(port: FakePort) {
+  return port.sent.map((raw) => (JSON.parse(raw) as { message: Record<string, string> }).message);
+}
+
+test("a new worktree's setup is watched from creation, so the clock starts with setup", async () => {
+  const port = new FakePort();
+  const clock = createSetupClock();
+  let now = 1_000;
+  const watcher = createSetupWatcher(port, (id, snapshot) => {
+    clock.observe(id, snapshot, now);
+    watcher.observe(id, snapshot);
+  }, { timeoutMs: 200, createRequestId: () => "req-sub" });
+  const progress = createSetupProgressCache(port, (id, snapshot) => {
+    clock.observe(id, snapshot, now);
+    watcher.observe(id, snapshot);
+  });
+  const watching = watcher.watch("wks_new");
+  assert.deepEqual(sentMessages(port), [
+    { type: "workspace.setup.subscribe.request", workspaceId: "wks_new", requestId: "req-sub" },
+  ]);
+  port.emitSession("workspace.setup.subscribe.response", {
+    requestId: "req-sub",
+    subscriptionId: "sub-1",
+    workspaceId: "wks_new",
+    snapshot: setupAt("running", [undefined]),
+  });
+  await watching;
+  now = 37_000;
+  port.emitSession("workspace_setup_progress", { workspaceId: "wks_new", subscriptionId: "sub-1", ...setupAt("running", [undefined]) });
+  assert.equal(clock.runningForMs("wks_new", now), 36_000, "a window opened later reads the whole run");
+  assert.equal(sentMessages(port).length, 1, "the subscription stays while setup runs");
+  port.emitSession("workspace_setup_progress", { workspaceId: "wks_new", subscriptionId: "sub-1", ...setupAt("completed", [40_000]) });
+  assert.deepEqual(sentMessages(port)[1], { type: "subscription.release.request", subscriptionId: "sub-1", requestId: "req-sub" });
+  progress.stop();
+});
+
+test("a workspace whose setup already finished is released right away", async () => {
+  const port = new FakePort();
+  const watcher = createSetupWatcher(port, (id, snapshot) => watcher.observe(id, snapshot), {
+    timeoutMs: 200,
+    createRequestId: () => "req-done",
+  });
+  const watching = watcher.watch("wks_done");
+  port.emitSession("workspace.setup.subscribe.response", {
+    requestId: "req-done",
+    subscriptionId: "sub-done",
+    workspaceId: "wks_done",
+    snapshot: { ...setupAt("failed", []), error: "npm ERR!" },
+  });
+  await watching;
+  assert.equal(sentMessages(port)[1]?.type, "subscription.release.request");
+  assert.equal(sentMessages(port)[1]?.subscriptionId, "sub-done");
+});
+
+test("a workspace with no setup is released after a short wait, and watched once", async () => {
+  const port = new FakePort();
+  const watcher = createSetupWatcher(port, (id, snapshot) => watcher.observe(id, snapshot), {
+    timeoutMs: 200,
+    noSetupMs: 20,
+    createRequestId: () => "req-dir",
+  });
+  const watching = watcher.watch("wks_dir");
+  void watcher.watch("wks_dir");
+  port.emitSession("workspace.setup.subscribe.response", {
+    requestId: "req-dir",
+    subscriptionId: "sub-dir",
+    workspaceId: "wks_dir",
+    snapshot: null,
+  });
+  await watching;
+  assert.equal(sentMessages(port).length, 1);
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.deepEqual(sentMessages(port)[1], { type: "subscription.release.request", subscriptionId: "sub-dir", requestId: "req-dir" });
 });
