@@ -145,6 +145,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.12.1
+
+- [Fixed] **Long files fill the preview on a phone.** In Paseo's web app at phone width, a long file opened from a list of several files filled only the top half of the sheet, and the bottom half stayed empty. The file now fills the sheet down to its path and buttons.
+
 ### 1.12.0
 
 - [Improved] **Markdown deliverables show formatted.** A `.md` or `.markdown` file now opens in the preview with its headings, lists, tables, code blocks and images drawn by Paseo's own Markdown view. An image with a relative path loads from the file's own folder. A link to another file in the worktree opens that file in Paseo, except on a phone, where Paseo doesn't open file links from a plugin's dialog. MDX files still show as plain text, because Paseo would hide their components.
