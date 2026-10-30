@@ -56,6 +56,14 @@ plugin.
 
 ## Changelog
 
+### 1.1.1
+
+- On a phone, the Links sheet shows its title once. Paseo already titles it Workspace Links, so the plugin's own "Links 7" line is gone, and **Manage links** is a row under the list.
+- Copy buttons show on every row on a phone, including in a phone's web browser, where there's no hover to reveal them.
+- On a phone, the copy buttons, **Manage links**, **Show as** and its choices, and **Setup guide** are at least 44 points tall, big enough for a finger.
+- The Links panel on a phone no longer shows the **Show label** switch. Paseo never shows header button labels at phone width, so the switch did nothing there.
+- Screen readers now hear whether **Show label** is on or off.
+
 ### 1.1.0
 
 - Needs Paseo 0.13 or later. Workspace Links now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
