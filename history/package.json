@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-history",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Inspect chat messages, tools, and raw session records from a composer pill in Paseo.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -43,8 +43,8 @@
     "check:install": "node ../scripts/check-install.mjs"
   },
   "devDependencies": {
-    "@getpaseo/client": "^0.11.2",
-    "@getpaseo/plugin": "^0.11.2",
+    "@getpaseo/client": "0.13.0",
+    "@getpaseo/plugin": "0.13.0",
     "@types/node": "^22.0.0",
     "@types/react": "~19.2.0",
     "react": "19.1.0",

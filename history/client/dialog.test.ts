@@ -24,7 +24,7 @@ test("clicks inside the portaled dialog do not rerun the composer action or relo
   const h = clientHarness(fileURLToPath(new URL("..", import.meta.url)), {
     "react-native": { ...native, Platform: { OS: "web" } },
     "@getpaseo/plugin/client": { useRpc: () => rpc },
-    "@getpaseo/plugin/client/react-native": {
+    "@getpaseo/plugin/client/ui": {
       Modal, ScrollView: "ScrollView", Icon: "Icon", copyText: async () => {},
       FlatList: ({ data, renderItem }) => React.createElement("list", null, data.map((item, index) =>
         React.createElement(React.Fragment, { key: index }, renderItem({ item, index })))),

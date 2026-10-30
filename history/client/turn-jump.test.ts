@@ -18,7 +18,7 @@ test("footer arrows navigate turns without replacing the conversation", async ()
       reads++;
       return { path: "/tmp/log", source: "one", provider: "claude", text, offset: 0, nextOffset: text.length, totalBytes: text.length };
     } },
-    "@getpaseo/plugin/client/react-native": {
+    "@getpaseo/plugin/client/ui": {
       Icon: "Icon", copyText: async () => {}, FlatList: "list",
       ScrollView: ({ ref, ...props }) => {
         useImperativeHandle(ref, () => ({ scrollTo: args => jumps.push(args) }));
