@@ -270,7 +270,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
           <Pressable
             accessibilityRole="switch"
             accessibilityLabel="Show label"
-            accessibilityState={{ checked: shortcut.headerShowsLabel, disabled: shortcutSaving }}
+            aria-checked={shortcut.headerShowsLabel}
             disabled={shortcutSaving}
             onPress={() => { void persistShortcut({ headerShowsLabel: !shortcut.headerShowsLabel }); }}
             style={{
