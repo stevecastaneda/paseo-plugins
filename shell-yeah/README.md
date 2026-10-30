@@ -102,6 +102,10 @@ Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.j
 
 ## Changelog
 
+### 1.3.1
+
+- [Fixed] **Screen readers on web and desktop.** They now hear whether a run's output is expanded and when a button is busy. Before, they heard neither. Phones already did.
+
 ### 1.3.0
 
 - [Improved] **Needs Paseo 0.13 or later.** Shell Yeah now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
