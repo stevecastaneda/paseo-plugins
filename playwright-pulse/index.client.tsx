@@ -12,7 +12,6 @@ export default function contribute(client: PluginClientContext) {
     id: PANEL_ID,
     title: "Playwright Pulse",
     icon: "Activity",
-    context: "workspace",
     locations: [LOCATION],
     Component: PulsePanel,
   });

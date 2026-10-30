@@ -3,7 +3,7 @@
 // panel. Paseo can open a panel on its own, but that also switches to the
 // workspace, so the pill waits to be pressed instead.
 import type { PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import React from "react";
 import { getBriefs, type RunBrief } from "../shared/rpc";
 import { pillView, type PillTone, type PillView } from "../shared/view";
