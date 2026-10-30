@@ -32,8 +32,8 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   const colors = theme.colors;
   // Paseo draws the desktop popover on surface1 and the phone sheet on surface0.
   const onSurface1 = !layout.compact;
-  // The phone apps are pressed with a finger.
-  const touch = layout.platform !== "web";
+  // Pressed with a finger: the phone apps, and any phone-sized screen, browsers included.
+  const touch = layout.compact || layout.platform !== "web";
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const query = useDashboard(host.id, workspaceId, directory);
   const dashboard = query.data?.configured ? query.data.dashboard : null;

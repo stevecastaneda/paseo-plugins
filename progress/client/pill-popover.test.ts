@@ -120,3 +120,30 @@ test("a question that fits the list shows no fade", () => {
   view.drawList().scroll.onContentSizeChange(360, 200);
   assert.equal(view.drawList().fade, null);
 });
+
+function arrowSize(layout: { compact: boolean; platform: "ios" | "android" | "web" }): number {
+  let messages: unknown;
+  const dashboard = { questions: { open: ["Q1", "Q2"].map((id) => ({ id, question: `Question ${id}`, options: [] })) }, stuck: [] };
+  const h = clientHarness(directory, {
+    react: { ...React, useContext: () => ({ locale: "en", messages }), useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => {}], useRef: (current: unknown) => ({ current }) },
+    "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },
+    "@getpaseo/plugin/client": { useWorkspace: () => "/work", useRpc: () => async () => ({}), useAgent: () => null },
+    "@tanstack/react-query": { useQuery: () => ({ data: { configured: true, root: "/work", dashboard } }), useQueryClient: () => ({ getQueryData: () => undefined }) },
+    "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", Modal: "Modal", Markdown: "Markdown", useToast: () => ({}), copyText: async () => {} },
+  });
+  messages = h.load("client/i18n.ts").messagesFor("en");
+  const { AttentionPopover } = h.load("client/pill-popover.tsx");
+  const tree = AttentionPopover({ theme: { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#000" } }, host: { id: "h" }, layout,
+    workspaceId: "w", close() {}, openPanel() {} });
+  const list = find(tree, (props) => "dashboard" in props && "touch" in props)!;
+  const drawn = (list.type as (props: unknown) => Element)(list.props);
+  const next = find(drawn, (props) => props.label === "Next question")!;
+  const button = (next.type as (props: unknown) => Element)(next.props);
+  return button.props.style({ pressed: false }).width;
+}
+
+test("the question arrows are finger-sized on any phone-sized screen, phone browsers included", () => {
+  assert.equal(arrowSize({ compact: true, platform: "ios" }), 36);
+  assert.equal(arrowSize({ compact: true, platform: "web" }), 36);
+  assert.equal(arrowSize({ compact: false, platform: "web" }), 24, "desktop keeps the small arrows");
+});
