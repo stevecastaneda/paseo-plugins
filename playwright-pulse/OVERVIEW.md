@@ -1,4 +1,4 @@
-Playwright Pulse shows a worktree's Playwright test run live, inside Paseo. You see the test running now and its current step, how far through the run you are, and each failure with its error, screenshot, video and trace. Needs Paseo 0.11 or later.
+Playwright Pulse shows a worktree's Playwright test run live, inside Paseo. You see the test running now and its current step, how far through the run you are, and each failure with its error, screenshot, video and trace. Needs Paseo 0.13 or later.
 
 While tests run, the workspace header shows a pill with the count so far. Press it to open the Pulse panel.
 

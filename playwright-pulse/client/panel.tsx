@@ -1,5 +1,5 @@
 import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
-import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, ScrollView, Text, View } from "react-native";
 import { openAttachment } from "../shared/rpc";

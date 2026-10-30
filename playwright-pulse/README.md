@@ -74,9 +74,13 @@ Set `PLAYWRIGHT_PULSE=0` to turn the reporter off for one run.
 
 ## Requirements
 
-Paseo 0.11 or later and Node.js 22.18 or later on the daemon host. Built and tested with Playwright 1.63.
+Paseo 0.13 or later and Node.js 22.18 or later on the daemon host. Built and tested with Playwright 1.63.
 
 ## Changelog
+
+### 1.3.0
+
+- Needs Paseo 0.13 or later. Playwright Pulse now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
 
 ### 1.2.1
 

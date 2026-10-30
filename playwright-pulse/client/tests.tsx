@@ -1,5 +1,5 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import { Icon, copyText, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { PulseTest, RunSnapshot } from "../shared/run";
