@@ -130,7 +130,7 @@ function Tab<Id extends string>({ colors, narrow, entry, selected, onPress, onLa
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress} onLayout={onLayout}
+    <Pressable accessibilityRole="tab" aria-selected={selected} onPress={onPress} onLayout={onLayout}
       onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
       style={({ pressed }) => ({
         flexDirection: "row", alignItems: "center", gap: narrow ? 4 : 6, paddingTop: 8, paddingBottom: 6, marginBottom: -1,

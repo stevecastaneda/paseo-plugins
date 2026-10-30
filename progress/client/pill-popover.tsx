@@ -210,7 +210,7 @@ function StepButton({ colors, touch, onSurface1, icon, label, target, onPress }:
   const button = onSurface1 ? { rest: colors.surface2, pressed: colors.surface1 } : { rest: colors.surface1, pressed: colors.surface2 };
   const size = stepSize(touch);
   return (
-    <PressScale accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !target }} disabled={!target}
+    <PressScale accessibilityRole="button" accessibilityLabel={label} disabled={!target}
       onPress={target ? () => onPress(target) : undefined} hitSlop={touch ? stepSlop : undefined}
       style={({ pressed }) => ({ width: size, height: size, alignItems: "center", justifyContent: "center", borderRadius: touch ? 8 : 4, opacity: target ? 1 : 0.35, ...raised(colors),
         backgroundColor: pressed ? button.pressed : button.rest })}>

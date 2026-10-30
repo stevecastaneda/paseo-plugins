@@ -468,7 +468,7 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
   const chevron = shown ? "ChevronUp" : "ChevronDown";
   const narrow = useNarrow();
   return (
-    <PressableRow colors={colors} accessibilityRole="button" accessibilityState={{ expanded: shown }}
+    <PressableRow colors={colors} accessibilityRole="button" aria-expanded={shown}
       accessibilityLabel={m.toggleFinished(shown, label)} onPress={onPress}
       style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>

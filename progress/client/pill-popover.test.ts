@@ -72,7 +72,7 @@ test("the pill popover shows one question at a time and steps with back and next
   assert.equal(view.shown, "Q1");
   assert.equal(view.header, "Question 1 of 3");
   assert.equal(view.back.accessibilityLabel, "Previous question");
-  assert.deepEqual({ ...view.back.accessibilityState }, { disabled: true });
+  assert.equal(view.back.disabled, true);
   assert.equal(view.back.onPress, undefined);
   view.next.onPress();
   view = p.render();

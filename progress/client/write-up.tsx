@@ -71,7 +71,7 @@ function TextButton({ colors, icon, label, accessibilityLabel, onPress, grow = f
   colors: Colors; icon?: string; label: string; accessibilityLabel?: string; onPress(): void; grow?: boolean; expanded?: boolean;
 }) {
   return (
-    <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} accessibilityState={expanded === undefined ? undefined : { expanded }} onPress={onPress}
+    <PressableRow colors={colors} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} aria-expanded={expanded} onPress={onPress}
       style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 3, paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 4, flexShrink: grow ? 1 : 0, minWidth: 0 }}>
       {icon ? <Icon name={icon} size={12} color={colors.foregroundMuted} /> : null}
       <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontWeight: "500" }}>{label}</Text>
