@@ -145,6 +145,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.11.0
+
+- [Improved] **Agents can change their recommendation.** When you ask an agent about an open question and explaining it changes the agent's mind, it can now change its recommendation, and the question card shows the new one. In Keep building mode, the agent also switches the work it already built to the new recommendation.
+
 ### 1.10.0
 
 - [Improved] **Progress opens in Explorer on phones.** On Paseo 0.13 or later, the phone app opens Progress in Explorer, as the desktop app does, and lists it in Explorer's New tab menu. If a Progress tab from an earlier version is still open on your phone, you can close it.

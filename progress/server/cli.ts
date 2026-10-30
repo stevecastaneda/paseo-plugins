@@ -121,6 +121,14 @@ function existingQuestion(state: State, id: string | undefined) {
   return question;
 }
 
+function recommendOption(recommend: string, letters: string[]): string {
+  if (!letters.length) return recommend;
+  if (!/^[A-Za-z]$/.test(recommend) || !letters.includes(recommend.toUpperCase())) {
+    throw new UsageError(`--recommend must be one of the option letters: ${letters.join(", ")}.`);
+  }
+  return recommend.toUpperCase();
+}
+
 function existingTicket(state: State, id: string | undefined) {
   const wanted = required(id, "ticket id").toUpperCase();
   const ticket = state.dashboard.tickets.find((candidate) => candidate.id.toUpperCase() === wanted);
@@ -269,13 +277,7 @@ const commands: Record<string, Command> = {
       const letters = options.map((option) => option.letter);
       const duplicate = letters.find((letter, index) => letters.indexOf(letter) !== index);
       if (duplicate) throw new UsageError(`Option ${duplicate} is given twice.`);
-      let recommend = required(stringOption(values.recommend), "--recommend (the option you would pick)");
-      if (options.length) {
-        if (!/^[A-Za-z]$/.test(recommend) || !letters.includes(recommend.toUpperCase())) {
-          throw new UsageError(`--recommend must be one of the option letters: ${letters.join(", ")}.`);
-        }
-        recommend = recommend.toUpperCase();
-      }
+      const recommend = recommendOption(required(stringOption(values.recommend), "--recommend (the option you would pick)"), letters);
       const id = state.nextIds.question;
       const big = values.big === undefined ? undefined : required(stringOption(values.big), "--big reason (why the question is big)");
       const rules = QUESTION_MODE_RULES[mode];
@@ -323,21 +325,34 @@ const commands: Record<string, Command> = {
     },
   },
   "question update": {
-    usage: `question update <id> [--background <text>] [--question <text>] [--file <path or http(s) URL>[=<label>] ...]`,
-    summary: "Add detail to a question: replace its background or wording, or add files. Its reference and default stay.",
-    options: { background: { type: "string" }, question: { type: "string" }, file: { type: "string", multiple: true } },
-    run({ positionals, values, state, cwd, root }) {
+    usage: `question update <id> [--recommend <letter or word>] [--background <text>] [--question <text>] [--file <path or http(s) URL>[=<label>] ...]`,
+    summary: "Add detail to a question: change your recommendation while it's open, replace its background or wording, or add files. Its reference stays.",
+    options: { recommend: { type: "string" }, background: { type: "string" }, question: { type: "string" }, file: { type: "string", multiple: true } },
+    run({ positionals, values, state, cwd, root, mode }) {
       const question = existingQuestion(state, positionals[0]);
       const files = listOption(values.file).map((raw) => parseFile(raw, cwd, root));
+      let recommend: string | undefined;
+      if (values.recommend !== undefined) {
+        if (question.answer) throw new UsageError(`${question.id} was already answered, so its recommendation can't change.`);
+        const letters = question.options.map((option) => option.letter);
+        recommend = recommendOption(required(stringOption(values.recommend), "--recommend (the option you would pick)"), letters);
+        if (recommend === question.recommended) throw new UsageError(`${question.id} already recommends ${recommend}.`);
+      }
       const event = {
         type: "question.update" as const,
         id: question.id,
         question: stringOption(values.question),
         background: stringOption(values.background),
         files: files.length ? files : undefined,
+        recommend,
       };
-      if (!event.question && !event.background && !event.files) throw new UsageError("Nothing to change. Pass --background, --question, or --file.");
-      return { event, message: `Updated ${question.id} (${question.title})` };
+      if (!event.question && !event.background && !event.files && !recommend) throw new UsageError("Nothing to change. Pass --recommend, --background, --question, or --file.");
+      if (!recommend) return { event, message: `Updated ${question.id} (${question.title})` };
+      const rules = QUESTION_MODE_RULES[mode];
+      const next = question.state === "building"
+        ? `Undo the work built on ${question.recommended} and build ${recommend} instead.`
+        : `Mode: ${rules.label}. ${rules.askRule({ recommend, big: Boolean(question.big) })}`;
+      return { event, message: `${question.id} now recommends ${recommend} (was ${question.recommended}). ${next}` };
     },
   },
   "question remove": {
