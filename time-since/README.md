@@ -40,6 +40,11 @@ pick them up when they next load the options or reload the plugin.
 
 ## Changelog
 
+### 1.1.1
+
+- The options tab is now called Time Since, so its name fits on phones. On desktop it shows in full unless the Explorer is at its narrowest with three tabs open. Command Center still lists it as Time Since Options.
+- Screen readers in the web and desktop apps now say whether each option is on or off. Before, they read only the option's name.
+
 ### 1.1.0
 
 - Needs Paseo 0.13 or later. Time Since now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
