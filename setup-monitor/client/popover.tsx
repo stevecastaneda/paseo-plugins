@@ -201,6 +201,7 @@ export function SetupPopover({
                 key={`${command.index}:${command.command}`}
                 accessibilityRole="button"
                 aria-selected={isSelected}
+                aria-pressed={isSelected}
                 accessibilityLabel={`Show log for ${command.command}`}
                 onPress={() => setPinned(command.index)}
                 style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
