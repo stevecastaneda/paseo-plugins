@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clientHarness } from "../../test-support/client-harness.mjs";
 
@@ -274,4 +276,11 @@ test("the install banner shows until the command is installed and reachable", ()
   assert.equal(launcherNotice({ path, state: "foreign", onPath: true }).action, undefined, "never offers to replace another file");
   assert.equal(launcherNotice({ path, state: "current", onPath: true }), null);
   assert.match(launcherNotice({ path, state: "current", onPath: false }).text, /need the full path/);
+});
+
+test("app-side code imports no Node modules, which Paseo refuses to bundle into the app", () => {
+  const files = ["client", "shared"].flatMap((folder) => readdirSync(join(directory, folder))
+    .filter((name) => /\.tsx?$/.test(name) && !name.endsWith(".test.ts")).map((name) => join(folder, name)));
+  const offenders = files.filter((file) => /from\s+["']node:|require\(["']node:/.test(readFileSync(join(directory, file), "utf8")));
+  assert.deepEqual(offenders, []);
 });

@@ -2,7 +2,6 @@
 // relative links and images pointed at its own folder, because Paseo's Markdown
 // resolves them from the workspace and plugins can't tell it otherwise. One line
 // scanner decides what is code, so a link in a code block is never touched.
-import type { PlatformPath } from "node:path";
 
 // How far back from a cut to look for a line break. A file with none that close
 // (minified, or one long line) is cut mid-line rather than lose that much.
@@ -32,11 +31,12 @@ function cleanCut(bytes: Uint8Array): Uint8Array {
 }
 
 // Where a Markdown file sits, in the daemon's own path format: `path` is the
-// daemon's node:path. Targets that resolve outside `root` are left as written.
+// daemon's node:path, passed in because Paseo refuses Node modules in shared
+// code. Targets that resolve outside `root` are left as written.
 export interface FileLocation {
   root: string;
   folder: string;
-  path: Pick<PlatformPath, "resolve" | "relative" | "isAbsolute" | "sep">;
+  path: { resolve(...paths: string[]): string; relative(from: string, to: string): string; isAbsolute(path: string): boolean; sep: string };
 }
 
 // A Markdown file's first bytes as Paseo's Markdown should get them: cut like
