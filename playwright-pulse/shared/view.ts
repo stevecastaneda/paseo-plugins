@@ -168,6 +168,13 @@ export function pillView(brief: RunBrief | null, nowMs: number): PillView | null
   return { label: brief.failed ? `${brief.failed} failed` : "Tests failed", tone: "failed" };
 }
 
+// The pill's name. Phones list header buttons as rows in the workspace menu
+// that show this instead of the label, and desktop uses it as the tooltip and
+// the screen-reader name, so it carries the label's status.
+export function pillTitle(label: string): string {
+  return `Playwright Pulse: ${label}`;
+}
+
 // The failure on show: the one picked, while it's still a failure, else the
 // first. New failures arriving don't move it.
 export function shownFailure(ids: readonly string[], picked: string | null): number {
