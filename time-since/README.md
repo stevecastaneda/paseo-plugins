@@ -2,7 +2,7 @@
 
 # time-since
 
-Paseo 0.11 composer pill that ticks elapsed time since the last `user_message` or `assistant_message` in the agent thread.
+Paseo composer pill that ticks elapsed time since the last `user_message` or `assistant_message` in the agent thread.
 
 It sits in the track above the composer. The plugin's server records when each agent turn ends, so after closing and reopening Paseo the clock still counts from the agent's last reply. Turns that ended before this plugin was installed fall back to the last user message, then the agent's creation time; those read older than the true reply, never newer. Live thread messages advance the clock while Paseo is open. It does not replace Paseo's message renderer.
 
@@ -18,7 +18,7 @@ Open **Time Since Options** in Command Center to show or hide the clock icon and
 
 ## Install
 
-Paseo 0.11 or later. Enable plugins in **Settings → Plugins**, then:
+Paseo 0.13 or later. Enable plugins in **Settings → Plugins**, then:
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-time-since
@@ -39,6 +39,10 @@ Saved options apply immediately in the current client. Other connected clients
 pick them up when they next load the options or reload the plugin.
 
 ## Changelog
+
+### 1.1.0
+
+- Needs Paseo 0.13 or later. Time Since now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
 
 ### 1.0.0
 

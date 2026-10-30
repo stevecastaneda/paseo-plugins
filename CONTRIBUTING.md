@@ -43,9 +43,11 @@ Versions follow [semver](https://semver.org). Each plugin moves from 0.x to `1.0
 
 | The change | Bump | Example |
 | --- | --- | --- |
-| Breaks something for people already using the plugin: drops a Paseo version, removes a feature or setting, moves saved data | First number | `1.4.2` to `2.0.0` |
-| Adds a feature | Middle number | `1.4.2` to `1.5.0` |
+| Breaks something for people already using the plugin: removes a feature or setting, moves saved data | First number | `1.4.2` to `2.0.0` |
+| Adds a feature, or raises the minimum Paseo version | Middle number | `1.4.2` to `1.5.0` |
 | Fixes a bug, or changes only the README or store page | Last number | `1.4.2` to `1.4.3` |
+
+A raised minimum Paseo version breaks nothing for current users. A Paseo older than the new `requirements.paseo` refuses the update and keeps the installed version running.
 
 A change that never reaches users, such as dev dependencies, tests or lockfiles, needs no bump.
 
