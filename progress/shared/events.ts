@@ -112,7 +112,6 @@ export const eventSchema = z.discriminatedUnion("type", [
     // True when the agent had to undo work built on another option.
     changedCourse: z.boolean().optional(),
   }),
-  // Adds detail to an open question; its reference and default stay.
   z.object({
     ...base,
     type: z.literal("question.update"),
@@ -120,6 +119,7 @@ export const eventSchema = z.discriminatedUnion("type", [
     question: text.optional(),
     background: text.optional(),
     files: z.array(fileLinkSchema).optional(),
+    recommend: text.optional(),
   }),
   z.object({ ...base, type: z.literal("question.remove"), id: text }),
   // `path` is relative to the worktree root, or absolute when outside it.

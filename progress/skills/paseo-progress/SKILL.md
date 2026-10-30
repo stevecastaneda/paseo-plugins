@@ -41,7 +41,7 @@ When a decision belongs to the user, ask it with `question ask`, lettered `--opt
 The user picks the question mode in Paseo's Settings, and `question ask` prints what that mode means for this question. Do what it prints. Record the user's reply ("Q7 A", or their own words) with `question answer Q7 A --words "<their words>"`, and do what that prints too.
 
 - When the question is about how something looks, attach the screenshot or link with `--file`.
-- When the user asks about a question, answer in chat and add the explanation with `question update Q7 --background`.
+- When the user asks about a question, answer in chat and add the explanation with `question update Q7 --background`. If explaining it changes your mind, also pass `--recommend` with the new option, say in `--background` what changed, and do what it prints.
 
 ## 4. Finish
 

@@ -846,6 +846,48 @@ test("in Keep building mode the agent builds its recommendation, and changes cou
   assert.deepEqual(answered.map((question) => [question.id, question.answer?.changedCourse]), [["Q2", undefined], ["Q1", true]]);
 });
 
+test("an open question's recommendation can change, and the answer is compared with the new one", async (t) => {
+  const w = await screenshotRun(t);
+  await w.run("question", "ask", "Spacing", "Even it out?", "--option", "A=Yes", "--option", "B=No", "--recommend", "B");
+  await w.run("question", "ask", "Check", "Do the PDFs match?", "--recommend", "Yes");
+  assert.equal((await w.run("question", "update", "Q1", "--recommend", "a", "--background", "On a closer look, the gap is uneven.")).text, `Q1 now recommends A (was B). Mode: Work around. ${HOLD_RULE}`);
+  assert.equal((await w.run("question", "update", "Q2", "--recommend", "Mostly")).text, `Q2 now recommends Mostly (was Yes). Mode: Work around. ${HOLD_RULE}`);
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.recommended, question.state]), [["Q1", "A", "waiting"], ["Q2", "Mostly", "waiting"]]);
+  assert.equal(dashboard.questions.open[0].background, "On a closer look, the gap is uneven.");
+  assert.ok((await runShow(w, 0)).text.includes("Even it out? You recommended A, waiting for the answer"));
+
+  const cases: Array<[string[], RegExp]> = [
+    [["question", "update", "Q1", "--recommend", "C"], /--recommend must be one of the option letters: A, B/],
+    [["question", "update", "Q1", "--recommend", "Yes"], /--recommend must be one of the option letters: A, B/],
+    [["question", "update", "Q1", "--recommend", "A"], /Q1 already recommends A/],
+    [["question", "update", "Q1", "--recommend", " "], /Missing --recommend/],
+  ];
+  for (const [argv, message] of cases) {
+    const result = await w.run(...argv);
+    assert.equal(result.code, 1, argv.join(" "));
+    assert.match(result.text, message);
+  }
+  assert.equal((await w.dashboard()).dashboard.questions.open[0].recommended, "A", "a refused change writes nothing");
+
+  assert.equal((await w.run("question", "answer", "Q1", "A")).text, "Answered Q1: A (as you recommended). Build it now.");
+  const answered = await w.run("question", "update", "Q1", "--recommend", "B");
+  assert.equal(answered.code, 1);
+  assert.match(answered.text, /Q1 was already answered, so its recommendation can't change/);
+});
+
+test("in Keep building mode a changed recommendation moves the work built on the old one", async (t) => {
+  await questionMode(t, "keep-building");
+  const w = await screenshotRun(t);
+  await w.run("question", "ask", "Spacing", "Even it out?", "--option", "A=Yes", "--option", "B=No", "--recommend", "B");
+  assert.equal((await w.run("question", "update", "Q1", "--recommend", "A")).text, "Q1 now recommends A (was B). Undo the work built on B and build A instead.");
+  assert.equal((await lastEvent(w)).recommend, "A");
+  const question = (await w.dashboard()).dashboard.questions.open[0];
+  assert.deepEqual([question.recommended, question.state], ["A", "building"]);
+  assert.equal((await w.run("question", "answer", "Q1", "A")).text, "Answered Q1: A (as you recommended). Carry on with it.");
+  assert.equal((await lastEvent(w)).changedCourse, undefined);
+});
+
 test("in Keep building mode a big question holds like Work around, and says why", async (t) => {
   await questionMode(t, "keep-building");
   const w = await screenshotRun(t);

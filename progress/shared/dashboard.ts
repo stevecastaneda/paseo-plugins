@@ -308,6 +308,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
         if (event.question !== undefined) question.question = event.question;
         if (event.background !== undefined) question.background = event.background;
         if (event.files !== undefined) question.files = [...question.files, ...event.files];
+        if (event.recommend !== undefined) question.recommended = event.recommend;
         break;
       }
       case "question.remove":
