@@ -6,6 +6,6 @@
     "images/explorer.png"
   ],
   "requirements": {
-    "paseo": ">=0.11.0"
+    "paseo": ">=0.13.0"
   }
 }
