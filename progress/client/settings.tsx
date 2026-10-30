@@ -1,5 +1,5 @@
 import { type PluginSurfaceProps, useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { SettingsAction, SettingsCard, SettingsSelect } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
 import React, { type ReactNode, useState } from "react";

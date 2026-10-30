@@ -1,5 +1,5 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { opensAsPage } from "../shared/attachments";

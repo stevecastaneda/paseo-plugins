@@ -2,7 +2,7 @@
 
 # Progress
 
-A plugin for Paseo 0.11 and later that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.
+A plugin for Paseo 0.13 and later that gives each worktree a live progress dashboard. Agents record progress with the `paseo-progress` command, which adds one line per change to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.
 
 <img src="images/1-panel.png" alt="The Progress panel in Explorer" width="440">
 
@@ -24,7 +24,7 @@ The panel lives in Explorer, beside the agent chat, so you can watch both. Open 
 
 <img src="images/4-pill.png" alt="The pill above the message box, showing two questions waiting" width="600">
 
-On phones with Paseo 0.13 or later, Progress opens in Explorer too. Older phone apps have no Explorer, so there it opens as a tab of its own. On any phone, the pill stays above the message box while a run is open, so there's always a way in. SVG files and videos preview on desktop; on phones they open on the daemon host.
+On phones, Progress opens in Explorer too. On any phone, the pill stays above the message box while a run is open, so there's always a way in. SVG files and videos preview on desktop; on phones they open on the daemon host.
 
 The first time a run starts in a worktree whose Progress panel has never been opened, the pill shows a spinner and reads **Progress** instead; pressing it opens the panel. Once the panel has been opened there, the plugin writes an empty `progress-panel-opened` file next to the progress file and the nudge never comes back, even for later runs. It doesn't open the panel by itself because Paseo switches to a workspace to open its panel, which would pull you away from whatever you're looking at.
 

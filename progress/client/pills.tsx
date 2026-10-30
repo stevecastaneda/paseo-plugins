@@ -1,5 +1,5 @@
 import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { type AttentionResult, getAttention } from "../shared/rpc";
@@ -18,17 +18,8 @@ export const PILL_POLL_MS = 5_000;
 // still trigger a check, at most once a poll interval.
 export const IDLE_POLL_EVERY = 6;
 
-// Phones on Paseo before 0.13 have no Explorer, so there the panel is a tab of
-// its own. addFilePanel arrived in 0.13, the release that gave phones Explorer.
-// The tab has its own id: Paseo 0.10.1 reopens an existing tab where it
-// already is, and earlier versions of this plugin left a "progress" tab in the
-// phone's hidden Explorer pane, which a plugin can't move or close.
-type ProgressPanelPlacement = { id: "progress"; location: "explorer" } | { id: "progress-tab"; location: "workspace" };
-
-export function progressPanel(client: PluginClientContext): ProgressPanelPlacement {
-  return Platform.OS === "web" || "addFilePanel" in client
-    ? { id: "progress", location: "explorer" }
-    : { id: "progress-tab", location: "workspace" };
+export function progressPanel(): { id: "progress"; location: "explorer" } {
+  return { id: "progress", location: "explorer" };
 }
 
 type Workspace = { id: string; workspaceDirectory?: string; projectRootPath: string };
@@ -87,7 +78,7 @@ export function contributePills(client: PluginClientContext) {
     );
   }
 
-  const panel = progressPanel(client);
+  const panel = progressPanel();
   const openPanel = (workspaceId: string) => {
     client.openPanel(panel.id, { workspaceId, location: panel.location });
   };

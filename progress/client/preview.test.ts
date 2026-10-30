@@ -22,7 +22,7 @@ function renderPreview(query: Query, { window = { width: 1200, height: 800 }, fu
     "react-native": { Platform: { OS: "web" }, useWindowDimensions: () => window },
     "@tanstack/react-query": { useQueryClient: () => ({}), useQuery: () => ({ isPending: false, isPlaceholderData: false, ...query }) },
     "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
-    "@getpaseo/plugin/client/react-native": { Icon: () => null, ScrollView: () => null, useToast: () => ({}), copyText: async () => {} },
+    "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: () => null, useToast: () => ({}), copyText: async () => {} },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { PreviewContent } = h.load("client/preview.tsx");

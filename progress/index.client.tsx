@@ -9,12 +9,11 @@ const SETTINGS_ID = "settings";
 
 export default function contribute(client: PluginClientContext) {
   const stopPills = contributePills(client);
-  const panel = progressPanel(client);
+  const panel = progressPanel();
   const stopPanel = client.addWorkspacePanel({
     id: panel.id,
     title: "Progress",
     icon: "ListChecks",
-    context: "workspace",
     locations: [panel.location],
     Component: (props) => <ProgressLanguageProvider><ProgressPanel {...props} openSettings={() => client.openSettings(SETTINGS_ID)} /></ProgressLanguageProvider>,
   });

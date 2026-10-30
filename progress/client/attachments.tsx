@@ -1,5 +1,5 @@
 import { openExternalUrl, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
-import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { copyText, Icon, useToast } from "@getpaseo/plugin/client/ui";
 import React from "react";
 import { Platform, Text, View } from "react-native";
 import { type Attachment, attachmentIcon, canPreview, opensAsPage, shortName } from "../shared/attachments";

@@ -30,7 +30,7 @@ function dialogHarness() {
       useContext: () => ({ locale: "en", messages }),
     },
     "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
-    "@getpaseo/plugin/client/react-native": { Modal: Object.assign(() => null, { Content: () => null }), Icon: () => null, useToast: () => ({}), copyText: async () => {} },
+    "@getpaseo/plugin/client/ui": { Modal: Object.assign(() => null, { Content: () => null }), Icon: () => null, useToast: () => ({}), copyText: async () => {} },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { StackedDialog } = h.load("client/dialog-stack.tsx");
