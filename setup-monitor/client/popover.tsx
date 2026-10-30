@@ -1,5 +1,5 @@
 import type { PluginButtonContentProps } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,

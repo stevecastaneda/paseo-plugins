@@ -2,7 +2,7 @@
 
 # setup-monitor
 
-Paseo 0.11 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.
+Paseo 0.13 live view of worktree setup. Paseo already tracks `worktree.setup` from `paseo.json`. After 0.3 it only opens the built-in Setup tab when that script fails, so a long `npm install` is silent. This plugin reads the same `workspace_setup_status` stream and shows it while it runs.
 
 - A button in the workspace top bar from the moment the worktree opens, before you've sent a message: a spinner and elapsed time while setup runs, then a green check or a red alert. It turns amber when Paseo holds setup back for a pull request from another repository. It stays until you dismiss it from the popover.
 - Click it for a popover: each setup command with its status and duration, a live log, and the failure reason if it failed. Click a command to see its log. For a held-back setup, the popover explains why and has a Run setup button.
@@ -29,6 +29,10 @@ active. Each workspace has at most one pending status request, and its button
 and popover share that result instead of making separate requests.
 
 ## Changelog
+
+### 1.1.0
+
+- Needs Paseo 0.13 or later. Setup Monitor now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
 
 ### 1.0.0
 
