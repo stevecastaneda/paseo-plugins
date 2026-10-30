@@ -52,11 +52,5 @@
     "react-test-renderer": "19.1.0",
     "typescript": "^5.9.3",
     "zod": "^4.4.3"
-  },
-  "dependencies": {
-    "marked": "17.0.1"
-  },
-  "bundleDependencies": [
-    "marked"
-  ]
+  }
 }

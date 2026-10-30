@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, View, type ScrollView as NativeScrollView, type LayoutChangeEvent } from "react-native";
 import { useRpc, type PluginButtonIconProps } from "@getpaseo/plugin/client";
-import { FlatList, ScrollView, Icon, copyText } from "@getpaseo/plugin/client/ui";
+import { FlatList, ScrollView, Icon, Markdown, copyText } from "@getpaseo/plugin/client/ui";
 import type { RpcOutput } from "@getpaseo/plugin";
 import { readHistory } from "../shared/history";
+import { hideCitations } from "../shared/citations";
 import { groupTurns, parseEntries, type HistoryEntry, type HistoryTurn } from "../shared/entries";
 import { loadConversationBatch } from "./load-history";
 import { HoverButton } from "./hover-button";
-import { MarkdownMessage } from "./markdown";
 import { TaskNotificationBody } from "./task-notification";
 
 type Colors = PluginButtonIconProps["theme"]["colors"];
@@ -54,7 +54,7 @@ function RawEntry({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors
   </View>;
 }
 
-function Message({ entry, colors, copy, onError }: { entry: HistoryEntry; colors: Colors; copy(text: string): void; onError(message: string): void }) {
+function Message({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors; copy(text: string): void }) {
   const [raw, setRaw] = useState(false);
   const notification = entry.notification;
   const subject = notification?.summary.startsWith("Agent ") ? "Agent" : "Task";
@@ -69,13 +69,13 @@ function Message({ entry, colors, copy, onError }: { entry: HistoryEntry; colors
       <Action colors={colors} label="Copy message" icon="Copy" onPress={() => copy(entry.preview)} />
       <Action colors={colors} label="Show raw message" icon="Braces" active={raw} onPress={() => setRaw(!raw)} />
     </View>
-    {notification ? <TaskNotificationBody notification={notification} colors={colors} copy={copy} onError={onError} />
-      : <MarkdownMessage text={entry.preview} colors={colors} copy={copy} onError={onError} />}
+    {notification ? <TaskNotificationBody notification={notification} colors={colors} copy={copy} />
+      : <Markdown>{hideCitations(entry.preview)}</Markdown>}
     {raw ? <RawEntry entry={entry} colors={colors} copy={copy} /> : null}
   </View>;
 }
 
-function Turn({ turn, colors, copy, onError, onLayout }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onError(message: string): void; onLayout(event: LayoutChangeEvent): void }) {
+function Turn({ turn, colors, copy, onLayout }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onLayout(event: LayoutChangeEvent): void }) {
   const [detail, setDetail] = useState<string | null>(null);
   const messages = turn.entries.filter((entry) => entry.category === "message");
   const timestamp = turn.entries.find((entry) => entry.timestamp)?.timestamp;
@@ -93,7 +93,7 @@ function Turn({ turn, colors, copy, onError, onLayout }: { turn: HistoryTurn; co
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 11 }}>{date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</Text>
     </View>
-    {messages.map((entry, index) => <Message key={index} entry={entry} colors={colors} copy={copy} onError={onError} />)}
+    {messages.map((entry, index) => <Message key={index} entry={entry} colors={colors} copy={copy} />)}
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, marginLeft: -6 }}>
       {tags.map((tag) => <Action key={tag.category} colors={colors} label={`${tag.label}: ${tag.entries.length} entries`}
         text={`${tag.label} ${tag.entries.length}`} icon={tag.icon} active={detail === tag.category}
@@ -181,7 +181,7 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
       : <ScrollView ref={conversationScroll} style={{ flex: 1, minHeight: 0 }} scrollEventThrottle={16}
         onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => setContentHeight(height)}
         onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        {turns.map((turn, index) => <Turn key={index} turn={turn} colors={colors} copy={copy} onError={setError}
+        {turns.map((turn, index) => <Turn key={index} turn={turn} colors={colors} copy={copy}
           onLayout={event => measure(`turn-${index}`, event.nativeEvent.layout.y)} />)}
         {turns.length === 0 ? <Text style={{ color: colors.foregroundMuted, padding: 32 }}>{busy ? "Reading history…" : "No messages saved yet"}</Text> : null}
       </ScrollView>}

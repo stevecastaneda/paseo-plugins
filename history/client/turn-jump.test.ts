@@ -19,7 +19,7 @@ test("footer arrows navigate turns without replacing the conversation", async ()
       return { path: "/tmp/log", source: "one", provider: "claude", text, offset: 0, nextOffset: text.length, totalBytes: text.length };
     } },
     "@getpaseo/plugin/client/ui": {
-      Icon: "Icon", copyText: async () => {}, FlatList: "list",
+      Icon: "Icon", Markdown: "Markdown", copyText: async () => {}, FlatList: "list",
       ScrollView: ({ ref, ...props }) => {
         useImperativeHandle(ref, () => ({ scrollTo: args => jumps.push(args) }));
         return React.createElement("scroll", props, props.children);
@@ -40,7 +40,7 @@ test("footer arrows navigate turns without replacing the conversation", async ()
   act(() => button("Previous turn").props.onPress());
   assert.equal(jumps[1].y, 0);
   assert.equal(reads, 1);
-  assert.equal(renderer.root.findAllByType("Text").filter(node => /^Message \d$/.test(node.props.children)).length, 3);
+  assert.equal(renderer.root.findAllByType("Markdown").filter(node => /^Message \d$/.test(node.props.children)).length, 3);
   act(() => button("Raw source").props.onPress());
   assert.equal(button("Next turn"), undefined);
   act(() => button("Conversation").props.onPress());

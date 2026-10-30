@@ -11,10 +11,10 @@ test("shows result Markdown immediately, expands details, and copies the result"
   const copied: string[] = [];
   const h = clientHarness(fileURLToPath(new URL("..", import.meta.url)), {
     "react-native": { Text: "Text", View: "View", Pressable: "Pressable", ScrollView: "ScrollView", Platform: { OS: "web" } },
-    "@getpaseo/plugin/client/ui": { Icon: "Icon" },
+    "@getpaseo/plugin/client/ui": { Icon: "Icon", Markdown: "Markdown" },
   });
   const Body = h.load("client/task-notification.tsx").TaskNotificationBody;
-  const result = "## Findings\n\n**Everything passed.**";
+  const result = "## Findings\n\n**Everything passed.**\n\n<oai-mem-citation>MEMORY.md:3</oai-mem-citation>";
   let renderer;
   await act(async () => { renderer = create(React.createElement(Body, {
     notification: { taskId: "private-task-id", outputFile: "/tmp/private.output", note: "Can resume", status: "completed", summary: 'Agent "Check chart" finished', result, toolUses: 53 },
@@ -22,12 +22,12 @@ test("shows result Markdown immediately, expands details, and copies the result"
   })); });
   const initial = JSON.stringify(renderer.toJSON());
   assert.ok(initial.includes("Check chart"));
-  assert.ok(initial.includes("Everything passed."));
-  assert.ok(initial.includes('"fontWeight":"700"'));
+  assert.equal(renderer.root.findByType("Markdown").props.children, "## Findings\n\n**Everything passed.**");
+  const details = () => renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Task details");
   assert.ok(!initial.includes("private-task-id"));
   assert.ok(!initial.includes("/tmp/private.output"));
   await act(async () => {
-    renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Task details").props.onPress();
+    details().props.onPress();
     renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Copy task result").props.onPress();
   });
   const expanded = JSON.stringify(renderer.toJSON());

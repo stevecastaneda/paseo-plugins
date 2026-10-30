@@ -25,7 +25,7 @@ test("clicks inside the portaled dialog do not rerun the composer action or relo
     "react-native": { ...native, Platform: { OS: "web" } },
     "@getpaseo/plugin/client": { useRpc: () => rpc },
     "@getpaseo/plugin/client/ui": {
-      Modal, ScrollView: "ScrollView", Icon: "Icon", copyText: async () => {},
+      Modal, ScrollView: "ScrollView", Icon: "Icon", Markdown: "Markdown", copyText: async () => {},
       FlatList: ({ data, renderItem }) => React.createElement("list", null, data.map((item, index) =>
         React.createElement(React.Fragment, { key: index }, renderItem({ item, index })))),
     },
@@ -56,7 +56,7 @@ test("clicks inside the portaled dialog do not rerun the composer action or relo
 
   // React portals retain the logical React ancestry. Bubble a click from the
   // dialog content through the real plugin tree to the host pill.
-  const message = renderer.root.findAllByType("Text").find((item) => item.props.children === "Visible message");
+  const message = renderer.root.findAllByType("Markdown").find((item) => item.props.children === "Visible message");
   assert.ok(message);
   let stopped = false;
   const event = { stopPropagation: () => { stopped = true; } };
