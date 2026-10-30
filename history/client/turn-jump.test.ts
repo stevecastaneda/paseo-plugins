@@ -44,6 +44,10 @@ async function mount(roles) {
     },
     scroll(y) { act(() => scroller().props.onScroll({ nativeEvent: { contentOffset: { y } } })); },
     press(label) { act(() => button(label).props.onPress()); },
+    // No scroll events for as long as the viewer waits: whatever was scrolling has stopped.
+    quiet() {
+      act(() => [...h.timers].forEach(([id, timer]) => { h.timers.delete(id); timer.callback(); }));
+    },
     arrows: () => ({ previous: !button("Previous turn").props.disabled, next: !button("Next turn").props.disabled }),
     unmount: () => act(async () => renderer.unmount()),
   };
@@ -55,6 +59,7 @@ test("footer arrows navigate turns without replacing the conversation", async ()
   const v = await mount(["user", "assistant", "user"]);
   // Two turn anchors; the assistant message belongs to the first turn.
   v.layoutTurns([0, 1100]);
+  v.size(600, 1700);
   assert.equal(v.button("Previous turn").props.disabled, true);
   v.press("Next turn");
   assert.equal(v.jumps[0].y, 1100);
@@ -137,7 +142,70 @@ test("scrolling by hand during a jump moves the arrows with the view", async () 
   v.press("Next turn");
   v.scroll(400);
   v.scroll(100);
+  v.quiet();
   v.press("Next turn");
   assert.equal(v.jumps.at(-1).y, 1000, "the next press starts from where the user left the view");
+  await v.unmount();
+});
+
+test("both arrows are off before the scroll area has its size", async () => {
+  const v = await mount(fourTurns);
+  v.layoutTurns([0, 1000, 1500, 1700]);
+  assert.deepEqual(v.arrows(), { previous: false, next: false });
+  v.size(600, 2000);
+  assert.deepEqual(v.arrows(), { previous: false, next: true });
+  await v.unmount();
+});
+
+test("a jump that stops short counts from the view once scrolling goes quiet", async () => {
+  const v = await mount(fourTurns);
+  v.layoutTurns([0, 1000, 1500, 1700]);
+  v.size(600, 2000);
+  v.scroll(1000);
+  v.press("Next turn");
+  assert.equal(v.jumps.at(-1).y, 1400);
+  // Caught partway: the view stops at 1200 without passing the target or turning back.
+  v.scroll(1100);
+  v.scroll(1200);
+  v.quiet();
+  assert.deepEqual(v.arrows(), { previous: true, next: true }, "the end is still below the view");
+  v.press("Next turn");
+  assert.equal(v.jumps.at(-1).y, 1400);
+  v.scroll(1400);
+  v.quiet();
+  v.press("Previous turn");
+  assert.equal(v.jumps.at(-1).y, 1000);
+  await v.unmount();
+});
+
+test("a jump re-aims when the end of the chat moves up under it", async () => {
+  const v = await mount(fourTurns);
+  v.layoutTurns([0, 1000, 1500, 1700]);
+  v.size(600, 2000);
+  v.scroll(1000);
+  v.press("Next turn");
+  assert.equal(v.jumps.at(-1).y, 1400);
+  v.scroll(1100);
+  // The window grows, so the end of the chat is now at 1200 and the view stops there.
+  v.size(800, 2000);
+  v.scroll(1200);
+  assert.deepEqual(v.arrows(), { previous: true, next: false });
+  v.press("Previous turn");
+  assert.equal(v.jumps.at(-1).y, 1000, "Previous moves up instead of re-aiming at the end");
+  await v.unmount();
+});
+
+test("reversing during a jump keeps counting from the new destination", async () => {
+  const v = await mount(fourTurns);
+  v.layoutTurns([0, 1000, 1500, 1700]);
+  v.size(600, 2000);
+  v.scroll(1000);
+  v.press("Next turn");
+  v.scroll(1100);
+  v.press("Previous turn");
+  // One more event from the first jump, still heading down.
+  v.scroll(1120);
+  v.press("Previous turn");
+  assert.deepEqual(v.jumps.map(jump => jump.y), [1400, 1000, 0]);
   await v.unmount();
 });
