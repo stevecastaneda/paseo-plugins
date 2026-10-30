@@ -1340,6 +1340,16 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await w.run("deliverable", "add", "Empty", "shots/empty.txt");
   assert.deepEqual(await previewDeliverable(w.directory, "D6"), { kind: "text", text: longLog.slice(0, MAX_PREVIEW_TEXT_BYTES), bytes: longLog.length, truncated: true });
   assert.deepEqual(await previewDeliverable(w.directory, "D7"), { kind: "text", text: "", bytes: 0, truncated: false });
+  const line = "a log line ending in é\n";
+  const lines = line.repeat(Math.ceil(MAX_PREVIEW_TEXT_BYTES / Buffer.byteLength(line)));
+  const exact = "y\n".repeat(MAX_PREVIEW_TEXT_BYTES / 2 - 2) + "zzé";
+  await writeFile(join(w.directory, "shots", "lines.log"), lines);
+  await writeFile(join(w.directory, "shots", "exact.txt"), exact);
+  await w.run("deliverable", "add", "Lines", "shots/lines.log");
+  await w.run("deliverable", "add", "Exact", "shots/exact.txt");
+  const cut = await previewDeliverable(w.directory, "D8");
+  assert.ok(cut.kind === "text" && cut.truncated && cut.text.endsWith(line) && lines.startsWith(cut.text), "a cut log ends after its last whole line");
+  assert.deepEqual(await previewDeliverable(w.directory, "D9"), { kind: "text", text: exact, bytes: MAX_PREVIEW_TEXT_BYTES, truncated: false }, "a file exactly at the limit comes back whole");
   assert.equal(imageMimeType("a/b.jpeg"), "image/jpeg");
   assert.equal(imageMimeType("report.html"), null);
 });

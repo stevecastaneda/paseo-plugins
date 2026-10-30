@@ -6,6 +6,7 @@ import { homedir, hostname } from "node:os";
 import { delimiter, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { findAttachment, type FolderEntry, imageMimeType, previewKind, splitRef, videoMimeType } from "../shared/attachments.ts";
+import { previewText } from "../shared/markdown.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { findStore } from "./store.ts";
@@ -112,7 +113,8 @@ export async function previewDeliverable(directory: string, id: string): Promise
     const file = await open(target);
     try {
       const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(Math.min(size, MAX_PREVIEW_TEXT_BYTES)), position: 0 });
-      return { kind, text: buffer.subarray(0, bytesRead).toString("utf8"), bytes: size, truncated: size > MAX_PREVIEW_TEXT_BYTES };
+      const truncated = size > MAX_PREVIEW_TEXT_BYTES;
+      return { kind, text: previewText(buffer.subarray(0, bytesRead), truncated), bytes: size, truncated };
     } finally {
       await file.close();
     }
