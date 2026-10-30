@@ -1,9 +1,10 @@
 // A card of tabs, copied from the Progress plugin's history card so the two
 // panels look and behave alike.
-import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
+import { type PluginTab, type PluginWorkspacePanelProps, useTabState } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { z } from "zod";
 import { useNarrow } from "./narrow";
 import { raised } from "./surfaces";
 
@@ -14,26 +15,30 @@ export type TabEntry = { id: string; label: string; icon: string; count: number;
 // Below this width the tab icons drop, so every label fits in the Explorer pane.
 const TAB_ICONS_MIN = 370;
 
-// The tab chosen per key (a workspace), kept for the app session so reopening
-// the panel shows the same one.
+// Reopening the panel makes a new Paseo tab with no saved state, so it starts
+// from this map.
 const chosenTabs = new Map<string, string>();
 
-export function TabbedCard({ colors, memoryKey, tabs }: { colors: Colors; memoryKey: string; tabs: TabEntry[] }) {
-  const [tab, setTab] = useState(() => chosenTabs.get(memoryKey) ?? tabs[0]?.id);
+const savedChoice = z.object({ tab: z.string() }).nullable();
+
+export function TabbedCard({ colors, workspaceId, paseoTab, tabs }: { colors: Colors; workspaceId: string; paseoTab: PluginTab; tabs: TabEntry[] }) {
+  const [saved, save] = useTabState(paseoTab, savedChoice, null);
   const [showIcons, setShowIcons] = useState(true);
   const narrow = useNarrow();
-  const choose = (next: string) => {
-    chosenTabs.set(memoryKey, next);
-    setTab(next);
-  };
-  const current = tabs.find((entry) => entry.id === tab) ?? tabs[0];
+  const chosen = saved?.tab ?? chosenTabs.get(workspaceId);
+  useEffect(() => {
+    if (chosen === undefined) return;
+    chosenTabs.set(workspaceId, chosen);
+    if (saved?.tab !== chosen) save({ tab: chosen });
+  }, [workspaceId, chosen, saved, save]);
+  const current = tabs.find((entry) => entry.id === chosen) ?? tabs[0];
   return (
     <View onLayout={(event) => setShowIcons(event.nativeEvent.layout.width >= TAB_ICONS_MIN)}
       style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
       <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: narrow ? 10 : 16, paddingHorizontal: narrow ? 8 : 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         {tabs.map((entry) => (
           <Tab key={entry.id} colors={colors} narrow={narrow} label={entry.label} icon={showIcons ? entry.icon : null} count={entry.count}
-            selected={entry.id === current.id} onPress={() => choose(entry.id)} />
+            selected={entry.id === current.id} onPress={() => save({ tab: entry.id })} />
         ))}
       </View>
       {current.count === 0 ? (
