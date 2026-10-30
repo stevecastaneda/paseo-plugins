@@ -30,3 +30,23 @@ test("the pill's title carries the run status, so the phone menu row shows it", 
   assert.equal(pill.updates, updates, "an unchanged pill isn't updated, so its spinner keeps turning");
   stop();
 });
+
+test("on a phone, Pulse is listed in Explorer and its Command Center item opens it there", () => {
+  const h = clientHarness(directory, phone);
+  const stop = h.load("index.client.tsx").default(h.client);
+  assert.deepEqual(plain(h.panels.map(({ id, locations }) => ({ id, locations }))), [{ id: "playwright-pulse", locations: ["explorer"] }]);
+  h.commandItems[0].onSelect({ openPanel: (id: string, options?: object) => h.client.openPanel(id, { workspaceId: "w", ...options }) });
+  assert.deepEqual(plain(h.openedPanels), [{ id: "playwright-pulse", workspaceId: "w", location: "explorer" }]);
+  stop();
+});
+
+test("on a phone, pressing the pill opens Pulse in Explorer", async () => {
+  const h = clientHarness(directory, phone);
+  h.responses["pulse.briefs"] = { briefs: { "/w": { runId: "r", status: "running", done: 1, total: 2, failed: 0 } } };
+  const stop = h.load("index.client.tsx").default(h.client);
+  h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
+  await h.flush();
+  h.registrations[0].button.behavior.onPress();
+  assert.deepEqual(plain(h.openedPanels), [{ id: "playwright-pulse", workspaceId: "w", location: "explorer" }]);
+  stop();
+});
