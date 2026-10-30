@@ -98,7 +98,7 @@ export function StackedDialog({ colors, root, onClose, questions = [], dashboard
           onOpenOnHost={() => { onClose(); void opener.openOnHost(preview.attachment); }}
           onCopyPath={() => void opener.copyPath(preview.attachment)} onBack={back}
           gallery={{ items: preview.group, onSelect: (attachment) => replaceTop({ ...preview, attachment, fullScreen: preview.fullScreen && previewKind(attachment.path ?? "") === "image", leftFullScreen: false }) }}
-          onLong={setPreviewLong} fullScreen={preview.fullScreen} leftFullScreen={preview.leftFullScreen === true} onFullScreen={setFullScreen}
+          onLong={setPreviewLong} hostLong={previewLong || preview.fullScreen} fullScreen={preview.fullScreen} leftFullScreen={preview.leftFullScreen === true} onFullScreen={setFullScreen}
           onOpenEntry={openAttachment} />
       ) : (
         <>
