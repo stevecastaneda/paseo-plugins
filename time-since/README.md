@@ -12,9 +12,9 @@ Shows `4m 12s` for the first five minutes, then `12m` / `4h 12m` with no seconds
 
 <img src="images/popover.png" alt="The pill's popover, showing the date and time of the last message" width="600">
 
-Open **Time Since Options** in Command Center to show or hide the clock icon and add an optional `ago` suffix, such as `4m 12s ago`. The panel includes a preview. Changes apply to all workspaces on the connected host and persist across restarts. The icon starts on and the suffix starts off.
+Run **Time Since Options** in Command Center. It opens the **Time Since** tab, where you can show or hide the clock icon and add an optional `ago` suffix, such as `4m 12s ago`. The tab includes a preview. Changes apply to all workspaces on the connected host and persist across restarts. The icon starts on and the suffix starts off.
 
-<img src="images/options.png" alt="Time Since Options in the Explorer: Show clock icon on, Show &quot;ago&quot; suffix off, and a preview of the pill" width="320">
+<img src="images/options.png" alt="The Time Since tab in the Explorer: Show clock icon on, Show &quot;ago&quot; suffix off, and a preview of the pill" width="320">
 
 ## Install
 
@@ -39,6 +39,11 @@ Saved options apply immediately in the current client. Other connected clients
 pick them up when they next load the options or reload the plugin.
 
 ## Changelog
+
+### 1.1.1
+
+- The options tab is now called Time Since, so its name fits on phones. On desktop it shows in full unless the Explorer is at its narrowest with three tabs open. Command Center still lists it as Time Since Options.
+- Screen readers in the web and desktop apps now say whether each option is on or off. Before, they read only the option's name.
 
 ### 1.1.0
 

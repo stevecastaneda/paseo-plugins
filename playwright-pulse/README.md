@@ -78,6 +78,12 @@ Paseo 0.13 or later and Node.js 22.18 or later on the daemon host. Built and tes
 
 ## Changelog
 
+### 1.5.0
+
+- On a phone, the Playwright Pulse row in the workspace's ··· menu shows the run, like `Playwright Pulse: 1 failed · 25/47`. Before, it read "Open Playwright Pulse" whatever the run was doing. On a computer, the header pill's tooltip shows the same text.
+- On a phone, Pulse opens in Explorer, as it does on a computer, and Explorer's New tab menu lists it. Before, it opened as a tab of its own. A Pulse tab left open by an earlier version stays where it is until you next open Pulse, which moves it into Explorer.
+- Screen readers on the web and desktop apps now hear which Pulse tab is picked, which test rows are open, and when Stop is busy. Before, they heard none of these. Phones already did.
+
 ### 1.4.0
 
 - Pulse keeps the tab you picked, Folders or Slowest, when Paseo reloads or restarts. Before, it went back to the first tab.

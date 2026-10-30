@@ -177,7 +177,7 @@ export function Button({ icon, label, reserveLabel, tone, onPress, busy = false,
     <PressScale
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled: disabled || busy, busy }}
+      aria-busy={busy}
       disabled={disabled || busy}
       onPress={onPress}
       style={({ hovered }) => ({

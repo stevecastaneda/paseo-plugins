@@ -49,7 +49,7 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
               key={key}
               accessibilityRole="switch"
               accessibilityLabel={label}
-              accessibilityState={{ checked: settings[key], disabled: mutation.isPending || query.isError }}
+              aria-checked={settings[key]}
               disabled={mutation.isPending || query.isError}
               onPress={() => mutation.mutate({ [key]: !settings[key] })}
               style={({ pressed }) => ({

@@ -50,3 +50,19 @@ test('a finished setup keeps its button until dismissed', async () => {
   assert.equal(h.registrations[0].removed, false, 'the check stays after setup finishes');
   stop();
 });
+
+test('the button title carries the setup status, so the phone menu row shows it', async () => {
+  const h = clientHarness(directory);
+  let status = 'running';
+  h.client.rpc = async () => ({ snapshot: { status, detail: { commands: [], log: '' }, error: null }, runningForMs: 12_000 });
+  const stop = h.load('client/buttons.tsx').contributeClient(h.client);
+  h.workspaces.bootstrap([{ id: 'w', workspaceKind: 'worktree' }]);
+  await h.flush();
+  assert.equal(h.registrations[0].button.title, 'Worktree setup 12s');
+  status = 'failed';
+  await h.tick(2000);
+  await h.flush();
+  assert.equal(h.registrations[0].button.label, 'Setup failed');
+  assert.equal(h.registrations[0].button.title, 'Worktree setup failed');
+  stop();
+});

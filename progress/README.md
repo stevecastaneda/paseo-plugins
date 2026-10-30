@@ -145,6 +145,13 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.13.1
+
+- [Fixed] **Ticket tabs fit on a phone.** On a phone, a ticket's tabs used to wrap and leave Deliverables alone on a second line. They now stay in one row that you swipe sideways. When some tabs are out of sight, that edge of the row fades and shows an arrow you can tap. The tab you pick scrolls into view, and so does the one you had open when you come back to the ticket.
+- [Fixed] **Open chat stays on one line.** On a phone, the Open chat link beside a ticket's agent no longer wraps. The agent's name gets shorter instead.
+- [Fixed] **Larger question arrows in a phone's browser.** In the pill's popover, the arrows that step through questions and the Open Progress button now have the same finger-sized buttons in a phone's web browser as in the Paseo phone apps.
+- [Fixed] **Screen readers hear which tab is selected in the desktop and web apps.** They also hear whether the finished tickets and a write-up are shown or hidden. Before, only the phone apps passed this on.
+
 ### 1.13.0
 
 - [New] **PDF previews.** A PDF the agent records now opens in the preview in Paseo's desktop and web apps, with a loading percentage while it arrives. Any PDF you open in a Paseo tab now shows in that tab, up to 100 MB on desktop and 25 MB on a phone. A PDF deliverable also has a button beside Copy that opens it in a tab, which is how you see it on an iPhone or iPad.

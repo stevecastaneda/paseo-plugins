@@ -1,11 +1,9 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
-import { Platform } from "react-native";
 import { PulsePanel } from "./client/panel";
 import { watchRuns } from "./client/pill";
 
 const PANEL_ID = "playwright-pulse";
-// Beside the agent chat where Paseo can show both; a tab of its own on phones.
-const LOCATION = Platform.OS === "web" ? "explorer" : "workspace";
+const LOCATION = "explorer";
 
 export default function contribute(client: PluginClientContext) {
   const stopPanel = client.addWorkspacePanel({

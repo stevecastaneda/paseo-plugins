@@ -53,7 +53,7 @@ export function TabbedCard({ colors, workspaceId, paseoTab, tabs }: { colors: Co
 function Tab({ colors, narrow, label, icon, count, selected, onPress }: { colors: Colors; narrow: boolean; label: string; icon: string | null; count: number; selected: boolean; onPress(): void }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress}
+    <Pressable accessibilityRole="tab" aria-selected={selected} onPress={onPress}
       onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
       style={({ pressed }) => ({
         flexDirection: "row", alignItems: "center", gap: narrow ? 4 : 5, paddingTop: 8, paddingBottom: 6, marginBottom: -1,

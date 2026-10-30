@@ -249,7 +249,7 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
           </Text>
         ) : null}
         {preview.more || test.error?.snippet ? (
-          <PressScale static accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)} outerStyle={{ alignSelf: "flex-start" }}
+          <PressScale static accessibilityRole="button" aria-expanded={expanded} onPress={() => setExpanded(!expanded)} outerStyle={{ alignSelf: "flex-start" }}
             style={({ hovered }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: hovered ? 1 : 0.85 })}>
             <IconSwap swapKey={expanded ? "up" : "down"} size={12}><Icon name={expanded ? "ChevronUp" : "ChevronDown"} size={12} color={colors.foregroundMuted} /></IconSwap>
             <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, fontWeight: "600" }}>{expanded ? "Show less" : test.error?.snippet ? "Show all and the code" : "Show all"}</Text>
@@ -379,7 +379,7 @@ function FolderRow({ colors, folder, live, first, open, onPress }: { colors: Col
   ].filter((segment) => segment.flex > 0);
   const chevron = open ? "ChevronUp" : "ChevronDown";
   return (
-    <PressableRow colors={colors} accessibilityRole="button" accessibilityState={{ expanded: open }}
+    <PressableRow colors={colors} accessibilityRole="button" aria-expanded={open}
       accessibilityLabel={`${folder.name}: ${folder.done} of ${folder.total} done${notes.length ? `, ${notes.join(", ")}` : ""}`} onPress={onPress}
       style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
       <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}><FolderIcon colors={colors} folder={folder} live={live} /></View>

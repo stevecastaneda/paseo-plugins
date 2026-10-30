@@ -1,23 +1,22 @@
 import { HoverButton } from "./hover-button";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/ui";
+import { Icon, Markdown } from "@getpaseo/plugin/client/ui";
 import type { PluginButtonIconProps } from "@getpaseo/plugin/client";
 import { notificationUsage, type TaskNotification } from "../shared/task-notification";
-import { MarkdownMessage } from "./markdown";
+import { hideCitations } from "../shared/citations";
 
-export function TaskNotificationBody({ notification, colors, copy, onError }: {
+export function TaskNotificationBody({ notification, colors, copy }: {
   notification: TaskNotification;
   colors: PluginButtonIconProps["theme"]["colors"];
   copy(text: string): void;
-  onError(message: string): void;
 }) {
   const [details, setDetails] = useState(false);
   const usage = notificationUsage(notification);
   const summary = notification.summary.replace(/^Agent "(.+)" finished$/, "$1");
-  return <View style={{ gap: 10 }}>
-    <Text selectable style={{ color: colors.foreground, fontSize: 13, fontWeight: "600", lineHeight: 21 }}>{summary}</Text>
-    {notification.result ? <MarkdownMessage text={notification.result} colors={colors} copy={copy} onError={onError} /> : null}
+  return <View style={{ gap: 12 }}>
+    <Text selectable style={{ color: colors.foreground, fontSize: 14, fontWeight: "600", lineHeight: 20 }}>{summary}</Text>
+    {notification.result ? <Markdown>{hideCitations(notification.result)}</Markdown> : null}
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {usage ? <Text style={{ color: colors.foregroundMuted, fontSize: 11, flexShrink: 1 }}>{usage}</Text> : null}
       {notification.result ? <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Copy task result"
@@ -26,7 +25,7 @@ export function TaskNotificationBody({ notification, colors, copy, onError }: {
           <Icon name="Copy" size={13} color={color} />
         </>}
       </HoverButton> : null}
-      <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Task details" accessibilityState={{ expanded: details }}
+      <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Task details" aria-expanded={details}
         onPress={() => setDetails(!details)} style={({ pressed }) => ({ flexDirection: "row", gap: 5, alignItems: "center", minHeight: 32, paddingHorizontal: 6, opacity: pressed ? 0.6 : 1 })}>
         {color => <>
           <Icon name={details ? "ChevronDown" : "ChevronRight"} size={12} color={color} />

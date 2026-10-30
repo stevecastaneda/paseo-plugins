@@ -6,7 +6,7 @@ import type { PluginButtonIconProps, PluginButtonRegistration, PluginClientConte
 import { Icon } from "@getpaseo/plugin/client/ui";
 import React from "react";
 import { getBriefs, type RunBrief } from "../shared/rpc";
-import { pillView, type PillTone, type PillView } from "../shared/view";
+import { pillTitle, pillView, type PillTone, type PillView } from "../shared/view";
 import { Spinner } from "./spinner";
 
 // How often runs are checked: often while one is going, less when none is.
@@ -56,7 +56,7 @@ export function watchRuns(client: PluginClientContext, openPanel: (workspaceId: 
         id: "test-run",
         workspaceId,
         button: {
-          title: "Open Playwright Pulse",
+          title: pillTitle(view.label),
           icon: ICONS[view.tone],
           label: view.label,
           behavior: { kind: "action", onPress: () => openPanel(workspaceId) },
@@ -68,9 +68,12 @@ export function watchRuns(client: PluginClientContext, openPanel: (workspaceId: 
     const before = pill.shown;
     if (before?.label === view?.label && before?.tone === view?.tone) return;
     pill.shown = view;
-    if (!view) pill.registration.update({ visible: false });
-    else if (before?.tone === view.tone) pill.registration.update({ visible: true, label: view.label });
-    else pill.registration.update({ visible: true, label: view.label, icon: ICONS[view.tone] });
+    if (!view) {
+      pill.registration.update({ visible: false });
+      return;
+    }
+    const text = { visible: true, label: view.label, title: pillTitle(view.label) };
+    pill.registration.update(before?.tone === view.tone ? text : { ...text, icon: ICONS[view.tone] });
   };
 
   const tick = async () => {

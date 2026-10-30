@@ -6,14 +6,19 @@ import { useLinks } from "./links-query";
 import { getShortcutSettings, PLACEMENT_OPTIONS, updateShortcutSettings, type ShortcutSettings } from "../shared/shortcut";
 import { getShortcut, setShortcut, subscribeShortcut } from "./pills";
 
+// Phone-sized layouts are pressed with a finger.
+const TOUCH_TARGET = 44;
+
 function CompactSelect<Value extends string>({
   colors,
+  compact,
   label,
   value,
   options,
   onValueChange,
 }: {
   colors: PluginWorkspacePanelProps["theme"]["colors"];
+  compact: boolean;
   label: string;
   value: Value;
   options: readonly { label: string; value: Value }[];
@@ -36,12 +41,13 @@ function CompactSelect<Value extends string>({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${label}, ${selected}`}
-          accessibilityState={{ expanded: open }}
+          aria-expanded={open}
           onPress={() => setOpen((current) => !current)}
           style={({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => ({
             flexDirection: "row",
             alignItems: "center",
             gap: 4,
+            minHeight: compact ? TOUCH_TARGET : undefined,
             paddingHorizontal: 6,
             paddingVertical: 4,
             borderRadius: 6,
@@ -56,7 +62,7 @@ function CompactSelect<Value extends string>({
         <View style={{
           position: "absolute",
           right: 12,
-          top: 32,
+          top: compact ? 52 : 32,
           minWidth: 168,
           borderWidth: 1,
           borderColor: colors.border,
@@ -69,8 +75,9 @@ function CompactSelect<Value extends string>({
             return (
               <Pressable
                 key={option.value}
-                accessibilityRole="menuitem"
-                accessibilityState={{ selected: isSelected }}
+                accessibilityRole="button"
+                aria-selected={isSelected}
+                aria-pressed={isSelected}
                 onPress={() => {
                   onValueChange(option.value);
                   setOpen(false);
@@ -79,6 +86,7 @@ function CompactSelect<Value extends string>({
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 8,
+                  minHeight: compact ? TOUCH_TARGET : undefined,
                   paddingHorizontal: 10,
                   paddingVertical: 8,
                   backgroundColor: pressed ? colors.surface1 : colors.surface0,
@@ -99,7 +107,7 @@ export function LinksPanel(props: PluginWorkspacePanelProps) {
   return <WorkspaceLinks key={`${props.host.id}:${props.workspaceId}`} {...props} />;
 }
 
-function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps) {
+function WorkspaceLinks({ theme, layout, workspaceId, host }: PluginWorkspacePanelProps) {
   const workspaceDirectory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const linksQuery = useLinks(host.id, workspaceId, workspaceDirectory);
   const fetchShortcut = useRpc(getShortcutSettings);
@@ -117,6 +125,7 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
   const [openError, setError] = useState<string | null>(null);
   const error = openError ?? (linksQuery.error ? linksQuery.error.message : null);
   const colors = theme.colors;
+  const { compact } = layout;
   const isEmpty = result !== null && result.links.length === 0;
 
   useEffect(() => subscribeShortcut(() => setLocalShortcut(getShortcut())), []);
@@ -178,9 +187,9 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
           Edit it by hand or generate it during setup. This panel picks up changes on its&nbsp;own.
         </Text>
         <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 6, overflow: "hidden" }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: exampleExpanded }}
+          <Pressable accessibilityRole="button" aria-expanded={exampleExpanded}
             onPress={() => setExampleExpanded((expanded) => !expanded)}
-            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, minHeight: compact ? TOUCH_TARGET : undefined, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
             <Icon name="Code" size={14} color={colors.foregroundMuted} />
             <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>JSON example</Text>
             <Icon name={exampleExpanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} />
@@ -261,16 +270,18 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
           <View style={{ opacity: shortcutSaving ? 0.6 : 1 }}>
         <CompactSelect
           colors={colors}
+          compact={compact}
           label="Show as"
           value={shortcut.placement}
           options={PLACEMENT_OPTIONS}
           onValueChange={(placement) => { void persistShortcut({ placement }); }}
         />
-        {shortcut.placement === "header" ? (
+        {/* Paseo drops header button labels at phone width, so the switch would do nothing there. */}
+        {shortcut.placement === "header" && !compact ? (
           <Pressable
             accessibilityRole="switch"
             accessibilityLabel="Show label"
-            accessibilityState={{ checked: shortcut.headerShowsLabel, disabled: shortcutSaving }}
+            aria-checked={shortcut.headerShowsLabel}
             disabled={shortcutSaving}
             onPress={() => { void persistShortcut({ headerShowsLabel: !shortcut.headerShowsLabel }); }}
             style={{
@@ -314,9 +325,9 @@ function WorkspaceLinks({ theme, workspaceId, host }: PluginWorkspacePanelProps)
       </View>
       {result && !isEmpty ? (
         <View>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: guideExpanded }}
+          <Pressable accessibilityRole="button" aria-expanded={guideExpanded}
             onPress={() => setGuideExpanded((expanded) => !expanded)}
-            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, minHeight: compact ? TOUCH_TARGET : undefined, padding: 12, backgroundColor: pressed ? colors.surface1 : colors.surface0 })}>
             <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Setup guide</Text>
             <Icon name={guideExpanded ? "ChevronDown" : "ChevronRight"} size={14} color={colors.foregroundMuted} />
           </Pressable>

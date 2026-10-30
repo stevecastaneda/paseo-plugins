@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-time-since",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Elapsed time since the last chat message, shown above the Paseo composer.",
   "license": "MIT",
   "author": "Steve Castaneda",
@@ -48,7 +48,9 @@
     "@tanstack/react-query": "^5.90.11",
     "@types/react": "~19.2.0",
     "react": "19.1.0",
+    "react-dom": "^19.1.0",
     "react-native": "0.81.5",
+    "react-native-web": "^0.21.2",
     "typescript": "^5.9.3",
     "zod": "^4.4.3"
   }

@@ -1,23 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, View, type ScrollView as NativeScrollView, type LayoutChangeEvent } from "react-native";
 import { useRpc, type PluginButtonIconProps } from "@getpaseo/plugin/client";
-import { FlatList, ScrollView, Icon, copyText } from "@getpaseo/plugin/client/ui";
+import { FlatList, ScrollView, Icon, Markdown, copyText } from "@getpaseo/plugin/client/ui";
 import type { RpcOutput } from "@getpaseo/plugin";
 import { readHistory } from "../shared/history";
+import { hideCitations } from "../shared/citations";
 import { groupTurns, parseEntries, type HistoryEntry, type HistoryTurn } from "../shared/entries";
 import { loadConversationBatch } from "./load-history";
 import { HoverButton } from "./hover-button";
-import { MarkdownMessage } from "./markdown";
 import { TaskNotificationBody } from "./task-notification";
 
 type Colors = PluginButtonIconProps["theme"]["colors"];
 const mono = () => Platform.OS === "ios" ? "Menlo" : "monospace";
 
-function Action({ label, icon, text, disabled = false, active = false, onPress, colors }: {
+function Action({ label, icon, text, disabled = false, active, onPress, colors }: {
   label: string; icon: string; text?: string; disabled?: boolean; active?: boolean; onPress(): void; colors: Colors;
 }) {
   return <HoverButton colors={colors} active={active} accessibilityRole="button" accessibilityLabel={label}
-    accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={onPress}
+    aria-selected={active} aria-pressed={active} disabled={disabled} onPress={onPress}
     style={({ pressed }) => ({ paddingHorizontal: text ? 10 : 7, minHeight: 32, minWidth: 32,
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 6,
       backgroundColor: pressed || active ? colors.surface2 : "transparent", opacity: disabled ? 0.4 : 1 })}>
@@ -33,7 +33,7 @@ function RawEntry({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors
   return <View>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
       <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${entry.kind}`}
-        accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)}
+        aria-expanded={expanded} onPress={() => setExpanded(!expanded)}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", gap: 8, alignItems: "center", minHeight: 36,
           paddingHorizontal: 6, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
         {color => <>
@@ -54,7 +54,7 @@ function RawEntry({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors
   </View>;
 }
 
-function Message({ entry, colors, copy, onError }: { entry: HistoryEntry; colors: Colors; copy(text: string): void; onError(message: string): void }) {
+function Message({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors; copy(text: string): void }) {
   const [raw, setRaw] = useState(false);
   const notification = entry.notification;
   const subject = notification?.summary.startsWith("Agent ") ? "Agent" : "Task";
@@ -62,20 +62,20 @@ function Message({ entry, colors, copy, onError }: { entry: HistoryEntry; colors
     : entry.role === "user" ? "You" : "Assistant";
   const icon = notification ? notification.status === "completed" ? "Check" : notification.status === "failed" ? "CircleAlert" : "Activity"
     : entry.role === "user" ? "User" : "Sparkles";
-  return <View style={{ gap: 6, paddingVertical: 10 }}>
+  return <View style={{ gap: 8, paddingVertical: 12 }}>
     <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
       <Icon name={icon} size={14} color={colors.foregroundMuted} />
       <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", flex: 1 }}>{label}</Text>
       <Action colors={colors} label="Copy message" icon="Copy" onPress={() => copy(entry.preview)} />
       <Action colors={colors} label="Show raw message" icon="Braces" active={raw} onPress={() => setRaw(!raw)} />
     </View>
-    {notification ? <TaskNotificationBody notification={notification} colors={colors} copy={copy} onError={onError} />
-      : <MarkdownMessage text={entry.preview} colors={colors} copy={copy} onError={onError} />}
+    {notification ? <TaskNotificationBody notification={notification} colors={colors} copy={copy} />
+      : <Markdown>{hideCitations(entry.preview)}</Markdown>}
     {raw ? <RawEntry entry={entry} colors={colors} copy={copy} /> : null}
   </View>;
 }
 
-function Turn({ turn, colors, copy, onError, onLayout }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onError(message: string): void; onLayout(event: LayoutChangeEvent): void }) {
+function Turn({ turn, colors, copy, onLayout }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onLayout(event: LayoutChangeEvent): void }) {
   const [detail, setDetail] = useState<string | null>(null);
   const messages = turn.entries.filter((entry) => entry.category === "message");
   const timestamp = turn.entries.find((entry) => entry.timestamp)?.timestamp;
@@ -93,7 +93,7 @@ function Turn({ turn, colors, copy, onError, onLayout }: { turn: HistoryTurn; co
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 11 }}>{date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</Text>
     </View>
-    {messages.map((entry, index) => <Message key={index} entry={entry} colors={colors} copy={copy} onError={onError} />)}
+    {messages.map((entry, index) => <Message key={index} entry={entry} colors={colors} copy={copy} />)}
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, marginLeft: -6 }}>
       {tags.map((tag) => <Action key={tag.category} colors={colors} label={`${tag.label}: ${tag.entries.length} entries`}
         text={`${tag.label} ${tag.entries.length}`} icon={tag.icon} active={detail === tag.category}
@@ -120,7 +120,13 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
-  const [jumpTarget, setJumpTarget] = useState<{ index: number; y: number } | null>(null);
+  // Where an arrow's animated scroll is heading. The arrows count from there until the view arrives or scrolling goes quiet.
+  const [jump, setJump] = useState<number | null>(null);
+  const jumpTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const endJump = () => { clearTimeout(jumpTimer.current); setJump(null); };
+  // Scroll events fire every frame while anything scrolls, so a gap means the jump finished, stopped short or never moved.
+  const holdJump = () => { clearTimeout(jumpTimer.current); jumpTimer.current = setTimeout(endJump, 250); };
+  useEffect(() => () => clearTimeout(jumpTimer.current), []);
   const [positions, setPositions] = useState<Record<string, number>>({});
   const measure = (key: string, y: number) => setPositions(previous => previous[key] === y ? previous : { ...previous, [key]: y });
   const colors = theme.colors;
@@ -135,7 +141,7 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
       const result = await loadConversationBatch(rpc, { agentId, offset: append && page ? page.nextOffset : 0,
         ...(append && page ? { source: page.source } : {}) }, () => request.current !== id);
       if (!result || request.current !== id) return;
-      if (!append) { setScrollY(0); setJumpTarget(null); if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false }); }
+      if (!append) { setScrollY(0); endJump(); if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false }); }
       setPage(result.page); setText((current) => append ? current + result.text : result.text);
     } catch (reason) {
       if (request.current === id) setError(reason instanceof Error ? reason.message : "Could not read the log. Try again.");
@@ -148,21 +154,32 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const copy = (value: string) => {
     void copyText(value).then(() => setNotice("Copied")).catch(() => setError("Could not copy. You can select the text instead."));
   };
-  const turnOffsets = turns.map((_, index) => positions[`turn-${index}`]);
-  const currentTurn = jumpTarget && Math.abs(scrollY - jumpTarget.y) <= 2 ? jumpTarget.index : Math.max(0, turnOffsets.findLastIndex(y => y !== undefined && y <= scrollY + 2));
-  const jumpTurn = (direction: number) => {
-    const y = turnOffsets[currentTurn + direction];
-    if (y !== undefined) {
-      const targetY = viewportHeight > 0 ? Math.min(y, Math.max(0, contentHeight - viewportHeight)) : y;
-      setJumpTarget({ index: currentTurn + direction, y: targetY });
-      conversationScroll.current?.scrollTo({ y: targetY, animated: true });
-    }
+  // Before the scroll area has its size nothing can scroll, so every stop is at the top.
+  const maxScrollY = viewportHeight > 0 ? Math.max(0, contentHeight - viewportHeight) : 0;
+  // A short turn near the end can't reach the top of the view, so it stops at the end of the chat.
+  const stops = turns.flatMap((_, index) => {
+    const y = positions[`turn-${index}`];
+    return y === undefined ? [] : [Math.min(y, maxScrollY)];
+  });
+  const from = jump === null ? scrollY : Math.min(jump, maxScrollY);
+  const previousStop = stops.findLast(y => y < from - 2);
+  const nextStop = stops.find(y => y > from + 2);
+  const jumpTo = (y: number | undefined) => {
+    if (y === undefined) return;
+    setJump(y);
+    holdJump();
+    conversationScroll.current?.scrollTo({ y, animated: true });
+  };
+  const onScroll = (y: number) => {
+    setScrollY(y);
+    if (jump === null) return;
+    if (Math.abs(y - from) <= 2) endJump(); else holdJump();
   };
   const hasMore = page && page.nextOffset < page.totalBytes;
   return <View style={{ flex: 1, minHeight: 0 }}>
     <View style={{ flexDirection: "row", gap: 4, alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-      <Action colors={colors} label="Conversation" text="Conversation" icon="MessagesSquare" active={!source} onPress={() => { if (source) { setScrollY(0); setJumpTarget(null); } setSource(false); }} />
-      <Action colors={colors} label="Raw source" text="Source" icon="FileJson" active={source} onPress={() => setSource(true)} />
+      <Action colors={colors} label="Conversation" text="Conversation" icon="MessagesSquare" active={!source} onPress={() => { if (source) setScrollY(0); setSource(false); }} />
+      <Action colors={colors} label="Raw source" text="Source" icon="FileJson" active={source} onPress={() => { endJump(); setSource(true); }} />
       <View style={{ flex: 1 }} />
       {busy ? <ActivityIndicator size="small" color={colors.foregroundMuted} accessibilityLabel="Loading history" />
         : <Action colors={colors} label="Refresh history" icon="RefreshCw" onPress={() => void load()} />}
@@ -180,15 +197,15 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }} renderItem={({ item }) => <RawEntry entry={item} colors={colors} copy={copy} />} />
       : <ScrollView ref={conversationScroll} style={{ flex: 1, minHeight: 0 }} scrollEventThrottle={16}
         onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => setContentHeight(height)}
-        onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        {turns.map((turn, index) => <Turn key={index} turn={turn} colors={colors} copy={copy} onError={setError}
+        onScroll={event => onScroll(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+        {turns.map((turn, index) => <Turn key={index} turn={turn} colors={colors} copy={copy}
           onLayout={event => measure(`turn-${index}`, event.nativeEvent.layout.y)} />)}
         {turns.length === 0 ? <Text style={{ color: colors.foregroundMuted, padding: 32 }}>{busy ? "Reading history…" : "No messages saved yet"}</Text> : null}
       </ScrollView>}
     <View style={{ flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
       {!source ? <View style={{ flexDirection: "row" }}>
-        <Action colors={colors} label="Previous turn" icon="ChevronUp" disabled={busy || currentTurn === 0} onPress={() => jumpTurn(-1)} />
-        <Action colors={colors} label="Next turn" icon="ChevronDown" disabled={busy || currentTurn >= turnOffsets.length - 1} onPress={() => jumpTurn(1)} />
+        <Action colors={colors} label="Previous turn" icon="ChevronUp" disabled={busy || previousStop === undefined} onPress={() => jumpTo(previousStop)} />
+        <Action colors={colors} label="Next turn" icon="ChevronDown" disabled={busy || nextStop === undefined} onPress={() => jumpTo(nextStop)} />
       </View> : null}
       <View style={{ flex: 1 }} />
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 }}>
@@ -197,7 +214,7 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
         </Text>
         {hasMore ? <>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>·</Text>
-          <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Load more history" accessibilityState={{ disabled: busy }}
+          <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Load more history"
             disabled={busy} onPress={() => void load(true)}
             style={({ pressed }) => ({ minHeight: 32, paddingHorizontal: 4, justifyContent: "center", borderRadius: 4,
               opacity: busy ? 0.4 : 1, backgroundColor: pressed ? colors.surface2 : "transparent" })}>

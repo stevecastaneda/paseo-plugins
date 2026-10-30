@@ -87,7 +87,7 @@ interface RequestOptions {
 // response, matched by request id.
 function requestFromDaemon(
   port: DaemonPort,
-  message: { type: string; workspaceId: string },
+  message: { type: string } & Record<string, string>,
   responseType: string,
   timeoutMessage: string,
   options?: RequestOptions,
@@ -192,6 +192,83 @@ export function createSetupClock(): {
   };
 }
 
+interface SetupWatch {
+  subscriptionId: string | null;
+  /** The last status seen; null until setup reports anything. */
+  status: SetupSnapshot["status"] | null;
+  timer?: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * Paseo only pushes setup progress to a session that subscribes, and its
+ * snapshot has no start time. Subscribing when a worktree is created lets the
+ * clock start with setup even when no window is open. The subscription ends
+ * when setup finishes, or when nothing has started a short while after the
+ * workspace was created (a plain folder has no setup).
+ */
+export function createSetupWatcher(
+  port: DaemonPort,
+  onSnapshot: (workspaceId: string, snapshot: SetupSnapshot) => void,
+  options?: RequestOptions & { noSetupMs?: number },
+): {
+  watch(workspaceId: string): Promise<void>;
+  observe(workspaceId: string, snapshot: SetupSnapshot): void;
+} {
+  const noSetupMs = options?.noSetupMs ?? 10_000;
+  const watches = new Map<string, SetupWatch>();
+  const release = (workspaceId: string) => {
+    const watch = watches.get(workspaceId);
+    if (!watch) return;
+    watches.delete(workspaceId);
+    clearTimeout(watch.timer);
+    if (watch.subscriptionId === null) return;
+    void requestFromDaemon(
+      port,
+      { type: "subscription.release.request", subscriptionId: watch.subscriptionId },
+      "subscription.release.response",
+      "Timed out ending the setup subscription",
+      options,
+    ).catch(() => {});
+  };
+  return {
+    async watch(workspaceId) {
+      requireWorkspaceId(workspaceId);
+      if (watches.has(workspaceId)) return;
+      const watch: SetupWatch = { subscriptionId: null, status: null };
+      watches.set(workspaceId, watch);
+      let payload: Record<string, unknown>;
+      try {
+        payload = await requestFromDaemon(
+          port,
+          { type: "workspace.setup.subscribe.request", workspaceId },
+          "workspace.setup.subscribe.response",
+          "Timed out subscribing to workspace setup",
+          options,
+        );
+      } catch {
+        watches.delete(workspaceId);
+        return;
+      }
+      if (typeof payload.subscriptionId === "string") watch.subscriptionId = payload.subscriptionId;
+      const snapshot = parseSnapshot(payload.snapshot);
+      if (snapshot) onSnapshot(workspaceId, snapshot);
+      if (watch.status !== null && watch.status !== "running") release(workspaceId);
+      else if (watch.status === null) {
+        watch.timer = setTimeout(() => {
+          if (watch.status === null) release(workspaceId);
+        }, noSetupMs);
+      }
+    },
+    observe(workspaceId, snapshot) {
+      const watch = watches.get(workspaceId);
+      if (!watch) return;
+      watch.status = snapshot.status;
+      clearTimeout(watch.timer);
+      if (snapshot.status !== "running" && watch.subscriptionId !== null) release(workspaceId);
+    },
+  };
+}
+
 export function createSetupProgressCache(
   port: DaemonPort,
   onSnapshot?: (workspaceId: string, snapshot: SetupSnapshot) => void,
@@ -255,11 +332,19 @@ export async function readFreshSetupStatus(
 
 const runtimePort = defaultPort;
 const runtimeClock = createSetupClock();
-const runtimeCache = createSetupProgressCache(runtimePort, (workspaceId, snapshot) =>
-  runtimeClock.observe(workspaceId, snapshot, Date.now()),
-);
+const recordSetupProgress = (workspaceId: string, snapshot: SetupSnapshot) => {
+  runtimeCache.set(workspaceId, snapshot);
+  runtimeClock.observe(workspaceId, snapshot, Date.now());
+  runtimeWatcher.observe(workspaceId, snapshot);
+};
+const runtimeCache = createSetupProgressCache(runtimePort, recordSetupProgress);
+const runtimeWatcher = createSetupWatcher(runtimePort, recordSetupProgress);
 const runtimeFetch = createSetupStatusFetcher(runtimePort);
 const runtimeRun = createSetupRunner(runtimePort);
+
+export function handleWorkspaceCreated(event: { workspace: { id: string } }): void {
+  void runtimeWatcher.watch(event.workspace.id);
+}
 
 export async function handleRunSetup(input: { workspaceId: string }): Promise<{ started: boolean; error: string | null }> {
   try {

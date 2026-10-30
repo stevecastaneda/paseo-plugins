@@ -303,7 +303,7 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={expanded ? "Show less output" : "Show more output"}
-      accessibilityState={{ expanded }}
+      aria-expanded={expanded}
       onPress={onToggle}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}>
@@ -318,7 +318,6 @@ function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: Non
     <PressScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: to === null }}
       disabled={to === null}
       onPress={() => to !== null && onStep(to)}
       style={({ hovered }) => ({ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered && to !== null ? colors.surface2 : "transparent", opacity: to === null ? 0.35 : 1 })}>

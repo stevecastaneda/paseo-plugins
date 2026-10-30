@@ -10,7 +10,7 @@ The default **Conversation** view groups saved records into turns and displays u
 
 <img src="images/2-tags.png" alt="A turn's Tools tag open, listing each tool call and its result" width="400"> <img src="images/3-source.png" alt="The Source view, showing the log's file path and its JSONL records" width="400">
 
-Messages render Markdown, including headings, emphasis, lists, links, and tables. Code blocks scroll horizontally and have a **Copy code** action. **Copy message** keeps the original Markdown. Internal citation metadata is hidden in the readable view and preserved in Raw; HTML stays plain text. Web links open normally, while local file links copy their destination. Images appear as labeled links rather than loading remote files.
+Messages use Paseo's own Markdown, so they look the way they do in the chat: headings, lists, tables, links, highlighted code and diagrams. Links and images work the same way they do in the chat. **Copy message** keeps the original Markdown. Codex's memory citations are hidden here and kept in Raw and Source.
 
 Recognized task notifications show their status, summary, and Markdown result immediately, with token/tool/duration statistics when available. **Details** reveals task IDs, output paths, and notes; **Copy task result** copies just the result. Original notifications remain in Raw. Unknown or incomplete wrappers stay as ordinary message text.
 
@@ -33,6 +33,12 @@ paseo plugin add npm:@stevecastaneda/paseo-history
 Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 
 ## Changelog
+
+### 1.2.0
+
+- [Improved] **Messages look the way they do in Paseo's chat.** History now draws messages and task results with Paseo's own Markdown, so code is highlighted and diagrams draw. Codex's memory citations stay hidden. Code blocks no longer name their language. HTML in a message is drawn instead of shown as text. Images load the way they do in the chat, and a link that isn't a web address no longer copies its destination.
+- [Fixed] **The turn arrows are on only when a press moves the view.** Next turn scrolls down to the start of the next turn, or to the end of the chat when that turn is too short to reach the top. Previous turn scrolls up to the nearest turn start above the view, so in the middle of a turn it goes back to that turn's start. At the end of a chat Next turn is off, and in a chat that fits without scrolling both arrows are off. Two quick presses move two turns.
+- [Fixed] **Screen readers on the web hear which buttons are on.** In Paseo's web and desktop apps, screen readers now hear whether Conversation, Source, a turn's tags and Raw are on, and whether a record is open.
 
 ### 1.1.0
 

@@ -117,6 +117,15 @@ export function buttonLabel(snapshot: SetupSnapshot | null, elapsedMs: number): 
   return `Setup ${formatDuration(elapsedMs)}`;
 }
 
+/**
+ * The button's name. Phones list header buttons as rows in the workspace menu
+ * that show this instead of the label, and desktop uses it as the tooltip and
+ * the screen-reader name, so it carries the label's status.
+ */
+export function buttonTitle(label: string): string {
+  return `Worktree ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+}
+
 export function headline(snapshot: SetupSnapshot): string {
   if (snapshot.status === "blocked") return "Setup was not run";
   if (snapshot.status === "failed") {
