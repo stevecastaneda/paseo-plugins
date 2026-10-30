@@ -1,4 +1,4 @@
-import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
+import { type PluginTab, type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, ScrollView, Text, View } from "react-native";
@@ -22,7 +22,7 @@ export function PulsePanel(props: PluginWorkspacePanelProps) {
   return <WorkspacePulse key={`${props.host.id}:${props.workspaceId}`} {...props} />;
 }
 
-function WorkspacePulse({ theme, workspaceId, host }: PluginWorkspacePanelProps) {
+function WorkspacePulse({ theme, workspaceId, host, tab }: PluginWorkspacePanelProps) {
   const colors = theme.colors;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory);
   const query = usePulse(host.id, workspaceId, directory);
@@ -41,7 +41,7 @@ function WorkspacePulse({ theme, workspaceId, host }: PluginWorkspacePanelProps)
         <ReporterBanner colors={colors} status={result?.reporter ?? null} />
         <Presence show={Boolean(result && !result.run)}>{result && !result.run ? <EmptyState colors={colors} file={result.file} reporterPath={result.reporter.path} /> : null}</Presence>
         {/* Keyed by run: a new run starts with fresh folds and dialogs. */}
-        {result?.run ? <RunView key={result.run.id} colors={colors} run={result.run} workspaceId={workspaceId} workspaceDirectory={result.root} /> : null}
+        {result?.run ? <RunView key={result.run.id} colors={colors} tab={tab} run={result.run} workspaceId={workspaceId} workspaceDirectory={result.root} /> : null}
       </ScrollView>
     </NarrowProvider>
   );
@@ -85,7 +85,7 @@ function useNow(intervalMs: number | null): number {
   return now;
 }
 
-function RunView({ colors, run, workspaceId, workspaceDirectory }: { colors: Colors; run: RunSnapshot; workspaceId: string; workspaceDirectory: string }) {
+function RunView({ colors, tab, run, workspaceId, workspaceDirectory }: { colors: Colors; tab: PluginTab; run: RunSnapshot; workspaceId: string; workspaceDirectory: string }) {
   const live = isLive(run);
   const now = useNow(live ? 1000 : 30_000);
   const tally = counts(run);
@@ -120,7 +120,7 @@ function RunView({ colors, run, workspaceId, workspaceDirectory }: { colors: Col
       {/* Folders and the slowest tests share one card: they're rarely wanted at once. */}
       <Presence show={run.status !== "starting" && tally.total > 0} order={4}>
         {run.status !== "starting" && tally.total > 0 ? (
-          <TabbedCard colors={colors} memoryKey={workspaceId} tabs={[
+          <TabbedCard colors={colors} workspaceId={workspaceId} paseoTab={tab} tabs={[
             { id: "folders", label: folderTab, icon: folderTab === "Files" ? "Files" : "FolderTree", count: folderList.length, empty: "No tests yet.", content: <FoldersList colors={colors} run={run} /> },
             { id: "slowest", label: "Slowest", icon: "Hourglass", count: slowestCount, empty: "No finished tests yet.", content: <SlowestList colors={colors} run={run} /> },
           ]} />

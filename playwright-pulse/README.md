@@ -78,6 +78,10 @@ Paseo 0.13 or later and Node.js 22.18 or later on the daemon host. Built and tes
 
 ## Changelog
 
+### 1.4.0
+
+- Pulse keeps the tab you picked, Folders or Slowest, when Paseo reloads or restarts. Before, it went back to the first tab.
+
 ### 1.3.0
 
 - Needs Paseo 0.13 or later. Playwright Pulse now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
