@@ -9,7 +9,6 @@ export default function contribute(client: PluginClientContext) {
     id: "options",
     title: "Time Since Options",
     icon: "Clock",
-    context: "workspace",
     locations: ["workspace", "explorer"],
     Component: TimeSinceOptionsPanel,
   });
