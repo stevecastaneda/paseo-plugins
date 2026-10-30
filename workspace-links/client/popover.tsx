@@ -1,6 +1,6 @@
 import type { PluginButtonContentProps } from "@getpaseo/plugin/client";
 import { openExternalUrl, useWorkspace } from "@getpaseo/plugin/client";
-import { copyText, Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { copyText, Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, Pressable, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import { useLinks, useLinkStatus } from "./links-query";

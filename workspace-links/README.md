@@ -2,7 +2,7 @@
 
 # Workspace Links
 
-A small Paseo plugin (0.11 or later) that reads `workspace-links.json` from the active workspace and puts those URLs on the Links trigger. Press the composer pill or header button to see each link's name with its URL underneath, then choose one to open it in your browser, or copy its URL. The settings button in the popover (or **Add links** when the file is empty or missing) opens the setup panel in Explorer. The Command Center item **Workspace Links** opens that panel too.
+A small Paseo plugin (0.13 or later) that reads `workspace-links.json` from the active workspace and puts those URLs on the Links trigger. Press the composer pill or header button to see each link's name with its URL underneath, then choose one to open it in your browser, or copy its URL. The settings button in the popover (or **Add links** when the file is empty or missing) opens the setup panel in Explorer. The Command Center item **Workspace Links** opens that panel too.
 
 <img src="images/popover.png" alt="The Links popover with seven links, five showing a green running dot, and a copy button on the hovered row" width="280">
 
@@ -55,6 +55,10 @@ clients pick up saved options when they next load the options or reload the
 plugin.
 
 ## Changelog
+
+### 1.1.0
+
+- Needs Paseo 0.13 or later. Workspace Links now uses the plugin interface from Paseo 0.13, because Paseo stops supporting the older one in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
 
 ### 1.0.0
 

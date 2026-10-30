@@ -1,5 +1,5 @@
 import { openExternalUrl, type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { useLinks } from "./links-query";

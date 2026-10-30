@@ -7,7 +7,7 @@ import type {
 } from "@getpaseo/plugin/client";
 import { useWorkspace } from "@getpaseo/plugin/client";
 import { observeDirectory, type PaseoAgentUpdate, type PaseoWorkspaceUpdate } from "./directory";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { useLinks } from "./links-query";
 import { LinksPopover } from "./popover";
 import {

@@ -9,7 +9,6 @@ export default function contribute(client: PluginClientContext) {
     id: "links",
     title: "Links",
     icon: "Link2",
-    context: "workspace",
     locations: ["workspace", "explorer"],
     Component: LinksPanel,
   });
