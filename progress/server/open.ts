@@ -3,10 +3,10 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
-import { delimiter, dirname, join, relative, resolve } from "node:path";
+import nodePath, { delimiter, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { findAttachment, type FolderEntry, imageMimeType, previewKind, splitRef, videoMimeType } from "../shared/attachments.ts";
-import { previewText } from "../shared/markdown.ts";
+import { findAttachment, type FolderEntry, imageMimeType, previewKind, splitRef, textFormat, videoMimeType } from "../shared/attachments.ts";
+import { prepareMarkdown, previewText } from "../shared/markdown.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, outside } from "./paths.ts";
 import { findStore } from "./store.ts";
@@ -53,8 +53,9 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
 
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
-// worktree resolve.
-async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string; root: string }> {
+// worktree resolve. `root` is the worktree with symlinks resolved; `worktree`
+// is the same folder as the workspace names it.
+async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; target: string; root: string; worktree: string }> {
   const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
@@ -67,7 +68,7 @@ async function resolveAttachment(directory: string, ref: string, verb: string): 
   if (!target) throw new Error(`${path} no longer exists.`);
   const inside = relative(root, target);
   if (outside(inside)) throw new Error(`${path} is outside this worktree, so it was not ${verb}.`);
-  return { path, target, root };
+  return { path, target, root, worktree };
 }
 
 export async function openDeliverable(directory: string, id: string, opener: Opener): Promise<{ opened: string }> {
@@ -94,11 +95,14 @@ export type Preview =
   | { kind: "image"; dataUri: string; bytes: number }
   | { kind: "video"; mimeType: string; bytes: number }
   | { kind: "text"; text: string; bytes: number; truncated: boolean }
+  // Ready for Paseo's Markdown: cut like text, with relative links and images
+  // made absolute against the file's own folder.
+  | { kind: "markdown"; markdown: string; bytes: number; truncated: boolean }
   | { kind: "html"; html: string; bytes: number }
   | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
 
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
-  const { path, target, root } = await resolveAttachment(directory, id, "previewed");
+  const { path, target, root, worktree } = await resolveAttachment(directory, id, "previewed");
   const stats = await stat(target);
   if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(target)) };
   const kind = previewKind(target);
@@ -113,8 +117,12 @@ export async function previewDeliverable(directory: string, id: string): Promise
     const file = await open(target);
     try {
       const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(Math.min(size, MAX_PREVIEW_TEXT_BYTES)), position: 0 });
+      const bytes = buffer.subarray(0, bytesRead);
       const truncated = size > MAX_PREVIEW_TEXT_BYTES;
-      return { kind, text: previewText(buffer.subarray(0, bytesRead), truncated), bytes: size, truncated };
+      if (textFormat(target) === "plain") return { kind, text: previewText(bytes, truncated), bytes: size, truncated };
+      // Where the agent put the file, not where a link in its path leads.
+      const where = { root: worktree, folder: dirname(resolve(worktree, path)), path: nodePath };
+      return { kind: "markdown", markdown: prepareMarkdown(bytes, truncated, where), bytes: size, truncated };
     } finally {
       await file.close();
     }

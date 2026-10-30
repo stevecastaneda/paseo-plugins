@@ -167,10 +167,10 @@ export function PreviewContent({ colors, attachment, workspaceId, workspaceDirec
           {m.previewError(preview.error instanceof VideoChangedError ? m.videoChanged : errorText(preview.error, m.unknownError))}
         </Text>
       ) : null}
-      {preview.data?.kind === "text" ? (
+      {preview.data?.kind === "text" || preview.data?.kind === "markdown" ? (
         <View style={{ padding: 10, borderRadius: 6, backgroundColor: colors.surface0, opacity: stepping ? 0.6 : 1 }}>
           <Text selectable style={{ color: colors.foreground, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 12, lineHeight: 18 }}>
-            {preview.data.text}
+            {preview.data.kind === "text" ? preview.data.text : preview.data.markdown}
           </Text>
           {preview.data.truncated ? (
             <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingTop: 8 }}>
@@ -356,11 +356,11 @@ const CHARS_PER_LINE = Math.floor((CONTENT_WIDTH - 20) / 7.2);
 const FOLDER_ROW_HEIGHT = ATTACHMENT_ROW.lineHeight + ATTACHMENT_ROW.paddingVertical * 2 + ATTACHMENT_ROW.gap;
 
 // Roughly how tall the preview draws, including wrapped lines.
-function estimatedHeight(data: { kind: "image" | "video" | "html" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
+function estimatedHeight(data: { kind: "image" | "video" | "html" } | { kind: "text"; text: string } | { kind: "markdown"; markdown: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined, aspectRatio: number, maxMediaHeight: number): number {
   if (!data) return 0;
   if (data.kind === "folder") return Math.max(1, data.entries.length + (data.truncated ? 1 : 0)) * FOLDER_ROW_HEIGHT;
-  if (data.kind !== "text") return Math.min(CONTENT_WIDTH / aspectRatio, maxMediaHeight);
-  const lines = data.text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0);
+  if (data.kind !== "text" && data.kind !== "markdown") return Math.min(CONTENT_WIDTH / aspectRatio, maxMediaHeight);
+  const lines = (data.kind === "text" ? data.text : data.markdown).split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0);
   return lines * 18 + 20;
 }
 

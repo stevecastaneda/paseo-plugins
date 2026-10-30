@@ -105,7 +105,7 @@ test("a name starting with two dots is inside the worktree", async (t) => {
   await w.run("deliverable", "add", "Notes", "..notes/a.md");
   const { dashboard } = await w.dashboard();
   assert.equal(dashboard.deliverables[0].path, "..notes/a.md");
-  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "text", text: "# A", bytes: 3, truncated: false });
+  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "markdown", markdown: "# A", bytes: 3, truncated: false });
 });
 
 test("finish closes the run only once everything is settled, and keeps it on the dashboard", async (t) => {
@@ -331,7 +331,7 @@ test("a workspace below the worktree root reads the root's progress and attachme
   assert.equal((await handleGetAttention(input, context)).questions, 1);
   await handleMarkPanelOpened(input, context);
   assert.equal((await handleGetAttention(input, context)).panelOpened, true);
-  assert.deepEqual(await previewDeliverable(workspace, "D1"), { kind: "text", text: "# A", bytes: 3, truncated: false });
+  assert.deepEqual(await previewDeliverable(workspace, "D1"), { kind: "markdown", markdown: "# A", bytes: 3, truncated: false });
 });
 
 test("the handler reads the requested workspace directory without calling Paseo", async (t) => {
@@ -505,7 +505,7 @@ test("a ticket links to where it's written up: a file in the worktree or a link,
   assert.equal(findAttachment(dashboard, "T03.source"), null);
   assert.match((await w.run("show")).text, /T01 .*Ticket 01: Login\n      Source: specs\/01-login.md\n.*T02 .*\n      Source: https:\/\/linear.app\/acme\/issue\/ENG-12 \(ENG-12\)\n.*T03 .*No write-up(\n|$)/);
 
-  assert.deepEqual(await previewDeliverable(w.directory, "T01.source"), { kind: "text", text: "# Login\n", bytes: 8, truncated: false });
+  assert.deepEqual(await previewDeliverable(w.directory, "T01.source"), { kind: "markdown", markdown: "# Login\n", bytes: 8, truncated: false });
 
   assert.equal((await w.run("ticket", "update", "T03", "--source", "specs/01-login.md=Shared spec")).text, "Updated T03: source specs/01-login.md");
   await w.run("ticket", "update", "T02", "--source", "");
@@ -1243,9 +1243,9 @@ test("a folder deliverable previews as its files, each found by the folder's id"
   assert.deepEqual(files.map((file) => [file.ref, file.path]), [["D1/older", "shots/older/"], ["D1/step 2.md", "shots/step 2.md"], ["D1/step 10.md", "shots/step 10.md"]]);
   assert.ok(files.every((file) => canPreview(file, { browser: false })), "a folder and its text files preview on any screen");
   assert.equal(findAttachment(dashboard, "Q1.1")?.path, "shots/", "a folder given without a slash is stored as one, so it lists too");
-  assert.deepEqual(await previewDeliverable(w.directory, "D1/step 2.md"), { kind: "text", text: "# Two", bytes: 5, truncated: false });
+  assert.deepEqual(await previewDeliverable(w.directory, "D1/step 2.md"), { kind: "markdown", markdown: "# Two", bytes: 5, truncated: false });
   assert.deepEqual(await previewDeliverable(w.directory, "D1/older"), { kind: "folder", entries: [{ name: "first.md", folder: false }], truncated: false });
-  assert.deepEqual(await previewDeliverable(w.directory, "D1/older/first.md"), { kind: "text", text: "# First", bytes: 7, truncated: false });
+  assert.deepEqual(await previewDeliverable(w.directory, "D1/older/first.md"), { kind: "markdown", markdown: "# First", bytes: 7, truncated: false });
   const opened: string[] = [];
   await openDeliverable(w.directory, "D1/older/first.md", async (path) => { opened.push(path); });
   assert.deepEqual(opened, [join(await realpath(w.directory), "shots", "older", "first.md")]);
@@ -1315,6 +1315,28 @@ test("every screen gives an attachment the same icon, and SVGs preview only wher
   assert.equal(canPreview({ ref: "D9", title: "Shot", path: "a.png" }, { browser: false }), true);
 });
 
+test("a Markdown deliverable previews with its links pointed at its own folder, and MDX stays plain", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const workspace = join(w.directory, "app");
+  await mkdir(join(w.directory, "docs", "report"), { recursive: true });
+  await mkdir(workspace);
+  const report = "# Report\n\n![Home](shots/home page.png) see [the spec](../spec.md#L4) and [out](../../../away.md).\n\n```\n[kept](as/written.md)\n```\n";
+  await writeFile(join(w.directory, "docs", "report", "README.md"), report.replace("shots/home page.png", "<shots/home page.png>"));
+  await writeFile(join(w.directory, "docs", "intro.mdx"), "import X from './x'\n\n[a](b.md)\n");
+  await w.run("deliverable", "add", "Report", "docs/report/README.md");
+  await w.run("deliverable", "add", "Intro", "docs/intro.mdx");
+  const folder = join(w.directory, "docs", "report");
+  const expected = report
+    .replace("shots/home page.png", `${folder}/shots/home%20page.png`)
+    .replace("../spec.md#L4", `${join(w.directory, "docs")}/spec.md#L4`);
+  for (const directory of [w.directory, workspace]) {
+    assert.deepEqual(await previewDeliverable(directory, "D1"), { kind: "markdown", markdown: expected, bytes: Buffer.byteLength(report) + 2, truncated: false },
+      "resolved from the file's folder in the worktree, whichever workspace asks");
+  }
+  assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "text", text: "import X from './x'\n\n[a](b.md)\n", bytes: 31, truncated: false });
+});
+
 test("image and text deliverables preview, only inside the worktree", async (t) => {
   const w = await screenshotRun(t);
   await mkdir(join(w.directory, "shots"), { recursive: true });
@@ -1327,7 +1349,7 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await w.run("deliverable", "add", "Huge", "shots/huge.jpg");
   await w.run("deliverable", "add", "Outside", join(tmpdir(), "elsewhere.png"));
   assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "image", dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
-  assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "text", text: "# Notes", bytes: 7, truncated: false });
+  assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "markdown", markdown: "# Notes", bytes: 7, truncated: false });
   await writeFile(join(w.directory, "shots", "data.bin"), "x");
   await w.run("deliverable", "add", "Data", "shots/data.bin");
   await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image, video, text or HTML file/);

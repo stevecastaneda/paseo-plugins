@@ -34,7 +34,7 @@ export function WriteUp({ colors, source, workspaceId, workspaceDirectory, onOpe
     enabled: readable,
   });
   const [all, setAll] = useState(false);
-  const blocks = preview.data?.kind === "text" ? parseWriteUp(preview.data.text) : [];
+  const blocks = preview.data?.kind === "text" ? parseWriteUp(preview.data.text) : preview.data?.kind === "markdown" ? parseWriteUp(preview.data.markdown) : [];
   const excerpt = writeUpExcerpt(blocks, 280);
   const shown = all ? withoutTitle(blocks) : excerpt.blocks;
   return (

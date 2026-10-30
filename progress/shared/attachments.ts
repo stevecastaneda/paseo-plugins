@@ -64,9 +64,21 @@ const VIDEO_TYPES: Record<string, string> = {
   ".webm": "video/webm",
 };
 
-// Plain text shown as-is in the preview dialog, and opened in the browser on
-// the host.
-const TEXT_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt", ".log", ".json", ".jsonl", ".yaml", ".yml", ".csv"]);
+// Text files, opened in the browser on the host. The preview dialog draws
+// Markdown formatted and the rest as written. MDX stays plain: Paseo's Markdown
+// would drop its components without a trace and run its imports into prose.
+const TEXT_FORMATS: Record<string, "markdown" | "plain"> = {
+  ".md": "markdown",
+  ".markdown": "markdown",
+  ".mdx": "plain",
+  ".txt": "plain",
+  ".log": "plain",
+  ".json": "plain",
+  ".jsonl": "plain",
+  ".yaml": "plain",
+  ".yml": "plain",
+  ".csv": "plain",
+};
 
 function extension(path: string): string | null {
   return path.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] ?? null;
@@ -82,12 +94,17 @@ export function videoMimeType(path: string): string | null {
   return VIDEO_TYPES[extension(path) ?? ""] ?? null;
 }
 
+// How the preview dialog draws a text file, or null when it isn't one.
+export function textFormat(path: string): "markdown" | "plain" | null {
+  return TEXT_FORMATS[extension(path) ?? ""] ?? null;
+}
+
 export function previewKind(path: string): "image" | "video" | "text" | "html" | null {
   if (imageMimeType(path)) return "image";
   if (videoMimeType(path)) return "video";
   const ext = extension(path) ?? "";
   if (ext === ".html" || ext === ".htm") return "html";
-  return TEXT_EXTENSIONS.has(ext) ? "text" : null;
+  return textFormat(path) ? "text" : null;
 }
 
 export function isFolder(attachment: Attachment): boolean {
