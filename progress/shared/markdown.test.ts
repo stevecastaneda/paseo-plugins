@@ -218,6 +218,7 @@ test("a write-up excerpt keeps its first block, cuts a long one at a line, and l
   assert.deepEqual(markdownExcerpt("Intro sentence.\n\n## Details\n\n" + "More text here. ".repeat(30), 280), { text: "Intro sentence.", more: true }, "no heading left hanging");
   assert.deepEqual(markdownExcerpt("![one](/a.png)\n\n![two](/b.png)", 280), { text: "![one](/a.png)", more: true }, "one image at most");
   assert.deepEqual(markdownExcerpt("# Only a title", 280), { text: "", more: false });
+  assert.deepEqual(markdownExcerpt("```yaml\nid: 1\n```\n\n# Title\n\nBody", 280), { text: "Body", more: false }, "front matter stays out of the excerpt");
 });
 
 test("a write-up's title comes off whatever its form, and other headings stay", () => {

@@ -406,7 +406,7 @@ export function demoteHeadings(markdown: string, level: number): string {
 export function dropTitle(markdown: string): string {
   const lines = scanLines(markdown);
   let index = lines.findIndex((line) => line.kind !== "blank");
-  if (lines[index]?.kind === "fence-open" && /^```+yaml\s*$/.test(markdown.slice(lines[index].start, lines[index].end))) {
+  if (isFrontMatter(markdown, lines[index])) {
     while (index < lines.length && lines[index].kind !== "fence-close") index++;
     while (++index < lines.length && lines[index].kind === "blank");
   }
@@ -419,9 +419,13 @@ export function dropTitle(markdown: string): string {
   return markdown.slice(0, title.start) + (next < lines.length ? markdown.slice(lines[next].start) : "");
 }
 
+function isFrontMatter(markdown: string, line: Line | undefined): boolean {
+  return line?.kind === "fence-open" && /^```+yaml\s*$/.test(markdown.slice(line.start, line.end));
+}
+
 type Unit = { kind: "paragraph" | "item" | "fence" | "code"; start: number; end: number; visible: number; heading: boolean; lines: Line[] };
 
-// The start of a write-up without its title, cut after whole blocks
+// The start of a write-up without its title or front matter, cut after whole blocks
 // (paragraphs, tables, code blocks, top-level list items) once about `maxChars`
 // of visible text is in. The first block always shows; a long one is cut at a
 // line. A heading left last goes, and the document's reference definitions
@@ -464,6 +468,7 @@ export function markdownExcerpt(markdown: string, maxChars: number): { text: str
     afterBlank = line.kind === "blank";
   }
   close();
+  if (units.length && isFrontMatter(body, units[0].lines[0])) units.shift();
   if (!units.length) return { text: "", more: false };
   for (const each of units) each.visible = visibleLength(body, each, maxChars);
   let taken = 0;
