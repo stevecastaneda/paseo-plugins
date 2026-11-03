@@ -2,6 +2,7 @@ import type { PiecedKind } from "../shared/attachments";
 import type { TicketStatus } from "../shared/events";
 import type { QuestionMode } from "../shared/question-modes";
 import type { NoteKind } from "../shared/whats-new";
+import type { ProgressToolName } from "../shared/tools";
 
 // Text before and after a value the UI draws in its own style.
 export type Around = readonly [before: string, after: string];
@@ -16,6 +17,19 @@ export interface ProgressMessages {
   openSettings: string;
   noProgress: string;
   emptyIntro: Around;
+  // Paseo 0.14 can hand agents the Progress tools. The note offers it while the host's setting is off.
+  toolsOn: string;
+  emptyIntroTools: string;
+  toolsNote: readonly [lead: string, body: string];
+  agentTools: string;
+  paseoTools: string;
+  toolsStateOn: string;
+  toolsStateOff: string;
+  // A Progress tool call in the chat: the line while it runs, and the tool's
+  // name for a row whose output has nothing better to show.
+  toolRow: Record<ProgressToolName, { running: string; name: string }>;
+  toolRowCanceled: (name: string) => string;
+  toolRowFailed: (name: string) => string;
   finished: string;
   lastUpdated: string;
   activity: string;

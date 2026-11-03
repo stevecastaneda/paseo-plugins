@@ -4,8 +4,9 @@ import { handleInstallLauncher, handleLauncherStatus } from "./server/launcher";
 import { handleCanOpenOnHost, handleOpenDeliverable, handlePreviewDeliverable, handleReadDeliverablePiece } from "./server/open";
 import { mirrorQuestionMode } from "./server/question-mode";
 import { handleInstallSkill, handleReadSkill, handleSkillStatus, repairSkill } from "./server/skill";
+import { attachProgressTools, handleToolsStatus } from "./server/tool";
 import { handleDismissWhatsNew, handleGetWhatsNew } from "./server/whats-new";
-import { canOpenOnHost, dismissWhatsNew, getAttention, getDashboard, getLauncherStatus, getSkillStatus, getWhatsNew, installLauncher, installSkill, listFolders, readSkill, markPanelOpened, openDeliverable, previewDeliverable, readDeliverablePiece, setHistoryFolder } from "./shared/rpc";
+import { canOpenOnHost, dismissWhatsNew, getAttention, getDashboard, getLauncherStatus, getSkillStatus, getToolsStatus, getWhatsNew, installLauncher, installSkill, listFolders, readSkill, markPanelOpened, openDeliverable, previewDeliverable, readDeliverablePiece, setHistoryFolder } from "./shared/rpc";
 import { displaySettings, questionSettings } from "./shared/settings";
 
 export default function contribute(server: PluginServerContext) {
@@ -23,12 +24,14 @@ export default function contribute(server: PluginServerContext) {
   server.handle(readSkill, handleReadSkill);
   server.handle(listFolders, handleListFolders);
   server.handle(setHistoryFolder, handleSetHistoryFolder);
+  server.handle(getToolsStatus, handleToolsStatus);
   server.handle(getWhatsNew, handleGetWhatsNew);
   server.handle(dismissWhatsNew, handleDismissWhatsNew);
   // Settles a new install before any panel opens. Opening one makes a
   // worktree folder, which would look like an earlier version's.
   void handleGetWhatsNew().catch(() => {});
   void repairSkill();
+  attachProgressTools(server);
   server.registerSettings(displaySettings);
   const mirror = mirrorQuestionMode(server.registerSettings(questionSettings));
   return mirror.stop;

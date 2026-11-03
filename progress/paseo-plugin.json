@@ -6,7 +6,9 @@
     "images/2-ticket.png",
     "images/3-question.png",
     "images/4-pill.png",
-    "images/5-settings.png"
+    "images/5-settings.png",
+    "images/6-chat-rows.png",
+    "images/7-empty-tools-note.png"
   ],
   "requirements": {
     "paseo": ">=0.13.0"

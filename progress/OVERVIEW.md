@@ -1,12 +1,14 @@
-Progress gives each worktree a live dashboard for long agent jobs. The agent records its tickets or steps with a `paseo-progress` command, along with what's stuck, questions for you and finished work. The Progress panel in Explorer shows all of it. Needs Paseo 0.13 or later, and Node.js 22.18 or later on the computer running the Paseo daemon.
+Progress gives each worktree a live dashboard for long agent jobs. The agent records its tickets or steps, along with what's stuck, questions for you and finished work, with the Progress tools or the `paseo-progress` command. The Progress panel in Explorer shows all of it. Needs Paseo 0.13 or later, and Node.js 22.18 or later on the computer running the Paseo daemon.
 
 The panel shows how much of the estimated work is done, what the agent is doing right now, and where each ticket stands. A ticket turns stuck when it's blocked or runs past its estimate without an update. Press a ticket to see its timeline, activity, questions and deliverables. Images, videos, PDFs and text files the agent records open in a preview inside Paseo, with Markdown formatted, and a folder opens as a list of its files. Videos and PDFs show in the preview only in the desktop and web apps. A PDF in the Deliverables tab also has a button beside Copy that opens it in a Paseo tab, which is where it shows on an iPhone or iPad. Any PDF you open in a Paseo tab shows there too. Any other file opens in an app on the computer running the Paseo daemon, and so does a previewed file when you press Open. Open is hidden when that computer can't open files, like a Linux server with no desktop. That's true from your phone too. The app opens on that computer, not on the phone.
 
 When the agent needs a decision, it asks a numbered question with lettered options and says which one it recommends. A pill above the message box counts open questions and stuck work. Each option has a Copy button. Paste the answer into the chat and the agent records it. In Settings you choose what the agent does while it waits: stop, work around the question, or keep building on its recommendation.
 
-Nothing updates unless the agent runs the command, so agents need the plugin's skill. The panel has two setup buttons, and each one shows where it will write before you press it:
+On Paseo 0.14 and later, agents get the Progress tools once you turn on **Settings → your host → Agents → Enable Paseo tools**. That needs nothing installed, and every update names the agent that sent it. The setting is off by default and also lets agents start, message and stop other agents, so Progress leaves it to you. Without it, agents run the `paseo-progress` command. In the chat, each Progress tool call shows as one line of what it recorded, and opens to the full result.
 
-- Install command writes `~/.local/bin/paseo-progress` on the daemon host.
+Nothing updates unless the agent records it, so agents need the plugin's skill. The panel has two setup buttons, and each one shows where it will write before you press it:
+
+- Install command writes `~/.local/bin/paseo-progress` on the daemon host. With Paseo tools on, the command is only a fallback.
 - Install skill links the plugin's `paseo-progress` skill into `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`. New agent sessions pick it up.
 
 Both work from files inside the plugin and download nothing. Neither one replaces a file you made.

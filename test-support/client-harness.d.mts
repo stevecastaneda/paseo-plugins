@@ -15,6 +15,7 @@ export function clientHarness(pluginDirectory: string, modules?: Record<string, 
   openedPanels: Array<{ id: string; workspaceId?: string; location?: string }>;
   /** Slash commands, timeline renderers and attachment sources the contribution registered. */
   slashCommands: Array<any & { removed: boolean }>;
+  timelineTransformers: Array<any & { removed: boolean }>;
   timelineRenderers: Array<any & { removed: boolean }>;
   attachmentSources: Array<any & { removed: boolean }>;
   settingsScreens: Array<any & { removed: boolean }>;
