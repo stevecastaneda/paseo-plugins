@@ -5,7 +5,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import { PressScale, Presence } from "./motion";
 import { raised } from "./surfaces";
-import { getLauncherStatus, getSkillStatus, installLauncher, installSkill, type LauncherStatus, type SkillStatus } from "../shared/rpc";
+import { getLauncherStatus, getSkillStatus, getToolsStatus, installLauncher, installSkill, type LauncherStatus, type SkillStatus, type ToolsState } from "../shared/rpc";
 import { messagesFor, type ProgressMessages } from "./i18n";
 import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
@@ -32,6 +32,22 @@ export function launcherNotice(status: LauncherStatus, m: ProgressMessages = mes
     case "current":
       return status.onPath ? null : { text: m.launcherOffPath(status.path) };
   }
+}
+
+// With Paseo tools on, the command is only a fallback: the banner offers an
+// install or update and stays quiet otherwise.
+export function setupNotice(status: LauncherStatus, tools: ToolsState, m: ProgressMessages = messagesFor("en")): { text: string; action?: string } | null {
+  const notice = launcherNotice(status, m);
+  if (tools !== "on") return notice;
+  return notice?.action ? { text: m.toolsOn, action: notice.action } : null;
+}
+
+// Whether agents get the Progress tools, or null until known. A Paseo that
+// can't say reads as 0.13: the command is how agents record progress.
+export function useToolsState(hostId: string): ToolsState | null {
+  const fetchStatus = useRpc(getToolsStatus);
+  const status = useQuery({ queryKey: ["progress", "tools", hostId], queryFn: () => fetchStatus({}), staleTime: 60_000, retry: false });
+  return status.data?.state ?? (status.isError ? "unsupported" : null);
 }
 
 // What the skill banner says, or null when every agent folder has the skill.
@@ -66,7 +82,8 @@ export function LauncherBanner({ colors, host }: { colors: Colors; host: PluginW
     },
     onError: (error) => toast.error(errorText(error, m.installCommandFailure)),
   });
-  const notice = status.data ? launcherNotice(status.data, m) : null;
+  const tools = useToolsState(host.id);
+  const notice = status.data && tools ? setupNotice(status.data, tools, m) : null;
   return <SetupBanner colors={colors} icon="Terminal" notice={notice} pending={mutation.isPending} onPress={() => mutation.mutate()} />;
 }
 

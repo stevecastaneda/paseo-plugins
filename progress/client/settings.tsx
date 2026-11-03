@@ -1,6 +1,6 @@
 import { type PluginSurfaceProps, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { Icon, Modal } from "@getpaseo/plugin/client/ui";
-import { SettingsAction, SettingsCard, SettingsSelect } from "@getpaseo/plugin/client/ui";
+import { SettingsAction, SettingsCard, SettingsRow, SettingsSelect } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
 import React, { type ReactNode, useState } from "react";
 import { Text, View } from "react-native";
@@ -10,11 +10,11 @@ import { questionSettings, LANGUAGE_PREFERENCES } from "../shared/settings";
 import { parseBlocks, withoutTitle } from "../shared/blocks";
 import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
-import { useSkill } from "./launcher";
+import { useSkill, useToolsState } from "./launcher";
 import { BlockView } from "./blocks";
 
 export function QuestionSettings({ theme, host }: PluginSurfaceProps) {
-  return <><QuestionModeSettings theme={theme} /><DisplaySettings theme={theme} /><SkillSettings colors={theme.colors} hostId={host.id} /></>;
+  return <><QuestionModeSettings theme={theme} /><DisplaySettings theme={theme} /><SkillSettings colors={theme.colors} hostId={host.id} /><ToolsSettings colors={theme.colors} hostId={host.id} /></>;
 }
 
 type Colors = PluginSurfaceProps["theme"]["colors"];
@@ -72,6 +72,22 @@ function SkillSettings({ colors, hostId }: { colors: Colors; hostId: string }) {
             : <View style={{ gap: 8 }}>{blocks.map((block, index) => <BlockView key={index} colors={colors} block={block} first={index === 0} />)}</View>}
         </Modal.Content>
       </Modal>
+    </Section>
+  );
+}
+
+// Paseo 0.14 and later only: whether agents get the Progress tools, and how to turn them on.
+function ToolsSettings({ colors, hostId }: { colors: Colors; hostId: string }) {
+  const { messages: m } = useProgressLanguage();
+  const tools = useToolsState(hostId);
+  if (tools !== "on" && tools !== "off") return null;
+  return (
+    <Section colors={colors} icon="Wrench" title={m.agentTools}>
+      <SettingsCard>
+        <SettingsRow label={m.paseoTools} hint={tools === "on" ? m.toolsOn : m.toolsNote[1]}>
+          <Text style={{ color: colors.foregroundMuted, fontSize: 13 }}>{tools === "on" ? m.toolsStateOn : m.toolsStateOff}</Text>
+        </SettingsRow>
+      </SettingsCard>
     </Section>
   );
 }

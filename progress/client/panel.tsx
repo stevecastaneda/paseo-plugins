@@ -1,7 +1,7 @@
 import { type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { DeliverablesList } from "./deliverables";
-import { LauncherBanner, SkillBanner } from "./launcher";
+import { LauncherBanner, SkillBanner, useToolsState } from "./launcher";
 import { WhatsNewBanner } from "./whats-new";
 import { HistoryRow } from "./history";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
@@ -65,7 +65,7 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation, openS
       <LauncherBanner colors={colors} host={host} />
       <SkillBanner colors={colors} host={host} />
       {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}
-      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} file={result.file} openSettings={openSettings} /> : null}</Presence>
+      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} hostId={host.id} file={result.file} openSettings={openSettings} /> : null}</Presence>
       {/* Keyed by run: a new run starts with fresh tabs, pages and dialogs. */}
       {result?.configured ? <DashboardView key={result.dashboard.run?.startedAt ?? "none"} colors={colors} openSettings={openSettings} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
         workspaceId={workspaceId} workspaceDirectory={result.root} file={result.file} navigation={navigation} /> : null}
@@ -101,8 +101,9 @@ function SettingsButton({ colors, onPress }: { colors: Colors; onPress(): void }
   );
 }
 
-function EmptyState({ colors, file, openSettings }: { colors: Colors; file: string; openSettings(): void }) {
+function EmptyState({ colors, hostId, file, openSettings }: { colors: Colors; hostId: string; file: string; openSettings(): void }) {
   const { messages: m } = useProgressLanguage();
+  const tools = useToolsState(hostId);
   return (
     <View style={{ padding: 12, paddingTop: 20, gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -113,14 +114,26 @@ function EmptyState({ colors, file, openSettings }: { colors: Colors; file: stri
         <View style={{ flex: 1 }} />
         <SettingsButton colors={colors} onPress={openSettings} />
       </View>
-      <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        {m.emptyIntro[0]}<Text style={{ color: colors.foreground }}>paseo-progress</Text>{m.emptyIntro[1]}
-      </Text>
-      <View style={{ backgroundColor: colors.surface1, borderRadius: 6, padding: 10 }}>
-        <Text selectable style={{ color: colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
-          {`paseo-progress start "Build the export feature"\npaseo-progress ticket add "Ticket 01: Export button" --estimate 60`}
+      {tools === "on" ? (
+        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{m.emptyIntroTools}</Text>
+      ) : (
+        <>
+          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+            {m.emptyIntro[0]}<Text style={{ color: colors.foreground }}>paseo-progress</Text>{m.emptyIntro[1]}
+          </Text>
+          <View style={{ backgroundColor: colors.surface1, borderRadius: 6, padding: 10 }}>
+            <Text selectable style={{ color: colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
+              {`paseo-progress start "Build the export feature"\npaseo-progress ticket add "Ticket 01: Export button" --estimate 60`}
+            </Text>
+          </View>
+        </>
+      )}
+      {/* The other way to start, next to the command it replaces. */}
+      {tools === "off" ? (
+        <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{m.toolsNote[0]}</Text> {m.toolsNote[1]}
         </Text>
-      </View>
+      ) : null}
       {/* So people know nothing lands in the repo. */}
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
         {m.savedOutside[0]}<Text selectable style={{ color: colors.foreground }}>{file}</Text>{m.savedOutside[1]}

@@ -7,6 +7,8 @@ import { ProgressLanguageProvider } from "./client/language";
 import { addPageScreen } from "./client/page-screen";
 import { PdfPanel } from "./client/pdf";
 import { showsPdfs } from "./shared/attachments";
+import { CHAT_ROW_KIND, CHAT_ROW_VERSION, chatRowSchema, transformChatRow } from "./client/chat-row";
+import { ChatRowView } from "./client/chat-row-view";
 
 const SETTINGS_ID = "settings";
 
@@ -45,8 +47,17 @@ export default function contribute(client: PluginClientContext) {
     icon: "Settings",
     Component: (props) => <ProgressLanguageProvider><QuestionSettings {...props} /></ProgressLanguageProvider>,
   });
+  const stopTransformer = client.addTimelineTransformer({ id: "tool-calls", query: { itemType: "tool_call" }, transform: transformChatRow });
+  const stopRenderer = client.addTimelineRenderer({
+    kind: CHAT_ROW_KIND,
+    version: CHAT_ROW_VERSION,
+    schema: chatRowSchema,
+    Component: (props) => <ProgressLanguageProvider><ChatRowView {...props} /></ProgressLanguageProvider>,
+  });
 
   return () => {
+    void stopTransformer();
+    void stopRenderer();
     stopPage();
     void stopPdf();
     void stopSettings();

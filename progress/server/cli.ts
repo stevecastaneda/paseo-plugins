@@ -494,6 +494,14 @@ const SHOW_SUMMARY = "Print the dashboard as text: what the user sees in the Pro
 const INSTALL_SUMMARY = "Write the paseo-progress launcher (default ~/.local/bin/paseo-progress). It runs this command from whichever copy of the plugin Paseo is running.";
 const DEFAULT_LAUNCHER = "~/.local/bin/paseo-progress";
 
+// The agent tools describe themselves with the summaries agents see in --help.
+export function commandSummary(name: string): string {
+  if (name === "show") return SHOW_SUMMARY;
+  const command = commands[name];
+  if (!command) throw new Error(`No command named ${name}.`);
+  return command.summary;
+}
+
 function help(): string {
   return [
     `Usage: ${USAGE_NAME} <command>`,
