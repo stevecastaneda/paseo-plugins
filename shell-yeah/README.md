@@ -27,7 +27,11 @@ The output box holds the last 300 lines and stays on the newest one while the co
 
 The command runs on the Paseo host as the user Paseo runs as, in the agent's working folder, with your shell (`$SHELL -c`). It skips interactive startup files like `.zshrc`, so aliases aren't loaded. Your PATH carries over. On Windows, the command runs in PowerShell 7 if it's installed, otherwise in the Windows PowerShell that comes with Windows. It skips your PowerShell profile for the same reason.
 
-Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, click anywhere in the output box and type, as you would in a terminal. The box's border lights up while your keys go to the command. On a computer, after you press **Run** or **Rerun** in a card, they go there without a click. Each key goes to the command as you press it, so a one-key menu takes one key and arrow-key menus work. What you type shows only if the command shows it, so a password stays hidden. **Esc** stops typing, and so does switching to another window. Click the output to type again. On a phone, tap the output. When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
+Each command gets a terminal of its own, so it behaves as it does in yours. When it asks for a 2FA code, a password or a yes or no, click anywhere in the output box and type, as you would in a terminal. The box's border lights up while your keys go to the command. On a computer, after you press **Run** or **Rerun** in a card, they go there without a click. Each key goes to the command as you press it, so a one-key menu takes one key and arrow-key menus work. What you type shows only if the command shows it, so a password stays hidden. **Esc** stops typing, and so does switching to another window. Click the output to type again. On a phone, tap the output.
+
+To paste on a phone, press **Paste** on the card while the command runs. In a phone browser, that pastes what you copied. The browser may ask first. The Paseo app doesn't let plugins read the clipboard, so in the app **Paste** opens a box. Press and hold in it, tap the phone's own Paste, then press **Paste** under the box. The box shows dots, so a pasted password stays hidden. Paste leaves out line breaks and control characters, so a paste never presses Return or Ctrl+C for you. After a paste, your keys go to the command, so press Return if it needs one. On a computer, Cmd+V or Ctrl+V pastes.
+
+When a command prints a sign-in link, like npm's browser sign-in, click the link in the card. **Stop** works like Ctrl+C. Pagers are off, so `git log` prints everything instead of waiting for you to press q. When the command ends, the plugin closes its terminal. Like closing a terminal window, that also ends any background job the command started, unless you started it with `nohup`.
 
 <img src="images/7-prompt.png" alt="npm asks for a one-time password, and the code goes in as it is typed" width="600">
 
@@ -101,6 +105,10 @@ paseo plugin add npm:@stevecastaneda/paseo-shell-yeah
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
 ## Changelog
+
+### 1.4.0
+
+- [New] **Paste on a phone.** A phone card now has a **Paste** button while its command runs. Before, pressing and holding the output didn't offer Paste, so a phone had no way to paste into a command.
 
 ### 1.3.1
 

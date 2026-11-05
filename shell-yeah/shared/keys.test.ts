@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { terminalKeys } from "./keys.ts";
+import { pastedKeys, terminalKeys } from "./keys.ts";
 
 test("keys a text box can't type become what a terminal sends", () => {
   assert.equal(terminalKeys({ key: "Enter" }), "\r");
@@ -22,4 +22,12 @@ test("letters, Tab and Escape are left to the box", () => {
   assert.equal(terminalKeys({ key: "y" }), null);
   assert.equal(terminalKeys({ key: "Tab" }), null);
   assert.equal(terminalKeys({ key: "Escape" }), null);
+});
+
+test("a paste can't press keys: line breaks and control characters go, tabs and text stay", () => {
+  assert.equal(pastedKeys("tok_live_9f3a\n"), "tok_live_9f3a", "a trailing line break doesn't press Return");
+  assert.equal(pastedKeys("y\r\nrm -rf ~\r\n"), "yrm -rf ~", "a hidden second line doesn't run");
+  assert.equal(pastedKeys("a\x03b\x1b[2~c\x9bd\x7f"), "ab[2~cd", "Ctrl+C, ESC, CSI and DEL go");
+  assert.equal(pastedKeys("name\tvalue é 🔑"), "name\tvalue é 🔑");
+  assert.equal(pastedKeys("\n\x1b"), null);
 });

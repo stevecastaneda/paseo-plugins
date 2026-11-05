@@ -2,7 +2,7 @@ import { useAgent, useRpc, type PluginTimelineItemProps } from "@getpaseo/plugin
 import { Icon, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
-import { terminalKeys, type KeyPress } from "../shared/keys.ts";
+import { pastedKeys, terminalKeys, type KeyPress } from "../shared/keys.ts";
 import { basename, errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
@@ -10,6 +10,7 @@ import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/r
 import { agentName, capitalize, describe, formatDuration, pastRow, pastRunView, statusText, switcher, type Action, type NoteIcon, type Presentation, type RunInView } from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
+import { PasteButton } from "./paste.tsx";
 import { makePalette, mix, withAlpha, type ThemeColors } from "./palette.ts";
 import { Badge, Button, IconSwap, PressScale, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
 
@@ -36,6 +37,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const run = past ? pastRunView(row, past) : latest;
   const steps = switcher(row, viewing);
   const keyInput = useRef<TextInput>(null);
+  const sendKeys = useKeySender(run.runId);
   const [typing, setTyping] = useState(false);
   // Set by Run and Rerun. Not on a phone, where focusing opens the keyboard over the chat.
   const focusWhenListening = useRef(false);
@@ -45,13 +47,13 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const newerRunning = past !== null && latestRunning;
   const now = useNow(running ? 1_000 : null);
   const agent = agentName(useAgent(agentId, (a) => a.provider));
-  const pres = describe(run, now, { agent });
+  const compact = layout.compact;
+  const pres = describe(run, now, { agent, phone: compact });
   const palette = useMemo(() => makePalette(colors), [colors]);
   const reduced = useReducedMotion();
   const toast = useToast();
   const [busy, setBusy] = useState<Action["id"] | null>(null);
   const [copied, setCopied] = useState(false);
-  const compact = layout.compact;
   const listening = pres.keyboard && typing;
   // Unmounting a focused input may not fire onBlur on web.
   useEffect(() => {
@@ -105,8 +107,18 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
     }
   }
 
+  // After a paste, keys go to the command, so Return is the next tap.
+  const paste = (text: string) => {
+    const keys = pastedKeys(text);
+    if (keys === null) return toast.show("The clipboard has no text to paste");
+    if (keys.length > LIMITS.commandChars) return toast.error(`That's too long to paste. The limit is ${LIMITS.commandChars.toLocaleString("en-US")} characters.`);
+    sendKeys(keys);
+    // Later, so a closing paste box doesn't take the focus back.
+    setTimeout(() => keyInput.current?.focus(), 300);
+  };
   const actions = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      {pres.keyboard && compact ? <PasteButton colors={colors} onPaste={paste} /> : null}
       {pres.actions.filter((action) => !(action.id === "rerun" && newerRunning)).map((action) => (
         <Button
           key={action.id}
@@ -161,7 +173,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
             cursor={listening ? run.cursor : null}
             listening={listening}
             onPress={pres.keyboard ? () => keyInput.current?.focus() : undefined}>
-            {pres.keyboard ? <KeyInput ref={keyInput} runId={run.runId} compact={compact} onTypingChange={setTyping} /> : null}
+            {pres.keyboard ? <KeyInput ref={keyInput} send={sendKeys} compact={compact} onTypingChange={setTyping} /> : null}
           </OutputWell>
         ) : pres.well?.kind === "message" ? (
           <View style={{ marginHorizontal: 6, borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: withAlpha(colors.border, 0.6), paddingVertical: 8, paddingHorizontal: 10 }}>
@@ -338,8 +350,7 @@ function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: Non
 // is invisible and stays empty, at the bottom of the output box, so focusing it keeps the card in
 // view and a phone keyboard opens just under the newest output. What the command shows lands in
 // the output, so a password prompt shows nothing. Esc stops typing.
-const KeyInput = forwardRef<TextInput, { runId: string; compact: boolean; onTypingChange(typing: boolean): void }>(function KeyInput({ runId, compact, onTypingChange }, ref) {
-  const send = useKeySender(runId);
+const KeyInput = forwardRef<TextInput, { send(keys: string): void; compact: boolean; onTypingChange(typing: boolean): void }>(function KeyInput({ send, compact, onTypingChange }, ref) {
   const input = useRef<TextInput | null>(null);
   const setRef = (node: TextInput | null) => {
     input.current = node;
