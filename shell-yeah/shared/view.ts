@@ -64,6 +64,7 @@ const INPUT_PATTERNS = /password.*:\s*$|passphrase|not a tty|terminal is require
 const NO_SHELL_FILES_HINT = "/sh runs your shell without its startup files, so aliases aren't loaded.";
 const NO_KEYBOARD_HINT = "This command wants input, and /sh has no keyboard here. Run it in a terminal tab.";
 const TYPE_HINT = "This command may be waiting for you. Click the output and type your answer.";
+const PHONE_TYPE_HINT = "This command may be waiting for you. Tap the output and type your answer, or press Paste.";
 
 // Paseo's built-in provider labels (protocol/src/provider-manifest.ts); anything else is "the agent".
 const AGENT_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex", copilot: "Copilot", opencode: "OpenCode", pi: "Pi", omp: "Oh My Pi" };
@@ -76,7 +77,8 @@ export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export function describe(run: ResolvedRun, now: number, opts: { agent?: string } = {}): Presentation {
+// `phone`: Paseo's phone layout, where the card has a Paste button.
+export function describe(run: ResolvedRun, now: number, opts: { agent?: string; phone?: boolean } = {}): Presentation {
   const agent = opts.agent ?? "the agent";
   const phase = effectivePhase(run);
   const { lines, total } = run.output;
@@ -118,7 +120,7 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string }
       foldable,
       box,
       notes: [{ icon: "clock", text: total === 0 ? "No output yet" : `${formatCount(total)} ${total === 1 ? "line" : "lines"}${quiet}` }],
-      hint: wantsInput ? (takesKeys ? TYPE_HINT : NO_KEYBOARD_HINT) : null,
+      hint: wantsInput ? (takesKeys ? (opts.phone ? PHONE_TYPE_HINT : TYPE_HINT) : NO_KEYBOARD_HINT) : null,
       well: total === 0 && !takesKeys ? null : { kind: "output", skipped },
       keyboard: takesKeys && !stopping,
     };

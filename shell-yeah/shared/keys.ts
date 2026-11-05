@@ -30,3 +30,11 @@ export function terminalKeys(press: KeyPress): string | null {
   }
   return SPECIAL[press.key] ?? null;
 }
+
+// Pasted text as keys, or null when nothing is left. A line break or control character in a
+// paste would act as a key press: a hidden line break presses Return, and ESC or Ctrl+C reach the
+// command. So they go, the way a one-line browser box drops line breaks from a Cmd+V paste. Tabs stay.
+export function pastedKeys(text: string): string | null {
+  const keys = text.replace(/[\x00-\x08\x0a-\x1f\x7f\x80-\x9f]/g, "");
+  return keys === "" ? null : keys;
+}
