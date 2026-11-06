@@ -1,5 +1,5 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import { copyText, Icon, useToast } from "@getpaseo/plugin/client/ui";
+import { copyText, Icon, Markdown, useToast } from "@getpaseo/plugin/client/ui";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import type { Question } from "../shared/dashboard";
@@ -182,7 +182,8 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
   return (
     <View style={{ gap: 10 }}>
       <View style={{ gap: 2 }}>
-        <Text style={{ color: colors.foreground, fontSize: 14, lineHeight: 20 }}>{question.question}</Text>
+        {/* Paseo's Markdown makes a URL in the question a link and lets the text be selected. */}
+        <Markdown>{question.question}</Markdown>
         {!question.answer ? <QuestionState colors={colors} question={question} /> : null}
       </View>
       {question.answer ? <AnswerSummary colors={colors} question={question} now={now} /> : null}
@@ -236,12 +237,12 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
           <View key={option.letter} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 8, borderRadius: 12, borderWidth: 1, borderColor }}>
             <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600", width: 14 }}>{option.letter}</Text>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
+              <Text selectable style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
                 {option.label}
                 {chosen ? <Text style={{ color: colors.statusSuccess }}>{"  " + m.yourAnswer}</Text> : null}
                 {recommended ? <Text style={{ color: settled ? colors.foregroundMuted : colors.accent }}>{"  " + m.recommended}</Text> : null}
               </Text>
-              {option.consequence ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{option.consequence}</Text> : null}
+              {option.consequence ? <Text selectable style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{option.consequence}</Text> : null}
             </View>
             {!question.answer ? (
               <PressScale accessibilityRole="button" accessibilityLabel={m.copyChoiceForAgent(question.id, option.letter)}
@@ -255,7 +256,7 @@ export function QuestionDetail({ colors, question, now, onCopy, onOpenAttachment
         );
       })}
       {question.background ? (
-        <Text selectable style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{question.background}</Text>
+        <Markdown>{question.background}</Markdown>
       ) : null}
       <AttachmentList colors={colors} attachments={questionAttachments(question)} onOpen={onOpenAttachment} />
       <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
