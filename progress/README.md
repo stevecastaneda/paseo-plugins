@@ -178,6 +178,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.14.1
+
+- [Fixed] **Links in a question open, and its text can be selected.** A web address in a question or in its background used to show as plain text, so you couldn't click it, and the question itself couldn't be selected or copied. The question dialog now draws the question and its background with Paseo's own Markdown view, so an address is a link and the question's text can be selected and copied. The text on an option, and what choosing it leads to, can be selected too. Because the text is read as Markdown now, characters like `*` and `_` format it, a line starting with `#` or `-` becomes a heading or a list, and the background takes Paseo's body size and colour instead of the small, muted style it had.
+
 ### 1.14.0
 
 - [New] **Agents can record progress with Paseo tools.** On Paseo 0.14 and later, Progress hands agents a tool for each common command, like `progress_ticket_update` and `progress_question_ask`. Nothing needs installing, and every update names the agent that sent it. Agents get them once you turn on **Settings → your host → Agents → Enable Paseo tools**, which also lets them start, message and stop other agents. **Agent tools** in Progress settings shows whether it's on and how to turn it on. The skill now uses the tools when an agent has them and the `paseo-progress` command otherwise, so Paseo 0.13 and agents without the tools work as before.
