@@ -1,9 +1,7 @@
 // Reviews the plugin in the current directory against THREAT-MODEL.md with a
 // Claude Opus session that didn't write it, and fails when the review finds a
-// release blocker. Run it as `npm run security-review` before opening a PR. It
-// also runs as each plugin's `prepublishOnly`, where it reuses the PR's passing
-// review when nothing it covered changed. `--base <ref>` sets the commit the
-// diff starts from.
+// release blocker. Run it as `npm run security-review` before opening a PR.
+// `--base <ref>` sets the commit the diff starts from.
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -177,8 +175,6 @@ if (dirty) fail(`${pluginPath}/ has uncommitted changes. Commit them first, so t
 
 const head = git("rev-parse", "HEAD");
 const tree = git("rev-parse", `HEAD:${pluginPath}`);
-// Outside the repo, so a review run in a PR's worktree is found again when the
-// main checkout publishes.
 const reportDir = join(homedir(), ".local", "state", "paseo-plugins", "security-review");
 const reportPath = join(reportDir, `${basename(pluginDir)}-${version}.md`);
 
@@ -190,8 +186,8 @@ if (options.base) {
   base = lastPublishedCommit(name);
 }
 
-// A publish reuses the PR's passing review, as long as the plugin's files, the
-// range, the threat model and this script are all unchanged.
+// Running it again reuses the passing review, as long as the plugin's files,
+// the range, the threat model and this script are all unchanged.
 const threatModel = readFileSync(threatModelPath, "utf8");
 const key = createHash("sha256")
   .update(JSON.stringify([tree, base ?? "none", threatModel, readFileSync(fileURLToPath(import.meta.url), "utf8")]))

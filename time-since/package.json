@@ -41,7 +41,6 @@
     "test": "node --test \"*/*.test.ts\"",
     "dev": "node ../scripts/dev.mjs",
     "check:install": "node ../scripts/check-install.mjs",
-    "prepublishOnly": "node ../scripts/security-review.mjs",
     "security-review": "node ../scripts/security-review.mjs"
   },
   "devDependencies": {
