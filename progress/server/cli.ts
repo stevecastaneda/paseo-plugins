@@ -397,7 +397,7 @@ const commands: Record<string, Command> = {
   },
   "deliverable add": {
     usage: `deliverable add "<title>" <path or http(s) URL> [--ticket <id>] [--kind ${DELIVERABLE_KINDS.join("|")}]`,
-    summary: `Add something the user can review. Paths are relative to where you run the command. Prints its id (D1, D2, ...). An HTML deliverable must be self-contained, with its CSS in the page and images embedded as data URIs, and no scripts or styles from the web, because Paseo's preview blocks the network.`,
+    summary: `Add something the user can review. Paths are relative to where you run the command. Prints its id (D1, D2, ...). An HTML deliverable opens in Paseo's sandboxed preview, which blocks everything from the web, so put its CSS in the page and embed images as data URIs. In the preview, storage APIs and navigator.clipboard throw an error. The alert, confirm, prompt and window.open calls and form submits do nothing. One syntax error stops a whole script.`,
     options: { ticket: { type: "string" }, kind: { type: "string" } },
     run({ positionals, values, state, cwd, root }) {
       const title = required(positionals[0], "deliverable title");
