@@ -47,7 +47,8 @@
     "check:windows": "node scripts/windows-check.mjs",
     "build:cli": "rm -rf dist && esbuild server/cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server/cli.js --log-level=warning",
     "prepack": "npm run build:cli",
-    "postpack": "rm -rf dist"
+    "postpack": "rm -rf dist",
+    "prepublishOnly": "node ../scripts/security-review.mjs"
   },
   "devDependencies": {
     "@getpaseo/client": "0.14.0",
