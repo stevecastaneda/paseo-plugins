@@ -2,11 +2,11 @@ import { openExternalUrl, type PluginWorkspacePanelProps, useRpc } from "@getpas
 import { copyText, Icon, useToast } from "@getpaseo/plugin/client/ui";
 import React from "react";
 import { Platform, Text, View } from "react-native";
-import { type Attachment, attachmentIcon, canPreview, opensAsPage, shortName } from "../shared/attachments";
+import { type Attachment, attachmentIcon, canPreview, isFolder, opensAsPage, opensOnHost, shortName } from "../shared/attachments";
 import { openPage } from "./page-opener";
 import { errorText } from "./errors";
 import { PressableRow } from "./row";
-import { canOpenOnHost, openDeliverable } from "../shared/rpc";
+import { openDeliverable } from "../shared/rpc";
 import { useProgressLanguage } from "./language";
 
 export { type Attachment, attachmentIcon, deliverableAttachment, questionAttachments, shortName, ticketSourceAttachment } from "../shared/attachments";
@@ -17,6 +17,12 @@ type Navigation = PluginWorkspacePanelProps["navigation"];
 // Shown in Paseo's preview dialog rather than handed to another app.
 export function isPreviewable(attachment: Attachment): boolean {
   return canPreview(attachment, { browser: Platform.OS === "web" });
+}
+
+// Whether Open hands it to the host's default app. The server makes the same
+// check on the file itself.
+export function isHostOpenable(attachment: Attachment): boolean {
+  return Boolean(attachment.path) && !isFolder(attachment) && opensOnHost(attachment.path!);
 }
 
 // Full path on the daemon host for a stored path. `root` is the worktree
@@ -41,7 +47,6 @@ export function useAttachmentOpener({
   const { messages: m } = useProgressLanguage();
   const toast = useToast();
   const openOnHostRpc = useRpc(openDeliverable);
-  const checkHost = useRpc(canOpenOnHost);
   async function copyPath(attachment: Attachment, prefix = "") {
     try {
       await copyText(absolutePath(attachment.path!, workspaceDirectory));
@@ -68,16 +73,9 @@ export function useAttachmentOpener({
       }
       return;
     }
-    // A page opens on the computer holding it, like a double-click, and in
-    // Paseo only where that computer has no screen to open it on.
-    if (
-      openPage &&
-      opensAsPage(attachment, { browser: Platform.OS === "web" }) &&
-      !(await checkHost({ workspaceId, workspaceDirectory }).then(
-        (result) => result.canOpen,
-        () => false,
-      ))
-    ) {
+    // A page opens in Paseo, never in the host's browser, where its scripts
+    // could read the user's files.
+    if (openPage && opensAsPage(attachment, { browser: Platform.OS === "web" })) {
       openPage({ workspaceId, workspaceDirectory, ref: attachment.ref, title: attachment.title });
       return;
     }
@@ -85,7 +83,8 @@ export function useAttachmentOpener({
       onPreview(attachment);
       return;
     }
-    await openOnHost(attachment);
+    if (isHostOpenable(attachment)) await openOnHost(attachment);
+    else await copyPath(attachment, `${m.openRefused}. `);
   }
   return { open, openOnHost, copyPath };
 }

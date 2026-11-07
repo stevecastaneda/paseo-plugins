@@ -2,6 +2,7 @@ import { type PluginClientContext, type PluginScreenProps, useRpc } from "@getpa
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
+import { PAGE_ESCAPE_MESSAGE, PAGE_ESCAPE_SCRIPT } from "../shared/page";
 import { previewDeliverable } from "../shared/rpc";
 import { errorText } from "./errors";
 import { ProgressLanguageProvider, useProgressLanguage } from "./language";
@@ -26,10 +27,7 @@ export function addPageScreen(client: PluginClientContext) {
   };
 }
 
-// Keys pressed inside the page go to the page, so it tells Progress about
-// Escape itself, unless one of its own handlers has used the key.
-const ESCAPE = "progress:page-escape";
-const ESCAPE_SCRIPT = `<script>addEventListener("keydown",function(e){if(e.key==="Escape"&&!e.defaultPrevented)parent.postMessage("${ESCAPE}","*")})</script>`;
+const ESCAPE_SCRIPT = `<script>${PAGE_ESCAPE_SCRIPT}</script>`;
 
 // The plugin compiles without the DOM's types; these are the browser APIs used here.
 type KeyEvent = { key: string; defaultPrevented: boolean };
@@ -51,7 +49,7 @@ function useEscapeToClose(frame: React.RefObject<Frame | null>, close: (() => vo
       if (event.key === "Escape" && !event.defaultPrevented && frame.current?.getClientRects().length) close();
     };
     const onMessage = (event: FrameMessage) => {
-      if (event.data === ESCAPE && event.source === frame.current?.contentWindow) close();
+      if (event.data === PAGE_ESCAPE_MESSAGE && event.source === frame.current?.contentWindow) close();
     };
     browser.addEventListener("keydown", onKey);
     browser.addEventListener("message", onMessage);
@@ -81,8 +79,9 @@ function PageScreen({ params, theme: { colors }, navigation }: PluginScreenProps
     return (
       <View style={{ flex: 1, backgroundColor: colors.surface0 }}>
         {/* `allow-scripts` alone, as in Paseo's own HTML preview: the page runs its scripts
-            (and loads them from the web, so no CSP) in an opaque origin that can't reach
-            Paseo's DOM or storage, navigate the app, open windows or submit forms. */}
+            (and loads them from the web) in an opaque origin that can't reach Paseo's DOM or
+            storage, navigate the app, open windows or submit forms. A page the server gave
+            files git ignores carries a policy that stops its own scripts and every load. */}
         <iframe
           ref={frame as never}
           srcDoc={html}

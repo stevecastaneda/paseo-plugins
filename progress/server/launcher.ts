@@ -30,7 +30,7 @@ if (major < 22 || (major === 22 && minor < 18)) {
 // Not require: a package.json with "type": "module" above this folder makes Node load it as ESM.
 const { spawnSync } = process.getBuiltinModule("node:child_process");
 const { existsSync } = process.getBuiltinModule("node:fs");
-const { join } = process.getBuiltinModule("node:path");
+const { dirname, join } = process.getBuiltinModule("node:path");
 
 const windows = process.platform === "win32";
 
@@ -43,11 +43,14 @@ function paseoCommands() {
 }
 
 // On Windows Paseo's command is paseo.cmd, which Node can start, or find on
-// PATH, only through cmd.exe.
+// PATH, only through cmd.exe. cmd.exe looks in the folder it starts in before
+// PATH, so it starts in Node's folder, not the agent's, where a repo could
+// have put its own paseo.cmd.
 function askPaseo(cli) {
+  const options = { cwd: dirname(process.execPath), encoding: "utf8" };
   return windows
-    ? spawnSync('"' + cli + '" plugin ls ${PLUGIN_ID} --json', { shell: true, encoding: "utf8" })
-    : spawnSync(cli, ["plugin", "ls", "${PLUGIN_ID}", "--json"], { encoding: "utf8" });
+    ? spawnSync('"' + cli + '" plugin ls ${PLUGIN_ID} --json', { ...options, shell: true })
+    : spawnSync(cli, ["plugin", "ls", "${PLUGIN_ID}", "--json"], options);
 }
 
 function pluginDirectory() {
@@ -89,13 +92,19 @@ export type LauncherState = "missing" | "current" | "outdated" | "foreign";
 type LauncherFile = { path: string; content: string };
 
 // PowerShell and cmd run only files with an extension like .cmd, so on
-// Windows a .cmd file beside the launcher runs it with node.
+// Windows a .cmd file beside the launcher runs it with Node. It names the Node
+// that installed it: cmd.exe would look for a bare "node" in the agent's
+// folder first, where a repo could have put its own. Paseo Desktop runs
+// plugins on its own app in Node mode, which the variable turns on. A % in the
+// path is doubled so cmd.exe reads it as written.
 function launcherFiles(path: string, platform: NodeJS.Platform): LauncherFile[] {
   const files = [{ path, content: launcherScript() }];
   if (platform === "win32") {
+    const node = process.execPath.replaceAll("%", "%%");
+    const asNode = process.versions.electron ? `set "ELECTRON_RUN_AS_NODE=1"\r\n` : "";
     files.push({
       path: `${path}.cmd`,
-      content: `@echo off\r\nrem ${MARKER}. Lets PowerShell and cmd run ${basename(path)}.\r\nnode "%~dp0${basename(path)}" %*\r\nexit /b %errorlevel%\r\n`,
+      content: `@echo off\r\nrem ${MARKER}. Lets PowerShell and cmd run ${basename(path)}.\r\nsetlocal\r\n${asNode}"${node}" "%~dp0${basename(path)}" %*\r\nexit /b %errorlevel%\r\n`,
     });
   }
   return files;

@@ -108,6 +108,7 @@ export const messages: ProgressMessages = {
   copyPathDone: "已复制路径",
   copyPathFailure: "无法复制。请选中路径后使用复制功能。",
   openFailure: "无法打开",
+  openRefused: "Progress 只打开图片、视频、音频、PDF 和文本文件",
   linkFailure: "无法打开此链接。",
   showLess: "收起",
   readMore: "展开阅读",

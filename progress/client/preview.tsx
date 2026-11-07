@@ -3,7 +3,7 @@ import { Icon, Markdown, ScrollView } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, type LayoutChangeEvent, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
-import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
+import { ATTACHMENT_ROW, type Attachment, AttachmentList, isHostOpenable, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
 import { folderAttachments, isFolder, isPieced, PDF_MIME_TYPE, previewKind } from "../shared/attachments";
 import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
@@ -73,7 +73,7 @@ export function PreviewContent({
       queryKey: ["progress", "can-open", workspaceId],
       queryFn: () => checkHost({ workspaceId, workspaceDirectory }),
       staleTime: Infinity,
-    }).data?.canOpen === true;
+    }).data?.canOpen === true && isHostOpenable(attachment);
   const loadingKey = (target: Attachment) => ["progress", "preview-loading", workspaceId, target.ref, target.path];
   const previewQuery = (target: Attachment) => ({
     queryKey: ["progress", "preview", workspaceId, target.ref, target.path],

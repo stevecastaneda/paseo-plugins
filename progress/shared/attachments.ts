@@ -129,6 +129,18 @@ export function previewKind(path: string): PreviewKind | null {
   return DOCUMENT_KINDS[extension(path) ?? ""] ?? (textFormat(path) ? "text" : null);
 }
 
+const AUDIO_EXTENSIONS = new Set([".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus"]);
+
+// Whether a file opens in the host's default app, the way a double-click
+// would. Only kinds whose default app shows them and never runs them: a
+// script, an app or an installer would run. SVG and HTML stay out too, since a
+// browser opens them and their scripts run with the user's files at hand.
+export function opensOnHost(path: string): boolean {
+  const kind = previewKind(path);
+  if (kind === "html" || extension(path) === ".svg") return false;
+  return kind !== null || AUDIO_EXTENSIONS.has(extension(path) ?? "");
+}
+
 export function isFolder(attachment: Attachment): boolean {
   return attachment.kind === "folder" || /[\\/]$/.test(attachment.path ?? "");
 }
