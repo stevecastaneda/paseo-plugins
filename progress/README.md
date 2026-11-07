@@ -178,6 +178,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.14.2
+
+- [Fixed] **Links in a question open, and its text can be selected.** A web address in a question or in its background used to show as plain text, so you couldn't click it, and the question itself couldn't be selected or copied. The question dialog now draws the question and its background with Paseo's own Markdown view, so an address is a link and the question's text can be selected and copied. The text on an option, and what choosing it leads to, can be selected too. Because the text is read as Markdown now, characters like `*` and `_` format it, a line starting with `#` or `-` becomes a heading or a list, and the background takes Paseo's body size and color instead of the small, muted style it had.
+
 ### 1.14.1
 
 - [Fixed] **Run history stays in its folder.** This fixes a security issue in saving run history. Progress now saves a run only when the dashboard can read the line that started it, and only into a folder inside the repo and outside `.git`.
