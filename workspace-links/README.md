@@ -58,7 +58,7 @@ plugin.
 
 ### 1.1.2
 
-- Links show the site they open. Before, a URL with a name and `@` in front of the site could show that name where the site goes.
+- Links show the site they open. A URL with a name and `@` in front of the site could show that name where the site goes. Now the Links list says "Couldn't read links" for a file with such a URL.
 - Workspace Links reads `workspace-links.json` only when it's a regular file of 64 KB or less. For a symlink or a bigger file, the Links list says "Couldn't read links" instead.
 
 ### 1.1.1

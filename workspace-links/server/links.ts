@@ -20,11 +20,23 @@ export async function readLinks(directory: string) {
     throw new Error("workspace-links.json must be a regular file, not a symlink, and no larger than 64 KB.");
   }
   const contents = await readFile(file, "utf8");
+  let links;
   try {
-    return { configured: true, links: linksSchema.parse(JSON.parse(contents)) };
+    links = linksSchema.parse(JSON.parse(contents));
   } catch {
     throw new Error("workspace-links.json must contain an array of links with a label and an HTTP(S) URL.");
   }
+  return { configured: true, links: links.map(canonical) };
+}
+
+// The link as the browser will read it, so the popover shows the site the click opens.
+// A name before an `@`, which extra slashes after the scheme can hide, could pass for the site.
+function canonical(link: { label: string; url: string }) {
+  const url = new URL(link.url);
+  if (url.username || url.password) {
+    throw new Error(`The "${link.label}" link has a name before an @, so it could show a site it doesn't open.`);
+  }
+  return { label: link.label, url: url.href };
 }
 
 export async function handleGetLinks(
