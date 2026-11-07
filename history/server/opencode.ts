@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 import { promisify } from "node:util";
 import { PAGE_BYTES } from "./files.ts";
 
@@ -12,7 +13,7 @@ export async function readOpenCodeHistory(sessionId: string, offset: number, sou
   let stdout: string;
   try {
     ({ stdout } = await exec("opencode", ["export", sessionId, "--pure"], {
-      encoding: "utf8", timeout: 30_000, maxBuffer: 64 * 1024 * 1024, env,
+      encoding: "utf8", timeout: 30_000, maxBuffer: 64 * 1024 * 1024, env, cwd: homedir(),
     }));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {

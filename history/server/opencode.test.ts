@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import { pageOpenCodeExport, readOpenCodeHistory } from "./opencode.ts";
 
 const sessionId = "ses_test";
@@ -30,4 +33,16 @@ test("validates session identity, shape, IDs, and entry limits", async () => {
   assert.throws(() => pageOpenCodeExport(exported([{}]), sessionId, 0), /invalid session export/);
   assert.throws(() => pageOpenCodeExport(exported([message("x".repeat(4 * 1024 * 1024))]), sessionId, 0), /exceeds 4 MiB/);
   await assert.rejects(readOpenCodeHistory("--help", 0), /Invalid OpenCode session ID/);
+});
+
+test("runs opencode export from the home folder, not the daemon's folder", { skip: process.platform === "win32" }, async () => {
+  const bin = mkdtempSync(join(tmpdir(), "history-opencode-"));
+  try {
+    writeFileSync(join(bin, "opencode"), `#!/bin/sh\nprintf '{"info":{"id":"${sessionId}","title":"%s"},"messages":[]}' "$(pwd)"\n`, { mode: 0o755 });
+    const page = await readOpenCodeHistory(sessionId, 0, undefined, { ...process.env, PATH: bin });
+    assert.notEqual(process.cwd(), homedir());
+    assert.equal(JSON.parse(page.text.split("\n")[0]!).info.title, homedir());
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
 });

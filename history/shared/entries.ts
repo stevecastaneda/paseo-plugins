@@ -56,20 +56,32 @@ export function parseEntries(text: string): HistoryEntry[] {
       const blocks = Array.isArray(body.content) ? body.content.map(record) : [];
       const tool = /(?:function|custom_tool)_call/.test(subtype) || blocks.some((block) => block.type === "tool_use" || block.type === "tool_result");
       const reasoning = subtype === "reasoning" || blocks.some((block) => block.type === "thinking");
-      const context = role === "developer" || role === "system" || kind === "session_meta" || kind === "turn_context" || kind === "world_state"
-        || (role === "user" && /^(?:# AGENTS\.md|<environment_context>|<recommended_plugins>)/.test(preview.trim()));
       const messageText = typeof body.content === "string" ? body.content : blocks
         .filter((block) => ["text", "input_text", "output_text"].includes(string(block.type)))
         .map((block) => string(block.text)).join("\n\n");
-      const category = context ? "context" : messageText && (role === "user" || role === "assistant") ? "message" : tool ? "tools" : reasoning ? "reasoning"
-        : role === "user" || role === "assistant" ? "message" : "events";
+      const conversation = role === "user" || role === "assistant";
+      // Claude Code delivers harness task envelopes as user entries, never as assistant text.
+      const envelope = role === "user" && /^\s*<task-notification>/.test(messageText);
+      const parsedNotification = envelope ? parseTaskNotification(messageText) ?? undefined : undefined;
+      // First matching rule wins. Claude Code marks text it injects (skill bodies,
+      // command expansions, compaction summaries) with isMeta or isCompactSummary.
+      const category = ([
+        ["context", role === "developer" || role === "system" || kind === "session_meta" || kind === "turn_context" || kind === "world_state"],
+        ["context", data.isMeta === true || data.isCompactSummary === true],
+        ["context", role === "user" && /^(?:# AGENTS\.md|<environment_context>|<recommended_plugins>)/.test(preview.trim())],
+        ["events", envelope && !parsedNotification],
+        ["message", conversation && Boolean(messageText)],
+        ["tools", tool],
+        ["reasoning", reasoning],
+        ["message", conversation],
+      ] as const).find(([, matches]) => matches)?.[0] ?? "events";
       const displayText = category === "message" ? messageText || preview : preview;
-      const notification = category === "message" ? parseTaskNotification(displayText) ?? undefined : undefined;
+      const notification = category === "message" ? parsedNotification : undefined;
       // Codex event_msg item_completed/message mirrors are kept as events; only
       // canonical response_item messages enter the readable conversation.
       return { raw, title, kind: subtype && subtype !== kind ? `${kind} · ${subtype}` : kind,
         timestamp: string(data.timestamp) || string(body.timestamp), preview: displayText, valid: true,
-        category, role, startsTurn: subtype === "task_started" || (kind === "user" && !tool && !notification),
+        category, role, startsTurn: subtype === "task_started" || (kind === "user" && category === "message" && !tool && !notification),
         hasTools: tool, hasReasoning: reasoning, notification };
     } catch {
       return { raw, title: "Unparsed entry", kind: "raw text", timestamp: "",
@@ -99,7 +111,7 @@ function parseOpenCodeEntry(data: RecordValue, raw: string): HistoryEntry {
   }).join("\n\n") || string(info.title) || JSON.stringify(info);
   const created = record(info.time).created;
   const timestamp = typeof created === "number" && Number.isFinite(new Date(created).getTime()) ? new Date(created).toISOString() : "";
-  const notification = category === "message" ? parseTaskNotification(preview) ?? undefined : undefined;
+  const notification = category === "message" && role === "user" ? parseTaskNotification(preview) ?? undefined : undefined;
   return {
     raw, title: role ? `${role[0]!.toUpperCase()}${role.slice(1)}` : "Session details",
     kind: `opencode · ${role || "session"}`, timestamp, preview, valid: true,

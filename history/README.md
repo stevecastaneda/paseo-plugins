@@ -34,6 +34,12 @@ Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 
 ## Changelog
 
+### 1.2.1
+
+- [Fixed] **Only your own messages show as You.** Claude Code adds text of its own to a chat, such as a skill's instructions, a report from another agent, or a summary of the earlier chat. History now puts that text under Context. It no longer shows it as a message from you or starts a new turn with it. A task update that History can't read now goes under Events.
+- [Fixed] **Only Claude Code's task updates show as task cards.** An assistant reply written to look like a task update now shows as a normal reply.
+- [Fixed] **OpenCode history opens from your home folder.** History now runs `opencode export` in your home folder, whatever folder Paseo started in.
+
 ### 1.2.0
 
 - [Improved] **Messages look the way they do in Paseo's chat.** History now draws messages and task results with Paseo's own Markdown, so code is highlighted and diagrams draw. Codex's memory citations stay hidden. Code blocks no longer name their language. HTML in a message is drawn instead of shown as text. Images load the way they do in the chat, and a link that isn't a web address no longer copies its destination.
