@@ -1342,6 +1342,8 @@ test("an HTML page whose script won't parse is refused, with the line to fix", a
     message: "Unexpected token '='",
   });
   assert.equal(scriptSyntaxError("<script>const = 1;"), undefined, "an unclosed script isn't checked");
+  assert.equal(scriptSyntaxError("<!-- <script>const = 1;</script> -->"), undefined, "a script in a comment isn't checked");
+  assert.equal(scriptSyntaxError('<script type="application/json">{ not json</script>'), undefined, "a data block isn't checked");
 });
 
 test("activity notes list newest first and can be reworded or removed; the ticker sets and clears", async (t) => {

@@ -2,10 +2,11 @@ import { readFileSync, statSync } from "node:fs";
 import { Script } from "node:vm";
 import { previewKind } from "../shared/attachments.ts";
 
-// The browser ends a script at the first closing tag, and an unclosed script
-// runs to the end of the page. Searching from each opening tag for its closing
-// tag, and stopping at the first unclosed one, keeps the scan linear.
-const OPEN = /<script\b([^>]{0,256})>/gi;
+// The browser ends a script at the first closing tag, skips a script inside an
+// HTML comment, and runs an unclosed script or comment to the end of the page.
+// Searching from each opening tag for its closing tag, and stopping at the
+// first unclosed one, keeps the scan linear.
+const OPEN = /<!--|<script\b([^>]{0,256})>/gi;
 const CLOSE = /<\/script\s*>/gi;
 const CLASSIC_TYPES = new Set(["", "text/javascript", "application/javascript"]);
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -23,6 +24,12 @@ export function scriptSyntaxError(html: string): ScriptError | undefined {
   let counted = 0;
   let lineOffset = 0;
   for (let open = OPEN.exec(html); open; open = OPEN.exec(html)) {
+    if (open[0] === "<!--") {
+      const end = html.indexOf("-->", OPEN.lastIndex);
+      if (end === -1) break;
+      OPEN.lastIndex = end + 3;
+      continue;
+    }
     CLOSE.lastIndex = OPEN.lastIndex;
     const close = CLOSE.exec(html);
     if (!close) break;
