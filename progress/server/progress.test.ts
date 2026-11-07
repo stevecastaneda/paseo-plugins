@@ -1306,6 +1306,38 @@ test("deliverables are listed newest first with root-relative paths, their ticke
   }
 });
 
+const qaPage = (script: string) =>
+  [
+    "<!doctype html>",
+    "<html><body>",
+    '<script type="module">import x from "./x.js"; export {}</script>',
+    "<script>",
+    "const ok = 1;",
+    script,
+    "</script>",
+    "</body></html>",
+  ].join("\n");
+
+test("an HTML page whose script won't parse is refused, with the line to fix", async (t) => {
+  const w = await screenshotRun(t);
+  await writeFile(join(w.directory, "broken.html"), qaPage('if (e.target.id \\!== "notes") return;'));
+  await writeFile(join(w.directory, "working.html"), qaPage('if (ok !== 1) console.log("off");'));
+
+  for (const argv of [
+    ["deliverable", "add", "Live QA", "broken.html"],
+    ["question", "ask", "Layout", "Does this read well?", "--recommend", "Yes", "--file", "broken.html"],
+  ]) {
+    const result = await w.run(...argv);
+    assert.equal(result.code, 1, argv.join(" "));
+    assert.match(result.text, /^broken\.html has a script error on line 6 \(Invalid or unexpected token\), so it opens blank in Paseo's preview\./);
+  }
+  assert.equal((await w.run("deliverable", "add", "Live QA", "working.html")).text, "Added D1: Live QA");
+  assert.deepEqual(
+    (await w.dashboard()).dashboard.deliverables.map(({ id, path }) => ({ id, path })),
+    [{ id: "D1", path: "working.html" }],
+  );
+});
+
 test("activity notes list newest first and can be reworded or removed; the ticker sets and clears", async (t) => {
   const w = await screenshotRun(t);
   assert.equal((await w.run("activity", "add", "Dashboard set up.")).text, "Logged A1: Dashboard set up.");

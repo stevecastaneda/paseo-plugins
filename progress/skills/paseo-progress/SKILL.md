@@ -25,7 +25,7 @@ Done when `show` lists every ticket with an estimate.
 
 Move each ticket through `--status working --stage Build`, then the stages `Review`, `Fixes` and `Verify`, then `--status done`. Along the way, record what the user would want to see: `deliverable add` for anything reviewable, `activity add` for milestones, `ticker set` for what you are doing right now. Tag each with `--ticket` unless it covers the whole run.
 
-- An HTML deliverable must be self-contained, with its CSS in the page and images embedded as data URIs, and no scripts or styles from the web, because Paseo's preview blocks the network.
+- An HTML deliverable must be self-contained, with its CSS in the page and images embedded as data URIs, and no scripts or styles from the web, because Paseo's preview blocks the network. The preview has no storage either. localStorage, sessionStorage, cookies and IndexedDB throw an error there, so keep a page's state in variables.
 - A ticket past its estimate with no update turns stuck. Keep its stage current, or raise its `--estimate`.
 - A ticket another session adds is part of the plan. Work it in order.
 - `--status blocked` and `stuck set` are for things outside the run, like a service that's down or missing access.

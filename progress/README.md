@@ -178,6 +178,11 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.14.4
+
+- [Fixed] **Progress turns away a page whose script won't run.** One typo in a page's script, like a stray backslash, makes the browser skip the whole script, so the page opened blank in Paseo's preview. Now, when an agent adds an HTML deliverable or attaches an HTML page to a question, Progress checks its scripts and refuses a page that won't parse. The refusal names the line to fix.
+- [Improved] **Agents learn that the preview has no storage.** Paseo's preview gives a page no localStorage, sessionStorage, cookies or IndexedDB, so a page that saved its state there stopped with an error. The command help and the skill now tell agents to keep a page's state in variables.
+
 ### 1.14.3
 
 - [Fixed] **Open hands only pictures, video, audio, PDFs and text to their default app.** This fixes a security issue in opening deliverables. Progress used to open any file an agent recorded with its default app, and for a script or an app that means running it. Now Open works only for images, video, audio, PDFs and text files. Pressing any other file, an SVG file or a folder copies its path, and an HTML page always opens in Paseo.

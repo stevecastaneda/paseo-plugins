@@ -16,6 +16,7 @@ import { dashboardText } from "../shared/show.ts";
 import { formatMinutes } from "../shared/format.ts";
 import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
+import { pageScriptError } from "./page-scripts.ts";
 
 export interface CliOptions {
   cwd: string;
@@ -102,7 +103,7 @@ function parseFile(raw: string, cwd: string, root: string) {
   const target = (index === -1 ? raw : raw.slice(0, index)).trim();
   const label = index === -1 ? undefined : raw.slice(index + 1).trim() || undefined;
   if (!target) throw new UsageError(`--file needs a path or URL, got "${raw}".`);
-  if (!isUrl) return { path: rootRelative(target, cwd, root), label };
+  if (!isUrl) return { path: checkedPath(target, cwd, root), label };
   if (!/^https?:\/\//i.test(target)) throw new UsageError("Only http(s) URLs are supported; give local files as a path.");
   return { url: target, label };
 }
@@ -397,7 +398,7 @@ const commands: Record<string, Command> = {
   },
   "deliverable add": {
     usage: `deliverable add "<title>" <path or http(s) URL> [--ticket <id>] [--kind ${DELIVERABLE_KINDS.join("|")}]`,
-    summary: `Add something the user can review. Paths are relative to where you run the command. Prints its id (D1, D2, ...). An HTML deliverable must be self-contained, with its CSS in the page and images embedded as data URIs, and no scripts or styles from the web, because Paseo's preview blocks the network.`,
+    summary: `Add something the user can review. Paths are relative to where you run the command. Prints its id (D1, D2, ...). An HTML deliverable must be self-contained, with its CSS in the page and images embedded as data URIs, and no scripts or styles from the web, because Paseo's preview blocks the network. The preview has no storage either. localStorage, sessionStorage, cookies and IndexedDB throw an error there, so keep a page's state in variables.`,
     options: { ticket: { type: "string" }, kind: { type: "string" } },
     run({ positionals, values, state, cwd, root }) {
       const title = required(positionals[0], "deliverable title");
@@ -415,7 +416,7 @@ const commands: Record<string, Command> = {
           type: "deliverable.add",
           id,
           title,
-          ...(isUrl ? { url: target } : { path: rootRelative(target, cwd, root) }),
+          ...(isUrl ? { url: target } : { path: checkedPath(target, cwd, root) }),
           ticket: ticket?.id,
           kind: (kind as (typeof DELIVERABLE_KINDS)[number] | undefined) ?? guessKind(target, isUrl, cwd),
         },
@@ -513,6 +514,16 @@ function rootRelative(target: string, cwd: string, root: string): string {
   const suffix = target.endsWith("/") || statSync(absolute, { throwIfNoEntry: false })?.isDirectory() ? "/" : "";
   if (!inside) return "./";
   return outside(inside) ? absolute + suffix : inside + suffix;
+}
+
+function checkedPath(target: string, cwd: string, root: string): string {
+  const error = pageScriptError(resolve(cwd, target));
+  if (error) {
+    throw new UsageError(
+      `${target} has a script error on line ${error.line} (${error.message}), so it opens blank in Paseo's preview. Fix the page and run this again.`,
+    );
+  }
+  return rootRelative(target, cwd, root);
 }
 
 function guessKind(target: string, isUrl: boolean, cwd: string): (typeof DELIVERABLE_KINDS)[number] {
