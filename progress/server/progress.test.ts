@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -30,6 +30,7 @@ process.env.GIT_CONFIG_NOSYSTEM = "1";
 // Working files live under the home folder, so each test run gets its own.
 const HOME = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
 process.env.HOME = HOME;
+test.after(() => rm(HOME, { recursive: true, force: true }));
 const git = async (cwd: string, ...args: string[]) =>
   (await promisify(execFile)("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd })).stdout;
 
@@ -1421,6 +1422,69 @@ test("an HTML report previews with the files beside it written in, only from ins
   assert.equal(opensAsPage(report, { browser: false }), false, "the phone apps open it on the computer running Paseo");
 });
 
+test("a page git tracks can't write in files git ignores; a page in an ignored folder gets only its own folder's", async (t) => {
+  const repo = await newRepo(t);
+  await writeFile(join(repo.directory, ".gitignore"), ".env\n.scratch/\n");
+  await writeFile(join(repo.directory, ".env"), "SECRET=1");
+  await mkdir(join(repo.directory, "report"));
+  await writeFile(join(repo.directory, "report", "app.js"), "run()");
+  const tracked = [`<script src="app.js"></script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`].join("\n");
+  await writeFile(join(repo.directory, "report", "index.html"), tracked);
+  await git(repo.directory, "add", "-A");
+  await git(repo.directory, "commit", "-qm", "a cloned repo with a page");
+  await mkdir(join(repo.directory, ".scratch"));
+  await writeFile(join(repo.directory, ".scratch", "notes.js"), "notes()");
+  await writeFile(join(repo.directory, ".scratch", "page.html"), [`<script src="notes.js"></script>`, `<script src="../.env"></script>`].join("\n"));
+  await repo.run(repo.directory, "start", "Run");
+  await repo.run(repo.directory, "deliverable", "add", "Tracked", "report/index.html");
+  await repo.run(repo.directory, "deliverable", "add", "Agent's", ".scratch/page.html");
+
+  const html = async (id: string) => {
+    const preview = await previewDeliverable(repo.directory, id);
+    assert.ok(preview.kind === "html");
+    return preview.html;
+  };
+  assert.equal(await html("D1"), [`<script>run()</script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`].join("\n"), "tracked files go in; ignored ones and .git stay out");
+  assert.equal(await html("D2"), [`<script>notes()</script>`, `<script src="../.env"></script>`].join("\n"), "an ignored page gets ignored files beside it, not the repo's .env");
+});
+
+test("a page gets a file only when git says it keeps it: not one in a nested .git, a submodule, or named like a git pattern", async (t) => {
+  const repo = await newRepo(t);
+  await writeFile(join(repo.directory, ".gitignore"), ".env\n");
+  await mkdir(join(repo.directory, "report"));
+  await writeFile(join(repo.directory, "report", "app.js"), "run()");
+  // Git reads a path starting ":(glob)" as a pattern, unless told otherwise.
+  await mkdir(join(repo.directory, ":(glob)secrets"));
+  await writeFile(join(repo.directory, ":(glob)secrets", ".env"), "PATTERN=1");
+  // A nested checkout's own credentials.
+  await mkdir(join(repo.directory, "nested", ".git"), { recursive: true });
+  await writeFile(join(repo.directory, "nested", ".git", "config"), "token=1");
+  // A submodule's ignored file, which the outer repo can't see into.
+  const sub = join(repo.directory, "sub");
+  await mkdir(sub);
+  await git(sub, "init", "-q");
+  await writeFile(join(sub, ".gitignore"), ".env\n");
+  await writeFile(join(sub, "page.html"), `<script src=".env"></script>`);
+  await git(sub, "add", "-A");
+  await git(sub, "commit", "-qm", "sub");
+  await writeFile(join(sub, ".env"), "SUB=1");
+  const refs = [`<script src="app.js"></script>`, `<script src="../:(glob)secrets/.env"></script>`, `<script src="../nested/.git/config"></script>`, `<script src="../sub/.env"></script>`];
+  await writeFile(join(repo.directory, "report", "index.html"), refs.join("\n"));
+  await git(repo.directory, "add", "-A");
+  await git(repo.directory, "commit", "-qm", "a cloned repo with a submodule");
+  await repo.run(repo.directory, "start", "Run");
+  await repo.run(repo.directory, "deliverable", "add", "Tracked", "report/index.html");
+  await repo.run(repo.directory, "deliverable", "add", "In the submodule", "sub/page.html");
+
+  const html = async (id: string) => {
+    const preview = await previewDeliverable(repo.directory, id);
+    assert.ok(preview.kind === "html");
+    return preview.html;
+  };
+  assert.equal(await html("D1"), [`<script>run()</script>`, ...refs.slice(1)].join("\n"), "a tracked file goes in; the rest stay out");
+  assert.equal(await html("D2"), `<script src=".env"></script>`, "a page git can't answer for counts as tracked, and its files as kept out");
+});
+
 test("a video previews as its type and size, then arrives in pieces", async (t) => {
   const w = await screenshotRun(t);
   await mkdir(join(w.directory, "clips"), { recursive: true });
@@ -1631,55 +1695,86 @@ test("outside git it works the same", async (t) => {
   assert.equal(result.inRepo, false, "no repo to save history in, so the panel doesn't offer it");
 });
 
-test("a run 0.1.x left in .scratch moves outside the first time anything reads it, and .scratch is tidied", async (t) => {
-  const repo = await newRepo(t);
-  await oldScratch(repo.directory, { "notes.md": "mine" });
-  const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
-  assert.ok("dashboard" in result);
-  assert.deepEqual([result.dashboard.run?.title, result.panelOpened], ["Old run", true]);
-  assert.deepEqual(await readdir(join(repo.directory, ".scratch")), ["notes.md"], "only the plugin's files go; the user's stay");
-  assert.equal((await repo.run(repo.directory, "activity", "add", "After the move")).code, 0);
-  assert.match(await readFile(join(outsideDirectory(repo.directory), "progress.jsonl"), "utf8"), /Old run[\s\S]*After the move/);
+test("a repo's .scratch, committed or not, is left alone and never read", async (t) => {
+  for (const commit of [true, false]) await t.test(commit ? "committed" : "not committed", async (t) => {
+    const repo = await newRepo(t);
+    await oldScratch(repo.directory, { "notes.md": "mine" });
+    const planted = startLine("Planted run") +
+      `${JSON.stringify({ v: 1, ts: "2026-09-01T10:01:00.000Z", type: "deliverable.add", id: "D1", title: "Planted report", path: "report.html" })}\n`;
+    await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), planted);
+    if (commit) {
+      await git(repo.directory, "add", "-f", ".scratch");
+      await git(repo.directory, "commit", "-qm", "progress committed in the repo");
+    }
+    const before = await snapshot(join(repo.directory, ".scratch"));
 
-  const bare = await newRepo(t);
-  await oldScratch(bare.directory);
-  await bare.run(bare.directory, "show");
-  assert.equal(await readdir(bare.directory).then((names) => names.includes(".scratch")), false, "an emptied .scratch goes too");
+    assert.equal((await repo.run(repo.directory, "start", "Mine")).code, 0);
+    assert.equal((await repo.run(repo.directory, "activity", "add", "My step")).code, 0);
+    await handleMarkPanelOpened({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+    const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+    assert.ok("dashboard" in result);
+    assert.match(result.file, /^~\/\.local\/state\/paseo-progress\//, "from the store outside the repo");
+    assert.deepEqual([result.dashboard.run?.title, result.panelOpened], ["Mine", true]);
+    assert.deepEqual(result.dashboard.deliverables, [], "nothing the .scratch file lists shows");
+    assert.doesNotMatch(await readFile(join(outsideDirectory(repo.directory), "progress.jsonl"), "utf8"), /Planted/, "and none of it is copied out");
+    assert.deepEqual(await snapshot(join(repo.directory, ".scratch")), before, "every file in .scratch is as it was");
+  });
 });
 
-test("a repo's own .scratch/.gitignore is never removed, and its files stop showing in git", async (t) => {
-  const repo = await newRepo(t);
-  await oldScratch(repo.directory);
-  await writeFile(join(repo.directory, ".scratch", ".gitignore"), "drafts/\n");
-  assert.deepEqual(await repo.visible(), [".scratch/.gitignore", ".scratch/progress-panel-opened", ".scratch/progress.jsonl"]);
-  await repo.run(repo.directory, "show");
-  assert.equal(await readFile(join(repo.directory, ".scratch", ".gitignore"), "utf8"), "drafts/\n");
-  assert.deepEqual(await repo.visible(), [".scratch/.gitignore"]);
-});
+// Every file and folder under a folder, with each file's text.
+async function snapshot(directory: string): Promise<Record<string, string>> {
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+  return Object.fromEntries(await Promise.all(entries.map(async (entry) => {
+    const path = join(entry.parentPath, entry.name);
+    return [path.slice(directory.length), entry.isFile() ? await readFile(path, "utf8") : entry.isDirectory() ? "folder" : "other"];
+  })));
+}
 
-test("a run 0.1.x left in .scratch that git tracks stays and is used in place", async (t) => {
-  const repo = await newRepo(t);
-  await oldScratch(repo.directory);
-  await writeFile(join(repo.directory, ".scratch", ".gitignore"), "drafts/\n");
-  await git(repo.directory, "add", "-A");
-  await git(repo.directory, "commit", "-qm", "progress committed by an agent");
-  assert.equal((await repo.run(repo.directory, "activity", "add", "Still here")).code, 0);
-  assert.match(await readFile(join(repo.directory, ".scratch", "progress.jsonl"), "utf8"), /Still here/);
-  assert.deepEqual(await repo.visible(), [".scratch/progress.jsonl"], "modified, as it always was, never deleted");
-  const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
-  assert.ok("dashboard" in result);
-  assert.equal(result.file, ".scratch/progress.jsonl");
-});
-
-test("lines written to the old place during a move are picked up, not lost", async (t) => {
-  const repo = await newRepo(t);
-  await repo.run(repo.directory, "start", "New run");
-  await mkdir(join(repo.directory, ".scratch"));
-  await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), `${JSON.stringify({ v: 1, ts: "2026-09-27T20:01:00.000Z", type: "activity.add", id: "A1", text: "Late line" })}\n`);
-  const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
-  assert.ok("dashboard" in result);
-  assert.equal(result.dashboard.run?.title, "New run");
-  assert.deepEqual(result.dashboard.activity.map((entry) => entry.text), ["Late line"]);
+test("a repo's .scratch can't lead Progress to write, truncate or delete anything outside it", async (t) => {
+  const scratch = (directory: string, name = "") => join(directory, ".scratch", name);
+  const withRun = async (directory: string) => {
+    await mkdir(scratch(directory));
+    await writeFile(scratch(directory, "progress.jsonl"), startLine("Committed run"));
+  };
+  // What a cloned repo can commit: links where 0.1.x kept its files.
+  const cases: Array<{ name: string; plant: (directory: string, outsideDir: string) => Promise<void> }> = [
+    { name: "the progress file links outside", plant: async (directory, outsideDir) => {
+      await mkdir(scratch(directory));
+      await symlink(join(outsideDir, "victim.txt"), scratch(directory, "progress.jsonl"));
+    } },
+    { name: "the panel marker links outside", plant: async (directory, outsideDir) => {
+      await withRun(directory);
+      await symlink(join(outsideDir, "victim.txt"), scratch(directory, "progress-panel-opened"));
+    } },
+    { name: ".scratch links to a folder 0.1.x left outside", plant: (directory, outsideDir) => symlink(scratch(outsideDir), scratch(directory)) },
+    { name: "the lock links to a folder outside", plant: async (directory, outsideDir) => {
+      await withRun(directory);
+      await symlink(join(outsideDir, "busy"), scratch(directory, "progress.jsonl.lock"));
+    } },
+  ];
+  // Committed, as a clone has them, or not, as a download without git has them.
+  for (const { name, plant } of cases) for (const commit of [true, false]) await t.test(`${name}${commit ? "" : ", not committed"}`, async (t) => {
+    const outsideDir = await realpath(await mkdtemp(join(tmpdir(), "progress-outside-")));
+    t.after(() => rm(outsideDir, { recursive: true, force: true }));
+    await writeFile(join(outsideDir, "victim.txt"), "mine\n");
+    await oldScratch(outsideDir);
+    await mkdir(join(outsideDir, "busy"));
+    await writeFile(join(outsideDir, "busy", "keep.txt"), "mine\n");
+    const before = await snapshot(outsideDir);
+    const repo = await newRepo(t);
+    await plant(repo.directory, outsideDir);
+    if (commit) {
+      await git(repo.directory, "add", "-A");
+      await git(repo.directory, "commit", "-qm", "a cloned repo with links");
+    }
+    await handleMarkPanelOpened({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+    assert.equal((await repo.run(repo.directory, "start", "hello")).code, 0, "commands still work");
+    const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+    assert.ok("dashboard" in result);
+    assert.deepEqual(await snapshot(outsideDir), before, "nothing outside the repo changed");
+    assert.deepEqual([result.dashboard.run?.title, result.panelOpened], ["hello", true], "the panel still works");
+    assert.match(result.file, /^~\/\.local\/state\/paseo-progress\//, "from the store outside the repo");
+  });
 });
 
 test("saving run history is opt-in: one file per run in the chosen folder, in every worktree", async (t) => {
@@ -1710,8 +1805,87 @@ test("saving run history is opt-in: one file per run in the chosen folder, in ev
 
 test("run history only goes to folders inside the repo", async (t) => {
   const repo = await newRepo(t);
-  for (const folder of ["", " ", "../elsewhere", "/tmp/x", ".", ".git", ".git/x"]) {
+  for (const folder of ["", " ", "../elsewhere", "/tmp/x", ".", ".git", ".git/x", ".git\\x", ".GIT/x", ".Git", "nested/.git", "nested/.git/runs", "nested\\.GIT\\runs"]) {
     await assert.rejects(handleSetHistoryFolder({ workspaceId: "ws-1", workspaceDirectory: repo.directory, folder }, context), `rejects "${folder}"`);
+  }
+});
+
+test("a run start the dashboard can't read never names a saved run's file", async (t) => {
+  const repo = await newRepo(t);
+  // No dashes: the file name drops them from the start time.
+  const outsideDir = await mkdtemp(join(tmpdir(), "progressoutside"));
+  t.after(() => rm(outsideDir, { recursive: true, force: true }));
+  // From docs/runs, three steps up is the temp folder, so this names outsideDir.
+  const crafted = `${JSON.stringify({ v: 1, type: "run.start", ts: `../../../${basename(outsideDir)}/pwned`, title: "x" })}\n`;
+  await mkdir(join(repo.directory, ".scratch"));
+  await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), crafted);
+  await git(repo.directory, "add", "-A");
+  await git(repo.directory, "commit", "-qm", "a cloned repo with a crafted run");
+  await git(repo.directory, "config", "--local", "paseo-progress.saveRuns", "docs/runs");
+  const runs = () => readdir(join(repo.directory, "docs", "runs")).catch(() => []);
+
+  assert.equal((await repo.run(repo.directory, "activity", "add", "hello")).code, 0);
+  assert.deepEqual(await readdir(outsideDir), [], "nothing written outside the repo");
+  assert.deepEqual(await runs(), [], "no run the dashboard knows of, so nothing saved");
+
+  await repo.run(repo.directory, "start", "Real run");
+  await appendFile(join(repo.directory, ".scratch", "progress.jsonl"), crafted);
+  await repo.run(repo.directory, "activity", "add", "after");
+  const file = runFileName(minutes(0).toISOString(), "Real run");
+  assert.deepEqual(await readdir(outsideDir), []);
+  assert.deepEqual(await runs(), [file], "the run the dashboard shows is the one saved");
+  assert.match(await readFile(join(repo.directory, "docs", "runs", file), "utf8"), /after/);
+});
+
+test("a saved-runs folder set outside Paseo is checked before each save", async (t) => {
+  const outsideDir = await mkdtemp(join(tmpdir(), "progress-outside-"));
+  t.after(() => rm(outsideDir, { recursive: true, force: true }));
+  for (const folder of [`../${basename(outsideDir)}`, ".git/runs", ".GIT/runs"]) {
+    const repo = await newRepo(t);
+    await git(repo.directory, "config", "--local", "paseo-progress.saveRuns", folder);
+    assert.equal((await repo.run(repo.directory, "start", "Run")).code, 0);
+    assert.deepEqual(await readdir(outsideDir), [], `nothing saved for "${folder}"`);
+    assert.equal(await readdir(join(repo.directory, ".git", "runs")).then(() => true, () => false), false, `nothing saved in .git for "${folder}"`);
+  }
+  const repo = await newRepo(t);
+  await git(repo.directory, "config", "--local", "paseo-progress.saveRuns", "nested/.git/runs");
+  assert.equal((await repo.run(repo.directory, "start", "Run")).code, 0);
+  assert.equal(await readdir(join(repo.directory, "nested")).then(() => true, () => false), false, "nothing saved in a nested .git");
+});
+
+test("saving a run never writes through a link, to the run's file or a folder above it", async (t) => {
+  const outsideDir = await realpath(await mkdtemp(join(tmpdir(), "progress-outside-")));
+  t.after(() => rm(outsideDir, { recursive: true, force: true }));
+  const victim = join(outsideDir, "victim.txt");
+  await writeFile(victim, "mine\n");
+  const file = runFileName("2026-11-04T00:00:00.000Z", "Owned");
+  // What a cloned repo can commit: links where its runs go, and a run of its own.
+  const links: Array<{ folder: string; plant: (directory: string) => Promise<void>; name: string }> = [
+    { name: "the run's file links to a file outside", folder: "history", plant: async (directory) => {
+      await mkdir(join(directory, "history"));
+      await symlink(victim, join(directory, "history", file));
+    } },
+    { name: "the run's file links to a missing file outside", folder: "history", plant: async (directory) => {
+      await mkdir(join(directory, "history"));
+      await symlink(join(outsideDir, "made.txt"), join(directory, "history", file));
+    } },
+    { name: "the folder links outside", folder: "history", plant: (directory) => symlink(outsideDir, join(directory, "history")) },
+    { name: "a folder above it links outside", folder: "docs/runs", plant: (directory) => symlink(outsideDir, join(directory, "docs")) },
+  ];
+  for (const { name, folder, plant } of links) {
+    const repo = await newRepo(t);
+    await plant(repo.directory);
+    await mkdir(join(repo.directory, ".scratch"));
+    await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), [
+      JSON.stringify({ v: 1, type: "run.start", ts: "2026-11-04T00:00:00.000Z", title: "Owned" }),
+      JSON.stringify({ v: 1, type: "activity.add", ts: "2026-11-04T00:00:01.000Z", id: "A1", text: "attacker's line" }),
+    ].join("\n") + "\n");
+    await git(repo.directory, "add", "-A");
+    await git(repo.directory, "commit", "-qm", "a cloned repo with links");
+    await git(repo.directory, "config", "--local", "paseo-progress.saveRuns", folder);
+    assert.equal((await repo.run(repo.directory, "activity", "add", "hello")).code, 0, `${name}: the update still goes in`);
+    assert.equal(await readFile(victim, "utf8"), "mine\n", `${name}: the file outside is unchanged`);
+    assert.deepEqual(await readdir(outsideDir), ["victim.txt"], `${name}: nothing made outside the repo`);
   }
 });
 
@@ -1726,4 +1900,85 @@ test("the folder picker lists the repo's folders, without .git or links", async 
   assert.deepEqual(await list("src"), { folder: "src", folders: ["app"] });
   assert.deepEqual(await list("new/folder"), { folder: "new/folder", folders: [] }, "a folder that doesn't exist yet is empty");
   await assert.rejects(list("../"), /inside the repo/);
+});
+
+// Runs `body` with `directory` searched first for programs, then the usual PATH.
+async function withPathFirst<T>(directory: string, body: () => Promise<T>): Promise<T> {
+  const path = process.env.PATH;
+  process.env.PATH = `${directory}${delimiter}${path}`;
+  try {
+    return await body();
+  } finally {
+    process.env.PATH = path;
+  }
+}
+
+test("git never runs from the repo, so a program the repo commits named git never runs", async (t) => {
+  const repo = await newRepo(t);
+  const ran = join(repo.directory, "ran");
+  await writeFile(join(repo.directory, "git"), `#!/bin/sh\ntouch "${ran}"\nexit 1\n`, { mode: 0o755 });
+  // Windows looks for a program in the folder it starts in before PATH. A "."
+  // first on PATH does the same here.
+  const result = await withPathFirst(".", () => handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context));
+  assert.deepEqual((await readdir(repo.directory)).sort(), [".git", "git"], "the repo's git never ran");
+  assert.ok("dashboard" in result);
+  assert.equal(result.inRepo, true, "the real git answered for the repo");
+});
+
+test("a page git reports as ignored gets ignored files only from its own folder and below, never from .git", async (t) => {
+  const repo = await newRepo(t);
+  await writeFile(join(repo.directory, ".gitignore"), ".env\n.scratch/\n");
+  await writeFile(join(repo.directory, ".env"), "SECRET=1");
+  await writeFile(join(repo.directory, "app.js"), "run()");
+  await git(repo.directory, "add", "-A");
+  await git(repo.directory, "commit", "-qm", "a repo");
+  const report = join(repo.directory, ".scratch", "run");
+  await mkdir(join(report, "shots"), { recursive: true });
+  await writeFile(join(report, "style.css"), "h1 {}");
+  await writeFile(join(report, "shots", "home.js"), "home()");
+  await writeFile(join(repo.directory, ".scratch", "other.js"), "other()");
+  const refs = [
+    `<link rel="stylesheet" href="style.css">`,
+    `<script src="shots/home.js"></script>`,
+    `<script src="../../app.js"></script>`,
+    `<script src="../other.js"></script>`,
+    `<script src="../../.env"></script>`,
+    `<script src="../../.git/config"></script>`,
+    `<script src="../../.git/HEAD"></script>`,
+  ];
+  await writeFile(join(report, "report.html"), refs.join("\n"));
+  await repo.run(repo.directory, "start", "Run");
+  await repo.run(repo.directory, "deliverable", "add", "Report", ".scratch/run/report.html");
+  const preview = await previewDeliverable(repo.directory, "D1");
+  assert.ok(preview.kind === "html");
+  assert.equal(preview.html, [`<style>h1 {}</style>`, `<script>home()</script>`, `<script>run()</script>`, ...refs.slice(3)].join("\n"),
+    "its folder's files and tracked files go in; ignored files elsewhere and .git stay out");
+});
+
+test("when git fails in a repo, a page gets no file git didn't vouch for, and git is asked again next time", async (t) => {
+  const repo = await newRepo(t);
+  await writeFile(join(repo.directory, ".gitignore"), ".env\n.scratch/\n");
+  await writeFile(join(repo.directory, ".env"), "SECRET=1");
+  await mkdir(join(repo.directory, ".scratch"));
+  await writeFile(join(repo.directory, ".scratch", "notes.js"), "notes()");
+  const refs = [`<script src="notes.js"></script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`];
+  await writeFile(join(repo.directory, ".scratch", "page.html"), refs.join("\n"));
+  await repo.run(repo.directory, "start", "Run");
+  await repo.run(repo.directory, "deliverable", "add", "Page", ".scratch/page.html");
+  // A git that fails without saying why, with the exit code that otherwise means "not ignored".
+  const broken = await mkdtemp(join(tmpdir(), "progress-broken-git-"));
+  t.after(() => rm(broken, { recursive: true, force: true }));
+  await writeFile(join(broken, "git"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  const preview = await withPathFirst(broken, () => previewDeliverable(repo.directory, "D1"));
+  assert.ok(preview.kind === "html");
+  assert.equal(preview.html, refs.join("\n"), "nothing goes in");
+
+  const fresh = await newRepo(t);
+  const inRepo = async () => {
+    const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: fresh.directory }, context);
+    assert.ok("dashboard" in result);
+    return result.inRepo;
+  };
+  assert.equal(await withPathFirst(broken, inRepo), false, "git can't answer, so the panel doesn't offer saving");
+  assert.equal(await inRepo(), true, "git answers once it works again");
 });

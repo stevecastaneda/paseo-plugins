@@ -5,39 +5,29 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, normalize, resolve } from "node:path";
+import { basename, dirname, join, normalize, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { LEGACY_FOLDER, PANEL_OPENED_NAME, PROGRESS_FILE_NAME } from "../shared/events.ts";
-import { withLock } from "./lock.ts";
-import { outside } from "./paths.ts";
+import { latestRun, parseProgress } from "../shared/dashboard.ts";
+import { hasGitEntry, inGitFolder, outside } from "./paths.ts";
 
-const LOCK_NAME = `${PROGRESS_FILE_NAME}.lock`;
 const SAVE_RUNS_KEY = "paseo-progress.saveRuns";
-// Exactly what 0.1.x wrote into .scratch/.gitignore. Only this is ever removed.
-const LEGACY_GITIGNORE = `# Added by the progress plugin for Paseo so its files stay out of git.
-${PROGRESS_FILE_NAME}
-${LOCK_NAME}/
-${PANEL_OPENED_NAME}
-.gitignore
-`;
 
 // `directory` holds the working files. `shown` names it for people.
 export type Store = { directory: string; shown: string };
 
-export async function git(cwd: string, args: string[]): Promise<{ code: number; stdout: string }> {
+// Git runs in the worktree through -C, started from the folder Node itself
+// lives in: Windows looks for a program in the folder it starts in before
+// PATH, and a cloned repo can commit a git.exe.
+export async function git(root: string, args: string[]): Promise<{ code: number; stdout: string }> {
   try {
-    const { stdout } = await promisify(execFile)("git", args, { cwd });
+    const { stdout } = await promisify(execFile)("git", ["-C", resolve(root), ...args], { cwd: dirname(process.execPath) });
     return { code: 0, stdout };
   } catch (error) {
     const failed = error as { code?: number | string; stdout?: string };
     return { code: typeof failed.code === "number" ? failed.code : -1, stdout: failed.stdout ?? "" };
   }
-}
-
-async function exists(path: string): Promise<boolean> {
-  return Boolean(await stat(path).catch(() => null));
 }
 
 // The plugin's per-user folder on this computer.
@@ -68,76 +58,37 @@ export function outsideDirectory(root: string, home = homedir()): string {
   return join(stateRoot(home), `${basename(real)}-${hash}`);
 }
 
-// Whether git tracks a 0.1.x progress file, per worktree, until the file changes.
-const trackedLegacy = new Map<string, { mtimeMs: number; tracked: boolean }>();
-
-async function legacyTracked(root: string, mtimeMs: number): Promise<boolean> {
-  const cached = trackedLegacy.get(root);
-  if (cached && cached.mtimeMs === mtimeMs) return cached.tracked;
-  const { code } = await git(root, ["ls-files", "--error-unmatch", "--", `${LEGACY_FOLDER}/${PROGRESS_FILE_NAME}`]);
-  trackedLegacy.set(root, { mtimeMs, tracked: code === 0 });
-  return code === 0;
-}
-
-// The worktree's working files. A run 0.1.x left in .scratch moves outside the
-// first time anything asks, unless git tracks it: then it stays and is used in
-// place, so nothing changes for a repo that commits it.
-export async function findStore(root: string, home = homedir()): Promise<Store> {
+// The worktree's working files, always outside the repo. Progress never reads
+// a repo's .scratch, where 0.1.x kept them: a cloned repo could put anything there.
+export function findStore(root: string, home = homedir()): Store {
   const directory = outsideDirectory(root, home);
-  const store = { directory, shown: directory.startsWith(home) ? `~${directory.slice(home.length)}` : directory };
-  const legacy = join(root, LEGACY_FOLDER);
-  const info = await stat(join(legacy, PROGRESS_FILE_NAME)).catch(() => null);
-  if (!info) return store;
-  if (await legacyTracked(root, info.mtimeMs)) return { directory: legacy, shown: LEGACY_FOLDER };
-  await moveLegacy(legacy, directory);
-  return store;
-}
-
-// Appends the old file's lines to the new one rather than replacing it, so a
-// command that wrote to the old place mid-move loses nothing: the next move
-// picks those lines up. Then tidies what 0.1.x left behind.
-async function moveLegacy(legacy: string, directory: string): Promise<void> {
-  await mkdir(directory, { recursive: true });
-  await withLock(join(legacy, LOCK_NAME), async () => {
-    const text = await readFile(join(legacy, PROGRESS_FILE_NAME), "utf8").catch(() => null);
-    if (text === null) return;
-    await withLock(join(directory, LOCK_NAME), async () => {
-      const current = await readFile(join(directory, PROGRESS_FILE_NAME), "utf8").catch(() => "");
-      const lead = current && !current.endsWith("\n") ? "\n" : "";
-      await appendFile(join(directory, PROGRESS_FILE_NAME), `${lead}${text}`);
-    });
-    await rm(join(legacy, PROGRESS_FILE_NAME));
-    if (await exists(join(legacy, PANEL_OPENED_NAME))) {
-      await writeFile(join(directory, PANEL_OPENED_NAME), "");
-      await rm(join(legacy, PANEL_OPENED_NAME));
-    }
-  });
-  const ignore = await readFile(join(legacy, ".gitignore"), "utf8").catch(() => null);
-  if (ignore === LEGACY_GITIGNORE) await rm(join(legacy, ".gitignore"));
-  // Only if nothing else is in there; the user's own files keep the folder.
-  await rmdir(legacy).catch(() => {});
+  return { directory, shown: directory.startsWith(home) ? `~${directory.slice(home.length)}` : directory };
 }
 
 // The repo's saved-history folder, kept in its local git config, which every
 // worktree of the repo shares and nothing commits. Polls cost one stat; git
-// runs again only when the config file changes.
-const configFiles = new Map<string, string | null>();
+// runs again only when the config file changes. A worktree with no .git
+// entry is no repo; when git fails in one that has it, the next poll asks again.
+const configFiles = new Map<string, string>();
 const savedFolders = new Map<string, { mtimeMs: number; folder: string | null }>();
 
 async function configFile(root: string): Promise<string | null> {
+  if (!hasGitEntry(root)) return null;
   if (!configFiles.has(root)) {
     const { code, stdout } = await git(root, ["rev-parse", "--git-common-dir"]);
-    configFiles.set(root, code === 0 ? join(resolve(root, stdout.trim()), "config") : null);
+    if (code !== 0) return null;
+    configFiles.set(root, join(resolve(root, stdout.trim()), "config"));
   }
   return configFiles.get(root)!;
 }
 
-// Whether the worktree is in a git repo, which saving run history needs.
+// Whether git answers for the worktree's repo, which saving run history needs.
 export async function inGitRepo(root: string): Promise<boolean> {
   return (await configFile(root)) !== null;
 }
 
-// The folder runs are saved to, relative to the worktree root, or null.
+// The folder runs are saved to, relative to the worktree root, or null. A
+// folder set outside Paseo gets the same check as one picked in it.
 export async function historyFolder(root: string): Promise<string | null> {
   const file = await configFile(root);
   if (file === null) return null;
@@ -145,7 +96,8 @@ export async function historyFolder(root: string): Promise<string | null> {
   const cached = savedFolders.get(file);
   if (cached && cached.mtimeMs === mtimeMs) return cached.folder;
   const { stdout } = await git(root, ["config", "--get", SAVE_RUNS_KEY]);
-  const folder = stdout.trim() || null;
+  const checked = checkFolder(stdout);
+  const folder = "folder" in checked ? checked.folder : null;
   savedFolders.set(file, { mtimeMs, folder });
   return folder;
 }
@@ -156,7 +108,7 @@ export function checkFolder(raw: string): { folder: string } | { error: string }
   if (!trimmed) return { error: "Choose a folder" };
   const folder = normalize(trimmed);
   if (outside(folder) || folder === ".") return { error: "Choose a folder inside the repo" };
-  if (folder === ".git" || folder.startsWith(".git/")) return { error: "Choose a folder outside .git" };
+  if (inGitFolder(folder)) return { error: "Choose a folder outside .git" };
   return { folder };
 }
 
@@ -189,27 +141,32 @@ export function runFileName(startedAt: string, title: string): string {
 export async function saveRunCopy(root: string, text: string): Promise<void> {
   const folder = await historyFolder(root);
   if (!folder) return;
-  const lines = text.split("\n").filter((line) => line.trim());
-  let start = -1;
-  let event: { ts?: string; title?: string } | null = null;
-  for (let index = lines.length - 1; index >= 0; index--) {
-    try {
-      const parsed = JSON.parse(lines[index]);
-      if (parsed?.type === "run.start") {
-        start = index;
-        event = parsed;
-        break;
-      }
-    } catch {}
+  // The run the dashboard shows. A start line it can't read is no run.
+  const [start] = latestRun(parseProgress(text).events);
+  if (start?.event.type !== "run.start") return;
+  const lines = text.split("\n").slice(start.line - 1).filter((line) => line.trim());
+  const directory = await runsFolder(root, folder);
+  if (!directory) return;
+  // A rename replaces a link at the run's file instead of writing through it.
+  await writeAtomic(join(directory, runFileName(start.event.ts, start.event.title)), `${lines.join("\n")}\n`);
+}
+
+// The saved-runs folder in the real worktree, made one step at a time, or null
+// when any step is a link or a file: a cloned repo can commit a link that leads
+// out of it.
+async function runsFolder(root: string, folder: string): Promise<string | null> {
+  let directory = await realpath(root);
+  for (const name of folder.split(sep)) {
+    directory = join(directory, name);
+    const info = await lstat(directory).catch(() => null);
+    if (!info) await mkdir(directory);
+    else if (!info.isDirectory()) return null;
   }
-  if (start < 0 || !event?.ts || !event.title) return;
-  const directory = join(root, folder);
-  await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, runFileName(event.ts, event.title)), `${lines.slice(start).join("\n")}\n`);
+  return directory;
 }
 
 // The folders directly inside one folder of the worktree ("" is the top), for
-// the folder picker. .git is left out; so are links, which could leave the repo.
+// the folder picker. .git folders are left out; so are links, which could leave the repo.
 export async function listFolders(root: string, folder: string): Promise<{ folder: string; folders: string[] }> {
   const checked = folder === "" ? { folder: "" } : checkFolder(folder);
   if ("error" in checked) throw new Error(checked.error);
@@ -217,6 +174,6 @@ export async function listFolders(root: string, folder: string): Promise<{ folde
     if (error.code === "ENOENT") return [];
     throw error;
   });
-  const folders = entries.filter((entry) => entry.isDirectory() && !(checked.folder === "" && entry.name === ".git")).map((entry) => entry.name);
+  const folders = entries.filter((entry) => entry.isDirectory() && !inGitFolder(entry.name)).map((entry) => entry.name);
   return { folder: checked.folder, folders: folders.sort((a, b) => a.localeCompare(b)) };
 }

@@ -80,7 +80,7 @@ The choice covers every worktree of the repo and is kept in the repo's local git
 
 ### Upgrading from 0.1.x
 
-Earlier versions kept progress in `.scratch/` in each worktree, hidden by a `.scratch/.gitignore` they wrote. The first time the command or the panel touches a worktree after the upgrade, the plugin moves its files out of `.scratch/` and removes that `.gitignore` if it's exactly the one the plugin wrote. If `.scratch/` is then empty, it goes too; anything else you keep there stays. If git tracks the old progress file (for example, an agent committed it), the plugin leaves it where it is and keeps using it, so nothing changes in that repo.
+Versions before 0.2.0 kept progress in `.scratch/` in each worktree. From 1.14.1, Progress never reads, moves or changes the files those versions left there, so such a run no longer shows in the panel. The file stays where it is. Versions 0.2.0 to 1.14.0 moved such a run outside the repo the first time they opened the worktree.
 
 ## Agent tools
 
@@ -177,6 +177,12 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.14.1
+
+- [Fixed] **Run history stays in its folder.** This fixes a security issue in saving run history. Progress now saves a run only when the dashboard can read the line that started it, and only into a folder inside the repo and outside `.git`.
+- [Fixed] **HTML previews keep ignored files and `.git` out.** This fixes a security issue in the HTML preview. No preview gets files in `.git` written into it, and a page that git tracks no longer gets files git ignores, like a `.env`. A page in an ignored folder, like an agent's report in `.scratch`, still shows the files in its own folder and the folders below it. If git can't run in the repo, a preview shows the page without the files it loads from the repo.
+- [Fixed] **Progress no longer reads its old files in `.scratch`.** This fixes a security issue in how Progress handled a run that version 0.1.x left in `.scratch`. Progress now keeps its files outside the repo for every worktree and never reads, moves or changes the files 0.1.x left there. A 0.1.x run that was never opened since 0.2.0 stays there and no longer shows in the panel.
 
 ### 1.14.0
 
