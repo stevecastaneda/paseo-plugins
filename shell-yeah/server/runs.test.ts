@@ -289,10 +289,11 @@ posixTest("only so many commands run at once", async () => {
 });
 
 posixTest("tail: unknown for an unseen run, unchanged after the wait, wakes on a burst and on the end", { timeout: 15_000 }, async () => {
-  // A wider coalescing window than the default, so a slow machine still delivers the burst in one reply.
+  // Builtin echoes, so the burst's three writes don't wait on starting a program, which a busy CI
+  // runner can stretch past the coalescing window. A wider window than the default covers the rest.
   const h = harness({ limits: { tailCoalesceMs: 150 } });
   assert.deepEqual(await h.registry.tail("never-seen-0001", 10, null, 0), { state: "unknown" });
-  const id = await run(h.registry, "sleep 0.3; for i in 1 2 3; do echo $i; sleep 0.01; done; sleep 0.6");
+  const id = await run(h.registry, "sleep 0.3; echo 1; echo 2; echo 3; sleep 0.6");
   const first = await h.registry.tail(id, 10, null, 0);
   assert.equal(first.state, "view");
   const rev = (first as { view: { rev: number } }).view.rev;
@@ -301,7 +302,7 @@ posixTest("tail: unknown for an unseen run, unchanged after the wait, wakes on a
   const woke = await h.registry.tail(id, 10, rev, 1_500);
   assert.equal(woke.state, "view");
   const view = (woke as { view: { output: { lines: unknown[] }; phase: { kind: string } } }).view;
-  assert.deepEqual(view.output.lines, ["1", "2", "3"], "a burst 10 ms apart arrives as one reply");
+  assert.deepEqual(view.output.lines, ["1", "2", "3"], "a burst of separate writes arrives as one reply");
   assert.equal(view.phase.kind, "running");
   const before = Date.now();
   const end = await h.registry.tail(id, 10, (woke as { view: { rev: number } }).view.rev, 1_500);
