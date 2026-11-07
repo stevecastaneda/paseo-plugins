@@ -160,7 +160,7 @@ export const canOpenOnHost = defineRpc({
   output: z.object({ canOpen: z.boolean() }),
 });
 
-// An image, text, Markdown or HTML file's contents, for the preview dialog.
+// An image, text or Markdown file's contents, for the preview dialog.
 export const previewDeliverable = defineRpc({
   name: "progress.deliverable.preview",
   input: z.object({
@@ -175,7 +175,6 @@ export const previewDeliverable = defineRpc({
     z.object({ kind: z.literal("pdf"), bytes: z.number() }),
     z.object({ kind: z.literal("text"), text: z.string(), bytes: z.number(), truncated: z.boolean() }),
     z.object({ kind: z.literal("markdown"), markdown: z.string(), bytes: z.number(), truncated: z.boolean() }),
-    z.object({ kind: z.literal("html"), html: z.string(), bytes: z.number() }),
     z.object({ kind: z.literal("folder"), entries: z.array(z.object({ name: z.string(), folder: z.boolean() })), truncated: z.boolean() }),
   ]),
 });

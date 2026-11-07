@@ -56,6 +56,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
           colors={colors}
           dashboard={dashboard}
           workspaceId={workspaceId}
+          root={root}
           compact={layout.compact}
           touch={touch}
           onSurface1={onSurface1}
@@ -156,6 +157,7 @@ export function AttentionList({
   colors,
   dashboard,
   workspaceId,
+  root,
   compact,
   touch,
   onSurface1,
@@ -165,6 +167,8 @@ export function AttentionList({
   colors: Colors;
   dashboard: Dashboard;
   workspaceId: string;
+  // The worktree root the attachments' paths are relative to.
+  root: string;
   compact: boolean;
   touch: boolean;
   onSurface1: boolean;
@@ -224,6 +228,7 @@ export function AttentionList({
               colors={colors}
               question={question}
               now={now}
+              root={root}
               onSurface1={onSurface1}
               onOpenAttachment={onOpenAttachment}
               onCopy={(letter) => {

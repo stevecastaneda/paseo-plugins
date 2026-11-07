@@ -1,5 +1,4 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
@@ -17,10 +16,9 @@ import {
   videoMimeType,
 } from "../shared/attachments.ts";
 import { prepareMarkdown, previewText } from "../shared/markdown.ts";
-import { PAGE_ESCAPE_SCRIPT } from "../shared/page.ts";
 import { readProgress } from "./progress-file.ts";
-import { findRoot, hasGitEntry, inGitFolder, outside } from "./paths.ts";
-import { findStore, git } from "./store.ts";
+import { findRoot, outside } from "./paths.ts";
+import { findStore } from "./store.ts";
 import { openToRead, runProgram } from "./system.ts";
 
 export type Opener = (path: string) => Promise<void>;
@@ -66,11 +64,7 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
-async function resolveAttachment(
-  directory: string,
-  ref: string,
-  verb: string,
-): Promise<{ path: string; realTarget: string; realRoot: string; worktree: string }> {
+async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; realTarget: string; worktree: string }> {
   const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
@@ -83,7 +77,7 @@ async function resolveAttachment(
   if (!realTarget) throw new Error(`${path} no longer exists.`);
   const inside = relative(realRoot, realTarget);
   if (outside(inside)) throw new Error(`${path} is outside this worktree, so it was not ${verb}.`);
-  return { path, realTarget, realRoot, worktree };
+  return { path, realTarget, worktree };
 }
 
 // The real file is checked, not the name the agent recorded, so a link named
@@ -118,15 +112,15 @@ export type Preview =
   | { kind: "pdf"; bytes: number }
   | { kind: "text"; text: string; bytes: number; truncated: boolean }
   | { kind: "markdown"; markdown: string; bytes: number; truncated: boolean }
-  | { kind: "html"; html: string; bytes: number }
   | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
 
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
-  const { path, realTarget, realRoot, worktree } = await resolveAttachment(directory, id, "previewed");
+  const { path, realTarget, worktree } = await resolveAttachment(directory, id, "previewed");
   const stats = await stat(realTarget);
   if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(realTarget)) };
+  // A page opens in Paseo's own preview, in a tab.
   const kind = previewKind(realTarget);
-  if (!kind) throw new Error(`${path} isn't an image, video, PDF, text or HTML file, so it can't be previewed.`);
+  if (!kind || kind === "html") throw new Error(`${path} isn't an image, video, PDF or text file, so it can't be previewed.`);
   const { size } = stats;
   if (isPieced(kind)) {
     if (size > PIECED_LIMIT_BYTES[kind]) throw new Error(tooLarge(path, size));
@@ -147,7 +141,6 @@ export async function previewDeliverable(directory: string, id: string): Promise
     }
   }
   if (size > MAX_PREVIEW_BYTES) throw new Error(tooLarge(path, size));
-  if (kind === "html") return { kind, html: await inlineLocalFiles(await readFile(realTarget, "utf8"), realTarget, realRoot), bytes: size };
   const data = await readFile(realTarget);
   return { kind, dataUri: `data:${imageMimeType(realTarget)};base64,${data.toString("base64")}`, bytes: size };
 }
@@ -161,107 +154,6 @@ async function listFolder(target: string): Promise<{ entries: FolderEntry[]; tru
   }
   entries.sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
   return { entries: entries.slice(0, MAX_FOLDER_ENTRIES), truncated: entries.length > MAX_FOLDER_ENTRIES };
-}
-
-function dataUri(data: Buffer, file: string): string {
-  return `data:${imageMimeType(file) ?? videoMimeType(file) ?? "application/octet-stream"};base64,${data.toString("base64")}`;
-}
-
-// Its own end tag would close the element early.
-function body(tag: string) {
-  return (data: Buffer) => data.toString("utf8").replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
-}
-
-// The preview gets only the page, so the files beside it that it loads (its
-// screenshots, a script, a stylesheet) are written into it. Only files inside the
-// worktree, up to MAX_PREVIEW_BYTES in all; anything else is left as written and
-// fails to load. Web addresses are left alone. A cloned repo's page runs here,
-// so it must not read and send .env or .git files: it gets a file git says it
-// keeps, or, when git ignores the page, like an agent's report in .scratch, a
-// file in the page's own folder or below. Never one in a .git folder. When git
-// can't answer, as for a file in a submodule or when git fails, the file stays out.
-// A page given any file git doesn't keep runs none of its own scripts and loads
-// nothing: a script could read the file and send it out by navigating the
-// frame or over WebRTC, which no policy blocks.
-async function inlineLocalFiles(html: string, page: string, root: string): Promise<string> {
-  const directory = dirname(page);
-  const inRepo = hasGitEntry(root);
-  // -v -n prints a line for every path git answers for, so a git that fails
-  // with no answer never counts as "not ignored". The "./" stops git reading a
-  // name like ":(glob)x" as a pattern.
-  const ignoreCheck = async (path: string): Promise<"ignored" | "kept" | "unknown"> => {
-    if (!inRepo) return "kept";
-    const { code, stdout } = await git(root, ["check-ignore", "-v", "-n", "--", `./${relative(root, path).split(nodePath.sep).join("/")}`]);
-    if (!stdout.trim()) return "unknown";
-    return code === 0 ? "ignored" : code === 1 ? "kept" : "unknown";
-  };
-  const pageIgnored = (await ignoreCheck(page)) === "ignored";
-  // "ignored" covers a file git couldn't answer for, too.
-  const allowed = async (file: string): Promise<"kept" | "ignored" | null> => {
-    if (inGitFolder(relative(root, file))) return null;
-    if ((await ignoreCheck(file)) === "kept") return "kept";
-    return pageIgnored && !outside(relative(directory, file)) ? "ignored" : null;
-  };
-  let gaveIgnored = false;
-  let room = MAX_PREVIEW_BYTES - Buffer.byteLength(html);
-  const inline = async (url: string, encode: (data: Buffer, file: string) => string): Promise<string | null> => {
-    if (!url || /^([a-z][a-z0-9+.-]*:|[/\\#?])/i.test(url)) return null;
-    try {
-      const file = await realpath(resolve(directory, decodeURI(url.replace(/[?#].*$/, ""))));
-      const stats = await stat(file);
-      if (outside(relative(root, file)) || !stats.isFile() || stats.size > room) return null;
-      const verdict = await allowed(file);
-      if (!verdict) return null;
-      const encoded = encode(await readFile(file), file);
-      if (encoded.length > room) return null;
-      room -= encoded.length;
-      if (verdict === "ignored") gaveIgnored = true;
-      return encoded;
-    } catch {
-      return null;
-    }
-  };
-  html = await replaceEach(html, /<(?:img|source|video)\b[^>]*>/gi, (tag) =>
-    replaceEach(tag[0], /(?<=\s)(src|poster)(\s*=\s*)(["'])([^"']*)\3/gi, async ([, name, equals, quote, url]) => {
-      const uri = await inline(url, dataUri);
-      return uri && `${name}${equals}${quote}${uri}${quote}`;
-    }),
-  );
-  html = await replaceEach(html, /<link\b[^>]*>/gi, async ([tag]) => {
-    const href = tag.match(/\bhref\s*=\s*(["'])([^"']*)\1/i)?.[2];
-    if (!href || !/\brel\s*=\s*(["'])\s*stylesheet\s*\1/i.test(tag)) return null;
-    const css = await inline(href, body("style"));
-    return css === null ? null : `<style>${css}</style>`;
-  });
-  html = await replaceEach(html, /<script\b([^>]*?)\s+src\s*=\s*(["'])([^"']*)\2([^>]*)>\s*<\/script\s*>/gi, async ([, before, , src, after]) => {
-    const script = await inline(src, body("script"));
-    return script === null ? null : `<script${before}${after}>${script}</script>`;
-  });
-  // Right after any doctype, so the page keeps its rendering mode, and before
-  // anything that loads.
-  return gaveIgnored ? html.replace(/^(\uFEFF?\s*<!doctype\b[^>]*>)?/i, `$&${PRIVATE_PAGE_META}`) : html;
-}
-
-const PRIVATE_PAGE_POLICY = [
-  "default-src 'none'",
-  "img-src data:",
-  "media-src data:",
-  "font-src data:",
-  "style-src 'unsafe-inline'",
-  `script-src 'sha256-${createHash("sha256").update(PAGE_ESCAPE_SCRIPT).digest("base64")}'`,
-  "form-action 'none'",
-].join("; ");
-const PRIVATE_PAGE_META = `<meta http-equiv="Content-Security-Policy" content="${PRIVATE_PAGE_POLICY}">`;
-
-// `replace` on each match in turn; a null keeps the match as it was.
-async function replaceEach(text: string, pattern: RegExp, replace: (match: RegExpMatchArray) => Promise<string | null>): Promise<string> {
-  let result = "";
-  let last = 0;
-  for (const match of text.matchAll(pattern)) {
-    result += text.slice(last, match.index) + ((await replace(match)) ?? match[0]);
-    last = match.index! + match[0].length;
-  }
-  return result + text.slice(last);
 }
 
 function tooLarge(path: string, size: number): string {

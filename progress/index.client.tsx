@@ -4,7 +4,6 @@ import { ProgressPanel } from "./client/panel";
 import { contributePills, progressPanel } from "./client/pills";
 import { QuestionSettings } from "./client/settings";
 import { ProgressLanguageProvider } from "./client/language";
-import { addPageScreen } from "./client/page-screen";
 import { PdfPanel } from "./client/pdf";
 import { showsPdfs } from "./shared/attachments";
 import { CHAT_ROW_KIND, CHAT_ROW_VERSION, chatRowSchema, transformChatRow } from "./client/chat-row";
@@ -50,7 +49,6 @@ export default function contribute(client: PluginClientContext) {
         ),
       })
     : () => {};
-  const stopPage = addPageScreen(client);
   const stopSettings = client.addSettingsScreen({
     id: SETTINGS_ID,
     title: "Settings",
@@ -76,7 +74,6 @@ export default function contribute(client: PluginClientContext) {
   return () => {
     void stopTransformer();
     void stopRenderer();
-    stopPage();
     void stopPdf();
     void stopSettings();
     void stopPanel();

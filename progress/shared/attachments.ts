@@ -202,10 +202,10 @@ export function attachmentIcon(attachment: Attachment): string {
   return kind ? PREVIEW_ICON[kind] : attachment.path.endsWith("/") ? "Folder" : "File";
 }
 
-// An HTML page is too wide for the dialog, so where the host can't open it the
-// desktop app gives it a screen of its own. The phone apps can't draw one.
-export function opensAsPage(attachment: Attachment, where: { browser: boolean }): boolean {
-  return where.browser && Boolean(attachment.path) && previewKind(attachment.path!) === "html";
+// An HTML page opens in a Paseo tab, in Paseo's own preview, which runs the
+// page's scripts and blocks everything it would load from the web.
+export function isPage(attachment: Attachment): boolean {
+  return !isFolder(attachment) && previewKind(attachment.path ?? "") === "html";
 }
 
 // Android's viewer has no PDF support.

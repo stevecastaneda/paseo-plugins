@@ -215,7 +215,14 @@ export function TicketStoryView({
             label: m.deliverables,
             icon: "Package",
             count: story.deliverables.length,
-            content: <AttachmentList colors={colors} attachments={story.deliverables.map(deliverableAttachment)} onOpen={onOpenAttachment} />,
+            content: (
+              <AttachmentList
+                colors={colors}
+                attachments={story.deliverables.map(deliverableAttachment)}
+                root={context.workspaceDirectory}
+                onOpen={onOpenAttachment}
+              />
+            ),
           },
         ]
       : []),

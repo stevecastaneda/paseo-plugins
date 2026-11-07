@@ -6,7 +6,7 @@ import { Text, View } from "react-native";
 import { previewKind } from "../shared/attachments";
 import { previewDeliverable } from "../shared/rpc";
 import { flattenHeadings, dropTitle, markdownExcerpt, textExcerpt } from "../shared/markdown";
-import { type Attachment, attachmentIcon } from "./attachments";
+import { type Attachment, absolutePath, attachmentIcon, followPageLink, PageLink, pageLinkRef } from "./attachments";
 import { PressableRow } from "./row";
 import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
@@ -61,6 +61,7 @@ export function WriteUp({
     return null;
   }, [data]);
   const shown = parts ? (all ? parts.whole : parts.excerpt) : "";
+  const link = pageLinkRef(source);
   const muted = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 } as const;
   return (
     <View style={{ gap: 12, padding: 14, borderRadius: 8, backgroundColor: colors.surface0 }}>
@@ -82,9 +83,14 @@ export function WriteUp({
           icon={attachmentIcon(source)}
           label={source.title}
           accessibilityLabel={m.openItem(source.title)}
-          onPress={() => onOpen(source, [source])}
+          onPress={() => {
+            if (link && !followPageLink(link)) return;
+            onOpen(source, [source]);
+          }}
           grow
-        />
+        >
+          {link ? <PageLink link={link} path={absolutePath(source.path!, workspaceDirectory)} /> : null}
+        </TextButton>
         <View style={{ flex: 1 }} />
         {parts?.more ? <TextButton colors={colors} label={all ? m.showLess : m.readMore} onPress={() => setAll(!all)} expanded={all} /> : null}
       </View>
@@ -101,6 +107,7 @@ function TextButton({
   onPress,
   grow = false,
   expanded,
+  children,
 }: {
   colors: Colors;
   icon?: string;
@@ -109,6 +116,7 @@ function TextButton({
   onPress(): void;
   grow?: boolean;
   expanded?: boolean;
+  children?: React.ReactNode;
 }) {
   return (
     <PressableRow
@@ -133,6 +141,7 @@ function TextButton({
       <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontWeight: "500" }}>
         {label}
       </Text>
+      {children}
     </PressableRow>
   );
 }

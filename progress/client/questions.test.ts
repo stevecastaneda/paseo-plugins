@@ -37,7 +37,7 @@ function text(node: unknown): string {
 
 function AnimatedValue() {}
 
-function renderQuestion(question: Record<string, unknown>) {
+function renderQuestion(question: Record<string, unknown>, platform = "web") {
   let messages: unknown;
   const h = clientHarness(directory, {
     react: {
@@ -48,7 +48,7 @@ function renderQuestion(question: Record<string, unknown>) {
       useEffect() {},
     },
     "react-native": {
-      Platform: { OS: "web" },
+      Platform: { OS: platform },
       View: "View",
       Text: "Text",
       Pressable: "Pressable",
@@ -61,7 +61,7 @@ function renderQuestion(question: Record<string, unknown>) {
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { QuestionView } = h.load("client/questions.tsx");
   const colors = new Proxy({}, { get: () => "#112233" }); // every theme color, one hex
-  return expand(QuestionView({ colors, question, now: Date.parse("2026-11-06T12:00:00Z"), onCopy() {}, onOpenAttachment() {} }));
+  return expand(QuestionView({ colors, question, now: Date.parse("2026-11-06T12:00:00Z"), root: "/repo", onCopy() {}, onOpenAttachment() {} }));
 }
 
 const question = {
@@ -98,5 +98,15 @@ test("the text on the question card can be selected: the options' labels and con
     const found = texts.find((element) => text(element).includes(wanted));
     assert.ok(found, `no Text carries ${wanted}`);
     assert.equal(found.props.selectable, true, `${wanted} is not selectable`);
+  }
+});
+
+test("an HTML file on a question links to its full path, so pressing it opens Paseo's preview in a tab on desktop and phones", () => {
+  for (const platform of ["web", "ios", "android"]) {
+    const tree = renderQuestion({ ...question, files: [{ path: "report/index.html" }, { path: "notes.md" }] }, platform);
+    const targets = collect(tree, "Markdown")
+      .map((element) => /^\[[^\]]*\]\((\/repo\/[^)]*)\)$/.exec(String(element.props.children))?.[1])
+      .filter(Boolean);
+    assert.deepEqual(targets, ["/repo/report/index.html"], platform);
   }
 });

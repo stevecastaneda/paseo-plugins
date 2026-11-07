@@ -1,8 +1,7 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
 import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
-import { opensAsPage } from "../shared/attachments";
+import { isPage } from "../shared/attachments";
 import type { Dashboard, Question } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, useAttachmentOpener } from "./attachments";
 import { NarrowProvider } from "./narrow";
@@ -67,7 +66,7 @@ export function StackedDialog({
   const openAttachment = (attachment: Attachment, from: Attachment[]) => {
     group.current = from;
     // A link or a page opens outside the dialog; close first so it isn't left behind it.
-    if (attachment.url || opensAsPage(attachment, { browser: Platform.OS === "web" })) onClose();
+    if (attachment.url || isPage(attachment)) onClose();
     void opener.open(attachment);
   };
   // Opens the agent's chat in its workspace, with the dialog out of the way.
@@ -169,6 +168,7 @@ export function StackedDialog({
                     colors={colors}
                     question={question}
                     now={now}
+                    root={context.workspaceDirectory}
                     onCopy={(letter) => {
                       void copy(question, letter);
                       onClose();
