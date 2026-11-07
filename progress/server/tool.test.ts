@@ -2,7 +2,7 @@
 // command, so it records and answers exactly what the command would.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -172,6 +172,18 @@ test("the catch-all tool takes the command's own arguments", async (t) => {
   const help = await w.call("paseo_progress", { args: ["--help"] });
   assert.equal(help.isError, false);
   assert.match(help.text!, /^Usage: paseo-progress <command>/);
+});
+
+test("an agent can't install the launcher through the tools, anywhere, so it can't plant a program like a git hook", async (t) => {
+  const w = await worktree(t);
+  await mkdir(join(w.directory, ".git", "hooks"), { recursive: true });
+  for (const args of [["install-launcher", ".git/hooks/pre-commit"], ["install-launcher"], ["install-launcher", "--help"]]) {
+    const result = await w.call("paseo_progress", { args });
+    assert.equal(result.isError, true, args.join(" "));
+    assert.match(result.text!, /^Agents can't install the paseo-progress command\. /);
+  }
+  await assert.rejects(access(join(w.directory, ".git", "hooks", "pre-commit")), { code: "ENOENT" });
+  await assert.rejects(access(join(HOME, ".local", "bin", "paseo-progress")), { code: "ENOENT" });
 });
 
 function sessionOpen(server: { hook?: (input: { request: PluginSessionOpenRequest }) => unknown }, request: Partial<PluginSessionOpenRequest>) {

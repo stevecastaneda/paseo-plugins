@@ -115,6 +115,17 @@ if (windows) {
     const r = run(shell, args, { env: shellEnv });
     check(`${shell} runs paseo-progress`, r.code === 0 && r.out === help, r.detail);
   }
+  // A cloned repo's own node.bat and paseo.cmd, where cmd.exe looks before PATH.
+  const repo = join(work, "cloned repo");
+  mkdirSync(repo);
+  for (const name of ["node.bat", "paseo.cmd"]) writeFileSync(join(repo, name), `@echo PLANTED ${name}\r\n`);
+  for (const [shell, args] of [
+    ["powershell", ["-NoProfile", "-Command", "paseo-progress --help"]],
+    ["cmd", ["/d", "/c", "paseo-progress --help"]],
+  ]) {
+    const r = run(shell, args, { cwd: repo, env: env({}, [binDir, onPathDir]) });
+    check(`${shell} in a repo with its own node.bat and paseo.cmd runs the real ones`, r.code === 0 && r.out === help, r.detail);
+  }
   const asked = run("powershell", ["-NoProfile", "-Command", `paseo-progress question ask "Row spacing" "Even it out?" --option "A=Yes | 50% wider & done"`], {
     env: shellEnv,
   });

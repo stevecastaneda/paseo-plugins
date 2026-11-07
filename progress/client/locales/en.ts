@@ -109,6 +109,7 @@ export const messages: ProgressMessages = {
   copyPathDone: "Copied path",
   copyPathFailure: "Could not copy. Select the path and use Copy.",
   openFailure: "Could not open it",
+  openRefused: "Progress opens only images, video, audio, PDFs and text files",
   linkFailure: "Could not open this link.",
   showLess: "Show less",
   readMore: "Read more",
