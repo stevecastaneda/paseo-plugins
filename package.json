@@ -4,9 +4,11 @@
   "description": "Formatting and lint checks for the whole repo. Each plugin installs and ships on its own.",
   "scripts": {
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "lint": "oxlint"
   },
   "devDependencies": {
-    "oxfmt": "0.77.0"
+    "oxfmt": "0.77.0",
+    "oxlint": "1.92.0"
   }
 }

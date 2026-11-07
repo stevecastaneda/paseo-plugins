@@ -67,10 +67,10 @@ function run(command, args, options) {
 }
 
 // Runs one of the plugin's server functions in a child with the given env.
-function serverCall(env, module, expression) {
+function serverCall(childEnv, module, expression) {
   const url = pathToFileURL(join(pluginDir, "server", module)).href;
   const script = `const m = await import(${JSON.stringify(url)}); console.log(JSON.stringify(await (${expression})(m)));`;
-  return run(process.execPath, ["--input-type=module", "-e", script], { env });
+  return run(process.execPath, ["--input-type=module", "-e", script], { env: childEnv });
 }
 
 const results = [];
@@ -83,8 +83,8 @@ const install = serverCall(env(), "launcher.ts", "(m) => m.handleInstallLauncher
 check("Install command writes the launcher", install.code === 0 && existsSync(join(binDir, "paseo-progress")), install.detail);
 
 const help = `${ECHO} ["--help"]`;
-function launcherFinds(name, env) {
-  const r = run(process.execPath, [join(binDir, "paseo-progress"), "--help"], { env });
+function launcherFinds(name, childEnv) {
+  const r = run(process.execPath, [join(binDir, "paseo-progress"), "--help"], { env: childEnv });
   check(`the command finds ${name}`, r.code === 0 && r.out === help, r.detail);
 }
 launcherFinds("paseo on PATH", env({}, [onPathDir]));
@@ -92,8 +92,8 @@ launcherFinds("PASEO_BIN", env({ PASEO_BIN: namedCli }));
 launcherFinds("PASEO_CLI, which Paseo gives agents", env({ PASEO_CLI: namedCli }));
 if (windows) launcherFinds("Paseo Desktop's default install", env());
 
-function skillFinds(name, env) {
-  const r = serverCall(env, "skill.ts", "(m) => m.findPluginDirectory()");
+function skillFinds(name, childEnv) {
+  const r = serverCall(childEnv, "skill.ts", "(m) => m.findPluginDirectory()");
   check(`Install skill finds ${name}`, r.code === 0 && r.out === JSON.stringify(reported), r.detail);
 }
 skillFinds("paseo on PATH", env({}, [onPathDir]));

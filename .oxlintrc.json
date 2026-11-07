@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "no-underscore-dangle": ["error", { "allow": ["_pty"] }]
+  },
+  "overrides": [
+    {
+      "files": [
+        "shell-yeah/shared/keys.ts",
+        "shell-yeah/server/claude.ts",
+        "shell-yeah/server/screen.ts",
+        "playwright-pulse/server/attachments.ts",
+        "progress/shared/markdown.ts"
+      ],
+      "rules": {
+        "no-control-regex": "off"
+      }
+    },
+    {
+      "files": ["*/index.client.tsx", "*/client/**", "*/shared/**"],
+      "rules": {
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-array-reverse": "off",
+        "no-restricted-properties": [
+          "error",
+          { "property": "toSorted", "message": "Hermes, which runs Paseo on phones, has no Array#toSorted. Copy the array, then sort it." },
+          { "property": "toReversed", "message": "Not every Hermes build Paseo ships on has Array#toReversed. Copy the array, then reverse it." }
+        ]
+      }
+    }
+  ]
+}

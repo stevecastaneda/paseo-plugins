@@ -211,42 +211,47 @@ test("on Windows, a network path in a reply is never looked up, so opening the R
   }
 });
 
+function knownCommand(word: string): boolean {
+  return ["git", "node", "npm"].includes(word);
+}
+
 test("a Run window row runs on one tap only when it shows every character that runs", () => {
-  const starts = (word: string) => ["git", "node", "npm"].includes(word);
   const hidden = fence("bash", "# Check what's staged\ngit status --short\nnode -e \"require('fs').writeFileSync(process.env.HOME + '/pwned', 'x')\"");
-  const [threeLines] = scanProposals(`Check this:\n${hidden}`, "all", starts);
+  const [threeLines] = scanProposals(`Check this:\n${hidden}`, "all", knownCommand);
   assert.match(threeLines, /pwned/);
   assert.equal(runsOnOneTap(threeLines), false, "a hidden third line needs the box first");
-  const [padded] = scanProposals(fence("bash", `# Check what's staged\ngit status --short${" ".repeat(60)}; node -e 1`), "all", starts);
+  const [padded] = scanProposals(fence("bash", `# Check what's staged\ngit status --short${" ".repeat(60)}; node -e 1`), "all", knownCommand);
   assert.equal(runsOnOneTap(padded), false, "a line too long to show whole needs the box first");
-  const [titled] = scanProposals(fence("bash", "# Check what's staged\ngit status --short"), "all", starts);
+  const [titled] = scanProposals(fence("bash", "# Check what's staged\ngit status --short"), "all", knownCommand);
   assert.equal(runsOnOneTap(titled), true, "a title over one short line runs on one tap");
-  const [inline] = scanProposals("Then run `npm test -- --watch=false`.", "all", starts);
+  const [inline] = scanProposals("Then run `npm test -- --watch=false`.", "all", knownCommand);
   assert.equal(runsOnOneTap(inline), true);
 });
 
+function proposedCard(command: string) {
+  return describe(
+    {
+      runId: "r1",
+      origin: "claude",
+      command,
+      cwd: "/w",
+      terminal: false,
+      rev: 0,
+      phase: { kind: "proposed" },
+      output: { lines: [], total: 0 },
+      cursor: null,
+      sentAt: null,
+      lostAt: null,
+      lastOutputAt: null,
+      clockOffset: 0,
+    },
+    T0,
+  );
+}
+
 test("a carriage return ends a line wherever a reply has one, so a card's title never holds code", () => {
-  const card = (command: string) =>
-    describe(
-      {
-        runId: "r1",
-        origin: "claude",
-        command,
-        cwd: "/w",
-        terminal: false,
-        rev: 0,
-        phase: { kind: "proposed" },
-        output: { lines: [], total: 0 },
-        cursor: null,
-        sentAt: null,
-        lostAt: null,
-        lastOutputAt: null,
-        clockOffset: 0,
-      },
-      T0,
-    );
   const [lone] = scanProposals(fence("sh run", "# Log in to GitHub\rStart-Process calc.exe\ngh auth login --web"), "marked");
-  assert.deepEqual([card(lone).title, card(lone).script], ["Log in to GitHub", "Start-Process calc.exe\ngh auth login --web"]);
+  assert.deepEqual([proposedCard(lone).title, proposedCard(lone).script], ["Log in to GitHub", "Start-Process calc.exe\ngh auth login --web"]);
   assert.ok(!lone.includes("\r"), "the command that runs has no carriage return either");
   const [crlf] = scanProposals(["```sh run", "# Log in to GitHub", "gh auth login --web", "```"].join("\r\n"), "marked");
   assert.equal(crlf, "# Log in to GitHub\ngh auth login --web");
@@ -587,7 +592,7 @@ function fakeServer() {
   const befores = new Map<string, (input: unknown, ctx: unknown) => unknown>();
   let history: Entry[] = [];
   let epoch = "e1";
-  let afterFetch: (count: number) => void = () => undefined;
+  let afterFetch: ((count: number) => void) | undefined;
   let fetchError: string | null = null;
   const paseo = {
     agents: {
@@ -622,7 +627,7 @@ function fakeServer() {
               startCursor: entries.length ? { epoch, seq: start } : null,
               entries,
             };
-            afterFetch(fetches.length);
+            afterFetch?.(fetches.length);
             return page;
           },
         },

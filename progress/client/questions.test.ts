@@ -35,6 +35,8 @@ function text(node: unknown): string {
   return node && typeof node === "object" ? text((node as Element).props?.children) : "";
 }
 
+function AnimatedValue() {}
+
 function renderQuestion(question: Record<string, unknown>) {
   let messages: unknown;
   const h = clientHarness(directory, {
@@ -52,7 +54,7 @@ function renderQuestion(question: Record<string, unknown>) {
       Pressable: "Pressable",
       AccessibilityInfo: { addEventListener: () => ({ remove() {} }), isReduceMotionEnabled: async () => false },
       Easing: { out: (f: unknown) => f, quad: () => 0, cubic: () => 0, bezier: () => () => 0 },
-      Animated: { Value: class {}, timing: () => ({ start() {} }), loop: () => ({ start() {} }), View: "View" },
+      Animated: { Value: AnimatedValue, timing: () => ({ start() {} }), loop: () => ({ start() {} }), View: "View" },
     },
     "@getpaseo/plugin/client/ui": { Icon: () => null, Markdown: "Markdown", useToast: () => ({}), copyText: async () => {} },
   });

@@ -98,7 +98,7 @@ const URL_PATTERN = /^[a-z][a-z\d+.-]*:\/\//i;
 function parseFile(raw: string, cwd: string, root: string) {
   const isUrl = URL_PATTERN.test(raw);
   let index = isUrl ? raw.lastIndexOf("=") : raw.indexOf("=");
-  while (isUrl && index !== -1 && /[?&][^=&#]*$/.test(raw.slice(0, index))) index = raw.lastIndexOf("=", index - 1);
+  if (isUrl) while (index !== -1 && /[?&][^=&#]*$/.test(raw.slice(0, index))) index = raw.lastIndexOf("=", index - 1);
   const target = (index === -1 ? raw : raw.slice(0, index)).trim();
   const label = index === -1 ? undefined : raw.slice(index + 1).trim() || undefined;
   if (!target) throw new UsageError(`--file needs a path or URL, got "${raw}".`);
@@ -184,6 +184,10 @@ function addedByOthersText(tickets: Ticket[], dashboard: Dashboard): string {
   ].join("\n");
 }
 
+function shown(value: unknown) {
+  return typeof value === "object" ? ((value as FileLink).path ?? (value as FileLink).url) : value;
+}
+
 const commands: Record<string, Command> = {
   start: {
     usage: `start "<title>" [--subtitle <text>] [--item-label <word>]`,
@@ -263,7 +267,6 @@ const commands: Record<string, Command> = {
       };
       const changes = Object.entries(event).filter(([key, value]) => key !== "type" && key !== "id" && value !== undefined);
       if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, --waits-for, or --source.");
-      const shown = (value: unknown) => (typeof value === "object" ? ((value as FileLink).path ?? (value as FileLink).url) : value);
       return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${shown(value)}`).join(", ")}` };
     },
   },
@@ -507,14 +510,14 @@ const commands: Record<string, Command> = {
 function rootRelative(target: string, cwd: string, root: string): string {
   const absolute = resolve(cwd, target);
   const inside = relative(root, absolute);
-  const suffix = /[\/]$/.test(target) || statSync(absolute, { throwIfNoEntry: false })?.isDirectory() ? "/" : "";
+  const suffix = target.endsWith("/") || statSync(absolute, { throwIfNoEntry: false })?.isDirectory() ? "/" : "";
   if (!inside) return "./";
   return outside(inside) ? absolute + suffix : inside + suffix;
 }
 
 function guessKind(target: string, isUrl: boolean, cwd: string): (typeof DELIVERABLE_KINDS)[number] {
   if (isUrl) return "link";
-  if (/[\/]$/.test(target) || statSync(resolve(cwd, target), { throwIfNoEntry: false })?.isDirectory()) return "folder";
+  if (target.endsWith("/") || statSync(resolve(cwd, target), { throwIfNoEntry: false })?.isDirectory()) return "folder";
   if (imageMimeType(target)) return "screenshot";
   return "file";
 }
@@ -601,9 +604,9 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         if (finished && command !== commands.start) {
           throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
         }
-        const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
+        const { event, message: summary } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
         const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
-        return { event: { ...event, by: options.agentId }, result: `${message}${added}` };
+        return { event: { ...event, by: options.agentId }, result: `${summary}${added}` };
       },
       (text) => saveRunCopy(root, text),
     );

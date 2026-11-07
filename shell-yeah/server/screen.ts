@@ -48,6 +48,10 @@ const CONTROL = /[\x00-\x1f\x7f]/;
 const MAX_PENDING = 4096;
 const CLAMP_MARK = "…";
 
+function emptyRow(): Row {
+  return { segs: [], len: 0, clamped: false };
+}
+
 export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Screen {
   const rows: Row[] = [emptyRow()];
   let row = 0;
@@ -57,10 +61,6 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
   const pen: Pen = { attrs: new Set(), fg: null, bg: null };
   let penKey = "";
   const interned = new Map<string, string>();
-
-  function emptyRow(): Row {
-    return { segs: [], len: 0, clamped: false };
-  }
 
   function trimRows() {
     // The empty row the cursor sits on after a newline is not a line yet.
@@ -243,7 +243,7 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
         else pen.bg = value;
       }
     }
-    const key = [...[...pen.attrs].sort((a, b) => a - b).map(String), ...(pen.fg ? [pen.fg] : []), ...(pen.bg ? [pen.bg] : [])].join(";");
+    const key = [...[...pen.attrs].toSorted((a, b) => a - b).map(String), ...(pen.fg ? [pen.fg] : []), ...(pen.bg ? [pen.bg] : [])].join(";");
     penKey = interned.get(key) ?? (interned.set(key, key), key);
   }
 

@@ -64,6 +64,6 @@ test("turn ends and archives from the daemon update the ledger the client reads"
     assert.deepEqual(Object.keys(lastReplyAt), ["a"]);
     assert.ok(Date.parse(lastReplyAt.a) >= before);
     stop();
-    assert.deepEqual(stopped.sort(), ["agent.archived", "agent.turn_ended"]);
+    assert.deepEqual(stopped.toSorted(), ["agent.archived", "agent.turn_ended"]);
   });
 });

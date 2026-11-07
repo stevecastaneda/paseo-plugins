@@ -53,6 +53,8 @@ export function contributePills(client: PluginClientContext) {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  // The rule doesn't count <LocalizedPillIcon />, which closes over this scope, as a use of it.
+  // oxlint-disable-next-line unicorn/consistent-function-scoping
   function PillIcon(props: PluginButtonIconProps) {
     return (
       <ProgressLanguageProvider>
@@ -203,7 +205,7 @@ export function contributePills(client: PluginClientContext) {
     select: (message) => (message.type === "workspace_update" ? message.payload : undefined),
     snapshot: (entries) => {
       const next = new Map((entries as Workspace[]).map((workspace) => [workspace.id, directoryOf(workspace)]));
-      for (const id of [...workspaces.keys()]) if (!next.has(id)) forget(id);
+      for (const id of Array.from(workspaces.keys())) if (!next.has(id)) forget(id);
       const hasAgent = new Set(agents.map((agent) => agent.workspaceId));
       for (const [id, directory] of next) {
         if (workspaces.get(id) !== directory) {

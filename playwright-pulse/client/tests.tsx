@@ -27,7 +27,6 @@ import {
   verdict,
   verdictNote,
   type AttachmentKind,
-  type Counts,
 } from "../shared/view";
 import { IconSwap, PressScale } from "./motion";
 import { mono } from "./mono";
@@ -155,7 +154,7 @@ function RunningTest({ colors, test, now }: { colors: Colors; test: PulseTest | 
           >
             {test ? test.title : "Waiting for the next test"}
           </Text>
-          {test?.retry ? <Badge colors={colors} color={colors.statusWarning} label={`Retry ${test.retry}`} /> : null}
+          {test?.retry ? <Badge color={colors.statusWarning} label={`Retry ${test.retry}`} /> : null}
           {test ? <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatClock(elapsed)}</Text> : null}
         </View>
         {/* The describe blocks give way first, so the file and line stay readable.
@@ -288,7 +287,7 @@ function TimeoutBar({ colors, share, timeout, hidden }: { colors: Colors; share:
   );
 }
 
-function Badge({ colors, color, label }: { colors: Colors; color: string; label: string }) {
+function Badge({ color, label }: { color: string; label: string }) {
   return (
     <View style={{ paddingHorizontal: 5, borderRadius: 4, borderWidth: 1, borderColor: color, marginTop: 1 }}>
       <Text style={{ color, fontSize: 10, lineHeight: 14, fontWeight: "600" }}>{label}</Text>
@@ -394,7 +393,7 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
       <View style={{ gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
           <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{test.title}</Text>
-          {test.status === "timedOut" ? <Badge colors={colors} color={colors.statusWarning} label="Timed out" /> : null}
+          {test.status === "timedOut" ? <Badge color={colors.statusWarning} label="Timed out" /> : null}
           {test.duration !== undefined ? (
             <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatDuration(test.duration)}</Text>
           ) : null}

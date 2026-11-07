@@ -187,7 +187,7 @@ export function attachmentIcon(attachment: Attachment): string {
   if (attachment.url) return "Globe";
   if (!attachment.path) return "File";
   const kind = previewKind(attachment.path);
-  return kind ? PREVIEW_ICON[kind] : /[\/]$/.test(attachment.path) ? "Folder" : "File";
+  return kind ? PREVIEW_ICON[kind] : attachment.path.endsWith("/") ? "Folder" : "File";
 }
 
 // An HTML page is too wide for the dialog, so where the host can't open it the

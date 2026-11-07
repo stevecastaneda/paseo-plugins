@@ -204,6 +204,14 @@ function isInside(root: string, path: string): boolean {
   return !inside.startsWith("..") && !isAbsolute(inside);
 }
 
+function at(index: number, path: string) {
+  return { runId: "run1-4242", testId: "t1", index, path };
+}
+
+async function playwright() {
+  return "node node_modules/@playwright/test/cli.js test -g edits";
+}
+
 test("a branch checked out after the run can't make Trace or Open run its files", async (t) => {
   if (process.platform === "win32") return t.skip("needs symlinks and sh");
   const root = mkdtempSync(join(tmpdir(), "pulse-git-"));
@@ -253,7 +261,6 @@ test("a branch checked out after the run can't make Trace or Open run its files"
       ],
     }),
   );
-  const at = (index: number, path: string) => ({ runId: "run1-4242", testId: "t1", index, path });
 
   // xdg-open comes from PATH, skipping the worktree's folders and relative ones.
   const bin = mkdtempSync(join(tmpdir(), "pulse-bin-"));
@@ -314,7 +321,6 @@ test("Open takes only a real file of the attachment's own type, never through a 
       ],
     }),
   );
-  const at = (index: number, path: string) => ({ runId: "run1-4242", testId: "t1", index, path });
   const { opener, ran } = recorder();
   const host: Host = { platform: "darwin", env: {}, home };
   await assert.rejects(openFile(location, at(0, script), opener, host), /video isn't a video/);
@@ -385,7 +391,6 @@ test("stops only a live run whose process is still Playwright and started with t
   const signal = (pid: number) => {
     signalled.push(pid);
   };
-  const playwright = async () => "node node_modules/@playwright/test/cli.js test -g edits";
   const startedAt = "2026-10-04T12:00:00.000Z";
   const startTimeOf = async () => Date.parse(startedAt) - 1_000;
   // The test process itself stands in for a live run.

@@ -9,11 +9,12 @@ const MB = 1024 * 1024;
 
 type Element = { type: unknown; props: Record<string, any> };
 
+const DocumentFrame = () => null;
+const Loading = () => null;
+
 function renderTab(size: number, platform: "web" | "ios") {
   let messages: unknown;
   const reads: unknown[] = [];
-  const DocumentFrame = () => null;
-  const Loading = () => null;
   const h = clientHarness(directory, {
     react: { ...React, useContext: () => ({ locale: "en", messages }) },
     "react-native": { Platform: { OS: platform }, View: "View", Text: "Text" },

@@ -5,7 +5,6 @@ import {
   blockedExplanation,
   errorRepeatsLog,
   commandLabel,
-  completedDurationMs,
   formatDuration,
   headline,
   buttonLabel,
@@ -127,14 +126,17 @@ test("trimSnapshot keeps the tail of oversized logs", () => {
   assert.equal(trimLog("short"), "short");
 });
 
+function failedCommand(log: string): SetupCommand {
+  return { index: 2, command: "./scripts/db-migrate.sh", cwd: "/repo", log, status: "failed", exitCode: 1 };
+}
+
 test("a failed setup's error is hidden when its step's log already shows it", () => {
-  const failed = (log: string): SetupCommand => ({ index: 2, command: "./scripts/db-migrate.sh", cwd: "/repo", log, status: "failed", exitCode: 1 });
   const error = 'Worktree setup command failed: ./scripts/db-migrate.sh\nerror: column "currency" contains null values';
-  assert.equal(errorRepeatsLog(error, failed('Running 6 migrations\nerror: column "currency" contains null values\n')), true);
-  assert.equal(errorRepeatsLog("Worktree setup command failed: ./scripts/db-migrate.sh", failed("exit 1\n")), true, "nothing past the command's name");
-  assert.equal(errorRepeatsLog(error, failed("")), false, "no log to show it");
-  assert.equal(errorRepeatsLog(error, failed("something else\n")), false, "the log doesn't have it");
-  assert.equal(errorRepeatsLog("Failed to create worktree: branch exists", failed("x\n")), false, "not a command's error");
+  assert.equal(errorRepeatsLog(error, failedCommand('Running 6 migrations\nerror: column "currency" contains null values\n')), true);
+  assert.equal(errorRepeatsLog("Worktree setup command failed: ./scripts/db-migrate.sh", failedCommand("exit 1\n")), true, "nothing past the command's name");
+  assert.equal(errorRepeatsLog(error, failedCommand("")), false, "no log to show it");
+  assert.equal(errorRepeatsLog(error, failedCommand("something else\n")), false, "the log doesn't have it");
+  assert.equal(errorRepeatsLog("Failed to create worktree: branch exists", failedCommand("x\n")), false, "not a command's error");
   assert.equal(errorRepeatsLog(error, null), false);
 });
 

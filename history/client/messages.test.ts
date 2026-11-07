@@ -52,9 +52,9 @@ test("tells screen readers on the web which toggles are on and whether a record 
   assert.equal(raw().props["aria-pressed"], true);
   const copy = renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Copy message");
   assert.equal(copy.props["aria-pressed"], undefined, "a plain button is not a toggle");
-  const expand = () => renderer.root.findAllByType("Pressable").find((node) => /^Expand /.test(node.props.accessibilityLabel));
+  const expand = () => renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel?.startsWith("Expand "));
   assert.equal(expand().props["aria-expanded"], false);
   act(() => expand().props.onPress());
-  assert.equal(renderer.root.findAllByType("Pressable").find((node) => /^Collapse /.test(node.props.accessibilityLabel)).props["aria-expanded"], true);
+  assert.equal(renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel?.startsWith("Collapse ")).props["aria-expanded"], true);
   await act(async () => renderer.unmount());
 });

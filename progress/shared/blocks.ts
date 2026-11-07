@@ -21,8 +21,8 @@ export function spans(text: string): Span[] {
       .forEach((piece) => {
         if (!piece) return;
         const strong = /^(\*\*|__).+\1$/.test(piece);
-        const text = (strong ? piece.slice(2, -2) : piece).replace(/(^|[\s(])[*_](\S(?:.*?\S)?)[*_](?=[\s).,;:!?]|$)/g, "$1$2");
-        result.push(strong ? { text, strong } : { text });
+        const unmarked = (strong ? piece.slice(2, -2) : piece).replace(/(^|[\s(])[*_](\S(?:.*?\S)?)[*_](?=[\s).,;:!?]|$)/g, "$1$2");
+        result.push(strong ? { text: unmarked, strong } : { text: unmarked });
       });
   });
   return result;

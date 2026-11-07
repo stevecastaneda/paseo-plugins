@@ -9,8 +9,11 @@ test("URLs drop the scheme, www and a lone trailing slash", () => {
   assert.equal(displayUrl("http://localhost:3000/a?b=1"), "localhost:3000/a?b=1");
 });
 
+function icon(label: string, url = "https://example.com") {
+  return linkIcon({ label, url });
+}
+
 test("icons follow the link's name", () => {
-  const icon = (label: string, url = "https://example.com") => linkIcon({ label, url });
   assert.equal(icon("App"), "AppWindow");
   assert.equal(icon("Admin"), "Shield");
   assert.equal(icon("Design System"), "Palette");

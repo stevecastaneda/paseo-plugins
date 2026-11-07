@@ -228,7 +228,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   }
 
   function wake(run: Run) {
-    for (const waiter of [...run.waiters]) waiter();
+    for (const waiter of Array.from(run.waiters)) waiter();
   }
 
   function transition(run: Run, next: Phase) {
@@ -252,9 +252,9 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     evict();
   }
 
-  function failToStart(run: Run, message: string) {
+  function failToStart(run: Run, reason: string) {
     if (run.phase.kind !== "running") return;
-    transition(run, { kind: "failed", startedAt: run.phase.startedAt, endedAt: deps.now(), exitCode: null, signal: null, message });
+    transition(run, { kind: "failed", startedAt: run.phase.startedAt, endedAt: deps.now(), exitCode: null, signal: null, message: reason });
     evict();
   }
 
@@ -356,7 +356,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       if (runs.has(id)) return { runId: id };
       const last = rerunOf && pastOf(previous ? rowOf(previous, limits.scrollbackLines) : rerunOf);
       const past = rerunOf ? [...(previous?.past ?? rerunOf.past ?? []), ...(last ? [last] : [])].slice(-limits.pastRuns) : [];
-      const startedAt = deps.now();
+      const launchedAt = deps.now();
       const run: Run = {
         id,
         agentId: input.agentId,
@@ -366,7 +366,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
         cardId,
         runNumber: rerunOf ? runNumberOf(rerunOf) + 1 : 1,
         past,
-        phase: { kind: "running", startedAt, stopRequestedAt: null },
+        phase: { kind: "running", startedAt: launchedAt, stopRequestedAt: null },
         rev: 0,
         screen: createScreen({ maxLines: limits.linesKept, maxLineChars: limits.lineChars }),
         sentAt: null,
@@ -382,7 +382,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       };
       runs.set(id, run);
       const problem = await folderProblem(input.cwd);
-      if (problem) run.phase = { kind: "failed", startedAt, endedAt: deps.now(), exitCode: null, signal: null, message: problem };
+      if (problem) run.phase = { kind: "failed", startedAt: launchedAt, endedAt: deps.now(), exitCode: null, signal: null, message: problem };
       try {
         await publishRun(run, false);
       } catch (error) {
@@ -449,7 +449,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
 
     recent(limit) {
       return [...runs.values()]
-        .sort((a, b) => Number(b.phase.kind === "running") - Number(a.phase.kind === "running") || startedAt(b) - startedAt(a))
+        .toSorted((a, b) => Number(b.phase.kind === "running") - Number(a.phase.kind === "running") || startedAt(b) - startedAt(a))
         .slice(0, limit)
         .map((run) => ({ agentId: run.agentId, row: rowOf(run, limits.scrollbackLines) }));
     },

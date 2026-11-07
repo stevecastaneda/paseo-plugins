@@ -122,9 +122,9 @@ test("running tests keep their row; a new test takes the first free one", () => 
   assert.deepEqual(assignSlots(["c", "b", null], ["b"], 3), [null, "b", null]);
   // More running than rows (retries can overlap): add rows rather than drop a test.
   assert.deepEqual(assignSlots(["a"], ["a", "b"], 1), ["a", "b"]);
-  const run = { workers: 4, total: 2 } as RunSnapshot;
-  assert.equal(runningSlotCount(run, 0), 2);
-  assert.equal(runningSlotCount({ ...run, total: 40 }, 1), 4);
+  const snapshot = { workers: 4, total: 2 } as RunSnapshot;
+  assert.equal(runningSlotCount(snapshot, 0), 2);
+  assert.equal(runningSlotCount({ ...snapshot, total: 40 }, 1), 4);
 });
 
 test("the running card's heading counts busy workers, a dot per row", () => {
@@ -263,7 +263,7 @@ test("writes a prompt to find out why the slowest tests are slow", () => {
 test("lists the slowest finished tests and estimates the time left", () => {
   const tests = [1, 5, 3, 9, 2, 7].map((seconds, index) => pulseTest({ id: `t${index}`, duration: seconds * 1000 }));
   assert.deepEqual(
-    slowest(run([...tests, pulseTest({ status: "running" })]), 3).map((test) => test.duration),
+    slowest(run([...tests, pulseTest({ status: "running" })]), 3).map((finished) => finished.duration),
     [9000, 7000, 5000],
   );
   const live = run(tests, { total: 12, testsStartedAt: "2026-10-04T12:00:00.000Z" });

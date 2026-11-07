@@ -53,7 +53,7 @@ export function parseColor(color: string): Rgb | null {
   const hex = color.trim().match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
   if (hex) {
     const h = hex[1];
-    const digits = h.length <= 4 ? [...h.slice(0, 3)].map((d) => d + d) : h.slice(0, 6).match(/../g)!;
+    const digits = h.length <= 4 ? Array.from(h.slice(0, 3), (d) => d + d) : h.slice(0, 6).match(/../g)!;
     return digits.map((d) => parseInt(d, 16)) as Rgb;
   }
   const fn = color.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
@@ -147,8 +147,11 @@ function color256(n: number, ansi: readonly string[]): string {
     return toHex([v, v, v]);
   }
   const i = n - 16;
-  const step = (v: number) => (v === 0 ? 0 : 55 + v * 40);
   return toHex([step(Math.floor(i / 36)), step(Math.floor((i % 36) / 6)), step(i % 6)]);
+}
+
+function step(v: number): number {
+  return v === 0 ? 0 : 55 + v * 40;
 }
 
 // 16 ANSI colors from the 11 theme colors, so output looks like the app, not like xterm.

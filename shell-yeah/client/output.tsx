@@ -225,12 +225,12 @@ function TailScroll({
     const viewport = node ? node.clientHeight : m.viewport;
     return offset + viewport >= m.content - LINE_HEIGHT;
   };
-  const onContentSizeChange = (_width: number, height: number) => {
+  const onContentSizeChange = (_width: number, contentHeight: number) => {
     // Output that got shorter, as when the command clears the screen, wasn't scrolled away from.
-    const shrank = height < metrics.current.content;
+    const shrank = contentHeight < metrics.current.content;
     if (metrics.current.content === 0 || (following && (shrank || atBottom()))) ref.current?.scrollToEnd({ animated: false });
     else if (following) onFollowingChange(false);
-    metrics.current.content = height;
+    metrics.current.content = contentHeight;
   };
   useEffect(() => {
     if (following) ref.current?.scrollToEnd({ animated: false });
@@ -291,14 +291,17 @@ function TailScroll({
 // The lines to draw: blank lines trimmed off the ends, but never the cursor's line.
 // `cursorRow` is the cursor's index in `shown`; shown.length is the empty line below it.
 function linesToDraw(lines: readonly Line[], atStart: boolean, cursorAt: number | null): { shown: readonly Line[]; cursorRow: number | null } {
-  const blank = (line: Line) => lineText(line).trim() === "";
   let from = 0;
   let to = lines.length;
-  while (atStart && from < to && blank(lines[from])) from++;
+  if (atStart) while (from < to && blank(lines[from])) from++;
   while (to > from && blank(lines[to - 1])) to--;
   if (cursorAt === null || cursorAt < from) return { shown: lines.slice(from, to), cursorRow: null };
   to = Math.max(to, Math.min(cursorAt + 1, lines.length));
   return { shown: lines.slice(from, to), cursorRow: cursorAt - from };
+}
+
+function blank(line: Line): boolean {
+  return lineText(line).trim() === "";
 }
 
 // A click that ends a text selection is for copying, not for typing.

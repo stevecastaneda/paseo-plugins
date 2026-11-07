@@ -44,8 +44,8 @@ export function changelog(readme: string): WhatsNewRelease[] {
   }
   return releases
     .filter((release) => release.bullets.length)
-    .map(({ version, bullets }) => ({ version, notes: bullets.map(note) }))
-    .sort((a, b) => compareVersions(b.version, a.version));
+    .map(({ version, bullets }) => ({ version, notes: bullets.map(noteFromBullet) }))
+    .toSorted((a, b) => compareVersions(b.version, a.version));
 }
 
 function compareVersions(a: string, b: string): number {
@@ -55,7 +55,7 @@ function compareVersions(a: string, b: string): number {
 
 // A bullet can open with a kind tag, like `[Fixed]`, and then a bold
 // sentence, like `**Title.** Detail.`, which is its title.
-function note(bullet: string): WhatsNewNote {
+function noteFromBullet(bullet: string): WhatsNewNote {
   const tag = /^\[([a-z]+)\]\s*(.*)$/i.exec(bullet);
   const kind = tag ? noteKind(tag[1]) : undefined;
   const rest = kind ? tag![2] : bullet;

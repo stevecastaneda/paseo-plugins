@@ -149,7 +149,7 @@ export async function startReporter(path = defaultReporterPath(), readSource = r
 // When the plugin stops. Never throws: Paseo is shutting the plugin down.
 export async function stopReporter(path = defaultReporterPath()): Promise<void> {
   stopped = true;
-  await Promise.allSettled([...writes]);
+  await Promise.allSettled(writes);
   await removeReporter(path).catch((error) => console.error(`playwright-pulse: could not remove ${path}:`, error));
 }
 

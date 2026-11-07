@@ -2,7 +2,7 @@ import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client"
 import { Icon, Markdown } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { previewKind } from "../shared/attachments";
 import { previewDeliverable } from "../shared/rpc";
 import { flattenHeadings, dropTitle, markdownExcerpt, textExcerpt } from "../shared/markdown";

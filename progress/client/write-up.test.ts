@@ -15,9 +15,10 @@ function find(node: unknown, matches: (element: Element) => boolean): Element | 
   return matches(element) ? element : find(element.props?.children, matches);
 }
 
+const Markdown = () => null;
+
 function renderWriteUp(data: unknown, path: string, all = false) {
   let messages: unknown;
-  const Markdown = () => null;
   const h = clientHarness(directory, {
     react: { ...React, useState: () => [all, () => {}], useMemo: (make: () => unknown) => make(), useContext: () => ({ locale: "en", messages }) },
     "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },

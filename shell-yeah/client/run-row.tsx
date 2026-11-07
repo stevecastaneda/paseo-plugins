@@ -3,13 +3,12 @@ import { Icon, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
 import { pastedKeys, terminalKeys, type KeyPress } from "../shared/keys.ts";
-import { basename, errorMessage } from "../shared/text.ts";
+import { errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
 import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/rpc.ts";
 import {
   agentName,
-  capitalize,
   describe,
   formatDuration,
   pastRow,
@@ -424,11 +423,17 @@ function Header({
       {pres.timerFrom !== null ? <Elapsed from={pres.timerFrom} prefix={pres.label ? `${pres.label} · ` : ""} /> : statusText(pres)}
     </Text>
   );
-  const switcher = steps ? <Switcher steps={steps} colors={colors} compact={compact} newerRunning={newerRunning} onStep={onStep} /> : null;
-  const content = (hovered: boolean) => (
+  const switcherView = steps ? <Switcher steps={steps} colors={colors} compact={compact} newerRunning={newerRunning} onStep={onStep} /> : null;
+  const content = (highlighted: boolean) => (
     <View
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
-      style={{ gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}
+      style={{
+        gap: 4,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        minHeight: 40,
+        backgroundColor: highlighted ? withAlpha(colors.surface2, 0.5) : "transparent",
+      }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
@@ -464,7 +469,7 @@ function Header({
             }}
           >{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text>
         ) : null}
-        {stacked ? null : switcher}
+        {stacked ? null : switcherView}
         {status}
         <IconSwap swapKey={foldable ? "fold" : "none"} size={14}>
           {foldable ? (
@@ -474,7 +479,7 @@ function Header({
           ) : null}
         </IconSwap>
       </View>
-      {stacked && switcher ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcher}</View> : null}
+      {stacked && switcherView ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcherView}</View> : null}
     </View>
   );
   if (!foldable) return content(false);
@@ -550,12 +555,12 @@ function Switcher({
 // view and a phone keyboard opens just under the newest output. What the command shows lands in
 // the output, so a password prompt shows nothing. Esc stops typing.
 const KeyInput = forwardRef<TextInput, { send(keys: string): void; compact: boolean; onTypingChange(typing: boolean): void }>(function KeyInput(
-  { send, compact, onTypingChange },
+  { send: sendKeys, compact, onTypingChange },
   ref,
 ) {
-  const input = useRef<TextInput | null>(null);
+  const inputRef = useRef<TextInput | null>(null);
   const setRef = (node: TextInput | null) => {
-    input.current = node;
+    inputRef.current = node;
     if (typeof ref === "function") ref(node);
     else if (ref) ref.current = node;
   };
@@ -564,26 +569,26 @@ const KeyInput = forwardRef<TextInput, { send(keys: string): void; compact: bool
       ref={setRef}
       value=""
       onChangeText={(text) => {
-        if (text) send(text);
+        if (text) sendKeys(text);
       }}
       onKeyPress={(event) => {
         const press = event.nativeEvent as KeyPress;
-        if (press.key === "Escape") return input.current?.blur();
+        if (press.key === "Escape") return inputRef.current?.blur();
         // On phones Enter arrives as a submit instead.
         if (press.key === "Enter" && Platform.OS !== "web") return;
         const keys = terminalKeys(press);
         if (keys === null) return;
         event.preventDefault();
-        send(keys);
+        sendKeys(keys);
       }}
-      onSubmitEditing={() => send("\r")}
+      onSubmitEditing={() => sendKeys("\r")}
       submitBehavior="submit"
       onFocus={() => onTypingChange(true)}
       onBlur={() => {
         onTypingChange(false);
         // Still focused after a blur means the window went to the background. Coming back would
         // focus the input again without a click, and the next key would go to the command.
-        if (input.current === (globalThis as { document?: { activeElement: unknown } }).document?.activeElement) input.current?.blur();
+        if (inputRef.current === (globalThis as { document?: { activeElement: unknown } }).document?.activeElement) inputRef.current?.blur();
       }}
       autoCapitalize="none"
       autoCorrect={false}

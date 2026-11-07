@@ -233,12 +233,14 @@ export async function fetchTurn(refetch: Refetch, turnId: string | null): Promis
   let page = await refetch({ direction: "tail", limit: PAGE, projection: "projected" });
   let entries = page.entries;
   const id = targetTurn(entries, turnId);
-  for (let pages = 1; pages < MAX_PAGES && id && entries[0]?.turnId === id && page.hasOlder && page.startCursor; pages++) {
-    const older = await refetch({ direction: "before", cursor: page.startCursor, limit: PAGE, projection: "projected" });
-    // A replaced timeline answers with its own tail, which doesn't join onto ours.
-    if (older.reset || older.staleCursor) break;
-    entries = [...older.entries, ...entries];
-    page = older;
+  if (id) {
+    for (let pages = 1; pages < MAX_PAGES && entries[0]?.turnId === id && page.hasOlder && page.startCursor; pages++) {
+      const older = await refetch({ direction: "before", cursor: page.startCursor, limit: PAGE, projection: "projected" });
+      // A replaced timeline answers with its own tail, which doesn't join onto ours.
+      if (older.reset || older.staleCursor) break;
+      entries = [...older.entries, ...entries];
+      page = older;
+    }
   }
   return selectTurn(entries, turnId);
 }
@@ -454,7 +456,7 @@ export async function sendToClaude(deps: SendDeps, input: { agentId: string; run
     const message = error instanceof Error ? error.message : String(error);
     if (/agent_request_key_conflict|agent_request_outcome_unknown/.test(message)) {
       deps.sendCounts.set(input.runId, n + 1);
-      throw new Error(MAYBE_SENT);
+      throw new Error(MAYBE_SENT, { cause: error });
     }
     throw error;
   }

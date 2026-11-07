@@ -42,7 +42,7 @@ export function createLogStore({
     forget: (agentId) => rm(folder(agentId), { recursive: true, force: true }),
 
     async prune() {
-      const files = (await logFiles(root)).sort((a, b) => b.mtimeMs - a.mtimeMs);
+      const files = (await logFiles(root)).toSorted((a, b) => b.mtimeMs - a.mtimeMs);
       const cutoff = now() - limits.maxAgeMs;
       let bytes = 0;
       for (const [i, file] of files.entries()) {

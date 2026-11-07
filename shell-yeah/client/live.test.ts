@@ -37,13 +37,16 @@ function view(rev: number, overrides: Partial<LiveView> = {}): LiveView {
 
 type Call = { input: { runId: string; lines: number; since: number | null; waitMs: number }; resolve(value: unknown): void; reject(error: Error): void };
 
+function plain(value: unknown) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function setup(limits: Record<string, unknown> = {}) {
   const h = clientHarness(directory);
   const calls: Call[] = [];
   const rpc = (input: Call["input"]) => new Promise((resolve, reject) => calls.push({ input, resolve, reject }));
   let now = T0 + 500;
   const store: LiveStore = h.load("client/live.ts").createLiveStore({ rpc, now: () => now, limits: { tailWaitMs: 100, ...limits } });
-  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
   return {
     h,
     calls,

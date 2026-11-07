@@ -21,10 +21,11 @@ export async function readOpenCodeHistory(sessionId: string, offset: number, sou
     }));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error("OpenCode is not available on the Paseo daemon PATH. Install OpenCode to read this history.");
+      throw new Error("OpenCode is not available on the Paseo daemon PATH. Install OpenCode to read this history.", { cause: error });
     }
     throw new Error(
       "Could not export this OpenCode session. Check that it is saved and that the daemon's OpenCode supports export --pure. Exports are limited to 64 MiB and 30 seconds.",
+      { cause: error },
     );
   }
   return pageOpenCodeExport(stdout, sessionId, offset, source);

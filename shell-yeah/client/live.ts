@@ -57,7 +57,7 @@ export interface LiveStore {
 export function createLiveStore(deps: LiveStoreDeps): LiveStore {
   const limits: Limits = { ...LIMITS, ...deps.limits };
   const now = deps.now ?? (() => Date.now());
-  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((wake) => setTimeout(wake, ms)));
   const entries = new Map<string, LiveEntry>();
   let active = true;
 

@@ -186,5 +186,5 @@ export async function listFolders(root: string, folder: string): Promise<{ folde
     throw error;
   });
   const folders = entries.filter((entry) => entry.isDirectory() && !inGitFolder(entry.name)).map((entry) => entry.name);
-  return { folder: checked.folder, folders: folders.sort((a, b) => a.localeCompare(b)) };
+  return { folder: checked.folder, folders: folders.toSorted((a, b) => a.localeCompare(b)) };
 }

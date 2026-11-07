@@ -18,15 +18,18 @@ const HOME = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
 process.env.HOME = HOME;
 test.after(() => rm(HOME, { recursive: true, force: true }));
 
+function context(cwd: string) {
+  return {
+    agent: { id: "agent-7", workspaceId: "w", parentAgentId: null, provider: "claude", cwd, title: null },
+    paseo: {} as AgentToolContext["paseo"],
+    signal: new AbortController().signal,
+  };
+}
+
 async function worktree(t: TestContext) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "progress-tools-")));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await promisify(execFile)("git", ["init", "-q"], { cwd: directory });
-  const context = (cwd: string) => ({
-    agent: { id: "agent-7", workspaceId: "w", parentAgentId: null, provider: "claude", cwd, title: null },
-    paseo: {} as AgentToolContext["paseo"],
-    signal: new AbortController().signal,
-  });
   return {
     directory,
     async call(name: string, input: unknown, cwd = directory) {
@@ -227,8 +230,11 @@ test("tools describe themselves with the command's help text", () => {
   assert.match(progressTools.find((tool) => tool.name === "progress_ticket_update")!.description, /Statuses: not_started, working, blocked, done, skipped\./);
 });
 
+function paseo(mcp: { enabled?: boolean; injectIntoAgents: boolean }) {
+  return { config: { get: async () => ({ requestId: "r", config: { mcp } }) } } as never;
+}
+
 test("the panel learns whether agents get the tools: Paseo 0.13, or the host's Enable Paseo tools setting", async () => {
-  const paseo = (mcp: { enabled?: boolean; injectIntoAgents: boolean }) => ({ config: { get: async () => ({ requestId: "r", config: { mcp } }) } }) as never;
   assert.equal(agentToolsSupported, true, "this SDK is Paseo 0.14's");
   assert.equal(await toolsState(false, { config: { get: () => assert.fail("0.13 has no setting to read") } } as never), "unsupported");
   assert.equal(await toolsState(true, paseo({ injectIntoAgents: true })), "on");

@@ -246,7 +246,6 @@ posixTest("starting the same run id twice spawns once; ending twice publishes on
   await ended(h.registry, input.runId);
   await delay(100);
   assert.equal(h.rows(input.runId).length, 2);
-  const { readFileSync } = await import("node:fs");
   assert.equal(readFileSync(join(cwd, "count.txt"), "utf8"), "once\n");
   await h.registry.shutdown();
   assert.deepEqual(h.phases(input.runId), ["running", "ok"], "shutdown does not re-publish an ended run");
@@ -333,9 +332,8 @@ posixTest("markSent publishes the row again with the time; recent lists running 
   await h.registry.shutdown();
 });
 
-posixTest("proposals and dismissals go through the same publish path, and a stale proposal never overwrites a later state", async () => {
-  const h = harness();
-  const card = (runId: string): RunRow => ({
+function proposedRow(runId: string): RunRow {
+  return {
     runId,
     rev: 0,
     origin: "claude",
@@ -344,17 +342,21 @@ posixTest("proposals and dismissals go through the same publish path, and a stal
     phase: { kind: "proposed" },
     output: { lines: [], total: 0 },
     sentAt: null,
-  });
-  await h.registry.propose(AGENT, card("p-aaaaaaaaaaaa"));
+  };
+}
+
+posixTest("proposals and dismissals go through the same publish path, and a stale proposal never overwrites a later state", async () => {
+  const h = harness();
+  await h.registry.propose(AGENT, proposedRow("p-aaaaaaaaaaaa"));
   await h.registry.dismiss({ agentId: AGENT, runId: "p-aaaaaaaaaaaa", command: "gh auth login", cwd: "/w" });
-  await h.registry.propose(AGENT, card("p-aaaaaaaaaaaa"));
+  await h.registry.propose(AGENT, proposedRow("p-aaaaaaaaaaaa"));
   assert.deepEqual(h.phases("p-aaaaaaaaaaaa"), ["proposed", "dismissed"]);
   const dismissed = h.rows("p-aaaaaaaaaaaa")[1];
   assert.equal(dismissed.command, "gh auth login");
   // A card that became a run: the card's id is now a run, so another proposal or a dismiss is ignored.
-  await h.registry.propose(AGENT, card("p-bbbbbbbbbbbb"));
+  await h.registry.propose(AGENT, proposedRow("p-bbbbbbbbbbbb"));
   await ended(h.registry, await run(h.registry, "true", dir(), { runId: "p-bbbbbbbbbbbb", origin: "claude" }));
-  await h.registry.propose(AGENT, card("p-bbbbbbbbbbbb"));
+  await h.registry.propose(AGENT, proposedRow("p-bbbbbbbbbbbb"));
   await h.registry.dismiss({ agentId: AGENT, runId: "p-bbbbbbbbbbbb", command: "x", cwd: "/w" });
   await until(() => h.phases("p-bbbbbbbbbbbb").length === 3);
   assert.deepEqual(h.phases("p-bbbbbbbbbbbb"), ["proposed", "running", "ok"]);

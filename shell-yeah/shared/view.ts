@@ -264,12 +264,15 @@ function action(id: ActionId, label: string, primary = false): Action {
 // Programs often open or close with blank lines (npm prints one before its "> script" banner).
 // Leading ones only go when the first kept line is the program's first line.
 export function trimBlankEnds(lines: readonly Line[], atStart: boolean): readonly Line[] {
-  const blank = (line: Line) => lineText(line).trim() === "";
   let from = 0;
   let to = lines.length;
-  while (atStart && from < to && blank(lines[from])) from++;
+  if (atStart) while (from < to && blank(lines[from])) from++;
   while (to > from && blank(lines[to - 1])) to--;
   return from === 0 && to === lines.length ? lines : lines.slice(from, to);
+}
+
+function blank(line: Line): boolean {
+  return lineText(line).trim() === "";
 }
 
 // Same format as playwright-pulse: "0.8s", "9.9s", "12s", "1m 05s", "1h 02m", with

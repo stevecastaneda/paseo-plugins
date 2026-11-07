@@ -63,16 +63,23 @@ export function transformChatRow({ item }: { item: ToolCall }) {
   return data && { items: [{ type: "plugin" as const, kind: CHAT_ROW_KIND, version: CHAT_ROW_VERSION, data }] };
 }
 
+function firstLine(text: string): string {
+  return (
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean) ?? ""
+  );
+}
+
+function withMore(line: string, text: string): { line: string; more: string | null } {
+  return { line, more: text.trim() || null };
+}
+
 // What the row says: one line, and the full text the row opens to. The line
 // truncates on a narrow chat, so any text at all can be opened.
 export function chatRowText(row: ChatRow, m: ProgressMessages): { line: string; more: string | null } {
   const labels = m.toolRow[row.tool];
-  const firstLine = (text: string) =>
-    text
-      .split("\n")
-      .map((line) => line.trim())
-      .find(Boolean) ?? "";
-  const withMore = (line: string, text: string) => ({ line, more: text.trim() || null });
   switch (row.state) {
     case "running":
       return { line: labels.running, more: null };

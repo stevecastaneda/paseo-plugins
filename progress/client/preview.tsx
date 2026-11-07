@@ -352,6 +352,16 @@ export function PreviewContent({
 const FULL_SCREEN_MARGIN = 24;
 const FULL_SCREEN_BAR = 52;
 
+function barButton({ pressed, hovered }: { pressed: boolean; hovered: boolean }) {
+  return {
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6,
+    backgroundColor: pressed ? "rgba(255, 255, 255, 0.16)" : hovered ? "rgba(255, 255, 255, 0.1)" : "transparent",
+  } as const;
+}
+
 // The image over the whole window, never past its own pixels. It fits whole, or a
 // long one can fill the width and scroll.
 function FullScreenImage({
@@ -394,14 +404,6 @@ function FullScreenImage({
     scrolled.current = scrolls;
   }, [scrolls, uri]);
   const light = "rgba(255, 255, 255, 0.85)";
-  const barButton = ({ pressed, hovered }: { pressed: boolean; hovered: boolean }) =>
-    ({
-      height: 36,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: 6,
-      backgroundColor: pressed ? "rgba(255, 255, 255, 0.16)" : hovered ? "rgba(255, 255, 255, 0.1)" : "transparent",
-    }) as const;
   // A press on the image stops there, so only the black around it exits.
   // The fit button is the keyboard's way to the toggle, so the image isn't a tab stop.
   const area = (

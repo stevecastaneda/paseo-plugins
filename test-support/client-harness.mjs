@@ -17,6 +17,71 @@ function rejectAccessibilityState(pluginDirectory) {
   }
 }
 
+// Mirrors Paseo 0.9's owned list subscription: list({ subscribe: {} })
+// resolves with a handle whose observers get the first page as a snapshot,
+// a fresh snapshot after each reconnect, and directory update messages.
+function directory(type) {
+  const observers = new Set();
+  let pending;
+  let current;
+  const state = {
+    calls: 0,
+    released: 0,
+    get listenerCount() {
+      return observers.size;
+    },
+    list(options = {}) {
+      state.calls++;
+      return new Promise((fulfil, reject) => {
+        pending = { resolve: fulfil, reject, subscribe: Boolean(options.subscribe) };
+      });
+    },
+    fail() {
+      pending.reject(new Error("Connection unavailable"));
+    },
+    bootstrap(entries = [], pageInfo = { hasMore: false }) {
+      if (!pending.subscribe) return pending.resolve({ entries, pageInfo });
+      const snapshot = { entries, pageInfo, subscriptionId: `sub-${state.calls}` };
+      let released = false;
+      const mine = new Set();
+      current = {
+        snapshot,
+        mine,
+        subscription: {
+          subscriptionId: snapshot.subscriptionId,
+          ready: Promise.resolve(snapshot),
+          subscribe(observer) {
+            if (released) throw new Error("Subscription released");
+            mine.add(observer);
+            observers.add(observer);
+            observer.snapshot(current.snapshot);
+            return () => {
+              mine.delete(observer);
+              observers.delete(observer);
+            };
+          },
+          async release() {
+            if (released) return;
+            released = true;
+            state.released++;
+            for (const observer of mine) observers.delete(observer);
+            mine.clear();
+          },
+        },
+      };
+      pending.resolve({ ...snapshot, subscription: current.subscription });
+    },
+    reconnect(entries = [], pageInfo = { hasMore: false }) {
+      current.snapshot = { entries, pageInfo, subscriptionId: `${current.snapshot.subscriptionId}-r` };
+      for (const observer of current.mine) observer.snapshot(current.snapshot);
+    },
+    update(payload) {
+      for (const observer of observers) observer.update({ type, payload });
+    },
+  };
+  return state;
+}
+
 // Execute the real client contribution with only the host boundary mocked.
 export function clientHarness(pluginDirectory, modules = {}) {
   rejectAccessibilityState(pluginDirectory);
@@ -59,7 +124,11 @@ export function clientHarness(pluginDirectory, modules = {}) {
       if (name.startsWith(".")) return load(resolve(dirname(path), name));
       if (Object.hasOwn(modules, name)) return modules[name];
       if (name === "@getpaseo/plugin")
-        return { defineRpc: (contract) => contract, defineAttachmentSource: (source) => source, defineSettings: (definition) => definition };
+        return {
+          defineRpc: (contract) => contract,
+          defineAttachmentSource: (attachmentSource) => attachmentSource,
+          defineSettings: (definition) => definition,
+        };
       if (name === "@getpaseo/plugin/client")
         return {
           openExternalUrl: async (url) => {
@@ -79,70 +148,6 @@ export function clientHarness(pluginDirectory, modules = {}) {
       clearInterval: (id) => timers.delete(id),
     })(localRequire, module, module.exports);
     return module.exports;
-  }
-  // Mirrors Paseo 0.9's owned list subscription: list({ subscribe: {} })
-  // resolves with a handle whose observers get the first page as a snapshot,
-  // a fresh snapshot after each reconnect, and directory update messages.
-  function directory(type) {
-    const observers = new Set();
-    let pending;
-    let current;
-    const state = {
-      calls: 0,
-      released: 0,
-      get listenerCount() {
-        return observers.size;
-      },
-      list(options = {}) {
-        state.calls++;
-        return new Promise((resolve, reject) => {
-          pending = { resolve, reject, subscribe: Boolean(options.subscribe) };
-        });
-      },
-      fail() {
-        pending.reject(new Error("Connection unavailable"));
-      },
-      bootstrap(entries = [], pageInfo = { hasMore: false }) {
-        if (!pending.subscribe) return pending.resolve({ entries, pageInfo });
-        const snapshot = { entries, pageInfo, subscriptionId: `sub-${state.calls}` };
-        let released = false;
-        const mine = new Set();
-        current = {
-          snapshot,
-          mine,
-          subscription: {
-            subscriptionId: snapshot.subscriptionId,
-            ready: Promise.resolve(snapshot),
-            subscribe(observer) {
-              if (released) throw new Error("Subscription released");
-              mine.add(observer);
-              observers.add(observer);
-              observer.snapshot(current.snapshot);
-              return () => {
-                mine.delete(observer);
-                observers.delete(observer);
-              };
-            },
-            async release() {
-              if (released) return;
-              released = true;
-              state.released++;
-              for (const observer of mine) observers.delete(observer);
-              mine.clear();
-            },
-          },
-        };
-        pending.resolve({ ...snapshot, subscription: current.subscription });
-      },
-      reconnect(entries = [], pageInfo = { hasMore: false }) {
-        current.snapshot = { entries, pageInfo, subscriptionId: `${current.snapshot.subscriptionId}-r` };
-        for (const observer of current.mine) observer.snapshot(current.snapshot);
-      },
-      update(payload) {
-        for (const observer of observers) observer.update({ type, payload });
-      },
-    };
-    return state;
   }
   const agents = directory("agent_update");
   const workspaces = directory("workspace_update");
@@ -280,10 +285,10 @@ export function clientHarness(pluginDirectory, modules = {}) {
       for (let i = 0; i < 10; i++) await Promise.resolve();
     },
     async tick(delay) {
-      for (const [id, timer] of [...timers])
-        if (timer.delay === delay) {
-          if (!timer.repeat) timers.delete(id);
-          await timer.callback();
+      for (const [id, scheduled] of Array.from(timers))
+        if (scheduled.delay === delay) {
+          if (!scheduled.repeat) timers.delete(id);
+          await scheduled.callback();
         }
     },
   };

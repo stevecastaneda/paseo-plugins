@@ -12,7 +12,7 @@ export async function loadConversationBatch(
   let text = "";
   let nextInput = input;
   let page: RpcOutput<typeof readHistory>;
-  do {
+  for (;;) {
     page = await rpc(nextInput);
     if (cancelled()) return null;
     text += page.text;
@@ -21,6 +21,6 @@ export async function loadConversationBatch(
     // Bound a batch even for logs containing only context or tool output.
     if (page.nextOffset - (input.offset ?? 0) >= 4 * 1024 * 1024) break;
     nextInput = { agentId: input.agentId, offset: page.nextOffset, source: page.source };
-  } while (true);
+  }
   return { page, text };
 }

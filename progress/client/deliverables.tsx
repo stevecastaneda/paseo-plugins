@@ -120,11 +120,12 @@ export function DeliverablesList({
   );
 }
 
+function keepPressFromRow() {}
+
 // A Paseo Markdown link to a local file is the only way a plugin can open a tab.
 // A browser sends touches to a clear view; iOS ignores a view under 1% opaque.
 function TabButton({ colors, label, target }: { colors: Colors; label: string; target: string }) {
   const linkTakesFocus = Platform.OS === "web";
-  const keepPressFromRow = () => {};
   return (
     <PressScale
       accessibilityRole="button"

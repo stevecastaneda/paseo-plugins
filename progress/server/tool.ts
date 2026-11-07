@@ -58,7 +58,7 @@ function commandTool<Input extends z.ZodType>(title: string, command: string, in
 
 const ticketId = (what: string) => z.string().describe(`${what}, like T03`);
 const estimate = z.number().int().describe("Whole minutes, like 90");
-const source = z.string().describe("Spec file path or http(s) link where the ticket is written up");
+const ticketSource = z.string().describe("Spec file path or http(s) link where the ticket is written up");
 
 // Keyed by name, so the compiler holds this to the shared list.
 const tools: Record<ProgressToolName, Tool> = {
@@ -81,7 +81,7 @@ const tools: Record<ProgressToolName, Tool> = {
       estimateMinutes: estimate,
       status: ticketStatusSchema.optional(),
       waitsFor: ticketId("A ticket this one can't start before").optional(),
-      source: source.optional(),
+      source: ticketSource.optional(),
     }),
     ({ title, estimateMinutes, status, waitsFor, source }) =>
       commandArgs("ticket add", [title], { estimate: estimateMinutes, status, "waits-for": waitsFor, source }),

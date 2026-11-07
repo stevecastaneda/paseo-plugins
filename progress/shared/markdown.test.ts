@@ -39,6 +39,7 @@ test("a file that isn't cut comes back whole, ending as it ends", () => {
 
 const posixFile: FileLocation = { root: "/r", folder: "/r/docs", path: posix };
 const prepare = (text: string, where = posixFile) => prepareMarkdown(bytes(text), false, where);
+const cut = (text: string, count: number) => prepareMarkdown(head(text, count), true, posixFile);
 const link = (target: string, where = posixFile) => prepare(`[a](${target})`, where).slice("[a](".length, -1);
 
 test("a relative link or image points at the file's own folder", () => {
@@ -183,7 +184,6 @@ test("front matter shows as YAML, and line endings and a BOM don't get in the wa
 });
 
 test("a cut Markdown file ends on a whole line, inside a fence or a table if that's where it stopped", () => {
-  const cut = (text: string, count: number) => prepareMarkdown(head(text, count), true, posixFile);
   assert.equal(cut("[a](b.md)\n[c](long-name.md)", 15), "[a](/r/docs/b.md)\n", "no half link is rewritten");
   assert.equal(
     cut("Intro\n```js\nconst a = 1;\nconst b = 2;\n```\n", 26),

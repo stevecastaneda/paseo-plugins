@@ -400,14 +400,17 @@ export function reduceProgress(
   };
 }
 
+function idsOf(events: ProgressEvent[], type: ProgressEvent["type"]): string[] {
+  return events.flatMap((event) => (event.type === type && "id" in event ? [event.id] : []));
+}
+
 function nextIds(all: ProgressEvent[], inRun: ProgressEvent[]): NextIds {
-  const used = (events: ProgressEvent[], type: ProgressEvent["type"]) => events.flatMap((event) => (event.type === type && "id" in event ? [event.id] : []));
   return {
-    ticket: nextId("T", used(inRun, "ticket.add")),
-    question: nextId("Q", used(all, "question.ask"), 1),
-    deliverable: nextId("D", used(inRun, "deliverable.add"), 1),
-    activity: nextId("A", used(inRun, "activity.add"), 1),
-    stuck: nextId("S", used(inRun, "stuck.set"), 1),
+    ticket: nextId("T", idsOf(inRun, "ticket.add")),
+    question: nextId("Q", idsOf(all, "question.ask"), 1),
+    deliverable: nextId("D", idsOf(inRun, "deliverable.add"), 1),
+    activity: nextId("A", idsOf(inRun, "activity.add"), 1),
+    stuck: nextId("S", idsOf(inRun, "stuck.set"), 1),
   };
 }
 

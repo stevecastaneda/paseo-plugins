@@ -23,7 +23,8 @@ export async function withLock<T>(lockPath: string, work: () => Promise<T>): Pro
         await rm(lockPath, { recursive: true, force: true });
         continue;
       }
-      if (Date.now() - started > WAIT_MS) throw new Error(`Timed out waiting for ${lockPath}. If no other progress command is running, delete it.`);
+      if (Date.now() - started > WAIT_MS)
+        throw new Error(`Timed out waiting for ${lockPath}. If no other progress command is running, delete it.`, { cause: error });
       await new Promise((resolve) => setTimeout(resolve, RETRY_MS + Math.random() * RETRY_MS));
     }
   }

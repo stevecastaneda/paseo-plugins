@@ -98,7 +98,8 @@ test("clicks inside the portaled dialog do not rerun the composer action or relo
     },
   };
   act(() => {
-    for (let node = message; node && !stopped; node = node.parent) {
+    for (let node = message; node; node = node.parent) {
+      if (stopped) break;
       if (typeof node.type === "string") node.props.onClick?.(event);
     }
   });
@@ -112,7 +113,8 @@ test("clicks inside the portaled dialog do not rerun the composer action or relo
   stopped = false;
   act(() => {
     sourceButton.props.onPress();
-    for (let node = sourceButton; node && !stopped; node = node.parent) {
+    for (let node = sourceButton; node; node = node.parent) {
+      if (stopped) break;
       if (typeof node.type === "string") node.props.onClick?.(event);
     }
   });

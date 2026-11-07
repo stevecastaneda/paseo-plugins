@@ -25,10 +25,13 @@ test("carriage return overwrites in place, as a progress bar expects", () => {
   for (const [input, expected] of cases) assert.deepEqual(lines(input), expected, JSON.stringify(input));
 });
 
+function block(n: number): string {
+  return `layer a: ${n}%\nlayer b: ${n}%\nlayer c: ${n}%\n`;
+}
+
 test("erase-line and cursor-up redraws replace lines instead of piling up", () => {
   assert.deepEqual(lines(`frame 1${ESC}[2K\rframe 2${ESC}[2K\rframe 3\n`), ["frame 3"]);
   // docker-style: three layer lines, updated twice.
-  const block = (n: number) => `layer a: ${n}%\nlayer b: ${n}%\nlayer c: ${n}%\n`;
   const redraw = `${ESC}[3A${ESC}[0J`;
   assert.deepEqual(lines(block(10) + redraw + block(50) + redraw + block(100)), ["layer a: 100%", "layer b: 100%", "layer c: 100%"]);
   // Erase to the right keeps what was typed before the cursor.
@@ -165,8 +168,8 @@ test("tail says where the cursor is, counted from the last line", () => {
   screen.write("\n");
   assert.deepEqual(screen.tail(10).cursor, { up: -1, col: 0 });
   screen.write("\x1b[2A\x1b[2G");
-  const { lines, cursor } = screen.tail(10);
-  assert.equal(lines[lines.length - 1 - cursor!.up], "two");
+  const { lines: tailLines, cursor } = screen.tail(10);
+  assert.equal(tailLines[tailLines.length - 1 - cursor!.up], "two");
   assert.equal(cursor!.col, 1);
   assert.equal(screen.tail(1).cursor, null, "above the lines sent");
 });

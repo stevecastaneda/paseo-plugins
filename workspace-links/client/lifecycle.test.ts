@@ -108,7 +108,7 @@ test("Links controls share in-flight requests and cached results through the pro
   const { linksQueryOptions } = h.load("client/links-query.ts");
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let calls = 0;
-  let finish: (data: unknown) => void = () => {};
+  let finish!: (data: unknown) => void;
   const fetchLinks = () => {
     calls++;
     return new Promise((resolve) => {

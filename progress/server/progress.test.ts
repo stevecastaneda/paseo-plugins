@@ -198,7 +198,7 @@ test("a ticket's story: its stages with durations, and what belongs to it exactl
     {
       deliverables: dashboard.deliverables,
       questions: [...dashboard.questions.open, ...dashboard.questions.answered],
-      activity: [...dashboard.activity].reverse(),
+      activity: dashboard.activity.toReversed(),
     },
     minutes(50).getTime(),
   );
@@ -231,7 +231,7 @@ test("a ticket's story: its stages with durations, and what belongs to it exactl
   );
 
   const t02 = dashboard.tickets.find((ticket) => ticket.id === "T02")!;
-  const current = ticketStory(t02, { deliverables: [], questions: [], activity: [...dashboard.activity].reverse() }, minutes(50).getTime());
+  const current = ticketStory(t02, { deliverables: [], questions: [], activity: dashboard.activity.toReversed() }, minutes(50).getTime());
   assert.deepEqual(
     current.timeline.map((step) => [step.label, Math.round(step.minutes!)]),
     [
@@ -327,10 +327,15 @@ test("tickets added and updated by the agent show up with ids, statuses, and the
   assert.deepEqual(dashboard.issues, []);
 });
 
+function ticketsWith(...statuses: Ticket["status"][]) {
+  return statuses.map((status, index) => ({ id: `T0${index + 1}`, title: "", estimateMin: 10, status, statusSince: "", history: [] }));
+}
+
+function folded(...statuses: Ticket["status"][]) {
+  return finishedToFold(ticketsWith(...statuses)).map((ticket) => ticket.id);
+}
+
 test("the panel folds every finished ticket, and only two or more", () => {
-  const list = (...statuses: Ticket["status"][]) =>
-    statuses.map((status, index) => ({ id: `T0${index + 1}`, title: "", estimateMin: 10, status, statusSince: "", history: [] }));
-  const folded = (...statuses: Ticket["status"][]) => finishedToFold(list(...statuses)).map((ticket) => ticket.id);
   assert.deepEqual(
     folded("done", "skipped", "done", "working", "done", "not_started"),
     ["T01", "T02", "T03", "T05"],
@@ -701,7 +706,10 @@ test("plain steps, with no write-ups, stages or Paseo agent, still get a dialog 
   assert.equal(step.agentId, undefined, "no agent row");
   assert.equal(dashboard.ticker?.by, undefined, "the status line goes by the one working step");
   assert.deepEqual(
-    ticketStory(step, { deliverables: [], questions: [], activity: [] }, minutes(12).getTime()).timeline.map(({ label, minutes }) => ({ label, minutes })),
+    ticketStory(step, { deliverables: [], questions: [], activity: [] }, minutes(12).getTime()).timeline.map(({ label, minutes: elapsed }) => ({
+      label,
+      minutes: elapsed,
+    })),
     [
       { label: { kind: "added" }, minutes: 0 },
       { label: { kind: "status", status: "working" }, minutes: 12 },
@@ -933,15 +941,18 @@ test("questions carry the agent's recommendation and wait for the answer, then a
   assert.equal(headlineText(dashboard), "2 of 4 tickets done");
 });
 
+function eventLine(event: object) {
+  return JSON.stringify({ v: 1, ts: minutes(0).toISOString(), ...event });
+}
+
 test("questions from before recommendations show their default as the pick, and keep a changed course", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");
-  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), ...event });
   await appendFile(
     join(w.store, "progress.jsonl"),
     [
-      line({ type: "question.ask", id: "Q1", title: "Old", question: "Old?", default: "Yes", waits: true }),
-      line({ type: "question.answer", id: "Q1", choice: "No", changedCourse: true }),
+      eventLine({ type: "question.ask", id: "Q1", title: "Old", question: "Old?", default: "Yes", waits: true }),
+      eventLine({ type: "question.answer", id: "Q1", choice: "No", changedCourse: true }),
     ].join("\n") + "\n",
   );
   const { dashboard } = await w.dashboard();
@@ -1141,13 +1152,18 @@ test("question ask --help names the three modes and the three big tests", async 
   );
 });
 
+function oldQuestionLine(event: object) {
+  return JSON.stringify({ v: 1, ts: minutes(0).toISOString(), title: "Old", question: "Old?", type: "question.ask", ...event });
+}
+
 test("questions from earlier versions keep their state: a default without waits was built, the rest waited", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");
-  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), title: "Old", question: "Old?", type: "question.ask", ...event });
   await appendFile(
     join(w.store, "progress.jsonl"),
-    [line({ id: "Q1", default: "A" }), line({ id: "Q2", default: "A", waits: true }), line({ id: "Q3", recommend: "A" })].join("\n") + "\n",
+    [oldQuestionLine({ id: "Q1", default: "A" }), oldQuestionLine({ id: "Q2", default: "A", waits: true }), oldQuestionLine({ id: "Q3", recommend: "A" })].join(
+      "\n",
+    ) + "\n",
   );
   const { dashboard } = await w.dashboard();
   assert.deepEqual(
@@ -2096,8 +2112,8 @@ test("outside git it works the same", async (t) => {
 
 test("a repo's .scratch, committed or not, is left alone and never read", async (t) => {
   for (const commit of [true, false])
-    await t.test(commit ? "committed" : "not committed", async (t) => {
-      const repo = await newRepo(t);
+    await t.test(commit ? "committed" : "not committed", async (sub) => {
+      const repo = await newRepo(sub);
       await oldScratch(repo.directory, { "notes.md": "mine" });
       const planted =
         startLine("Planted run") +
@@ -2135,12 +2151,16 @@ async function snapshot(directory: string): Promise<Record<string, string>> {
   );
 }
 
+function scratch(directory: string, name = "") {
+  return join(directory, ".scratch", name);
+}
+
+async function withRun(directory: string) {
+  await mkdir(scratch(directory));
+  await writeFile(scratch(directory, "progress.jsonl"), startLine("Committed run"));
+}
+
 test("a repo's .scratch can't lead Progress to write, truncate or delete anything outside it", async (t) => {
-  const scratch = (directory: string, name = "") => join(directory, ".scratch", name);
-  const withRun = async (directory: string) => {
-    await mkdir(scratch(directory));
-    await writeFile(scratch(directory, "progress.jsonl"), startLine("Committed run"));
-  };
   // What a cloned repo can commit: links where 0.1.x kept its files.
   const cases: Array<{ name: string; plant: (directory: string, outsideDir: string) => Promise<void> }> = [
     {
@@ -2169,15 +2189,15 @@ test("a repo's .scratch can't lead Progress to write, truncate or delete anythin
   // Committed, as a clone has them, or not, as a download without git has them.
   for (const { name, plant } of cases)
     for (const commit of [true, false])
-      await t.test(`${name}${commit ? "" : ", not committed"}`, async (t) => {
+      await t.test(`${name}${commit ? "" : ", not committed"}`, async (sub) => {
         const outsideDir = await realpath(await mkdtemp(join(tmpdir(), "progress-outside-")));
-        t.after(() => rm(outsideDir, { recursive: true, force: true }));
+        sub.after(() => rm(outsideDir, { recursive: true, force: true }));
         await writeFile(join(outsideDir, "victim.txt"), "mine\n");
         await oldScratch(outsideDir);
         await mkdir(join(outsideDir, "busy"));
         await writeFile(join(outsideDir, "busy", "keep.txt"), "mine\n");
         const before = await snapshot(outsideDir);
-        const repo = await newRepo(t);
+        const repo = await newRepo(sub);
         await plant(repo.directory, outsideDir);
         if (commit) {
           await git(repo.directory, "add", "-A");
@@ -2216,8 +2236,8 @@ test("saving run history is opt-in: one file per run in the chosen folder, in ev
 
   await repo.run(repo.directory, "start", "Second run");
   assert.deepEqual(
-    (await readdir(join(repo.directory, "history"))).sort(),
-    [first, runFileName(minutes(0).toISOString(), "Second run")].sort(),
+    (await readdir(join(repo.directory, "history"))).toSorted(),
+    [first, runFileName(minutes(0).toISOString(), "Second run")].toSorted(),
     "a new run gets its own file",
   );
   assert.deepEqual(
@@ -2388,7 +2408,7 @@ test("git never runs from the repo, so a program the repo commits named git neve
   // Windows looks for a program in the folder it starts in before PATH. A "."
   // first on PATH does the same here.
   const result = await withPathFirst(".", () => handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context));
-  assert.deepEqual((await readdir(repo.directory)).sort(), [".git", "git"], "the repo's git never ran");
+  assert.deepEqual((await readdir(repo.directory)).toSorted(), [".git", "git"], "the repo's git never ran");
   assert.ok("dashboard" in result);
   assert.equal(result.inRepo, true, "the real git answered for the repo");
 });

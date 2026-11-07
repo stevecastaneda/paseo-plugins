@@ -157,6 +157,15 @@ async function listFolder(target: string): Promise<{ entries: FolderEntry[]; tru
   return { entries: entries.slice(0, MAX_FOLDER_ENTRIES), truncated: entries.length > MAX_FOLDER_ENTRIES };
 }
 
+function dataUri(data: Buffer, file: string): string {
+  return `data:${imageMimeType(file) ?? videoMimeType(file) ?? "application/octet-stream"};base64,${data.toString("base64")}`;
+}
+
+// Its own end tag would close the element early.
+function body(tag: string) {
+  return (data: Buffer) => data.toString("utf8").replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
+}
+
 // The preview gets only the page, so the files beside it that it loads (its
 // screenshots, a script, a stylesheet) are written into it. Only files inside the
 // worktree, up to MAX_PREVIEW_BYTES in all; anything else is left as written and
@@ -199,10 +208,6 @@ async function inlineLocalFiles(html: string, page: string, root: string): Promi
       return null;
     }
   };
-  const dataUri = (data: Buffer, file: string) =>
-    `data:${imageMimeType(file) ?? videoMimeType(file) ?? "application/octet-stream"};base64,${data.toString("base64")}`;
-  // Its own end tag would close the element early.
-  const body = (tag: string) => (data: Buffer) => data.toString("utf8").replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
   html = await replaceEach(html, /<(?:img|source|video)\b[^>]*>/gi, (tag) =>
     replaceEach(tag[0], /(?<=\s)(src|poster)(\s*=\s*)(["'])([^"']*)\3/gi, async ([, name, equals, quote, url]) => {
       const uri = await inline(url, dataUri);

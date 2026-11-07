@@ -16,8 +16,8 @@ class FakePort implements DaemonPort {
   sent: string[] = [];
   private readonly listeners = new Set<(message: unknown) => void>();
 
-  send(frame: string): void {
-    this.sent.push(frame);
+  send(raw: string): void {
+    this.sent.push(raw);
   }
 
   onMessage(handler: (message: unknown) => void): () => void {

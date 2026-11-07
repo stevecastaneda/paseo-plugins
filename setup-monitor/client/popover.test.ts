@@ -75,7 +75,7 @@ function popover() {
   const rows = (node: any): Element[] => {
     if (Array.isArray(node)) return node.flatMap(rows);
     if (!node || typeof node !== "object") return [];
-    const matches = node.type === "Pressable" && /^Show log for /.test(node.props.accessibilityLabel ?? "") ? [node] : [];
+    const matches = node.type === "Pressable" && (node.props.accessibilityLabel ?? "").startsWith("Show log for ") ? [node] : [];
     return [...matches, ...rows(node.props.children)];
   };
   return () => {

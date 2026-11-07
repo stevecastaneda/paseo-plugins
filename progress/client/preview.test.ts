@@ -126,9 +126,10 @@ test("leaving full screen puts focus back on the Full screen button without a fo
 
 type MarkdownCase = { markdown: string; truncated?: boolean; ownScroll?: boolean; latched?: boolean; stepping?: boolean };
 
+const Markdown = () => null;
+
 function renderMarkdown({ markdown, truncated = false, ownScroll = false, latched = false, stepping = false }: MarkdownCase) {
   let messages: unknown;
-  const Markdown = () => null;
   const latches: unknown[] = [];
   const h = clientHarness(directory, {
     react: {

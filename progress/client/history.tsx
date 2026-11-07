@@ -92,6 +92,10 @@ export function HistoryRow({ colors, workspaceId, directory, savedTo }: { colors
   );
 }
 
+function parentOf(path: string): string {
+  return path.split("/").slice(0, -1).join("/");
+}
+
 // Browses the repo's folders on the daemon host. A new folder only needs a
 // name: it's made the first time a run is saved there.
 function FolderPicker({
@@ -113,7 +117,6 @@ function FolderPicker({
   onPick(folder: string): void;
 }) {
   const { messages: m } = useProgressLanguage();
-  const parentOf = (path: string) => path.split("/").slice(0, -1).join("/");
   const [at, setAt] = useState(() => parentOf(start));
   const [naming, setNaming] = useState<string | null>(null);
   const list = useRpc(listFolders);

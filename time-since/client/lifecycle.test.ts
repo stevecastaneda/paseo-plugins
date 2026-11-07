@@ -99,6 +99,15 @@ test("directory agents seed from the snapshot without a timeline read", async ()
   stop();
 });
 
+function idleAgent(id) {
+  return {
+    id,
+    workspaceId: "w",
+    status: "idle",
+    lastUserMessageAt: new Date(Date.now() - 20 * 60_000).toISOString(),
+  };
+}
+
 test("recorded turn ends seed the pill with the last reply, even when they arrive late", async () => {
   const h = clientHarness(directory);
   let settleReplies;
@@ -106,13 +115,7 @@ test("recorded turn ends seed the pill with the last reply, even when they arriv
     settleReplies = resolve;
   });
   const stop = h.load("client/ticker.tsx").contributeClient(h.client);
-  const agent = (id) => ({
-    id,
-    workspaceId: "w",
-    status: "idle",
-    lastUserMessageAt: new Date(Date.now() - 20 * 60_000).toISOString(),
-  });
-  h.agents.bootstrap([{ agent: agent("a") }, { agent: agent("b") }, { agent: agent("c") }]);
+  h.agents.bootstrap([{ agent: idleAgent("a") }, { agent: idleAgent("b") }, { agent: idleAgent("c") }]);
   await h.flush();
   const pillFor = (agentId) => h.registrations.find((r) => !r.removed && r.agentId === agentId);
   assert.match(pillFor("a").button.label, /^20m/, "falls back to lastUserMessageAt until the ledger loads");
@@ -132,7 +135,7 @@ test("recorded turn ends seed the pill with the last reply, even when they arriv
   assert.equal(h.requests.filter((r) => r.name === "time-since.last-reply.list").length, 1, "one ledger read serves every agent");
 
   // Agents registered after the ledger loads seed from it too.
-  h.agents.update({ kind: "upsert", agent: { ...agent("gone"), lastUserMessageAt: null } });
+  h.agents.update({ kind: "upsert", agent: { ...idleAgent("gone"), lastUserMessageAt: null } });
   assert.match(pillFor("gone").button.label, /^0s/);
   stop();
 });

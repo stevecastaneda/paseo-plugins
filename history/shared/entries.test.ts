@@ -4,9 +4,12 @@ import { parseEntries, groupTurns } from "./entries.ts";
 
 const lines = (...entries: unknown[]) => entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
 
+function openCodeMessage(role: string, parts: unknown[]) {
+  return { info: { id: "msg_one", role, time: { created: 1 } }, parts };
+}
+
 test("OpenCode exports preserve raw records and group messages, tools, and reasoning", () => {
-  const entry = (role: string, parts: unknown[]) => ({ info: { id: "msg_one", role, time: { created: 1 } }, parts });
-  const user = entry("user", [
+  const user = openCodeMessage("user", [
     { type: "text", text: "Hello" },
     { type: "file", filename: "photo.png" },
   ]);
@@ -14,14 +17,14 @@ test("OpenCode exports preserve raw records and group messages, tools, and reaso
     lines(
       { info: { id: "ses_test", title: "Example" } },
       user,
-      entry("assistant", [{ type: "reasoning", text: "Thinking" }]),
-      entry("assistant", [{ type: "tool", tool: "bash", state: { input: { command: "pwd" }, output: "/tmp" } }]),
-      entry("assistant", [
+      openCodeMessage("assistant", [{ type: "reasoning", text: "Thinking" }]),
+      openCodeMessage("assistant", [{ type: "tool", tool: "bash", state: { input: { command: "pwd" }, output: "/tmp" } }]),
+      openCodeMessage("assistant", [
         { type: "text", text: "**Done**" },
         { type: "reasoning", text: "Internal" },
       ]),
-      entry("assistant", [{ type: "step-finish", cost: 0 }]),
-      entry("user", [{ type: "text", text: "Next" }]),
+      openCodeMessage("assistant", [{ type: "step-finish", cost: 0 }]),
+      openCodeMessage("user", [{ type: "text", text: "Next" }]),
     ),
   );
   assert.deepEqual(
@@ -82,14 +85,17 @@ test("Claude tool results do not start a new turn or render as user messages", (
   );
 });
 
-test("Claude Code request records stay out of the conversation", () => {
-  const blob = (role: string, content: unknown[], extra = {}) => ({
+function blob(role: string, content: unknown[], extra = {}) {
+  return {
     type: "api-request-blob",
     sessionId: "11111111-2222-3333-4444-555555555555",
     hash: "a".repeat(64),
     message: { role, content },
     ...extra,
-  });
+  };
+}
+
+test("Claude Code request records stay out of the conversation", () => {
   const blobs = [
     blob("user", [
       { type: "text", text: "<system-reminder>\nCodebase and user instructions are shown below.\n</system-reminder>" },

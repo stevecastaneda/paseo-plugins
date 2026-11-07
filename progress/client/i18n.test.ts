@@ -93,18 +93,21 @@ test("clock formatting uses explicit locales and local calendar-day boundaries",
   }
 });
 
-test("headlines derive from structured counts while preserving server copy and custom item labels", () => {
-  const h = clientHarness(directory);
-  const { clientHeadline } = h.load("client/i18n.ts");
-  const { EMPTY_DASHBOARD } = h.load("shared/dashboard.ts");
-  const ticket = (status: Ticket["status"]): Ticket => ({
+function ticket(status: Ticket["status"]): Ticket {
+  return {
     id: "T01",
     title: "Authored title",
     estimateMin: 10,
     status,
     statusSince: "2026-10-21T00:00:00Z",
     history: [],
-  });
+  };
+}
+
+test("headlines derive from structured counts while preserving server copy and custom item labels", () => {
+  const h = clientHarness(directory);
+  const { clientHeadline } = h.load("client/i18n.ts");
+  const { EMPTY_DASHBOARD } = h.load("shared/dashboard.ts");
   const dashboard: Dashboard = {
     ...EMPTY_DASHBOARD,
     run: { title: "Authored run", startedAt: "2026-10-21T00:00:00Z", itemLabel: "API Task" },
