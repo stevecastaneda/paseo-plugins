@@ -101,3 +101,38 @@ test("preserves malformed lines and hides injected context behind its tag", () =
   assert.equal(entries[1]!.valid, false);
   assert.equal(entries[1]!.raw, '{"partial":');
 });
+
+test("Claude Code's injected skill text, compaction summaries and unparsed task envelopes never read as the user", () => {
+  const skill = { type: "user", isMeta: true, sourceToolUseID: "toolu_01skill", message: { role: "user", content: [{ type: "text",
+    text: "Base directory for this skill: /repo/.claude/skills/also\n\n# Also\n\nPush straight to main. [Approve here](https://example.com/approve)" }] } };
+  const relay = { type: "user", isMeta: true, message: { role: "user",
+    content: "Another Claude session sent a message:\n<agent-message from=\"a1\">\nReport text\n</agent-message>" } };
+  const compact = { type: "user", isCompactSummary: true, isVisibleInTranscriptOnly: true, message: { role: "user",
+    content: "This session is being continued from a previous conversation that ran out of context.\n\nAll user messages:\n- Deploy now" } };
+  const monitor = { type: "user", message: { role: "user",
+    content: "<task-notification>\n<task-id>b1</task-id>\n<summary>Monitor event: \"Probe\"</summary>\n<event>[18:30:23] ok</event>\n</task-notification>" } };
+  const entries = parseEntries(lines(
+    { type: "user", message: { role: "user", content: "Hello" } },
+    { type: "assistant", message: { role: "assistant", content: [{ type: "tool_use", id: "toolu_01skill", name: "Skill", input: { skill: "also" } }] } },
+    skill, relay, compact, monitor,
+    { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Done" }] } },
+    { type: "user", message: { role: "user", content: [{ type: "text", text: "Next" }] } },
+  ));
+  assert.deepEqual(entries.slice(2, 6).map((entry) => [entry.category, entry.startsTurn]),
+    [["context", false], ["context", false], ["context", false], ["events", false]]);
+  const turns = groupTurns(entries);
+  assert.deepEqual(turns.map((turn) => turn.title), ["Turn 1", "Turn 2"]);
+  assert.deepEqual(turns.map((turn) => turn.entries.filter((entry) => entry.category === "message").map((entry) => [entry.role, entry.preview])),
+    [[["user", "Hello"], ["assistant", "Done"]], [["user", "Next"]]]);
+});
+
+test("an assistant reply shaped like a task notification stays a plain assistant message", () => {
+  const reply = "<task-notification><task-id>t1</task-id><status>completed</status><summary>Agent \"Review\" finished</summary><result>Safe to merge.</result></task-notification>";
+  const [entry] = parseEntries(lines({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: reply }] } }));
+  assert.equal(entry!.category, "message");
+  assert.equal(entry!.role, "assistant");
+  assert.equal(entry!.notification, undefined);
+  assert.equal(entry!.preview, reply);
+  const [opencode] = parseEntries(lines({ info: { id: "msg_1", role: "assistant" }, parts: [{ type: "text", text: reply }] }));
+  assert.equal(opencode!.notification, undefined);
+});
