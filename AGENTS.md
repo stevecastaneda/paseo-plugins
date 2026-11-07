@@ -4,4 +4,4 @@ Plugin API. Before changing a contribution, the client/server split, an RPC, the
 
 To try a change in Paseo, run `npm install` (once per checkout) and then `npm run dev` in the plugin directory. This makes Paseo run the plugin from your directory, so when you finish in a worktree, run `npm install && npm run dev` in the same plugin under `~/github/paseo-plugins` to switch it back. Confirm with `paseo plugin ls`. Never edit plugin paths in config.json or restart the daemon.
 
-Before opening a PR that changes a plugin, commit, then run `npm run security-review` in that plugin's folder. Fix any release blocker it finds in the same PR, and put its verdict line and report path in the PR body. See THREAT-MODEL.md.
+Before opening a PR that changes a plugin, commit, then run `npm run security-review` in that plugin's folder. Fix any release blocker it finds in the same PR. Put its verdict line in the PR body, and paste the full report below it in a collapsed `<details>` section. Don't cite the report's path. Nobody reading the PR on GitHub can open it, and the next review of the same plugin version overwrites the file. See THREAT-MODEL.md.
