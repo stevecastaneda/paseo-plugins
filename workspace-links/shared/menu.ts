@@ -1,8 +1,14 @@
 export type WorkspaceLink = { label: string; url: string };
 
-/** The URL as people read it: no scheme, no `www.`, no lone trailing slash. */
+/** The URL as people read it: no scheme, no userinfo, no `www.`, no lone trailing slash. */
 export function displayUrl(url: string): string {
-  return url.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
+  const rest = url.replace(/^https?:\/\//i, "");
+  // Not `new URL`: React Native's URL shim misreads a host after a second `@`. Browsers end
+  // userinfo at the last `@` before the path, so this does too, and always shows the real host.
+  const authorityEnd = rest.search(/[/\\?#]/);
+  const authority = authorityEnd === -1 ? rest : rest.slice(0, authorityEnd);
+  const host = authority.slice(authority.lastIndexOf("@") + 1);
+  return (host + rest.slice(authority.length)).replace(/^www\./i, "").replace(/\/$/, "");
 }
 
 // First match wins, so specific services sit above the generic words that often share a name
