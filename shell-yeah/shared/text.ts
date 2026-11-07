@@ -1,3 +1,5 @@
+import { LIMITS } from "./limits.ts";
+
 // The last path segment, for either slash style; the client has no node:path.
 export function basename(path: string): string {
   const parts = path.replace(/[\\/]+$/, "").split(/[\\/]/);
@@ -14,6 +16,13 @@ export function errorMessage(error: unknown): string {
 export function splitTitle(command: string): { title: string | null; script: string } {
   const match = /^#(?!!)[ \t]*(\S[^\n]*)\n(\s*\S[\s\S]*)$/.exec(command);
   return match ? { title: match[1].trim(), script: match[2].trim() } : { title: null, script: command };
+}
+
+// A Run window row runs on one tap only if it shows every character that runs: a script of
+// one line, short enough to show whole. Its title is a comment, which the shell skips.
+export function runsOnOneTap(command: string): boolean {
+  const { script } = splitTitle(command);
+  return !script.includes("\n") && script.length <= LIMITS.oneTapChars;
 }
 
 // Things worth a second look before pressing Run, in plain words. Pattern checks, not a

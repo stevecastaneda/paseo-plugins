@@ -75,6 +75,9 @@ const INLINE_SPAN = /(?<!`)`([^`\n]+)`(?!`)/g;
 const BANG = /^!\s+(\S[\s\S]*)$/;
 // `sh run` in a sentence names the block label agents are taught, not a command.
 const FENCE_INFO = /^(sh|bash|zsh|shell|console|powershell|pwsh|ps1)\s+run$/i;
+// Control characters other than tab and newline, marks that reorder text, and line separators
+// make a command look different from what runs, so a command holding one isn't offered.
+const HIDING = /[\x00-\x08\x0b-\x1f\x7f-\x9f\p{Bidi_Control}\p{Zl}\p{Zp}]/u;
 
 // Commands Claude handed over, in document order, deduplicated, at most four.
 //   "marked": fences whose info is `run` or a shell language plus the word `run`,
@@ -87,10 +90,12 @@ export function scanProposals(text: string, mode: ScanMode, startsCommand: (word
   const found: string[] = [];
   const add = (raw: string) => {
     const command = normalizeCommand(raw);
-    if (command && command.length <= LIMITS.commandChars && !found.includes(command)) found.push(command);
+    if (command && command.length <= LIMITS.commandChars && !HIDING.test(command) && !found.includes(command)) found.push(command);
   };
   let open: { fence: string; indent: number; lang: string; marked: boolean; body: string[] } | null = null;
-  for (const line of text.split(/\r?\n/)) {
+  // PowerShell ends a line at a lone carriage return too, so every line ending becomes "\n"
+  // before anything is shown or run. Otherwise code after one would sit inside a card's title.
+  for (const line of text.replace(/\r\n?/g, "\n").split("\n")) {
     if (open) {
       const close = /^\s*(`{3,}|~{3,})\s*$/.exec(line);
       if (close && close[1][0] === open.fence[0] && close[1].length >= open.fence.length) {

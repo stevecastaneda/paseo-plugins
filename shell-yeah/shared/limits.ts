@@ -28,6 +28,8 @@ export const LIMITS = {
   headerCommandChars: 80,
   // Lines a card can scroll back through, live and in its row; Copy gets everything kept.
   scrollbackLines: 300,
+  // A Run window row shows a script this short whole, in two or three wrapped lines, so it runs on one tap.
+  oneTapChars: 80,
   proposalsPerReply: 4,
   suggestionsPerReply: 8,
   tailCoalesceMs: 60,
