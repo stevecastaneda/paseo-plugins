@@ -8,8 +8,8 @@ import { promisify } from "node:util";
 import { findAttachment, type FolderEntry, imageMimeType, isPieced, type PiecedKind, previewKind, splitRef, textFormat, videoMimeType } from "../shared/attachments.ts";
 import { prepareMarkdown, previewText } from "../shared/markdown.ts";
 import { readProgress } from "./progress-file.ts";
-import { findRoot, outside } from "./paths.ts";
-import { findStore } from "./store.ts";
+import { findRoot, hasGitEntry, inGitFolder, outside } from "./paths.ts";
+import { findStore, git } from "./store.ts";
 
 export type Opener = (path: string) => Promise<void>;
 
@@ -127,7 +127,7 @@ export async function previewDeliverable(directory: string, id: string): Promise
     }
   }
   if (size > MAX_PREVIEW_BYTES) throw new Error(tooLarge(path, size));
-  if (kind === "html") return { kind, html: await inlineLocalFiles(await readFile(realTarget, "utf8"), dirname(realTarget), realRoot), bytes: size };
+  if (kind === "html") return { kind, html: await inlineLocalFiles(await readFile(realTarget, "utf8"), realTarget, realRoot), bytes: size };
   const data = await readFile(realTarget);
   return { kind, dataUri: `data:${imageMimeType(realTarget)};base64,${data.toString("base64")}`, bytes: size };
 }
@@ -146,8 +146,29 @@ async function listFolder(target: string): Promise<{ entries: FolderEntry[]; tru
 // The preview gets only the page, so the files beside it that it loads (its
 // screenshots, a script, a stylesheet) are written into it. Only files inside the
 // worktree, up to MAX_PREVIEW_BYTES in all; anything else is left as written and
-// fails to load. Web addresses are left alone.
-async function inlineLocalFiles(html: string, directory: string, root: string): Promise<string> {
+// fails to load. Web addresses are left alone. A cloned repo's page runs here,
+// so it must not read and send .env or .git files: it gets a file git says it
+// keeps, or, when git ignores the page, like an agent's report in .scratch, a
+// file in the page's own folder or below. Never one in a .git folder. When git
+// can't answer, as for a file in a submodule or when git fails, the file stays out.
+async function inlineLocalFiles(html: string, page: string, root: string): Promise<string> {
+  const directory = dirname(page);
+  const inRepo = hasGitEntry(root);
+  // -v -n prints a line for every path git answers for, so a git that fails
+  // with no answer never counts as "not ignored". The "./" stops git reading a
+  // name like ":(glob)x" as a pattern.
+  const ignoreCheck = async (path: string): Promise<"ignored" | "kept" | "unknown"> => {
+    if (!inRepo) return "kept";
+    const { code, stdout } = await git(root, ["check-ignore", "-v", "-n", "--", `./${relative(root, path).split(nodePath.sep).join("/")}`]);
+    if (!stdout.trim()) return "unknown";
+    return code === 0 ? "ignored" : code === 1 ? "kept" : "unknown";
+  };
+  const pageIgnored = (await ignoreCheck(page)) === "ignored";
+  const allowed = async (file: string) => {
+    if (inGitFolder(relative(root, file))) return false;
+    if ((await ignoreCheck(file)) === "kept") return true;
+    return pageIgnored && !outside(relative(directory, file));
+  };
   let room = MAX_PREVIEW_BYTES - Buffer.byteLength(html);
   const inline = async (url: string, encode: (data: Buffer, file: string) => string): Promise<string | null> => {
     if (!url || /^([a-z][a-z0-9+.-]*:|[/\\#?])/i.test(url)) return null;
@@ -155,6 +176,7 @@ async function inlineLocalFiles(html: string, directory: string, root: string): 
       const file = await realpath(resolve(directory, decodeURI(url.replace(/[?#].*$/, ""))));
       const stats = await stat(file);
       if (outside(relative(root, file)) || !stats.isFile() || stats.size > room) return null;
+      if (!(await allowed(file))) return null;
       const encoded = encode(await readFile(file), file);
       if (encoded.length > room) return null;
       room -= encoded.length;

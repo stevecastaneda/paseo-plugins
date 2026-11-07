@@ -7,8 +7,6 @@ import { QUESTION_MODES } from "./question-modes.ts";
 export const PROGRESS_FILE_NAME = "progress.jsonl";
 // Present once someone has opened the Progress panel for this worktree.
 export const PANEL_OPENED_NAME = "progress-panel-opened";
-// Where 0.1.x kept each worktree's files. store.ts moves them out.
-export const LEGACY_FOLDER = ".scratch";
 export const EVENT_VERSION = 1;
 
 export const TICKET_STATUSES = ["not_started", "working", "blocked", "done", "skipped"] as const;

@@ -14,7 +14,9 @@ import { agentToolsSupported, attachProgressTools, progressTools, toolsState } f
 
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
-process.env.HOME = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
+const HOME = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
+process.env.HOME = HOME;
+test.after(() => rm(HOME, { recursive: true, force: true }));
 
 async function worktree(t: TestContext) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "progress-tools-")));

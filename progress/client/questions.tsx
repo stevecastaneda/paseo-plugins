@@ -182,7 +182,6 @@ export function QuestionView({ colors, question, now, onCopy, onOpenAttachment, 
   return (
     <View style={{ gap: 10 }}>
       <View style={{ gap: 2 }}>
-        {/* Paseo's Markdown makes a URL in the question a link and lets the text be selected. */}
         <Markdown>{question.question}</Markdown>
         {!question.answer ? <QuestionState colors={colors} question={question} /> : null}
       </View>
