@@ -1,11 +1,13 @@
 // Reviews the plugin in the current directory against THREAT-MODEL.md with a
-// reviewer that didn't write it, and fails when the review finds a release
-// blocker. Runs as each plugin's `prepublishOnly`, so `npm publish` stops on a
-// blocker. `--base <ref>` sets the commit the diff starts from.
+// Claude Opus session that didn't write it, and fails when the review finds a
+// release blocker. Run it as `npm run security-review` before opening a PR. It
+// also runs as each plugin's `prepublishOnly`, where it reuses the PR's passing
+// review when nothing it covered changed. `--base <ref>` sets the commit the
+// diff starts from.
 import { spawnSync } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +21,7 @@ function fail(message) {
   process.exit(1);
 }
 
-// npm, codex and claude are .cmd shims on Windows, which only run through a shell.
+// npm and claude are .cmd shims on Windows, which only run through a shell.
 function quote(arg) {
   return isWindows && /[\s"]/.test(arg) ? `"${arg.replaceAll('"', '\\"')}"` : arg;
 }
@@ -121,53 +123,34 @@ function buildPrompt({ threatModel, pluginPath, name, version, head, base }) {
   ].join("\n");
 }
 
-// Each reviewer returns its final message, or undefined when it can't run.
-// Their progress output goes to logPath.
-const reviewers = {
-  codex(prompt, repoRoot, logPath) {
-    const out = join(tmpdir(), `security-review-${process.pid}.md`);
-    rmSync(out, { force: true });
-    const log = openSync(logPath, "w");
-    const result = run(
-      "codex",
-      ["exec", "--sandbox", "read-only", "--ephemeral", "-C", repoRoot, "-o", out, "-"],
-      { cwd: repoRoot, input: prompt, stdio: ["pipe", log, log] },
-    );
-    closeSync(log);
-    if (result.error || result.status !== 0 || !existsSync(out)) {
-      console.log(`> codex didn't finish (${result.error?.code ?? `exit ${result.status}`}).`);
-      return undefined;
-    }
-    const text = readFileSync(out, "utf8").trim();
-    rmSync(out, { force: true });
-    return text || undefined;
-  },
-  // --restricted drops Bash and WebFetch and keeps file tools inside the repo;
-  // --tools then leaves only the read-only ones.
-  claude(prompt, repoRoot, logPath) {
-    const log = openSync(logPath, "w");
-    const result = run(
-      "claude",
-      [
-        "-p",
-        "--restricted",
-        "--strict-mcp-config",
-        "--tools",
-        "Read,Grep,Glob",
-        "--permission-mode",
-        "dontAsk",
-        "--no-session-persistence",
-      ],
-      { cwd: repoRoot, input: prompt, stdio: ["pipe", "pipe", log] },
-    );
-    closeSync(log);
-    if (result.error || result.status !== 0) {
-      console.log(`> claude didn't finish (${result.error?.code ?? `exit ${result.status}`}).`);
-      return undefined;
-    }
-    return result.stdout.trim() || undefined;
-  },
-};
+// The review's final message, or undefined when Claude can't run. Its progress
+// goes to logPath. --restricted drops Bash and WebFetch and keeps file tools
+// inside the repo; --tools then leaves only the read-only ones.
+function review(prompt, repoRoot, logPath) {
+  const log = openSync(logPath, "w");
+  const result = run(
+    "claude",
+    [
+      "-p",
+      "--model",
+      "opus",
+      "--restricted",
+      "--strict-mcp-config",
+      "--tools",
+      "Read,Grep,Glob",
+      "--permission-mode",
+      "dontAsk",
+      "--no-session-persistence",
+    ],
+    { cwd: repoRoot, input: prompt, stdio: ["pipe", "pipe", log] },
+  );
+  closeSync(log);
+  if (result.error || result.status !== 0) {
+    console.log(`> claude didn't finish (${result.error?.code ?? `exit ${result.status}`}). Log: ${logPath}`);
+    return undefined;
+  }
+  return result.stdout.trim() || undefined;
+}
 
 const BLOCKER_LINE = /^\W*BLOCKER:/;
 
@@ -194,7 +177,9 @@ if (dirty) fail(`${pluginPath}/ has uncommitted changes. Commit them first, so t
 
 const head = git("rev-parse", "HEAD");
 const tree = git("rev-parse", `HEAD:${pluginPath}`);
-const reportDir = join(repoRoot, ".scratch", "security-review");
+// Outside the repo, so a review run in a PR's worktree is found again when the
+// main checkout publishes.
+const reportDir = join(homedir(), ".local", "state", "paseo-plugins", "security-review");
 const reportPath = join(reportDir, `${basename(pluginDir)}-${version}.md`);
 
 let base;
@@ -205,8 +190,8 @@ if (options.base) {
   base = lastPublishedCommit(name);
 }
 
-// A publish retried after a 2FA typo reuses the passing review, as long as the
-// plugin's files, the range, the threat model and this script are all unchanged.
+// A publish reuses the PR's passing review, as long as the plugin's files, the
+// range, the threat model and this script are all unchanged.
 const threatModel = readFileSync(threatModelPath, "utf8");
 const key = createHash("sha256")
   .update(JSON.stringify([tree, base ?? "none", threatModel, readFileSync(fileURLToPath(import.meta.url), "utf8")]))
@@ -221,20 +206,12 @@ if (existsSync(reportPath)) {
 const range = base ? `${base}..${head} -- ${pluginPath}/` : `none (whole plugin at ${head})`;
 const prompt = buildPrompt({ threatModel, pluginPath, name, version, head, base });
 
-let reviewer;
-let review;
 const started = Date.now();
 mkdirSync(reportDir, { recursive: true });
-for (const candidate of ["codex", "claude"]) {
-  const logPath = reportPath.replace(/\.md$/, `.${candidate}.log`);
-  console.log(`> Reviewing ${name}@${version} with ${candidate}. This can take several minutes. Progress: ${logPath}`);
-  review = reviewers[candidate](prompt, repoRoot, logPath);
-  if (review) {
-    reviewer = candidate;
-    break;
-  }
-}
-if (!review) fail("Neither codex nor claude could run the security review, so the publish stops here.");
+const logPath = reportPath.replace(/\.md$/, ".log");
+console.log(`> Reviewing ${name}@${version} with Claude Opus. This takes a few minutes. Progress: ${logPath}`);
+const text = review(prompt, repoRoot, logPath);
+if (!text) fail("The security review couldn't run, so this stops here. Check that `claude` is installed and logged in.");
 const minutes = ((Date.now() - started) / 60000).toFixed(1);
 
 writeFileSync(
@@ -242,7 +219,7 @@ writeFileSync(
   [
     `# Security review: ${name}@${version}`,
     "",
-    `- Reviewer: ${reviewer}`,
+    "- Reviewer: claude --model opus",
     `- Commit: ${head}`,
     `- Tree: ${tree}`,
     `- Diff: ${range}`,
@@ -250,20 +227,20 @@ writeFileSync(
     `- Minutes: ${minutes}`,
     `- Key: ${key}`,
     "",
-    review,
+    text,
     "",
   ].join("\n"),
 );
 
-console.log(`> Reviewer: ${reviewer}, ${minutes} min. Report: ${reportPath}`);
-if (passed(review)) {
+console.log(`> Reviewed in ${minutes} min. Report: ${reportPath}`);
+if (passed(text)) {
   console.log(`> ${PASS}`);
   process.exit(0);
 }
-const blockers = review.split("\n").filter((line) => BLOCKER_LINE.test(line));
+const blockers = text.split("\n").filter((line) => BLOCKER_LINE.test(line));
 fail(
   [
-    `Security review found release blockers in ${name}@${version}. Fix them and publish again.`,
+    `Security review found release blockers in ${name}@${version}. Fix them and run it again.`,
     ...(blockers.length ? blockers : ["(The review didn't end with the pass line. Read the report.)"]),
     `Report: ${reportPath}`,
   ].join("\n"),
