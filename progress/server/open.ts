@@ -1,4 +1,5 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
@@ -8,6 +9,7 @@ import {
   type FolderEntry,
   imageMimeType,
   isPieced,
+  opensOnHost,
   type PiecedKind,
   previewKind,
   splitRef,
@@ -15,6 +17,7 @@ import {
   videoMimeType,
 } from "../shared/attachments.ts";
 import { prepareMarkdown, previewText } from "../shared/markdown.ts";
+import { PAGE_ESCAPE_SCRIPT } from "../shared/page.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, hasGitEntry, inGitFolder, outside } from "./paths.ts";
 import { findStore, git } from "./store.ts";
@@ -83,8 +86,12 @@ async function resolveAttachment(
   return { path, realTarget, realRoot, worktree };
 }
 
+// The real file is checked, not the name the agent recorded, so a link named
+// like a picture can't hand a script to the default app.
 export async function openDeliverable(directory: string, id: string, opener: Opener): Promise<{ opened: string }> {
-  const { realTarget } = await resolveAttachment(directory, id, "opened");
+  const { path, realTarget } = await resolveAttachment(directory, id, "opened");
+  if (!(await stat(realTarget)).isFile() || !opensOnHost(realTarget))
+    throw new Error(`Progress opens only images, video, audio, PDFs and text files, not ${path}`);
   await opener(realTarget);
   return { opened: realTarget };
 }
@@ -173,6 +180,9 @@ function body(tag: string) {
 // keeps, or, when git ignores the page, like an agent's report in .scratch, a
 // file in the page's own folder or below. Never one in a .git folder. When git
 // can't answer, as for a file in a submodule or when git fails, the file stays out.
+// A page given any file git doesn't keep runs none of its own scripts and loads
+// nothing: a script could read the file and send it out by navigating the
+// frame or over WebRTC, which no policy blocks.
 async function inlineLocalFiles(html: string, page: string, root: string): Promise<string> {
   const directory = dirname(page);
   const inRepo = hasGitEntry(root);
@@ -186,11 +196,13 @@ async function inlineLocalFiles(html: string, page: string, root: string): Promi
     return code === 0 ? "ignored" : code === 1 ? "kept" : "unknown";
   };
   const pageIgnored = (await ignoreCheck(page)) === "ignored";
-  const allowed = async (file: string) => {
-    if (inGitFolder(relative(root, file))) return false;
-    if ((await ignoreCheck(file)) === "kept") return true;
-    return pageIgnored && !outside(relative(directory, file));
+  // "ignored" covers a file git couldn't answer for, too.
+  const allowed = async (file: string): Promise<"kept" | "ignored" | null> => {
+    if (inGitFolder(relative(root, file))) return null;
+    if ((await ignoreCheck(file)) === "kept") return "kept";
+    return pageIgnored && !outside(relative(directory, file)) ? "ignored" : null;
   };
+  let gaveIgnored = false;
   let room = MAX_PREVIEW_BYTES - Buffer.byteLength(html);
   const inline = async (url: string, encode: (data: Buffer, file: string) => string): Promise<string | null> => {
     if (!url || /^([a-z][a-z0-9+.-]*:|[/\\#?])/i.test(url)) return null;
@@ -198,10 +210,12 @@ async function inlineLocalFiles(html: string, page: string, root: string): Promi
       const file = await realpath(resolve(directory, decodeURI(url.replace(/[?#].*$/, ""))));
       const stats = await stat(file);
       if (outside(relative(root, file)) || !stats.isFile() || stats.size > room) return null;
-      if (!(await allowed(file))) return null;
+      const verdict = await allowed(file);
+      if (!verdict) return null;
       const encoded = encode(await readFile(file), file);
       if (encoded.length > room) return null;
       room -= encoded.length;
+      if (verdict === "ignored") gaveIgnored = true;
       return encoded;
     } catch {
       return null;
@@ -219,11 +233,25 @@ async function inlineLocalFiles(html: string, page: string, root: string): Promi
     const css = await inline(href, body("style"));
     return css === null ? null : `<style>${css}</style>`;
   });
-  return replaceEach(html, /<script\b([^>]*?)\s+src\s*=\s*(["'])([^"']*)\2([^>]*)>\s*<\/script\s*>/gi, async ([, before, , src, after]) => {
+  html = await replaceEach(html, /<script\b([^>]*?)\s+src\s*=\s*(["'])([^"']*)\2([^>]*)>\s*<\/script\s*>/gi, async ([, before, , src, after]) => {
     const script = await inline(src, body("script"));
     return script === null ? null : `<script${before}${after}>${script}</script>`;
   });
+  // Right after any doctype, so the page keeps its rendering mode, and before
+  // anything that loads.
+  return gaveIgnored ? html.replace(/^(\uFEFF?\s*<!doctype\b[^>]*>)?/i, `$&${PRIVATE_PAGE_META}`) : html;
 }
+
+const PRIVATE_PAGE_POLICY = [
+  "default-src 'none'",
+  "img-src data:",
+  "media-src data:",
+  "font-src data:",
+  "style-src 'unsafe-inline'",
+  `script-src 'sha256-${createHash("sha256").update(PAGE_ESCAPE_SCRIPT).digest("base64")}'`,
+  "form-action 'none'",
+].join("; ");
+const PRIVATE_PAGE_META = `<meta http-equiv="Content-Security-Policy" content="${PRIVATE_PAGE_POLICY}">`;
 
 // `replace` on each match in turn; a null keeps the match as it was.
 async function replaceEach(text: string, pattern: RegExp, replace: (match: RegExpMatchArray) => Promise<string | null>): Promise<string> {
