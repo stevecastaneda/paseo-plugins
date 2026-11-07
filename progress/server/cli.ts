@@ -16,7 +16,7 @@ import { dashboardText } from "../shared/show.ts";
 import { formatMinutes } from "../shared/format.ts";
 import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
-import { pageScriptError } from "./page-scripts.ts";
+import { pageScriptErrors } from "./page-scripts.ts";
 
 export interface CliOptions {
   cwd: string;
@@ -525,12 +525,11 @@ function pageWarnings(event: EventDraft, root: string): string {
   if ("files" in event && event.files) links.push(...event.files);
   if ("source" in event && typeof event.source === "object") links.push(event.source);
   return links
-    .flatMap(({ path }) => {
-      const error = path ? pageScriptError(resolve(root, path)) : undefined;
-      if (!error) return [];
-      return [
-        `\n${path} has a script error on line ${error.line} (${error.message}). Paseo's preview skips a script that won't parse, so the page may open blank. Fix the file where it is. Progress points to that file, so you don't need to add it again. This check uses Node ${process.versions.node}, so JavaScript newer than that version can be flagged even when the browser runs it.`,
-      ];
+    .map(({ path }) => {
+      const errors = path ? pageScriptErrors(resolve(root, path)) : [];
+      if (errors.length === 0) return "";
+      const where = errors.map((error) => `line ${error.line} (${error.message})`).join(", ");
+      return `\n${path} has a script that won't parse on ${where}. Paseo's preview skips a script that won't parse, so the page may open blank. Fix the file where it is. Progress points to that file, so you don't need to add it again. This check uses Node ${process.versions.node}, so JavaScript newer than that version can be flagged even when the browser runs it.`;
     })
     .join("");
 }
