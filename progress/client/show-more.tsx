@@ -25,14 +25,31 @@ export function usePaged<T>(items: T[]): { shown: T[]; older: number; showOlder(
 // The row under a paged list: "Show 10 older", or "Show fewer" once all are shown.
 export function ShowMoreRow({ colors, total, paged }: { colors: Colors; total: number; paged: ReturnType<typeof usePaged> }) {
   const { messages: m } = useProgressLanguage();
-  const more = paged.older > 0 ? { label: m.showOlder(Math.min(paged.older, PAGE)), icon: "ChevronDown", onPress: paged.showOlder }
-    : total > PAGE ? { label: m.showFewer, icon: "ChevronUp", onPress: paged.showFewer }
-    : null;
+  const more =
+    paged.older > 0
+      ? { label: m.showOlder(Math.min(paged.older, PAGE)), icon: "ChevronDown", onPress: paged.showOlder }
+      : total > PAGE
+        ? { label: m.showFewer, icon: "ChevronUp", onPress: paged.showFewer }
+        : null;
   if (!more) return null;
   return (
-    <PressableRow colors={colors} accessibilityRole="button" onPress={more.onPress}
-      style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-      <IconSwap swapKey={more.icon} size={14}><Icon name={more.icon} size={14} color={colors.foregroundMuted} /></IconSwap>
+    <PressableRow
+      colors={colors}
+      accessibilityRole="button"
+      onPress={more.onPress}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+      }}
+    >
+      <IconSwap swapKey={more.icon} size={14}>
+        <Icon name={more.icon} size={14} color={colors.foregroundMuted} />
+      </IconSwap>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{more.label}</Text>
     </PressableRow>
   );

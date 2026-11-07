@@ -10,12 +10,24 @@ test("automatically reads past context-only pages to visible conversation messag
   ];
   let calls = 0;
   const totalBytes = texts.reduce((total, text) => total + Buffer.byteLength(text), 0);
-  const result = await loadConversationBatch(async (input) => {
-    const text = texts[calls++]!;
-    const offset = input.offset ?? 0;
-    return { path: "/tmp/test.jsonl", provider: "codex", source: "one", text, offset,
-      nextOffset: offset + Buffer.byteLength(text), totalBytes, modifiedAt: "2026-09-13T00:00:00Z" };
-  }, { agentId: "a" }, () => false);
+  const result = await loadConversationBatch(
+    async (input) => {
+      const text = texts[calls++]!;
+      const offset = input.offset ?? 0;
+      return {
+        path: "/tmp/test.jsonl",
+        provider: "codex",
+        source: "one",
+        text,
+        offset,
+        nextOffset: offset + Buffer.byteLength(text),
+        totalBytes,
+        modifiedAt: "2026-09-13T00:00:00Z",
+      };
+    },
+    { agentId: "a" },
+    () => false,
+  );
   assert.equal(calls, 3);
   assert.match(result!.text, /My actual message/);
   assert.equal(result!.page.nextOffset, totalBytes);
@@ -23,10 +35,23 @@ test("automatically reads past context-only pages to visible conversation messag
 
 test("stops fetching immediately when the dialog closes", async () => {
   let calls = 0;
-  const result = await loadConversationBatch(async () => {
-    calls++;
-    return { path: "/tmp/test.jsonl", provider: "codex", source: "one", text: "{}\n", offset: 0,
-      nextOffset: 3, totalBytes: 100, modifiedAt: "2026-09-13T00:00:00Z" };
-  }, { agentId: "a" }, () => true);
-  assert.equal(calls, 1); assert.equal(result, null);
+  const result = await loadConversationBatch(
+    async () => {
+      calls++;
+      return {
+        path: "/tmp/test.jsonl",
+        provider: "codex",
+        source: "one",
+        text: "{}\n",
+        offset: 0,
+        nextOffset: 3,
+        totalBytes: 100,
+        modifiedAt: "2026-09-13T00:00:00Z",
+      };
+    },
+    { agentId: "a" },
+    () => true,
+  );
+  assert.equal(calls, 1);
+  assert.equal(result, null);
 });

@@ -2,23 +2,19 @@
   "name": "@stevecastaneda/paseo-workspace-links",
   "version": "1.1.2",
   "description": "Quick access to workspace URLs from a JSON file, in Paseo.",
+  "keywords": [
+    "links",
+    "paseo",
+    "paseo-plugin",
+    "workspace"
+  ],
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/workspace-links#readme",
   "license": "MIT",
   "author": "Steve Castaneda",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
     "directory": "workspace-links"
-  },
-  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/workspace-links#readme",
-  "keywords": [
-    "paseo",
-    "paseo-plugin",
-    "links",
-    "workspace"
-  ],
-  "type": "module",
-  "engines": {
-    "node": "^22.18.0 || >=23.6.0"
   },
   "files": [
     "paseo-plugin.json",
@@ -33,6 +29,7 @@
     "tsconfig.json",
     "!**/*.test.ts"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },
@@ -53,5 +50,8 @@
     "react-native": "0.81.5",
     "typescript": "^5.9.3",
     "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=23.6.0"
   }
 }

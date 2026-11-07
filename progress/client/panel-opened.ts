@@ -9,5 +9,7 @@ export function notePanelOpened(workspaceId: string) {
 
 export function onPanelOpened(listener: (workspaceId: string) => void): () => void {
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return () => {
+    listeners.delete(listener);
+  };
 }

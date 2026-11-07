@@ -36,8 +36,17 @@ const TAILWIND = {
 };
 
 const FALLBACK: ThemeColors = {
-  surface0: "#18181b", surface1: "#1f1f23", surface2: "#27272a", border: "#3f3f46", foreground: "#f4f4f5", foregroundMuted: "#a1a1aa",
-  accent: "#e4e4e7", accentForeground: "#18181b", statusSuccess: "#6cb17b", statusWarning: "#c09664", statusDanger: "#d8847b",
+  surface0: "#18181b",
+  surface1: "#1f1f23",
+  surface2: "#27272a",
+  border: "#3f3f46",
+  foreground: "#f4f4f5",
+  foregroundMuted: "#a1a1aa",
+  accent: "#e4e4e7",
+  accentForeground: "#18181b",
+  statusSuccess: "#6cb17b",
+  statusWarning: "#c09664",
+  statusDanger: "#d8847b",
 };
 
 export function parseColor(color: string): Rgb | null {
@@ -51,7 +60,14 @@ export function parseColor(color: string): Rgb | null {
   return fn ? (fn.slice(1, 4).map(Number) as Rgb) : null;
 }
 
-const toHex = ([r, g, b]: Rgb) => `#${[r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("")}`;
+const toHex = ([r, g, b]: Rgb) =>
+  `#${[r, g, b]
+    .map((v) =>
+      Math.round(Math.min(255, Math.max(0, v)))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 
 export function luminance(rgb: Rgb): number {
   const [r, g, b] = rgb.map((v) => {
@@ -164,7 +180,7 @@ export function makePalette(input: ThemeColors): Palette {
     let bg: string | null = null;
     let inverse = false;
     const params = sgr === "" ? [] : sgr.split(";").map(Number);
-    for (let i = 0; i < params.length; ) {
+    for (let i = 0; i < params.length;) {
       const p = params[i];
       if (p === 1) s.bold = true;
       else if (p === 2) s.dim = true;

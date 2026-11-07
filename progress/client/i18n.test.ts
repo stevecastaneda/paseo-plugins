@@ -12,8 +12,10 @@ const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
 
 test("explicit preferences override system locale without selecting Simplified for Traditional Chinese", () => {
   const { resolveLocale } = clientHarness(directory).load("client/i18n.ts");
-  for (const system of ["zh", "zh-CN", "zh_SG", "zh-Hans", "zh-Hans-CN", "ZH-hans-sg", "zh-Hans-HK", "zh-Hans-TW", "zh-u-nu-hanidec", "zh-CN-u-ca-chinese"]) assert.equal(resolveLocale("system", system), "zh-CN", system);
-  for (const system of ["", "en-US", "fr-FR", "zh-TW", "zh-HK", "zh-MO", "zh-Hant", "zh-Hant-CN", "zh-Hant-TW-u-nu-hanidec", "zh-US"]) assert.equal(resolveLocale("system", system), "en", system);
+  for (const system of ["zh", "zh-CN", "zh_SG", "zh-Hans", "zh-Hans-CN", "ZH-hans-sg", "zh-Hans-HK", "zh-Hans-TW", "zh-u-nu-hanidec", "zh-CN-u-ca-chinese"])
+    assert.equal(resolveLocale("system", system), "zh-CN", system);
+  for (const system of ["", "en-US", "fr-FR", "zh-TW", "zh-HK", "zh-MO", "zh-Hant", "zh-Hant-CN", "zh-Hant-TW-u-nu-hanidec", "zh-US"])
+    assert.equal(resolveLocale("system", system), "en", system);
   assert.equal(resolveLocale("en", "zh-CN"), "en");
   assert.equal(resolveLocale("zh-CN", "en-US"), "zh-CN");
 });
@@ -54,7 +56,16 @@ test("client duration boundaries localize while shared CLI formatters remain Eng
   const h = clientHarness(directory);
   const { formatClientMinutes, formatClientWorkDone, formatClientAgo } = h.load("client/i18n.ts");
   const { formatMinutes, formatWorkDone } = h.load("shared/format.ts");
-  const cases: Array<[number, string, string]> = [[-1, "<1m", "<1 分钟"], [0, "<1m", "<1 分钟"], [0.99, "<1m", "<1 分钟"], [1, "1m", "1 分钟"], [59.9, "59m", "59 分钟"], [60, "1h", "1 小时"], [61, "1h 1m", "1 小时 1 分钟"], [120, "2h", "2 小时"]];
+  const cases: Array<[number, string, string]> = [
+    [-1, "<1m", "<1 分钟"],
+    [0, "<1m", "<1 分钟"],
+    [0.99, "<1m", "<1 分钟"],
+    [1, "1m", "1 分钟"],
+    [59.9, "59m", "59 分钟"],
+    [60, "1h", "1 小时"],
+    [61, "1h 1m", "1 小时 1 分钟"],
+    [120, "2h", "2 小时"],
+  ];
   for (const [minutes, en, zh] of cases) {
     assert.equal(formatClientMinutes("en", minutes), en);
     assert.equal(formatClientMinutes("zh-CN", minutes), zh);
@@ -86,13 +97,35 @@ test("headlines derive from structured counts while preserving server copy and c
   const h = clientHarness(directory);
   const { clientHeadline } = h.load("client/i18n.ts");
   const { EMPTY_DASHBOARD } = h.load("shared/dashboard.ts");
-  const ticket = (status: Ticket["status"]): Ticket => ({ id: "T01", title: "Authored title", estimateMin: 10, status, statusSince: "2026-10-21T00:00:00Z", history: [] });
-  const dashboard: Dashboard = { ...EMPTY_DASHBOARD, run: { title: "Authored run", startedAt: "2026-10-21T00:00:00Z", itemLabel: "API Task" },
-    tickets: [ticket("done"), ticket("working"), ticket("skipped")], headline: [{ text: "Server copy", tone: "normal" }],
-    questions: { open: [{ id: "Q1", title: "Choice", question: "Question?", options: [], recommended: "A", state: "waiting", files: [], askedAt: "2026-10-21T00:00:00Z" }], answered: [] },
-    stuck: [{ kind: "manual", key: "manual:S1", id: "S1", title: "Authored blocker", reason: "Authored reason", since: "2026-10-21T00:00:00Z" }] };
-  assert.deepEqual(plain(clientHeadline("en", dashboard)), [{ text: "1 of 2 api tasks done", tone: "normal" }, { text: "1 question waiting for you", tone: "normal" }, { text: "1 stuck", tone: "danger" }]);
-  assert.deepEqual(plain(clientHeadline("zh-CN", dashboard)), [{ text: "API Task 已完成 1/2", tone: "normal" }, { text: "1 个问题等待你的回答", tone: "normal" }, { text: "1 项卡住", tone: "danger" }]);
+  const ticket = (status: Ticket["status"]): Ticket => ({
+    id: "T01",
+    title: "Authored title",
+    estimateMin: 10,
+    status,
+    statusSince: "2026-10-21T00:00:00Z",
+    history: [],
+  });
+  const dashboard: Dashboard = {
+    ...EMPTY_DASHBOARD,
+    run: { title: "Authored run", startedAt: "2026-10-21T00:00:00Z", itemLabel: "API Task" },
+    tickets: [ticket("done"), ticket("working"), ticket("skipped")],
+    headline: [{ text: "Server copy", tone: "normal" }],
+    questions: {
+      open: [{ id: "Q1", title: "Choice", question: "Question?", options: [], recommended: "A", state: "waiting", files: [], askedAt: "2026-10-21T00:00:00Z" }],
+      answered: [],
+    },
+    stuck: [{ kind: "manual", key: "manual:S1", id: "S1", title: "Authored blocker", reason: "Authored reason", since: "2026-10-21T00:00:00Z" }],
+  };
+  assert.deepEqual(plain(clientHeadline("en", dashboard)), [
+    { text: "1 of 2 api tasks done", tone: "normal" },
+    { text: "1 question waiting for you", tone: "normal" },
+    { text: "1 stuck", tone: "danger" },
+  ]);
+  assert.deepEqual(plain(clientHeadline("zh-CN", dashboard)), [
+    { text: "API Task 已完成 1/2", tone: "normal" },
+    { text: "1 个问题等待你的回答", tone: "normal" },
+    { text: "1 项卡住", tone: "danger" },
+  ]);
   assert.equal(dashboard.headline[0].text, "Server copy");
 });
 
@@ -100,12 +133,17 @@ test("timeline descriptors preserve English labels and distinguish Added from la
   const h = clientHarness(directory);
   const { ticketTimeline } = h.load("shared/ticket-story.ts");
   const { timelineLabel, messagesFor } = h.load("client/i18n.ts");
-  const steps: TimelineStep[] = ticketTimeline({ history: [
-    { at: "2026-10-21T00:00:00Z", status: "not_started" },
-    { at: "2026-10-21T00:01:00Z", status: "working", stage: "Authored stage" },
-    { at: "2026-10-21T00:02:00Z", status: "not_started" },
-    { at: "2026-10-21T00:03:00Z", status: "done" },
-  ] }, Date.parse("2026-10-21T00:04:00Z"));
+  const steps: TimelineStep[] = ticketTimeline(
+    {
+      history: [
+        { at: "2026-10-21T00:00:00Z", status: "not_started" },
+        { at: "2026-10-21T00:01:00Z", status: "working", stage: "Authored stage" },
+        { at: "2026-10-21T00:02:00Z", status: "not_started" },
+        { at: "2026-10-21T00:03:00Z", status: "done" },
+      ],
+    },
+    Date.parse("2026-10-21T00:04:00Z"),
+  );
   assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("en"), step.label))), ["Added", "Authored stage stage", "Back to not started", "Done"]);
   assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("zh-CN"), step.label))), ["已添加", "Authored stage 阶段", "恢复为未开始", "已完成"]);
 });
@@ -118,21 +156,42 @@ function languageHarness() {
   const cleanups: Array<() => void> = [];
   const definitions: string[] = [];
   const h = clientHarness(directory, {
-    react: { ...React, useContext: () => current, useEffect: (effect: () => void) => effects.push(effect),
-      useSyncExternalStore: (subscribe: (listener: () => void) => () => void, snapshot: () => unknown) => { cleanups.push(subscribe(() => {})); return snapshot(); } },
-    "@getpaseo/plugin/client": { useSettings: (definition: { id: string }) => {
-      definitions.push(definition.id);
-      return status === "ready" ? { status, values: { language: preference }, revision: "r1" } : { status, error: "Raw host error" };
-    } },
+    react: {
+      ...React,
+      useContext: () => current,
+      useEffect: (effect: () => void) => effects.push(effect),
+      useSyncExternalStore: (subscribe: (listener: () => void) => () => void, snapshot: () => unknown) => {
+        cleanups.push(subscribe(() => {}));
+        return snapshot();
+      },
+    },
+    "@getpaseo/plugin/client": {
+      useSettings: (definition: { id: string }) => {
+        definitions.push(definition.id);
+        return status === "ready" ? { status, values: { language: preference }, revision: "r1" } : { status, error: "Raw host error" };
+      },
+    },
   });
   function renderProvider() {
     const rendered = h.load("client/language.tsx").ProgressLanguageProvider({ children: null });
     current = rendered.props.value;
     return rendered.props.value;
   }
-  return { h, effects, cleanups, definitions, renderProvider,
-    setLanguage(value: ProgressLocale) { preference = value; renderProvider(); },
-    setStatus(value: string) { status = value; return renderProvider(); } };
+  return {
+    h,
+    effects,
+    cleanups,
+    definitions,
+    renderProvider,
+    setLanguage(value: ProgressLocale) {
+      preference = value;
+      renderProvider();
+    },
+    setStatus(value: string) {
+      status = value;
+      return renderProvider();
+    },
+  };
 }
 
 test("pending and failed settings reads leave content usable, and a saved override updates the provider", () => {

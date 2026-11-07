@@ -27,7 +27,11 @@ export const interrupt: Signal = (pid) => {
   process.kill(pid, "SIGINT");
 };
 
-export async function stopRun(location: RunLocation, runId: string, { command = commandOf, signal = interrupt, startTimeOf = processStartTime }: { command?: CommandOf; signal?: Signal; startTimeOf?: StartTimeOf } = {}): Promise<{ stopped: true }> {
+export async function stopRun(
+  location: RunLocation,
+  runId: string,
+  { command = commandOf, signal = interrupt, startTimeOf = processStartTime }: { command?: CommandOf; signal?: Signal; startTimeOf?: StartTimeOf } = {},
+): Promise<{ stopped: true }> {
   const run = await readCurrentRun(location, runId);
   if (!isOpen(run)) throw new Error("That run has already ended.");
   // The run names a process id, and ids get reused: signal only the process

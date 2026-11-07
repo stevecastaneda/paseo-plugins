@@ -131,7 +131,12 @@ function viewTraceCommand(trace: string, root: string, { platform, home }: Host)
 
 // Traces are shown in their folder, never opened: opening one would start a
 // trace viewer, and the worktree decides which one.
-export async function openFile(location: RunLocation, ref: AttachmentRef, opener: Opener = systemOpener, host: Host = thisHost()): Promise<{ opened: string; traceCommand?: string }> {
+export async function openFile(
+  location: RunLocation,
+  ref: AttachmentRef,
+  opener: Opener = systemOpener,
+  host: Host = thisHost(),
+): Promise<{ opened: string; traceCommand?: string }> {
   const { attachment, target, root } = await resolveAttachment(location, ref);
   const kind = attachmentKind(attachment);
   const { noun, extensions } = OPENS_AS[kind];

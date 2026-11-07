@@ -8,7 +8,10 @@ import { errorMessage, shortCommand } from "./shared/text.ts";
 
 // One leading "! " or "$ " that people paste along with the command.
 export function normalizeArgs(args: string): string {
-  return args.trim().replace(/^[!$]\s+/, "").trim();
+  return args
+    .trim()
+    .replace(/^[!$]\s+/, "")
+    .trim();
 }
 
 export default function contribute(client: PluginClientContext) {

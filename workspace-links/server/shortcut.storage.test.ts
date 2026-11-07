@@ -32,10 +32,7 @@ test("missing settings use defaults and persist across store instances", async (
 test("concurrent partial updates preserve both fields", async () => {
   await withTempRoot(async (root) => {
     const store = createSettingsStore(root);
-    await Promise.all([
-      store.update({ placement: "header" }),
-      store.update({ headerShowsLabel: true }),
-    ]);
+    await Promise.all([store.update({ placement: "header" }), store.update({ headerShowsLabel: true })]);
     assert.deepEqual(await createSettingsStore(root).get(), {
       placement: "header",
       headerShowsLabel: true,

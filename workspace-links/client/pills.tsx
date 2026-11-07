@@ -1,21 +1,10 @@
-import type {
-  PluginButton,
-  PluginButtonContentProps,
-  PluginButtonIconProps,
-  PluginButtonRegistration,
-  PluginClientContext,
-} from "@getpaseo/plugin/client";
+import type { PluginButton, PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { useWorkspace } from "@getpaseo/plugin/client";
 import { observeDirectory, type PaseoAgentUpdate, type PaseoWorkspaceUpdate } from "./directory";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { useLinks } from "./links-query";
 import { LinksPopover } from "./popover";
-import {
-  defaultShortcut,
-  getShortcutSettings,
-  headerButtonLabel,
-  type ShortcutSettings,
-} from "../shared/shortcut";
+import { defaultShortcut, getShortcutSettings, headerButtonLabel, type ShortcutSettings } from "../shared/shortcut";
 
 function LinksIcon(props: PluginButtonIconProps) {
   const directory = useWorkspace(props.workspaceId, (workspace) => workspace.directory);
@@ -75,12 +64,7 @@ export function contributeClient(client: PluginClientContext) {
 
   // The popover reads links itself, so the button never needs rebuilding when they change.
   function Content(props: PluginButtonContentProps) {
-    return (
-      <LinksPopover
-        {...props}
-        onManage={() => client.openPanel("links", { workspaceId: props.workspaceId, location: "explorer" })}
-      />
-    );
+    return <LinksPopover {...props} onManage={() => client.openPanel("links", { workspaceId: props.workspaceId, location: "explorer" })} />;
   }
   const popover: PluginButton["behavior"] = { kind: "popover", Content };
 
@@ -160,9 +144,9 @@ export function contributeClient(client: PluginClientContext) {
 
   const stopAgents = observeDirectory({
     list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
-    select: (message) => message.type === "agent_update" ? message.payload : undefined,
+    select: (message) => (message.type === "agent_update" ? message.payload : undefined),
     snapshot: (entries) => {
-      agents = new Map(entries.flatMap(({ agent }) => agent.workspaceId ? [[agent.id, agent.workspaceId]] : []));
+      agents = new Map(entries.flatMap(({ agent }) => (agent.workspaceId ? [[agent.id, agent.workspaceId]] : [])));
       sync();
     },
     update: (update: PaseoAgentUpdate) => {
@@ -174,7 +158,7 @@ export function contributeClient(client: PluginClientContext) {
   });
   const stopWorkspaces = observeDirectory({
     list: (options) => client.paseo.workspaces.list(options),
-    select: (message) => message.type === "workspace_update" ? message.payload : undefined,
+    select: (message) => (message.type === "workspace_update" ? message.payload : undefined),
     snapshot: (entries) => {
       const ids = new Set(entries.map((workspace) => workspace.id));
       for (const id of workspaces.keys()) if (!ids.has(id)) workspaces.delete(id);
@@ -188,9 +172,12 @@ export function contributeClient(client: PluginClientContext) {
     },
   });
   const initialSettings = settings;
-  void client.rpc(getShortcutSettings, {}).then((next) => {
-    if (!stopped && settings === initialSettings) setShortcut(next);
-  }).catch(() => undefined);
+  void client
+    .rpc(getShortcutSettings, {})
+    .then((next) => {
+      if (!stopped && settings === initialSettings) setShortcut(next);
+    })
+    .catch(() => undefined);
   return () => {
     stopped = true;
     stopAgents();

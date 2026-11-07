@@ -20,14 +20,7 @@ const STATUS_LABEL: Record<LinkStatus, string> = { up: "running", down: "not res
 const ALWAYS_SHOW_ACTIONS = Platform.OS !== "web";
 
 /** Popover body for the Links button: each link with its URL, and the way into the panel. */
-export function LinksPopover({
-  theme,
-  host,
-  layout,
-  workspaceId,
-  close,
-  onManage,
-}: PluginButtonContentProps & { onManage(): void }) {
+export function LinksPopover({ theme, host, layout, workspaceId, close, onManage }: PluginButtonContentProps & { onManage(): void }) {
   const { colors } = theme;
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { compact } = layout;
@@ -104,11 +97,7 @@ export function LinksPopover({
         {body}
         {links.length > 0 ? (
           <View style={styles.footer}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={manage}
-              style={({ pressed }: PressState) => [styles.manageRow, pressed && styles.rowActive]}
-            >
+            <Pressable accessibilityRole="button" onPress={manage} style={({ pressed }: PressState) => [styles.manageRow, pressed && styles.rowActive]}>
               <View style={styles.linkIcon}>
                 <Icon name="Settings2" size={16} color={colors.foregroundMuted} />
               </View>
@@ -191,7 +180,9 @@ function LinkRow({
           <Icon name={linkIcon(link)} size={16} color={hovered ? colors.foreground : colors.foregroundMuted} />
         </View>
         <View style={styles.text}>
-          <Text style={styles.label} numberOfLines={1}>{link.label}</Text>
+          <Text style={styles.label} numberOfLines={1}>
+            {link.label}
+          </Text>
           <View style={styles.urlLine}>
             <View style={[styles.dot, status === "up" && styles.dotUp, status === "down" && styles.dotDown]} />
             <Text style={[styles.url, status === "down" && styles.urlDown]} numberOfLines={1} ellipsizeMode="middle">
@@ -214,11 +205,7 @@ function LinkRow({
       >
         {({ hovered: over, pressed: down }: PressState) => (
           <View style={[styles.iconButton, compact && styles.iconButtonCompact, (over || down) && styles.iconButtonOnRow]}>
-            <Icon
-              name={copied ? "Check" : "Copy"}
-              size={compact ? 16 : 14}
-              color={copied ? colors.statusSuccess : colors.foregroundMuted}
-            />
+            <Icon name={copied ? "Check" : "Copy"} size={compact ? 16 : 14} color={copied ? colors.statusSuccess : colors.foregroundMuted} />
           </View>
         )}
       </Pressable>

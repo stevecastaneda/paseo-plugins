@@ -74,8 +74,5 @@ test("loads links from workspace-links.json without calling paseo", async (t) =>
   t.after(() => rm(directory, { recursive: true, force: true }));
   const links = [{ label: "App", url: "http://localhost:4321/" }];
   await writeFile(join(directory, "workspace-links.json"), JSON.stringify(links));
-  assert.deepEqual(
-    await handleGetLinks({ workspaceId: "ws-1", workspaceDirectory: directory }, unusedPaseo()),
-    { configured: true, links },
-  );
+  assert.deepEqual(await handleGetLinks({ workspaceId: "ws-1", workspaceDirectory: directory }, unusedPaseo()), { configured: true, links });
 });

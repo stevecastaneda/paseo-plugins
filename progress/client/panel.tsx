@@ -12,7 +12,17 @@ import { raised } from "./surfaces";
 import { unbroken, When } from "./when";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, ScrollView, Text, View } from "react-native";
-import { finishedToFold, isFinished, shortTitle, type Activity, type Dashboard, type FileIssue, type ProgressSegment, type StuckItem, type Ticket } from "../shared/dashboard";
+import {
+  finishedToFold,
+  isFinished,
+  shortTitle,
+  type Activity,
+  type Dashboard,
+  type FileIssue,
+  type ProgressSegment,
+  type StuckItem,
+  type Ticket,
+} from "../shared/dashboard";
 import type { TicketStatus } from "../shared/events";
 import { minutesSince } from "../shared/format";
 import { clientHeadline, formatClientMinutes, formatClientWorkDone } from "./i18n";
@@ -28,7 +38,6 @@ import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
 
 type Colors = PluginWorkspacePanelProps["theme"]["colors"];
-
 
 const mono = () => (Platform.OS === "ios" ? "Menlo" : "monospace");
 
@@ -53,24 +62,41 @@ function WorkspaceProgress({ theme, workspaceId, host, layout, navigation, openS
 
   return (
     <NarrowProvider value={narrow}>
-    <ScrollView onLayout={(event) => setNarrow(event.nativeEvent.layout.width <= NARROW_MAX)}
-      style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ paddingBottom: 16 }}>
-      {query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingProgress} style={{ padding: 12 }} /> : null}
-      {query.error ? (
-        <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>
-          {m.readProgressError(errorText(query.error, m.unknownError))}
-        </Text>
-      ) : null}
-      <WhatsNewBanner colors={colors} host={host} />
-      <LauncherBanner colors={colors} host={host} />
-      <SkillBanner colors={colors} host={host} />
-      {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}
-      <Presence show={Boolean(result && !result.configured)}>{result && !result.configured ? <EmptyState colors={colors} hostId={host.id} file={result.file} openSettings={openSettings} /> : null}</Presence>
-      {/* Keyed by run: a new run starts with fresh tabs, pages and dialogs. */}
-      {result?.configured ? <DashboardView key={result.dashboard.run?.startedAt ?? "none"} colors={colors} openSettings={openSettings} dashboard={result.dashboard} agentRunning={agentRunning} compact={layout.compact}
-        workspaceId={workspaceId} workspaceDirectory={result.root} file={result.file} navigation={navigation} /> : null}
-      {result?.inRepo && directory ? <HistoryRow colors={colors} workspaceId={workspaceId} directory={directory} savedTo={result.savedTo} /> : null}
-    </ScrollView>
+      <ScrollView
+        onLayout={(event) => setNarrow(event.nativeEvent.layout.width <= NARROW_MAX)}
+        style={{ flex: 1, backgroundColor: colors.surface0 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      >
+        {query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingProgress} style={{ padding: 12 }} /> : null}
+        {query.error ? (
+          <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>
+            {m.readProgressError(errorText(query.error, m.unknownError))}
+          </Text>
+        ) : null}
+        <WhatsNewBanner colors={colors} host={host} />
+        <LauncherBanner colors={colors} host={host} />
+        <SkillBanner colors={colors} host={host} />
+        {/* Fades in like the dashboard's sections instead of popping in after the spinner. */}
+        <Presence show={Boolean(result && !result.configured)}>
+          {result && !result.configured ? <EmptyState colors={colors} hostId={host.id} file={result.file} openSettings={openSettings} /> : null}
+        </Presence>
+        {/* Keyed by run: a new run starts with fresh tabs, pages and dialogs. */}
+        {result?.configured ? (
+          <DashboardView
+            key={result.dashboard.run?.startedAt ?? "none"}
+            colors={colors}
+            openSettings={openSettings}
+            dashboard={result.dashboard}
+            agentRunning={agentRunning}
+            compact={layout.compact}
+            workspaceId={workspaceId}
+            workspaceDirectory={result.root}
+            file={result.file}
+            navigation={navigation}
+          />
+        ) : null}
+        {result?.inRepo && directory ? <HistoryRow colors={colors} workspaceId={workspaceId} directory={directory} savedTo={result.savedTo} /> : null}
+      </ScrollView>
     </NarrowProvider>
   );
 }
@@ -86,7 +112,9 @@ function useMarkPanelOpened(workspaceId: string, directory: string | null, neede
     // Tell the pill only once the file exists, so its next poll agrees.
     mark({ workspaceId, workspaceDirectory: directory })
       .then(() => notePanelOpened(workspaceId))
-      .catch(() => { sent.current = false; });
+      .catch(() => {
+        sent.current = false;
+      });
   }, [needed, directory, workspaceId, mark]);
 }
 
@@ -94,8 +122,14 @@ function useMarkPanelOpened(workspaceId: string, directory: string | null, neede
 function SettingsButton({ colors, onPress }: { colors: Colors; onPress(): void }) {
   const { messages: m } = useProgressLanguage();
   return (
-    <PressScale accessibilityRole="button" accessibilityLabel={m.openSettings} hitSlop={6} outerStyle={{ marginVertical: -2 }} onPress={onPress}
-      style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface1 : "transparent" })}>
+    <PressScale
+      accessibilityRole="button"
+      accessibilityLabel={m.openSettings}
+      hitSlop={6}
+      outerStyle={{ marginVertical: -2 }}
+      onPress={onPress}
+      style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface1 : "transparent" })}
+    >
       <Icon name="Settings" size={16} color={colors.foregroundMuted} />
     </PressScale>
   );
@@ -119,7 +153,9 @@ function EmptyState({ colors, hostId, file, openSettings }: { colors: Colors; ho
       ) : (
         <>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-            {m.emptyIntro[0]}<Text style={{ color: colors.foreground }}>paseo-progress</Text>{m.emptyIntro[1]}
+            {m.emptyIntro[0]}
+            <Text style={{ color: colors.foreground }}>paseo-progress</Text>
+            {m.emptyIntro[1]}
           </Text>
           <View style={{ backgroundColor: colors.surface1, borderRadius: 6, padding: 10 }}>
             <Text selectable style={{ color: colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
@@ -136,7 +172,11 @@ function EmptyState({ colors, hostId, file, openSettings }: { colors: Colors; ho
       ) : null}
       {/* So people know nothing lands in the repo. */}
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        {m.savedOutside[0]}<Text selectable style={{ color: colors.foreground }}>{file}</Text>{m.savedOutside[1]}
+        {m.savedOutside[0]}
+        <Text selectable style={{ color: colors.foreground }}>
+          {file}
+        </Text>
+        {m.savedOutside[1]}
       </Text>
     </View>
   );
@@ -165,7 +205,17 @@ function useNow(intervalMs: number): number {
 
 const WIDE_MIN = 760;
 
-function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, workspaceDirectory, file, navigation, openSettings }: {
+function DashboardView({
+  colors,
+  dashboard,
+  agentRunning,
+  compact,
+  workspaceId,
+  workspaceDirectory,
+  file,
+  navigation,
+  openSettings,
+}: {
   openSettings(): void;
   colors: Colors;
   dashboard: Dashboard;
@@ -190,98 +240,189 @@ function DashboardView({ colors, dashboard, agentRunning, compact, workspaceId, 
   return (
     <StaggerRoot>
       <Presence show order={0}>
-      <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, gap: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-          <Text accessibilityRole="header" style={{ flex: 1, color: colors.foreground, fontSize: 15, lineHeight: 21, fontWeight: "600" }}>
-            {dashboard.run?.title ?? "Progress"}
-          </Text>
-          <SettingsButton colors={colors} onPress={openSettings} />
-        </View>
-        {dashboard.run?.subtitle ? (
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{dashboard.run.subtitle}</Text>
-        ) : null}
-        {headline.length ? (
-          <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-            {headline.map((part, index) => (
-              <Text key={part.text} style={part.tone === "danger" ? { color: colors.statusDanger } : undefined}>
-                {index ? m.listSeparator : ""}{part.text}
-              </Text>
-            ))}
-          </Text>
-        ) : null}
-        {/* One status slot: the icon morphs from spinner (or stalled pulse) to the check on finish. */}
-        {dashboard.run?.finished || dashboard.ticker ? (
-          <StatusLine icon={
-            <IconSwap swapKey={dashboard.run?.finished ? "finished" : live ? "live" : "stale"} size={12}>
-              {dashboard.run?.finished ? <Icon name="CircleCheck" size={12} color={colors.statusSuccess} />
-                : live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} />}
-            </IconSwap>
-          }>
-            {dashboard.run?.finished ? (
-              <>
-                <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-                  <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{m.finished}</Text> <When colors={colors} iso={dashboard.run.finished.at} now={now} />
-                </Text>
-                <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{dashboard.run.finished.outcome}</Text>
-              </>
-            ) : (
-              <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{dashboard.ticker!.text}</Text>
-            )}
-          </StatusLine>
-        ) : null}
-        {/* A finished run takes no more updates, so its finish time already says this. */}
-        {dashboard.updatedAt && !dashboard.run?.finished ? (
-          <StatusLine icon={<Icon name="Clock" size={12} color={colors.foregroundMuted} />}>
-            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-              {m.lastUpdated}<When colors={colors} iso={dashboard.updatedAt} now={now} />
+        <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, gap: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+            <Text accessibilityRole="header" style={{ flex: 1, color: colors.foreground, fontSize: 15, lineHeight: 21, fontWeight: "600" }}>
+              {dashboard.run?.title ?? "Progress"}
             </Text>
-          </StatusLine>
-        ) : null}
-      </View>
-      </Presence>
-      <Presence show={Boolean(stale && dashboard.updatedAt)} order={1}>{stale && dashboard.updatedAt ? (
-        <View accessibilityRole="alert" style={{ flexDirection: "row", gap: 8, margin: 12, marginBottom: 0, padding: 10, borderWidth: 1, borderColor: colors.statusWarning, borderRadius: 6 }}>
-          {/* Optical: centers the 14px icon on the first 18px line. */}
-          <View style={{ paddingTop: 2 }}><Icon name="TriangleAlert" size={14} color={colors.statusWarning} /></View>
-          <Text style={{ flex: 1, color: colors.statusWarning, fontSize: 12, lineHeight: 18 }}>
-            {m.staleWarning(unbroken(formatClientMinutes(locale, minutesSince(dashboard.updatedAt, now))))}
-          </Text>
-        </View>
-      ) : null}</Presence>
-      <Presence show={Boolean(dashboard.issues.length)} order={1}>{dashboard.issues.length ? <IssuesNotice colors={colors} issues={dashboard.issues} file={file} /> : null}</Presence>
-      <Presence show={Boolean(dashboard.progress.totalMin > 0)} order={2}>{dashboard.progress.totalMin > 0 ? <ProgressBar colors={colors} progress={dashboard.progress} live={live} /> : null}</Presence>
-      <View onLayout={(event) => setWide(event.nativeEvent.layout.width >= WIDE_MIN)}
-        style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}>
-        <View style={{ flex: wide ? 3 : undefined, alignSelf: "stretch", minWidth: 0 }}>
-          <Presence show={dashboard.questions.open.length > 0} order={3}>{dashboard.questions.open.length ? (
-            <QuestionsSection colors={colors} questions={dashboard.questions.open} answered={dashboard.questions.answered} now={now} context={attachmentContext} />
-          ) : null}</Presence>
-          <Presence show={Boolean(dashboard.stuck.length)} order={3}>{dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}</Presence>
-          <Presence show order={4}>
-          <Card colors={colors} icon="ListChecks" title={m.itemHeading(dashboard.run?.itemLabel ?? "Ticket")}>
-            {dashboard.tickets.length === 0 ? (
-              <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-                {m.noItems(dashboard.run?.itemLabel ?? "Ticket")}
+            <SettingsButton colors={colors} onPress={openSettings} />
+          </View>
+          {dashboard.run?.subtitle ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{dashboard.run.subtitle}</Text> : null}
+          {headline.length ? (
+            <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+              {headline.map((part, index) => (
+                <Text key={part.text} style={part.tone === "danger" ? { color: colors.statusDanger } : undefined}>
+                  {index ? m.listSeparator : ""}
+                  {part.text}
+                </Text>
+              ))}
+            </Text>
+          ) : null}
+          {/* One status slot: the icon morphs from spinner (or stalled pulse) to the check on finish. */}
+          {dashboard.run?.finished || dashboard.ticker ? (
+            <StatusLine
+              icon={
+                <IconSwap swapKey={dashboard.run?.finished ? "finished" : live ? "live" : "stale"} size={12}>
+                  {dashboard.run?.finished ? (
+                    <Icon name="CircleCheck" size={12} color={colors.statusSuccess} />
+                  ) : live ? (
+                    <Spinner color={colors.accent} />
+                  ) : (
+                    <StalledPulse color={colors.statusWarning} />
+                  )}
+                </IconSwap>
+              }
+            >
+              {dashboard.run?.finished ? (
+                <>
+                  <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+                    <Text style={{ color: colors.statusSuccess, fontWeight: "600" }}>{m.finished}</Text>{" "}
+                    <When colors={colors} iso={dashboard.run.finished.at} now={now} />
+                  </Text>
+                  <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>{dashboard.run.finished.outcome}</Text>
+                </>
+              ) : (
+                <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground, fontSize: 12, lineHeight: 18 }}>
+                  {dashboard.ticker!.text}
+                </Text>
+              )}
+            </StatusLine>
+          ) : null}
+          {/* A finished run takes no more updates, so its finish time already says this. */}
+          {dashboard.updatedAt && !dashboard.run?.finished ? (
+            <StatusLine icon={<Icon name="Clock" size={12} color={colors.foregroundMuted} />}>
+              <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+                {m.lastUpdated}
+                <When colors={colors} iso={dashboard.updatedAt} now={now} />
               </Text>
-            ) : (
-              <TicketList colors={colors} dashboard={dashboard} live={live} now={now} workspaceId={workspaceId} onOpen={setOpenTicket} />
-            )}
-            <TicketDialogs colors={colors} dashboard={dashboard} openId={openTicket} setOpenId={setOpenTicket} now={now} live={live} compact={compact} context={attachmentContext} />
-          </Card>
+            </StatusLine>
+          ) : null}
+        </View>
+      </Presence>
+      <Presence show={Boolean(stale && dashboard.updatedAt)} order={1}>
+        {stale && dashboard.updatedAt ? (
+          <View
+            accessibilityRole="alert"
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              margin: 12,
+              marginBottom: 0,
+              padding: 10,
+              borderWidth: 1,
+              borderColor: colors.statusWarning,
+              borderRadius: 6,
+            }}
+          >
+            {/* Optical: centers the 14px icon on the first 18px line. */}
+            <View style={{ paddingTop: 2 }}>
+              <Icon name="TriangleAlert" size={14} color={colors.statusWarning} />
+            </View>
+            <Text style={{ flex: 1, color: colors.statusWarning, fontSize: 12, lineHeight: 18 }}>
+              {m.staleWarning(unbroken(formatClientMinutes(locale, minutesSince(dashboard.updatedAt, now))))}
+            </Text>
+          </View>
+        ) : null}
+      </Presence>
+      <Presence show={Boolean(dashboard.issues.length)} order={1}>
+        {dashboard.issues.length ? <IssuesNotice colors={colors} issues={dashboard.issues} file={file} /> : null}
+      </Presence>
+      <Presence show={Boolean(dashboard.progress.totalMin > 0)} order={2}>
+        {dashboard.progress.totalMin > 0 ? <ProgressBar colors={colors} progress={dashboard.progress} live={live} /> : null}
+      </Presence>
+      <View
+        onLayout={(event) => setWide(event.nativeEvent.layout.width >= WIDE_MIN)}
+        style={{ flexDirection: wide ? "row" : "column", alignItems: "flex-start" }}
+      >
+        <View style={{ flex: wide ? 3 : undefined, alignSelf: "stretch", minWidth: 0 }}>
+          <Presence show={dashboard.questions.open.length > 0} order={3}>
+            {dashboard.questions.open.length ? (
+              <QuestionsSection
+                colors={colors}
+                questions={dashboard.questions.open}
+                answered={dashboard.questions.answered}
+                now={now}
+                context={attachmentContext}
+              />
+            ) : null}
+          </Presence>
+          <Presence show={Boolean(dashboard.stuck.length)} order={3}>
+            {dashboard.stuck.length ? <StuckSection colors={colors} items={dashboard.stuck} now={now} /> : null}
+          </Presence>
+          <Presence show order={4}>
+            <Card colors={colors} icon="ListChecks" title={m.itemHeading(dashboard.run?.itemLabel ?? "Ticket")}>
+              {dashboard.tickets.length === 0 ? (
+                <Text
+                  style={{
+                    color: colors.foregroundMuted,
+                    fontSize: 12,
+                    lineHeight: 18,
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    borderTopWidth: 1,
+                    borderTopColor: colors.border,
+                  }}
+                >
+                  {m.noItems(dashboard.run?.itemLabel ?? "Ticket")}
+                </Text>
+              ) : (
+                <TicketList colors={colors} dashboard={dashboard} live={live} now={now} workspaceId={workspaceId} onOpen={setOpenTicket} />
+              )}
+              <TicketDialogs
+                colors={colors}
+                dashboard={dashboard}
+                openId={openTicket}
+                setOpenId={setOpenTicket}
+                now={now}
+                live={live}
+                compact={compact}
+                context={attachmentContext}
+              />
+            </Card>
           </Presence>
         </View>
         <View style={{ flex: wide ? 2 : undefined, alignSelf: "stretch", minWidth: 0 }}>
           <Presence show={hasHistory} order={5}>
             {hasHistory ? (
-              <HistoryCard colors={colors} workspaceId={workspaceId} tabs={[
-                { id: "activity", label: m.activity, icon: "Activity", count: dashboard.activity.length, empty: m.noActivity,
-                  content: <ActivityList colors={colors} activity={dashboard.activity} now={now} /> },
-                { id: "answered", label: m.answered, icon: "CircleCheck", count: dashboard.questions.answered.length, empty: m.noAnswers,
-                  content: <AnsweredQuestionsList colors={colors} questions={dashboard.questions.answered} now={now} context={attachmentContext} /> },
-                { id: "deliverables", label: m.deliverables, icon: "Package", count: dashboard.deliverables.length, empty: m.noDeliverables,
-                  content: <DeliverablesList colors={colors} deliverables={dashboard.deliverables} now={now} workspaceId={workspaceId}
-                    workspaceDirectory={workspaceDirectory} navigation={navigation} /> },
-              ]} />
+              <HistoryCard
+                colors={colors}
+                workspaceId={workspaceId}
+                tabs={[
+                  {
+                    id: "activity",
+                    label: m.activity,
+                    icon: "Activity",
+                    count: dashboard.activity.length,
+                    empty: m.noActivity,
+                    content: <ActivityList colors={colors} activity={dashboard.activity} now={now} />,
+                  },
+                  {
+                    id: "answered",
+                    label: m.answered,
+                    icon: "CircleCheck",
+                    count: dashboard.questions.answered.length,
+                    empty: m.noAnswers,
+                    content: <AnsweredQuestionsList colors={colors} questions={dashboard.questions.answered} now={now} context={attachmentContext} />,
+                  },
+                  {
+                    id: "deliverables",
+                    label: m.deliverables,
+                    icon: "Package",
+                    count: dashboard.deliverables.length,
+                    empty: m.noDeliverables,
+                    content: (
+                      <DeliverablesList
+                        colors={colors}
+                        deliverables={dashboard.deliverables}
+                        now={now}
+                        workspaceId={workspaceId}
+                        workspaceDirectory={workspaceDirectory}
+                        navigation={navigation}
+                      />
+                    ),
+                  },
+                ]}
+              />
             ) : null}
           </Presence>
         </View>
@@ -310,13 +451,23 @@ function HistoryCard({ colors, workspaceId, tabs }: { colors: Colors; workspaceI
   };
   const current = tabs.find((entry) => entry.id === tab) ?? tabs[0];
   return (
-    <View onLayout={(event) => setShowIcons(event.nativeEvent.layout.width >= TAB_ICONS_MIN)}
-      style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}>
-      <TabStrip colors={colors} narrow={narrow} tabs={tabs.map((entry) => ({ ...entry, icon: showIcons ? entry.icon : null }))} selected={current.id} onSelect={choose}
-        style={{ paddingHorizontal: narrow ? 8 : 10 }} />
+    <View
+      onLayout={(event) => setShowIcons(event.nativeEvent.layout.width >= TAB_ICONS_MIN)}
+      style={{ margin: 12, marginBottom: 0, ...raised(colors), borderRadius: 6, overflow: "hidden" }}
+    >
+      <TabStrip
+        colors={colors}
+        narrow={narrow}
+        tabs={tabs.map((entry) => ({ ...entry, icon: showIcons ? entry.icon : null }))}
+        selected={current.id}
+        onSelect={choose}
+        style={{ paddingHorizontal: narrow ? 8 : 10 }}
+      />
       {current.count === 0 ? (
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8 }}>{current.empty}</Text>
-      ) : current.content}
+      ) : (
+        current.content
+      )}
     </View>
   );
 }
@@ -329,7 +480,9 @@ function ActivityList({ colors, activity, now }: { colors: Colors; activity: Act
       {paged.shown.map((entry, index) => (
         <View key={entry.id} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 1, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
           {/* Muted: a log to glance at, not something to act on. */}
-          <Text selectable style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>{entry.text}</Text>
+          <Text selectable style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 18 }}>
+            {entry.text}
+          </Text>
           <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, opacity: 0.8 }}>
             <When colors={colors} iso={entry.at} now={now} />
           </Text>
@@ -346,10 +499,15 @@ function IssuesNotice({ colors, issues, file }: { colors: Colors; issues: FileIs
   const shown = issues.slice(0, 5);
   return (
     <View style={{ flexDirection: "row", gap: 8, margin: 12, marginBottom: 0, padding: 8, borderRadius: 6, backgroundColor: colors.surface1 }}>
-      <View style={{ paddingTop: 1.5 }}><Icon name="FileWarning" size={14} color={colors.statusWarning} /></View>
+      <View style={{ paddingTop: 1.5 }}>
+        <Icon name="FileWarning" size={14} color={colors.statusWarning} />
+      </View>
       <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
         {m.skippedLines(issues.length, file)}
-        {m.issueList(shown.map((issue) => m.issueLine(issue.line, issue.reason)), issues.length - shown.length)}
+        {m.issueList(
+          shown.map((issue) => m.issueLine(issue.line, issue.reason)),
+          issues.length - shown.length,
+        )}
       </Text>
     </View>
   );
@@ -377,8 +535,11 @@ function ProgressBar({ colors, progress, live }: { colors: Colors; progress: Das
           {formatClientWorkDone(locale, progress.doneMin, progress.totalMin, progress.tookMin)}
         </Text>
       </View>
-      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }}
-        style={{ flexDirection: "row", gap: 2, height: 8, borderRadius: 4, overflow: "hidden" }}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 0, max: 100, now: progress.percent }}
+        style={{ flexDirection: "row", gap: 2, height: 8, borderRadius: 4, overflow: "hidden" }}
+      >
         {progress.segments.map((segment) => (
           <Segment key={segment.id} colors={colors} segment={segment} live={live} />
         ))}
@@ -389,10 +550,14 @@ function ProgressBar({ colors, progress, live }: { colors: Colors; progress: Das
 
 function Segment({ colors, segment, live }: { colors: Colors; segment: ProgressSegment; live: boolean }) {
   const working = segment.status === "working";
-  const color = segment.status === "done" ? colors.accent
-    : working ? colors.accent
-    : segment.status === "blocked" && !segment.waiting ? colors.statusDanger
-    : colors.surface2;
+  const color =
+    segment.status === "done"
+      ? colors.accent
+      : working
+        ? colors.accent
+        : segment.status === "blocked" && !segment.waiting
+          ? colors.statusDanger
+          : colors.surface2;
   return (
     <View style={{ flex: segment.estimateMin, backgroundColor: color, opacity: working ? 0.45 : 1, overflow: "hidden" }}>
       {working && live ? <Shimmer /> : null}
@@ -405,16 +570,17 @@ function Segment({ colors, segment, live }: { colors: Colors; segment: ProgressS
 function Shimmer() {
   const value = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(value, { toValue: 1, duration: 900, useNativeDriver: nativeDriver() }),
-      Animated.timing(value, { toValue: 0, duration: 900, useNativeDriver: nativeDriver() }),
-    ]));
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(value, { toValue: 1, duration: 900, useNativeDriver: nativeDriver() }),
+        Animated.timing(value, { toValue: 0, duration: 900, useNativeDriver: nativeDriver() }),
+      ]),
+    );
     loop.start();
     return () => loop.stop();
   }, [value]);
   return <Animated.View style={{ flex: 1, backgroundColor: "#ffffff", opacity: value.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }) }} />;
 }
-
 
 const STUCK_ICON: Record<StuckItem["kind"], string> = { blocked: "Ban", overdue: "Hourglass", manual: "Flag" };
 
@@ -423,19 +589,30 @@ function StuckSection({ colors, items, now }: { colors: Colors; items: StuckItem
   const narrow = useNarrow();
   return (
     <View style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.statusDanger, borderRadius: 6, overflow: "hidden" }}>
-      <SectionTitle colors={colors} icon="OctagonAlert" title={m.stuck} color={colors.statusDanger} style={{ borderBottomWidth: 1, borderBottomColor: colors.border }} />
+      <SectionTitle
+        colors={colors}
+        icon="OctagonAlert"
+        title={m.stuck}
+        color={colors.statusDanger}
+        style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}
+      />
       {items.map((item, index) => (
-        <View key={item.key} style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
+        <View
+          key={item.key}
+          style={{ flexDirection: "row", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}
+        >
           {/* Optical: centers the 14px icon on the 18px title line. */}
-          <View style={{ paddingTop: 2 }}><Icon name={STUCK_ICON[item.kind]} size={14} color={colors.statusDanger} /></View>
+          <View style={{ paddingTop: 2 }}>
+            <Icon name={STUCK_ICON[item.kind]} size={14} color={colors.statusDanger} />
+          </View>
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{item.title}</Text>
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {item.kind === "overdue" ? m.overdueUpdate(unbroken(formatClientMinutes(locale, item.estimateMin))) : null}
-            {item.kind === "blocked" ? m.blockedSince(item.note, narrow) : null}
-            {item.kind === "manual" ? `${item.ticketId ? `${item.reason}${m.sentenceBreak}` : ""}${m.flagged}` : null}
-            <When colors={colors} iso={item.since} now={now} />
-          </Text>
+            <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{item.title}</Text>
+            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+              {item.kind === "overdue" ? m.overdueUpdate(unbroken(formatClientMinutes(locale, item.estimateMin))) : null}
+              {item.kind === "blocked" ? m.blockedSince(item.note, narrow) : null}
+              {item.kind === "manual" ? `${item.ticketId ? `${item.reason}${m.sentenceBreak}` : ""}${m.flagged}` : null}
+              <When colors={colors} iso={item.since} now={now} />
+            </Text>
           </View>
         </View>
       ))}
@@ -449,7 +626,21 @@ const finishedShown = new Map<string, boolean>();
 
 // Finished tickets fold into one row at the top, so the work still ahead is
 // near the top without scrolling (see finishedToFold).
-function TicketList({ colors, dashboard, live, now, workspaceId, onOpen }: { colors: Colors; dashboard: Dashboard; live: boolean; now: number; workspaceId: string; onOpen(id: string): void }) {
+function TicketList({
+  colors,
+  dashboard,
+  live,
+  now,
+  workspaceId,
+  onOpen,
+}: {
+  colors: Colors;
+  dashboard: Dashboard;
+  live: boolean;
+  now: number;
+  workspaceId: string;
+  onOpen(id: string): void;
+}) {
   const [shown, setShown] = useState(() => finishedShown.get(workspaceId) ?? false);
   const toggle = () => {
     finishedShown.set(workspaceId, !shown);
@@ -457,8 +648,15 @@ function TicketList({ colors, dashboard, live, now, workspaceId, onOpen }: { col
   };
   const finished = finishedToFold(dashboard.tickets);
   const row = (ticket: Ticket) => (
-    <TicketRow key={ticket.id} colors={colors} ticket={ticket} live={live} now={now} onOpen={() => onOpen(ticket.id)}
-      deliverables={dashboard.deliverables.filter((deliverable) => deliverable.ticketId === ticket.id).length} />
+    <TicketRow
+      key={ticket.id}
+      colors={colors}
+      ticket={ticket}
+      live={live}
+      now={now}
+      onOpen={() => onOpen(ticket.id)}
+      deliverables={dashboard.deliverables.filter((deliverable) => deliverable.ticketId === ticket.id).length}
+    />
   );
   if (!finished.length) return <>{dashboard.tickets.map(row)}</>;
   return (
@@ -481,52 +679,129 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
   const chevron = shown ? "ChevronUp" : "ChevronDown";
   const narrow = useNarrow();
   return (
-    <PressableRow colors={colors} accessibilityRole="button" aria-expanded={shown}
-      accessibilityLabel={m.toggleFinished(shown, label)} onPress={onPress}
-      style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+    <PressableRow
+      colors={colors}
+      accessibilityRole="button"
+      aria-expanded={shown}
+      accessibilityLabel={m.toggleFinished(shown, label)}
+      onPress={onPress}
+      style={{
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+      }}
+    >
       <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
         <Icon name={done ? "Check" : "CircleSlash"} size={14} color={done ? colors.statusSuccess : colors.foregroundMuted} />
       </View>
-      <Text style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{label}</Text>
+      <Text style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] }}>
+        {label}
+      </Text>
       {/* Narrow ticket rows drop their chevron, so this total would sit off their estimate column. */}
-      {narrow ? null : <>
-        <View style={{ width: 12 }} />
-        <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{estimateMin ? formatClientMinutes(locale, estimateMin) : ""}</Text>
-      </>}
+      {narrow ? null : (
+        <>
+          <View style={{ width: 12 }} />
+          <Text
+            style={{
+              minWidth: 44,
+              flexShrink: 0,
+              textAlign: "right",
+              color: colors.foregroundMuted,
+              fontSize: 12,
+              lineHeight: 18,
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {estimateMin ? formatClientMinutes(locale, estimateMin) : ""}
+          </Text>
+        </>
+      )}
       <View style={{ paddingTop: 2 }}>
-        <IconSwap swapKey={chevron} size={14}><Icon name={chevron} size={14} color={colors.foregroundMuted} /></IconSwap>
+        <IconSwap swapKey={chevron} size={14}>
+          <Icon name={chevron} size={14} color={colors.foregroundMuted} />
+        </IconSwap>
       </View>
     </PressableRow>
   );
 }
 
 // Press for the ticket's story. Hover and press only tint the row: it's a list, pressed often.
-function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors: Colors; ticket: Ticket; live: boolean; now: number; onOpen(): void; deliverables: number }) {
+function TicketRow({
+  colors,
+  ticket,
+  live,
+  now,
+  onOpen,
+  deliverables,
+}: {
+  colors: Colors;
+  ticket: Ticket;
+  live: boolean;
+  now: number;
+  onOpen(): void;
+  deliverables: number;
+}) {
   const { messages: m, locale } = useProgressLanguage();
   const muted = ticket.status === "skipped";
   const working = ticket.status === "working";
   // Narrow: tighter gaps and no chevron (the whole row still presses), so the title keeps its width.
   const narrow = useNarrow();
   return (
-    <PressableRow colors={colors} onSurface1={working} transparentAtRest={!working}
-      accessibilityRole="button" accessibilityLabel={m.details(ticket.id)} onPress={onOpen}
-      style={{ flexDirection: "row", alignItems: "flex-start", gap: narrow ? 6 : 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+    <PressableRow
+      colors={colors}
+      onSurface1={working}
+      transparentAtRest={!working}
+      accessibilityRole="button"
+      accessibilityLabel={m.details(ticket.id)}
+      onPress={onOpen}
+      style={{
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: narrow ? 6 : 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+      }}
+    >
       {/* The icon is the only status mark on the row; the ticket dialog spells it out in a badge. */}
-      <View accessible accessibilityLabel={ticket.waitingFor ? m.waiting : m.status[ticket.status]} style={{ width: 16, paddingTop: 2, alignItems: "center", marginRight: narrow ? 2 : 0 }}>
-        <IconSwap swapKey={ticket.waitingFor || ticket.status === "not_started" ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status} size={14}><StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} /></IconSwap>
+      <View
+        accessible
+        accessibilityLabel={ticket.waitingFor ? m.waiting : m.status[ticket.status]}
+        style={{ width: 16, paddingTop: 2, alignItems: "center", marginRight: narrow ? 2 : 0 }}
+      >
+        <IconSwap
+          swapKey={ticket.waitingFor || ticket.status === "not_started" ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status}
+          size={14}
+        >
+          <StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} />
+        </IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={{ color: muted ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18, textDecorationLine: muted ? "line-through" : "none" }}>
+        <Text
+          style={{
+            color: muted ? colors.foregroundMuted : colors.foreground,
+            fontSize: 13,
+            lineHeight: 18,
+            textDecorationLine: muted ? "line-through" : "none",
+          }}
+        >
           {ticket.title}
         </Text>
         {ticket.status === "working" && ticket.stage && ticket.stageSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {m.stageStarted(ticket.stage)}<When colors={colors} iso={ticket.stageSince} now={now} />
+            {m.stageStarted(ticket.stage)}
+            <When colors={colors} iso={ticket.stageSince} now={now} />
           </Text>
         ) : null}
         {ticket.status === "working" && ticket.workingSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-            {narrow ? m.startedWorking : m.workingSince}<When colors={colors} iso={ticket.workingSince} now={now} />
+            {narrow ? m.startedWorking : m.workingSince}
+            <When colors={colors} iso={ticket.workingSince} now={now} />
           </Text>
         ) : null}
         {ticket.waitingFor ? (
@@ -538,8 +813,16 @@ function TicketRow({ colors, ticket, live, now, onOpen, deliverables }: { colors
       <View accessibilityLabel={deliverables ? m.hasDeliverables(deliverables) : undefined} style={{ width: 12, height: 18, justifyContent: "center" }}>
         {deliverables ? <Icon name="Package" size={12} color={colors.foregroundMuted} /> : null}
       </View>
-      <Text style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatClientMinutes(locale, ticket.estimateMin)}</Text>
-      {narrow ? null : <View style={{ paddingTop: 2 }}><Icon name="ChevronRight" size={14} color={colors.foregroundMuted} /></View>}
+      <Text
+        style={{ minWidth: 44, flexShrink: 0, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}
+      >
+        {formatClientMinutes(locale, ticket.estimateMin)}
+      </Text>
+      {narrow ? null : (
+        <View style={{ paddingTop: 2 }}>
+          <Icon name="ChevronRight" size={14} color={colors.foregroundMuted} />
+        </View>
+      )}
     </PressableRow>
   );
 }
@@ -560,4 +843,3 @@ function StatusIcon({ colors, status, live, waiting }: { colors: Colors; status:
       return <WaitingDot color={colors.foregroundMuted} size={14} />;
   }
 }
-

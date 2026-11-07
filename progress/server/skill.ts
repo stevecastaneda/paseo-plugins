@@ -37,7 +37,7 @@ export async function skillState(path: string, pluginDirectory: string): Promise
 export async function relinkSkill(paths: string[], pluginDirectory: string): Promise<boolean> {
   let wrote = false;
   for (const path of paths) {
-    if (await skillState(path, pluginDirectory) !== "outdated") continue;
+    if ((await skillState(path, pluginDirectory)) !== "outdated") continue;
     await unlink(path);
     await link(path, pluginDirectory);
     wrote = true;
@@ -70,9 +70,13 @@ async function link(path: string, pluginDirectory: string) {
 export async function skillStatus(paths: string[], pluginDirectory: string) {
   const targets = await Promise.all(paths.map(async (path) => ({ path, state: await skillState(path, pluginDirectory) })));
   const states = targets.map((target) => target.state);
-  const state: SkillState = states.includes("outdated") ? "outdated"
-    : states.includes("missing") ? "missing"
-    : states.includes("current") ? "current" : "foreign";
+  const state: SkillState = states.includes("outdated")
+    ? "outdated"
+    : states.includes("missing")
+      ? "missing"
+      : states.includes("current")
+        ? "current"
+        : "foreign";
   return { state, targets };
 }
 
@@ -106,7 +110,9 @@ function askPaseo(cli: string) {
 let repair: Promise<unknown> | null = null;
 
 export function repairSkill(): Promise<unknown> {
-  repair ??= findPluginDirectory().then((directory) => relinkSkill(defaultSkillPaths(), directory)).catch(() => {});
+  repair ??= findPluginDirectory()
+    .then((directory) => relinkSkill(defaultSkillPaths(), directory))
+    .catch(() => {});
   return repair;
 }
 
@@ -118,7 +124,11 @@ export async function handleSkillStatus() {
 // SKILL.md's frontmatter holds one-line fields; only the description is shown.
 export function skillDocument(text: string): { markdown: string; description: string } {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
-  const description = /^description:[ \t]*(.*)$/m.exec(frontmatter?.[1] ?? "")?.[1].trim().replace(/^(["'])(.*)\1$/, "$2") ?? "";
+  const description =
+    /^description:[ \t]*(.*)$/m
+      .exec(frontmatter?.[1] ?? "")?.[1]
+      .trim()
+      .replace(/^(["'])(.*)\1$/, "$2") ?? "";
   return { markdown: text.slice(frontmatter?.[0].length ?? 0).trimStart(), description };
 }
 

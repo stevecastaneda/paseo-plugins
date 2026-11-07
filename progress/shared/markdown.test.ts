@@ -52,8 +52,26 @@ test("a relative link or image points at the file's own folder", () => {
 });
 
 test("a target outside the worktree, absolute, or not a file is left as written", () => {
-  for (const target of ["../../out.md", "../../r2/x.md", "https://example.com/a.md", "mailto:a@b.c", "tel:123", "file:///x.md", "vscode://file/x", "data:image/png;base64,AAAA",
-    "blob:x", "C:\\x.md", "C:/x.md", "/abs/b.md", "//host/b.md", "\\\\srv\\b.md", "~/b.md", "#section", "#L12", "?x=1"]) {
+  for (const target of [
+    "../../out.md",
+    "../../r2/x.md",
+    "https://example.com/a.md",
+    "mailto:a@b.c",
+    "tel:123",
+    "file:///x.md",
+    "vscode://file/x",
+    "data:image/png;base64,AAAA",
+    "blob:x",
+    "C:\\x.md",
+    "C:/x.md",
+    "/abs/b.md",
+    "//host/b.md",
+    "\\\\srv\\b.md",
+    "~/b.md",
+    "#section",
+    "#L12",
+    "?x=1",
+  ]) {
     assert.equal(prepare(`[a](${target})`), `[a](${target})`, target);
   }
   assert.equal(prepare("[a]()"), "[a]()");
@@ -154,7 +172,11 @@ test("a file on a Windows daemon gets Windows paths, written with forward slashe
 
 test("front matter shows as YAML, and line endings and a BOM don't get in the way", () => {
   assert.equal(prepare("---\ntitle: x\ntags: [a]\n---\n# Doc\n"), "```yaml\ntitle: x\ntags: [a]\n```\n# Doc\n");
-  assert.equal(prepare("---\nnote: |\n  ```\n  code\n  ```\n...\nBody"), "````yaml\nnote: |\n  ```\n  code\n  ```\n````\nBody", "a fence inside is kept inside");
+  assert.equal(
+    prepare("---\nnote: |\n  ```\n  code\n  ```\n...\nBody"),
+    "````yaml\nnote: |\n  ```\n  code\n  ```\n````\nBody",
+    "a fence inside is kept inside",
+  );
   assert.equal(prepare("---\ntitle: x\n# never closed"), "---\ntitle: x\n# never closed");
   assert.equal(prepare("Text\n\n---\n\nMore\n---\n"), "Text\n\n---\n\nMore\n---\n", "a rule later on is a rule");
   assert.equal(prepare("\uFEFF# T\r\n[a](b.md)\r\n"), "# T\n[a](/r/docs/b.md)\n");
@@ -163,14 +185,33 @@ test("front matter shows as YAML, and line endings and a BOM don't get in the wa
 test("a cut Markdown file ends on a whole line, inside a fence or a table if that's where it stopped", () => {
   const cut = (text: string, count: number) => prepareMarkdown(head(text, count), true, posixFile);
   assert.equal(cut("[a](b.md)\n[c](long-name.md)", 15), "[a](/r/docs/b.md)\n", "no half link is rewritten");
-  assert.equal(cut("Intro\n```js\nconst a = 1;\nconst b = 2;\n```\n", 26), "Intro\n```js\nconst a = 1;\n", "the open fence runs to the end, as CommonMark draws it");
+  assert.equal(
+    cut("Intro\n```js\nconst a = 1;\nconst b = 2;\n```\n", 26),
+    "Intro\n```js\nconst a = 1;\n",
+    "the open fence runs to the end, as CommonMark draws it",
+  );
   assert.equal(cut("| a |\n|---|\n| [x](b.md) |\n| y |", 28), "| a |\n|---|\n| [x](/r/docs/b.md) |\n");
 });
 
 test("rewriting a rewritten file changes nothing", () => {
   const source = [
-    "---", "title: x", "---", "# Doc", "", "[a](b.md#L1) ![i](<i 1.png>) [r][x]", "", "[x]: ../c.md 'T'", "", '<img src="d.png"> <a href=e.md>e</a>',
-    "", "```", "[k](k.md)", "```", "", "| [t](Мои/t.md) |", "|---|",
+    "---",
+    "title: x",
+    "---",
+    "# Doc",
+    "",
+    "[a](b.md#L1) ![i](<i 1.png>) [r][x]",
+    "",
+    "[x]: ../c.md 'T'",
+    "",
+    '<img src="d.png"> <a href=e.md>e</a>',
+    "",
+    "```",
+    "[k](k.md)",
+    "```",
+    "",
+    "| [t](Мои/t.md) |",
+    "|---|",
   ].join("\n");
   const once = prepare(source);
   assert.notEqual(once, source);
@@ -212,8 +253,15 @@ test("a write-up excerpt keeps its first block, cuts a long one at a line, and l
   const code = ["```sh", ...Array.from({ length: 200 }, (_, index) => `echo line ${index}`), "```", "", "After."].join("\n");
   const excerpt = markdownExcerpt(code, 280);
   assert.equal(excerpt.more, true);
-  assert.ok(excerpt.text.startsWith("```sh\necho line 0\n") && excerpt.text.endsWith("\n```") && excerpt.text.length < 400, "its first lines, with the fence closed");
-  assert.deepEqual(markdownExcerpt("Intro sentence.\n\n## Details\n\n" + "More text here. ".repeat(30), 280), { text: "Intro sentence.", more: true }, "no heading left hanging");
+  assert.ok(
+    excerpt.text.startsWith("```sh\necho line 0\n") && excerpt.text.endsWith("\n```") && excerpt.text.length < 400,
+    "its first lines, with the fence closed",
+  );
+  assert.deepEqual(
+    markdownExcerpt("Intro sentence.\n\n## Details\n\n" + "More text here. ".repeat(30), 280),
+    { text: "Intro sentence.", more: true },
+    "no heading left hanging",
+  );
   assert.deepEqual(markdownExcerpt("![one](/a.png)\n\n![two](/b.png)", 280), { text: "![one](/a.png)", more: true }, "one image at most");
   assert.deepEqual(markdownExcerpt("# Only a title", 280), { text: "", more: false });
   assert.deepEqual(markdownExcerpt("```yaml\nid: 1\n```\n\n# Title\n\nBody", 280), { text: "Body", more: false }, "front matter stays out of the excerpt");
@@ -229,8 +277,10 @@ test("a write-up's title comes off whatever its form, and other headings stay", 
 });
 
 test("a write-up's headings all draw at one small level, outside code", () => {
-  assert.equal(flattenHeadings("# A\n## B\n### C #\n> ## Quoted\nText #1\n```\n# comment\n```\n    # indented", 5),
-    "##### A\n##### B\n##### C #\n> ##### Quoted\nText #1\n```\n# comment\n```\n    # indented");
+  assert.equal(
+    flattenHeadings("# A\n## B\n### C #\n> ## Quoted\nText #1\n```\n# comment\n```\n    # indented", 5),
+    "##### A\n##### B\n##### C #\n> ##### Quoted\nText #1\n```\n# comment\n```\n    # indented",
+  );
   assert.equal(flattenHeadings("#hashtag", 5), "#hashtag");
 });
 

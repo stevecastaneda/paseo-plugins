@@ -1,5 +1,16 @@
 import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
-import { agentOf, attachItems, fetchTurn, latestAssistantText, proposeFromReply, scanProposals, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
+import {
+  agentOf,
+  attachItems,
+  fetchTurn,
+  latestAssistantText,
+  proposeFromReply,
+  scanProposals,
+  sendToClaude,
+  sendVia,
+  withHandoffPrompt,
+  type AttachDeps,
+} from "./server/claude.ts";
 import { createLogStore, defaultLogRoot } from "./server/logs.ts";
 import { createRunRegistry } from "./server/runs.ts";
 import { commandFinder } from "./server/shells.ts";

@@ -30,12 +30,7 @@ function command(partial: Partial<SetupCommand> & Pick<SetupCommand, "command" |
   };
 }
 
-function snapshot(partial: {
-  status: SetupSnapshot["status"];
-  error?: string | null;
-  commands?: SetupCommand[];
-  log?: string;
-}): SetupSnapshot {
+function snapshot(partial: { status: SetupSnapshot["status"]; error?: string | null; commands?: SetupCommand[]; log?: string }): SetupSnapshot {
   return {
     status: partial.status,
     error: partial.error ?? null,
@@ -104,10 +99,7 @@ test("buttonLabel stays short", () => {
 });
 
 test("headline and commandLabel describe the current step", () => {
-  assert.equal(
-    headline(snapshot({ status: "failed", error: "npm ERR! EPERM" })),
-    "npm ERR! EPERM",
-  );
+  assert.equal(headline(snapshot({ status: "failed", error: "npm ERR! EPERM" })), "npm ERR! EPERM");
   assert.equal(
     headline(
       snapshot({
@@ -117,10 +109,7 @@ test("headline and commandLabel describe the current step", () => {
     ),
     "Setup finished in 1m 30s",
   );
-  assert.equal(
-    commandLabel(command({ command: "npm install", cwd: "/repo/api", status: "running" }), "/repo"),
-    "npm install in api",
-  );
+  assert.equal(commandLabel(command({ command: "npm install", cwd: "/repo/api", status: "running" }), "/repo"), "npm install in api");
 });
 
 test("trimSnapshot keeps the tail of oversized logs", () => {

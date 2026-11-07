@@ -9,7 +9,16 @@ const T0 = 1_700_000_000_000;
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
 
 function row(phase: Phase): RunRow {
-  return { runId: "run000000001", rev: 1, origin: "claude", command: "npm test", cwd: "/w", phase, output: { lines: ["a", [["b", "1;31"]]], total: 2 }, sentAt: null };
+  return {
+    runId: "run000000001",
+    rev: 1,
+    origin: "claude",
+    command: "npm test",
+    cwd: "/w",
+    phase,
+    output: { lines: ["a", [["b", "1;31"]]], total: 2 },
+    sentAt: null,
+  };
 }
 
 const agent = { id: "agent-1", cwd: "/w/proj" };
@@ -47,7 +56,11 @@ test("the renderer's schema accepts a row in every phase and rejects garbage", (
   ];
   for (const phase of phases) assert.equal(schema.safeParse(plain(row(phase))).success, true, phase.kind);
   assert.equal(schema.safeParse({ runId: "x", phase: { kind: "flying" } }).success, false);
-  assert.equal(schema.safeParse(plain({ ...row({ kind: "proposed" }), output: { lines: [["bad"]], total: 0 } })).success, false, "a segment needs text and sgr");
+  assert.equal(
+    schema.safeParse(plain({ ...row({ kind: "proposed" }), output: { lines: [["bad"]], total: 0 } })).success,
+    false,
+    "a segment needs text and sgr",
+  );
 });
 
 test("/sh with a command starts it in the agent's folder as the user; a pasted prompt is stripped", async () => {
@@ -93,12 +106,18 @@ test("every chat gets one Run pill that opens the Run window; updates keep it, s
   await h.flush();
   type Pill = { removed: boolean; placement: string; agentId: string; workspaceId: string; button: { label: string; behavior: { kind: string } } };
   const pills = () => (h.registrations as unknown as Pill[]).filter((entry) => !entry.removed);
-  assert.deepEqual(plain(pills().map((entry) => [entry.placement, entry.agentId, entry.workspaceId, entry.button.label, entry.button.behavior.kind])), [["composer", "a1", "w1", "Run", "popover"], ["composer", "a2", "w1", "Run", "popover"]]);
+  assert.deepEqual(plain(pills().map((entry) => [entry.placement, entry.agentId, entry.workspaceId, entry.button.label, entry.button.behavior.kind])), [
+    ["composer", "a1", "w1", "Run", "popover"],
+    ["composer", "a2", "w1", "Run", "popover"],
+  ]);
   h.agents.update({ kind: "upsert", agent: { id: "a1", workspaceId: "w1", status: "running" } });
   assert.equal(h.registrations.length, 2, "an update doesn't replace the pill");
   h.agents.update({ kind: "upsert", agent: { id: "a4", workspaceId: "w2" } });
   h.agents.update({ kind: "remove", agentId: "a2" });
-  assert.deepEqual(pills().map((entry) => entry.agentId), ["a1", "a4"]);
+  assert.deepEqual(
+    pills().map((entry) => entry.agentId),
+    ["a1", "a4"],
+  );
   stop();
   assert.equal(pills().length, 0);
   assert.equal(h.agents.listenerCount, 0);

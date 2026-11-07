@@ -13,7 +13,9 @@ export function useSettings(hostId: string) {
     queryFn: () => fetchSettings({}),
     staleTime: 30_000,
   });
-  useEffect(() => { if (query.data) publishSettings(query.data); }, [query.data]);
+  useEffect(() => {
+    if (query.data) publishSettings(query.data);
+  }, [query.data]);
   return query;
 }
 
@@ -23,5 +25,7 @@ export function publishSettings(settings: TimeSinceSettings) {
 }
 export function subscribeSettings(listener: (settings: TimeSinceSettings) => void) {
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return () => {
+    listeners.delete(listener);
+  };
 }

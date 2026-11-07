@@ -75,8 +75,10 @@ test("the current version has a changelog entry ready for What's new", async () 
   const notes = changelogNotes(readme, version);
   assert.ok(notes?.length, `README.md needs a "### ${version}" entry under "## Changelog"`);
   for (const note of notes) {
-    assert.ok(note.kind && note.title && note.body && !note.body.includes("[") && !note.title.includes("*"),
-      `each ${version} bullet needs the form "- [New|Improved|Fixed] **Short title.** Detail", got: ${note.title ?? ""} ${note.body}`);
+    assert.ok(
+      note.kind && note.title && note.body && !note.body.includes("[") && !note.title.includes("*"),
+      `each ${version} bullet needs the form "- [New|Improved|Fixed] **Short title.** Detail", got: ${note.title ?? ""} ${note.body}`,
+    );
   }
 });
 
@@ -101,7 +103,10 @@ test("changelog notes come from that version's section only, wrapped lines joine
 });
 
 test("the changelog lists versions newest first, by number", () => {
-  assert.deepEqual(changelog(README).map((release) => release.version), ["2.0.0", "1.10.0", "1.9.0", "1.0.0"]);
+  assert.deepEqual(
+    changelog(README).map((release) => release.version),
+    ["2.0.0", "1.10.0", "1.9.0", "1.0.0"],
+  );
   assert.deepEqual(changelog("# Plugin\n"), []);
 });
 
@@ -127,7 +132,7 @@ test("a leading [New], [Improved] or [Fixed] tag sets the note's kind, in any ca
 
 test("notes show typeset quotes, except in code", () => {
   const notes = changelogNotes(`## Changelog\n\n### 1.0.0\n\n- **It's here.** Reads "Waiting for you" ('soon'), not \`echo "it's"\`.\n`, "1.0.0");
-  assert.deepEqual(notes, [{ title: "It\u2019s here.", body: "Reads \u201cWaiting for you\u201d (\u2018soon\u2019), not `echo \"it's\"`." }]);
+  assert.deepEqual(notes, [{ title: "It\u2019s here.", body: 'Reads \u201cWaiting for you\u201d (\u2018soon\u2019), not `echo "it\'s"`.' }]);
 });
 
 test("the headline is the title, or else the body's first sentence without Markdown", () => {
@@ -155,7 +160,10 @@ test("skipping updates shows every version missed, newest first", async (t) => {
   const home = await fakeHome(t);
   await markWhatsNewSeen("1.9.0", home);
   const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
-  assert.deepEqual(shown?.releases.map((release) => release.version), ["2.0.0", "1.10.0"]);
+  assert.deepEqual(
+    shown?.releases.map((release) => release.version),
+    ["2.0.0", "1.10.0"],
+  );
   assert.equal(shown?.version, "2.0.0");
   assert.equal(shown?.headline, "Questions can wait.", "the first New note leads, even from an older version");
 });
@@ -165,14 +173,20 @@ test("going from 1.4.0 to 1.5.1 shows 1.5.1 and 1.5.0", async (t) => {
   const { readme } = await ownReadme();
   await markWhatsNewSeen("1.4.0", home);
   const shown = await whatsNew({ version: "1.5.1", readme }, home);
-  assert.deepEqual(shown?.releases.map((release) => release.version), ["1.5.1", "1.5.0"]);
+  assert.deepEqual(
+    shown?.releases.map((release) => release.version),
+    ["1.5.1", "1.5.0"],
+  );
 });
 
 test("an update from before versions were recorded shows this version only", async (t) => {
   const home = await fakeHome(t);
   await earlierRun(home);
   const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
-  assert.deepEqual(shown?.releases.map((release) => release.version), ["2.0.0"]);
+  assert.deepEqual(
+    shown?.releases.map((release) => release.version),
+    ["2.0.0"],
+  );
 });
 
 test("going back to an older version shows nothing", async (t) => {
@@ -203,7 +217,11 @@ test("a seen version that isn't x.y.z counts as missing", async (t) => {
     await earlierRun(home);
     await writeFile(whatsNewPath(home), JSON.stringify({ seen }));
     const shown = await whatsNew({ version: "2.0.0", readme: README }, home);
-    assert.deepEqual(shown?.releases.map((release) => release.version), ["2.0.0"], seen);
+    assert.deepEqual(
+      shown?.releases.map((release) => release.version),
+      ["2.0.0"],
+      seen,
+    );
     await markWhatsNewSeen("2.0.0", home);
     assert.equal(await whatsNew({ version: "2.0.0", readme: README }, home), null, seen);
   }

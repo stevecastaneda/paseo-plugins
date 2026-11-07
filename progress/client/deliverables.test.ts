@@ -20,8 +20,13 @@ function tabTargets(platform: string): string[] {
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { DeliverablesList } = h.load("client/deliverables.tsx");
   const deliverable = (id: string, path: string) => ({ id, title: id, path, kind: "file", addedAt: "2026-10-30T00:00:00Z" });
-  const drawn = DeliverablesList({ colors: {}, now: Date.parse("2026-10-30T01:00:00Z"), workspaceId: "w", workspaceDirectory: "/repo",
-    deliverables: [deliverable("D1", "docs/My spec (v2).pdf"), deliverable("D2", "docs/notes.md")] });
+  const drawn = DeliverablesList({
+    colors: {},
+    now: Date.parse("2026-10-30T01:00:00Z"),
+    workspaceId: "w",
+    workspaceDirectory: "/repo",
+    deliverables: [deliverable("D1", "docs/My spec (v2).pdf"), deliverable("D2", "docs/notes.md")],
+  });
   const links: string[] = [];
   const walk = (node: unknown) => {
     if (Array.isArray(node)) return node.forEach(walk);

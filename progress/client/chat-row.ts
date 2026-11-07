@@ -67,7 +67,11 @@ export function transformChatRow({ item }: { item: ToolCall }) {
 // truncates on a narrow chat, so any text at all can be opened.
 export function chatRowText(row: ChatRow, m: ProgressMessages): { line: string; more: string | null } {
   const labels = m.toolRow[row.tool];
-  const firstLine = (text: string) => text.split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+  const firstLine = (text: string) =>
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean) ?? "";
   const withMore = (line: string, text: string) => ({ line, more: text.trim() || null });
   switch (row.state) {
     case "running":

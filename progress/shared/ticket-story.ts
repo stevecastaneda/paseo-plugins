@@ -68,9 +68,7 @@ export function ticketTimeline(ticket: Ticket, nowMs: number): TimelineStep[] {
 // Each includes its start but not its end, so an entry logged at a handoff
 // belongs to the ticket that just started.
 function workingWindows(steps: TimelineStep[], nowMs: number): Array<[number, number]> {
-  return steps
-    .filter((step) => step.status === "working")
-    .map((step) => [Date.parse(step.at), step.until ? Date.parse(step.until) : nowMs + 1]);
+  return steps.filter((step) => step.status === "working").map((step) => [Date.parse(step.at), step.until ? Date.parse(step.until) : nowMs + 1]);
 }
 
 export function ticketStory(ticket: Ticket, related: { deliverables: Deliverable[]; questions: Question[]; activity: Activity[] }, nowMs: number): TicketStory {

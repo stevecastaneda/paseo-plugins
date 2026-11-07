@@ -36,7 +36,14 @@ interface Command {
   usage: string;
   summary: string;
   options?: Record<string, { type: "string" | "boolean"; multiple?: boolean }>;
-  run(args: { positionals: string[]; values: Record<string, string | boolean | Array<string | boolean> | undefined>; state: State; cwd: string; root: string; mode: QuestionMode }): { event: EventDraft; message: string };
+  run(args: {
+    positionals: string[];
+    values: Record<string, string | boolean | Array<string | boolean> | undefined>;
+    state: State;
+    cwd: string;
+    root: string;
+    mode: QuestionMode;
+  }): { event: EventDraft; message: string };
 }
 
 const USAGE_NAME = "paseo-progress";
@@ -192,7 +199,8 @@ const commands: Record<string, Command> = {
   },
   finish: {
     usage: `finish "<outcome>"`,
-    summary: "Close the run with a one-line outcome. Every ticket must be done or skipped, no question open, nothing flagged stuck. New work after this needs start.",
+    summary:
+      "Close the run with a one-line outcome. Every ticket must be done or skipped, no question open, nothing flagged stuck. New work after this needs start.",
     run({ positionals, state }) {
       const outcome = required(positionals[0], "outcome");
       if (!state.dashboard.run) throw new UsageError("No run to finish.");
@@ -203,7 +211,8 @@ const commands: Record<string, Command> = {
   },
   "ticket add": {
     usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
-    summary: "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker. --source is where the ticket is written up, like its spec file or issue link.",
+    summary:
+      "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker. --source is where the ticket is written up, like its spec file or issue link.",
     options: { estimate: { type: "string" }, status: { type: "string" }, "waits-for": { type: "string" }, source: { type: "string" } },
     run({ positionals, values, state, cwd, root }) {
       const waitsFor = values["waits-for"] === undefined ? undefined : existingTicket(state, stringOption(values["waits-for"])).id;
@@ -221,7 +230,15 @@ const commands: Record<string, Command> = {
   "ticket update": {
     usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
     summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that. --source is where the ticket is written up ("" clears it).`,
-    options: { status: { type: "string" }, stage: { type: "string" }, title: { type: "string" }, estimate: { type: "string" }, note: { type: "string" }, "waits-for": { type: "string" }, source: { type: "string" } },
+    options: {
+      status: { type: "string" },
+      stage: { type: "string" },
+      title: { type: "string" },
+      estimate: { type: "string" },
+      note: { type: "string" },
+      "waits-for": { type: "string" },
+      source: { type: "string" },
+    },
     run({ positionals, values, state, cwd, root }) {
       const ticket = existingTicket(state, positionals[0]);
       const rawWaitsFor = values["waits-for"] === undefined ? undefined : String(values["waits-for"]).trim();
@@ -229,7 +246,8 @@ const commands: Record<string, Command> = {
       if (waitsFor && waitsFor === ticket.id) throw new UsageError(`${ticket.id} can't wait for itself.`);
       // Refuse a loop (T01 waits for T02 waits for T01): neither could ever start.
       for (let next = waitsFor ? state.dashboard.tickets.find((entry) => entry.id === waitsFor) : undefined, seen = 0; next?.waitsFor && seen < 1000; seen++) {
-        if (next.waitsFor === ticket.id) throw new UsageError(`${ticket.id} can't wait for ${waitsFor}: ${next.id} already waits for ${ticket.id}, so neither could start.`);
+        if (next.waitsFor === ticket.id)
+          throw new UsageError(`${ticket.id} can't wait for ${waitsFor}: ${next.id} already waits for ${ticket.id}, so neither could start.`);
         next = state.dashboard.tickets.find((entry) => entry.id === next!.waitsFor);
       }
       const event = {
@@ -241,11 +259,11 @@ const commands: Record<string, Command> = {
         stage: stringOption(values.stage),
         note: stringOption(values.note),
         waitsFor,
-        source: values.source === undefined ? undefined : String(values.source).trim() === "" ? "" as const : parseFile(String(values.source), cwd, root),
+        source: values.source === undefined ? undefined : String(values.source).trim() === "" ? ("" as const) : parseFile(String(values.source), cwd, root),
       };
       const changes = Object.entries(event).filter(([key, value]) => key !== "type" && key !== "id" && value !== undefined);
       if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, --waits-for, or --source.");
-      const shown = (value: unknown) => (typeof value === "object" ? (value as FileLink).path ?? (value as FileLink).url : value);
+      const shown = (value: unknown) => (typeof value === "object" ? ((value as FileLink).path ?? (value as FileLink).url) : value);
       return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${shown(value)}`).join(", ")}` };
     },
   },
@@ -259,7 +277,8 @@ const commands: Record<string, Command> = {
   },
   "question ask": {
     usage: `question ask "<short title>" "<question>" [--option "A=<label> | <consequence>" ...] --recommend <letter or word> [--big "<why, in a few plain words>"] [--background <text>] [--file <path or http(s) URL>[=<label>] ...] [--raised-by <text>] [--ticket <id>]`,
-    summary: "Ask the user a question. Prints its reference (Q1, Q2, ...) and what to do until the answer, which depends on the question mode the user picks in Paseo's Settings: Stop (stop all work until an answer), Work around (build nothing the question affects, work on the rest), or Keep building (build your recommendation now, change course if the user picks another). --recommend is the option you would pick. Add --big with the reason when the question is big; it only changes what you do in Keep building, where a big question holds like Work around. A question is big when one of these holds, and only then: (1) building your recommendation before the answer would mean something leaves this computer: pushing, publishing, deploying, changing live data, sending messages, spending money; (2) the answer sets something people or programs outside this repo will rely on: a saved data format, a database schema, a public API, command or setting name, or removing or renaming something people already use; (3) most of the tickets or steps still ahead would be built on the answer. Every other question is small, large code changes included. When you can't name the test it meets, it's small. Name the test in the --big reason.",
+    summary:
+      "Ask the user a question. Prints its reference (Q1, Q2, ...) and what to do until the answer, which depends on the question mode the user picks in Paseo's Settings: Stop (stop all work until an answer), Work around (build nothing the question affects, work on the rest), or Keep building (build your recommendation now, change course if the user picks another). --recommend is the option you would pick. Add --big with the reason when the question is big; it only changes what you do in Keep building, where a big question holds like Work around. A question is big when one of these holds, and only then: (1) building your recommendation before the answer would mean something leaves this computer: pushing, publishing, deploying, changing live data, sending messages, spending money; (2) the answer sets something people or programs outside this repo will rely on: a saved data format, a database schema, a public API, command or setting name, or removing or renaming something people already use; (3) most of the tickets or steps still ahead would be built on the answer. Every other question is small, large code changes included. When you can't name the test it meets, it's small. Name the test in the --big reason.",
     options: {
       option: { type: "string", multiple: true },
       recommend: { type: "string" },
@@ -315,11 +334,19 @@ const commands: Record<string, Command> = {
       }
       const asRecommended = choice.toLowerCase() === question.recommended.toLowerCase();
       const built = question.state === "building";
-      const next = !built ? "Build it now."
-        : asRecommended ? "Carry on with it."
-        : `Undo the work built on your recommendation and build ${choice} before anything else.`;
+      const next = !built
+        ? "Build it now."
+        : asRecommended
+          ? "Carry on with it."
+          : `Undo the work built on your recommendation and build ${choice} before anything else.`;
       return {
-        event: { type: "question.answer", id: question.id, choice, words: stringOption(values.words), changedCourse: built && !asRecommended ? true : undefined },
+        event: {
+          type: "question.answer",
+          id: question.id,
+          choice,
+          words: stringOption(values.words),
+          changedCourse: built && !asRecommended ? true : undefined,
+        },
         message: `Answered ${question.id}: ${choice}${asRecommended ? " (as you recommended)" : ` (not your recommendation, ${question.recommended})`}. ${next}`,
       };
     },
@@ -346,12 +373,14 @@ const commands: Record<string, Command> = {
         files: files.length ? files : undefined,
         recommend,
       };
-      if (!event.question && !event.background && !event.files && !recommend) throw new UsageError("Nothing to change. Pass --recommend, --background, --question, or --file.");
+      if (!event.question && !event.background && !event.files && !recommend)
+        throw new UsageError("Nothing to change. Pass --recommend, --background, --question, or --file.");
       if (!recommend) return { event, message: `Updated ${question.id} (${question.title})` };
       const rules = QUESTION_MODE_RULES[mode];
-      const next = question.state === "building"
-        ? `Undo the work built on ${question.recommended} and build ${recommend} instead.`
-        : `Mode: ${rules.label}. ${rules.askRule({ recommend, big: Boolean(question.big) })}`;
+      const next =
+        question.state === "building"
+          ? `Undo the work built on ${question.recommended} and build ${recommend} instead.`
+          : `Mode: ${rules.label}. ${rules.askRule({ recommend, big: Boolean(question.big) })}`;
       return { event, message: `${question.id} now recommends ${recommend} (was ${question.recommended}). ${next}` };
     },
   },
@@ -491,7 +520,8 @@ function guessKind(target: string, isUrl: boolean, cwd: string): (typeof DELIVER
 }
 
 const SHOW_SUMMARY = "Print the dashboard as text: what the user sees in the Progress panel.";
-const INSTALL_SUMMARY = "Write the paseo-progress launcher (default ~/.local/bin/paseo-progress). It runs this command from whichever copy of the plugin Paseo is running.";
+const INSTALL_SUMMARY =
+  "Write the paseo-progress launcher (default ~/.local/bin/paseo-progress). It runs this command from whichever copy of the plugin Paseo is running.";
 const DEFAULT_LAUNCHER = "~/.local/bin/paseo-progress";
 
 // The agent tools describe themselves with the summaries agents see in --help.
@@ -539,7 +569,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
       return 0;
     }
     const target = resolve(options.cwd, (argv[1] ?? DEFAULT_LAUNCHER).replace(/^~(?=$|\/)/, homedir()));
-    out(await installLauncher(target) ? `Installed the launcher at ${target}` : `The launcher at ${target} is already current`);
+    out((await installLauncher(target)) ? `Installed the launcher at ${target}` : `The launcher at ${target} is already current`);
     return 0;
   }
   const twoWord = commands[`${first} ${second}`];
@@ -563,15 +593,20 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     const root = findRoot(options.cwd);
     const store = await findStore(root);
     const mode = await readQuestionMode();
-    const message = await appendProgress(store.directory, now, (state) => {
-      const finished = state.dashboard.run?.finished;
-      if (finished && command !== commands.start) {
-        throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
-      }
-      const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
-      const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
-      return { event: { ...event, by: options.agentId }, result: `${message}${added}` };
-    }, (text) => saveRunCopy(root, text));
+    const message = await appendProgress(
+      store.directory,
+      now,
+      (state) => {
+        const finished = state.dashboard.run?.finished;
+        if (finished && command !== commands.start) {
+          throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
+        }
+        const { event, message } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
+        const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
+        return { event: { ...event, by: options.agentId }, result: `${message}${added}` };
+      },
+      (text) => saveRunCopy(root, text),
+    );
     out(message);
     return 0;
   } catch (error) {
@@ -594,7 +629,9 @@ function isMain(): boolean {
 
 if (isMain()) {
   runCli(process.argv.slice(2), { cwd: process.cwd(), agentId: process.env.PASEO_AGENT_ID || undefined }).then(
-    (code) => { process.exitCode = code; },
+    (code) => {
+      process.exitCode = code;
+    },
     (error) => {
       console.error(error instanceof Error ? error.message : error);
       process.exitCode = 1;

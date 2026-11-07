@@ -3,12 +3,71 @@ import { test } from "node:test";
 import { MIN_CONTRAST, contrastRatio, ensureContrast, isLight, makePalette, type ThemeColors } from "./palette.ts";
 
 // Paseo 0.11.2's default light and zinc dark themes (packages/app/src/styles/theme.ts).
-const LIGHT: ThemeColors = { surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", border: "#e4e4e7", foreground: "#1a1a1e", foregroundMuted: "#71717a", accent: "#20744A", accentForeground: "#ffffff", statusSuccess: "#3e704a", statusDanger: "#9d433b", statusWarning: "#7b5d39" };
-const DARK: ThemeColors = { surface0: "#18181b", surface1: "#1f1f22", surface2: "#27272a", border: "#27272a", foreground: "#fafafa", foregroundMuted: "#a1a1aa", accent: "#e4e4e7", accentForeground: "#18181b", statusSuccess: "#6cb17b", statusDanger: "#d8847b", statusWarning: "#c09664" };
+const LIGHT: ThemeColors = {
+  surface0: "#ffffff",
+  surface1: "#fafafa",
+  surface2: "#f4f4f5",
+  border: "#e4e4e7",
+  foreground: "#1a1a1e",
+  foregroundMuted: "#71717a",
+  accent: "#20744A",
+  accentForeground: "#ffffff",
+  statusSuccess: "#3e704a",
+  statusDanger: "#9d433b",
+  statusWarning: "#7b5d39",
+};
+const DARK: ThemeColors = {
+  surface0: "#18181b",
+  surface1: "#1f1f22",
+  surface2: "#27272a",
+  border: "#27272a",
+  foreground: "#fafafa",
+  foregroundMuted: "#a1a1aa",
+  accent: "#e4e4e7",
+  accentForeground: "#18181b",
+  statusSuccess: "#6cb17b",
+  statusDanger: "#d8847b",
+  statusWarning: "#c09664",
+};
 
-const SGRS = ["", "1", "2", "31", "1;31", "32", "33", "34", "35", "36", "37", "90", "91", "92", "93", "94", "95", "96", "97", "30;42", "37;41", "7;32", "38;5;208", "38;5;17", "48;5;22;37", "38;2;0;0;128", "38;2;255;255;255", "2;34", "4;36", "9;35", "3;33"];
+const SGRS = [
+  "",
+  "1",
+  "2",
+  "31",
+  "1;31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "90",
+  "91",
+  "92",
+  "93",
+  "94",
+  "95",
+  "96",
+  "97",
+  "30;42",
+  "37;41",
+  "7;32",
+  "38;5;208",
+  "38;5;17",
+  "48;5;22;37",
+  "38;2;0;0;128",
+  "38;2;255;255;255",
+  "2;34",
+  "4;36",
+  "9;35",
+  "3;33",
+];
 
-for (const [name, theme] of [["light", LIGHT], ["dark", DARK]] as const) {
+for (const [name, theme] of [
+  ["light", LIGHT],
+  ["dark", DARK],
+] as const) {
   test(`${name} theme: every styled span reads at ${MIN_CONTRAST}:1 against the background it sits on`, () => {
     const p = makePalette(theme);
     assert.equal(p.light, name === "light");

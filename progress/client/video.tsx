@@ -35,7 +35,9 @@ export function VideoPlayer({ blob, label, style }: { blob: FileBlob; label: str
   const url = useObjectUrl(blob);
   return (
     <View style={[style, { overflow: "hidden" }]}>
-      {url ? <video src={url} controls playsInline aria-label={label} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} /> : null}
+      {url ? (
+        <video src={url} controls playsInline aria-label={label} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
+      ) : null}
     </View>
   );
 }

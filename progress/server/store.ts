@@ -131,8 +131,16 @@ export async function setHistoryFolder(root: string, raw: string | null): Promis
 // title as it was at the start, so the name never changes and two runs never
 // share one.
 export function runFileName(startedAt: string, title: string): string {
-  const stamp = startedAt.replace(/\.\d+Z$/, "").replace(/[-:]/g, "").replace("T", "-");
-  const slug = title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+  const stamp = startedAt
+    .replace(/\.\d+Z$/, "")
+    .replace(/[-:]/g, "")
+    .replace("T", "-");
+  const slug = title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
   return `${stamp}${slug ? `-${slug}` : ""}.jsonl`;
 }
 
@@ -144,7 +152,10 @@ export async function saveRunCopy(root: string, text: string): Promise<void> {
   // The run the dashboard shows. A start line it can't read is no run.
   const [start] = latestRun(parseProgress(text).events);
   if (start?.event.type !== "run.start") return;
-  const lines = text.split("\n").slice(start.line - 1).filter((line) => line.trim());
+  const lines = text
+    .split("\n")
+    .slice(start.line - 1)
+    .filter((line) => line.trim());
   const directory = await runsFolder(root, folder);
   if (!directory) return;
   // A rename replaces a link at the run's file instead of writing through it.

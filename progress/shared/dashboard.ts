@@ -152,20 +152,23 @@ export function parseProgress(text: string): { events: ParsedLine[]; issues: Fil
   const issues: FileIssue[] = [];
   // Whether or not the text ends in a newline, the last split piece is either
   // empty or unfinished.
-  text.split("\n").slice(0, -1).forEach((raw, index) => {
-    const line = index + 1;
-    if (!raw.trim()) return;
-    let json: unknown;
-    try {
-      json = JSON.parse(raw);
-    } catch {
-      issues.push({ line, reason: "not valid JSON" });
-      return;
-    }
-    const parsed = eventSchema.safeParse(json);
-    if (parsed.success) events.push({ line, event: parsed.data });
-    else issues.push({ line, reason: describeInvalid(json) });
-  });
+  text
+    .split("\n")
+    .slice(0, -1)
+    .forEach((raw, index) => {
+      const line = index + 1;
+      if (!raw.trim()) return;
+      let json: unknown;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        issues.push({ line, reason: "not valid JSON" });
+        return;
+      }
+      const parsed = eventSchema.safeParse(json);
+      if (parsed.success) events.push({ line, event: parsed.data });
+      else issues.push({ line, reason: describeInvalid(json) });
+    });
   return { events, issues };
 }
 
@@ -209,7 +212,10 @@ export function latestRun(events: ParsedLine[]): ParsedLine[] {
 // Folds the events of the latest run into what the panel shows at `now`, how
 // long that stays true while the events don't change, and the ids new items get.
 // Everything before the last `run.start` belongs to earlier runs and is ignored.
-export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue[] }, now: Date): { dashboard: Dashboard; validUntil: number; nextIds: NextIds } {
+export function reduceProgress(
+  parsed: { events: ParsedLine[]; issues: FileIssue[] },
+  now: Date,
+): { dashboard: Dashboard; validUntil: number; nextIds: NextIds } {
   const time = clock(now);
   const events = latestRun(parsed.events);
   const issues = [...parsed.issues];
@@ -358,9 +364,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
   const list = [...tickets.values()];
   for (const ticket of list) {
     const other = ticket.waitsFor ? tickets.get(ticket.waitsFor) : undefined;
-    ticket.waitingFor = other && !isSettled(other) && !isSettled(ticket)
-      ? { id: other.id, title: other.title }
-      : undefined;
+    ticket.waitingFor = other && !isSettled(other) && !isSettled(ticket) ? { id: other.id, title: other.title } : undefined;
   }
   const itemLabel = run?.itemLabel ?? "Ticket";
   const stuck = stuckItems(list, [...activity.values()], [...manualStuck.values()], time.reached);
@@ -368,9 +372,7 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
   const open = allQuestions.filter((question) => !question.answer);
   // A finished run has nothing left to stall, so it never goes stale.
   const finished = Boolean(run?.finished) || (list.length > 0 && list.every(isSettled));
-  const answered = allQuestions
-    .filter((question) => question.answer)
-    .sort((a, b) => Date.parse(b.answer!.at) - Date.parse(a.answer!.at));
+  const answered = allQuestions.filter((question) => question.answer).sort((a, b) => Date.parse(b.answer!.at) - Date.parse(a.answer!.at));
   const dashboard: Dashboard = {
     run,
     updatedAt,
@@ -388,7 +390,14 @@ export function reduceProgress(parsed: { events: ParsedLine[]; issues: FileIssue
     tickets: list,
     issues: issues.sort((a, b) => a.line - b.line),
   };
-  return { dashboard, validUntil: time.validUntil, nextIds: nextIds(parsed.events.map(({ event }) => event), events.map(({ event }) => event)) };
+  return {
+    dashboard,
+    validUntil: time.validUntil,
+    nextIds: nextIds(
+      parsed.events.map(({ event }) => event),
+      events.map(({ event }) => event),
+    ),
+  };
 }
 
 function nextIds(all: ProgressEvent[], inRun: ProgressEvent[]): NextIds {
@@ -425,7 +434,12 @@ function lastTicketUpdate(ticket: Ticket, activity: Activity[]): number {
   );
 }
 
-function stuckItems(tickets: Ticket[], activity: Activity[], manual: Array<{ id: string; reason: string; ticket?: string; since: string }>, reached: (at: number) => boolean): StuckItem[] {
+function stuckItems(
+  tickets: Ticket[],
+  activity: Activity[],
+  manual: Array<{ id: string; reason: string; ticket?: string; since: string }>,
+  reached: (at: number) => boolean,
+): StuckItem[] {
   const items: StuckItem[] = [];
   for (const ticket of tickets) {
     // Blocked only on another ticket in the run is waiting, not stuck.

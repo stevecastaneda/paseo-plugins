@@ -33,7 +33,13 @@ export function useLastPresent<T>(value: T | null): T | null {
 }
 
 // A button that scales to 0.96 while pressed. `static` turns the scale off.
-export function PressScale({ static: isStatic, style, outerStyle, children, ...props }: Omit<PressableProps, "style" | "children"> & {
+export function PressScale({
+  static: isStatic,
+  style,
+  outerStyle,
+  children,
+  ...props
+}: Omit<PressableProps, "style" | "children"> & {
   static?: boolean;
   // Layout for the pressable itself, e.g. alignSelf; `style` is what scales.
   outerStyle?: StyleProp<ViewStyle>;
@@ -46,14 +52,29 @@ export function PressScale({ static: isStatic, style, outerStyle, children, ...p
   const [pressed, setPressed] = useState(false);
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable {...props} style={outerStyle}
-      onHoverIn={(event) => { setHovered(true); props.onHoverIn?.(event); }}
-      onHoverOut={(event) => { setHovered(false); props.onHoverOut?.(event); }}
-      onPressIn={(event) => { setPressed(true); if (!isStatic) to(0.96); props.onPressIn?.(event); }}
-      onPressOut={(event) => { setPressed(false); if (!isStatic) to(1); props.onPressOut?.(event); }}>
-      <Animated.View style={[typeof style === "function" ? style({ pressed, hovered }) : style, { transform: [{ scale }] }]}>
-        {children}
-      </Animated.View>
+    <Pressable
+      {...props}
+      style={outerStyle}
+      onHoverIn={(event) => {
+        setHovered(true);
+        props.onHoverIn?.(event);
+      }}
+      onHoverOut={(event) => {
+        setHovered(false);
+        props.onHoverOut?.(event);
+      }}
+      onPressIn={(event) => {
+        setPressed(true);
+        if (!isStatic) to(0.96);
+        props.onPressIn?.(event);
+      }}
+      onPressOut={(event) => {
+        setPressed(false);
+        if (!isStatic) to(1);
+        props.onPressOut?.(event);
+      }}
+    >
+      <Animated.View style={[typeof style === "function" ? style({ pressed, hovered }) : style, { transform: [{ scale }] }]}>{children}</Animated.View>
     </Pressable>
   );
 }
@@ -129,7 +150,13 @@ export function Presence({ show, order = 0, children }: { show: boolean; order?:
         return;
       }
       const firstLoad = start !== null && Date.now() - start < FIRST_LOAD_MS;
-      const animation = Animated.timing(enter, { toValue: 1, duration: ENTER_MS, delay: firstLoad ? order * STAGGER_MS : 0, easing: easeOut(), useNativeDriver: nativeDriver() });
+      const animation = Animated.timing(enter, {
+        toValue: 1,
+        duration: ENTER_MS,
+        delay: firstLoad ? order * STAGGER_MS : 0,
+        easing: easeOut(),
+        useNativeDriver: nativeDriver(),
+      });
       setMoving(true);
       animation.start(({ finished }) => finished && setMoving(false));
       return () => animation.stop();
@@ -165,9 +192,6 @@ export function Presence({ show, order = 0, children }: { show: boolean; order?:
 
 function blurStyle(enter: Animated.Value, exit: Animated.Value) {
   // Blur is 4px at either end of the motion and 0 at rest.
-  const amount = Animated.add(
-    enter.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }),
-    exit.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }),
-  );
+  const amount = Animated.add(enter.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }), exit.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }));
   return { filter: amount.interpolate({ inputRange: [0, 4], outputRange: ["blur(0px)", "blur(4px)"] }) };
 }

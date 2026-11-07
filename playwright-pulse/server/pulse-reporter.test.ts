@@ -63,8 +63,11 @@ test("tracks a passing test with its live step and context", async () => {
   assert.equal(live.status, "running");
   assert.equal(live.file, join("e2e", "leads", "leads.spec.ts"));
   assert.deepEqual(live.titlePath, ["Leads"]);
-  assert.deepEqual(live.step && { title: live.step.title, subtitle: live.step.subtitle, context: live.step.context },
-    { title: "Click", subtitle: "getByTestId('save')", context: "Open the lead" });
+  assert.deepEqual(live.step && { title: live.step.title, subtitle: live.step.subtitle, context: live.step.context }, {
+    title: "Click",
+    subtitle: "getByTestId('save')",
+    context: "Open the lead",
+  });
 
   reporter.onStepEnd(one, {}, click);
   reporter.onTestEnd(one, { status: "passed", retry: 0, duration: 4200, errors: [], attachments: [] });
@@ -92,14 +95,20 @@ test("keeps a failure's error, failing step and files, without terminal colors",
   const one = fakeTest(root, "t1", "User saves a scenario", "unexpected");
   reporter.onBegin({ workers: 1 }, { allTests: () => [one] });
   reporter.onTestBegin(one, { retry: 0, startTime: new Date() });
-  const expectStep = step("Expect \"toBeVisible\"", "expect", { subtitle: "getByText('Saved')", error: { message: "boom" } });
+  const expectStep = step('Expect "toBeVisible"', "expect", { subtitle: "getByText('Saved')", error: { message: "boom" } });
   reporter.onStepBegin(one, {}, expectStep);
   reporter.onStepEnd(one, {}, expectStep);
   reporter.onTestEnd(one, {
     status: "failed",
     retry: 0,
     duration: 9000,
-    errors: [{ message: "\u001b[31mError: expect(locator).toBeVisible() failed\u001b[39m", snippet: "\u001b[2m> 12 |\u001b[22m await expect(saved)", location: { file: join(root, "e2e", "leads", "leads.spec.ts"), line: 12 } }],
+    errors: [
+      {
+        message: "\u001b[31mError: expect(locator).toBeVisible() failed\u001b[39m",
+        snippet: "\u001b[2m> 12 |\u001b[22m await expect(saved)",
+        location: { file: join(root, "e2e", "leads", "leads.spec.ts"), line: 12 },
+      },
+    ],
     attachments: [
       { name: "screenshot", contentType: "image/png", path: join(root, ".context", "test-results", "a", "test-failed-1.png") },
       { name: "trace", contentType: "application/zip", body: Buffer.from("") },
@@ -116,7 +125,10 @@ test("keeps a failure's error, failing step and files, without terminal colors",
   assert.deepEqual(failed.error?.location, { file: join("e2e", "leads", "leads.spec.ts"), line: 12 });
   assert.equal(failed.failedStep, "Expect \"toBeVisible\" · getByText('Saved')");
   // Only attachments saved to disk can be opened later.
-  assert.deepEqual(failed.attachments.map((attachment) => attachment.name), ["screenshot"]);
+  assert.deepEqual(
+    failed.attachments.map((attachment) => attachment.name),
+    ["screenshot"],
+  );
 });
 
 test("a retry reuses the test's row, and an interrupted run closes running tests", () => {

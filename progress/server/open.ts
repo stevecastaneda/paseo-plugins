@@ -5,7 +5,17 @@ import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import nodePath, { delimiter, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { findAttachment, type FolderEntry, imageMimeType, isPieced, type PiecedKind, previewKind, splitRef, textFormat, videoMimeType } from "../shared/attachments.ts";
+import {
+  findAttachment,
+  type FolderEntry,
+  imageMimeType,
+  isPieced,
+  type PiecedKind,
+  previewKind,
+  splitRef,
+  textFormat,
+  videoMimeType,
+} from "../shared/attachments.ts";
 import { prepareMarkdown, previewText } from "../shared/markdown.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, hasGitEntry, inGitFolder, outside } from "./paths.ts";
@@ -54,7 +64,11 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
-async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; realTarget: string; realRoot: string; worktree: string }> {
+async function resolveAttachment(
+  directory: string,
+  ref: string,
+  verb: string,
+): Promise<{ path: string; realTarget: string; realRoot: string; worktree: string }> {
   const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
@@ -185,14 +199,16 @@ async function inlineLocalFiles(html: string, page: string, root: string): Promi
       return null;
     }
   };
-  const dataUri = (data: Buffer, file: string) => `data:${imageMimeType(file) ?? videoMimeType(file) ?? "application/octet-stream"};base64,${data.toString("base64")}`;
+  const dataUri = (data: Buffer, file: string) =>
+    `data:${imageMimeType(file) ?? videoMimeType(file) ?? "application/octet-stream"};base64,${data.toString("base64")}`;
   // Its own end tag would close the element early.
   const body = (tag: string) => (data: Buffer) => data.toString("utf8").replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
   html = await replaceEach(html, /<(?:img|source|video)\b[^>]*>/gi, (tag) =>
     replaceEach(tag[0], /(?<=\s)(src|poster)(\s*=\s*)(["'])([^"']*)\3/gi, async ([, name, equals, quote, url]) => {
       const uri = await inline(url, dataUri);
       return uri && `${name}${equals}${quote}${uri}${quote}`;
-    }));
+    }),
+  );
   html = await replaceEach(html, /<link\b[^>]*>/gi, async ([tag]) => {
     const href = tag.match(/\bhref\s*=\s*(["'])([^"']*)\1/i)?.[2];
     if (!href || !/\brel\s*=\s*(["'])\s*stylesheet\s*\1/i.test(tag)) return null;
@@ -237,10 +253,7 @@ export async function readDeliverablePiece(directory: string, id: string, offset
   }
 }
 
-export async function handlePreviewDeliverable(
-  input: { workspaceId: string; workspaceDirectory: string; ref: string },
-  _context: PluginHandlerContext,
-) {
+export async function handlePreviewDeliverable(input: { workspaceId: string; workspaceDirectory: string; ref: string }, _context: PluginHandlerContext) {
   return previewDeliverable(input.workspaceDirectory, input.ref);
 }
 
@@ -251,10 +264,7 @@ export async function handleReadDeliverablePiece(
   return readDeliverablePiece(input.workspaceDirectory, input.ref, input.offset);
 }
 
-export async function handleOpenDeliverable(
-  input: { workspaceId: string; workspaceDirectory: string; ref: string },
-  _context: PluginHandlerContext,
-) {
+export async function handleOpenDeliverable(input: { workspaceId: string; workspaceDirectory: string; ref: string }, _context: PluginHandlerContext) {
   return openDeliverable(input.workspaceDirectory, input.ref, hostOpener(process.platform, process.env));
 }
 

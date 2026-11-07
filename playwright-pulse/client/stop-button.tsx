@@ -18,7 +18,17 @@ type Phase = "idle" | "confirm" | "stopping" | "force";
 // Stops the run as Ctrl+C would. The first press asks, so a stray click
 // can't end a long suite; if the run hasn't ended a while after stopping, the
 // button offers to force it, as a second Ctrl+C does.
-export function StopButton({ colors, runId, workspaceId, workspaceDirectory }: { colors: Colors; runId: string; workspaceId: string; workspaceDirectory: string }) {
+export function StopButton({
+  colors,
+  runId,
+  workspaceId,
+  workspaceDirectory,
+}: {
+  colors: Colors;
+  runId: string;
+  workspaceId: string;
+  workspaceDirectory: string;
+}) {
   const stop = useRpc(stopRun);
   const toast = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -45,14 +55,25 @@ export function StopButton({ colors, runId, workspaceId, workspaceDirectory }: {
   const asking = phase === "confirm" || phase === "force";
   const label = phase === "confirm" ? "Stop run?" : phase === "stopping" ? "Stopping…" : phase === "force" ? "Force stop" : "Stop";
   return (
-    <PressScale accessibilityRole="button" accessibilityLabel={phase === "idle" ? "Stop the test run" : label}
-      aria-busy={phase === "stopping"} disabled={phase === "stopping"} onPress={onPress}
+    <PressScale
+      accessibilityRole="button"
+      accessibilityLabel={phase === "idle" ? "Stop the test run" : label}
+      aria-busy={phase === "stopping"}
+      disabled={phase === "stopping"}
+      onPress={onPress}
       style={({ pressed, hovered }) => ({
-        flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 4, paddingStart: 7, paddingEnd: 9, borderRadius: 4,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingVertical: 4,
+        paddingStart: 7,
+        paddingEnd: 9,
+        borderRadius: 4,
         ...(asking ? {} : raised(colors)),
         backgroundColor: asking ? colors.statusDanger : pressed ? colors.surface2 : hovered ? colors.surface2 : colors.surface1,
         opacity: phase === "stopping" ? 0.6 : asking && (pressed || hovered) ? 0.88 : 1,
-      })}>
+      })}
+    >
       <IconSwap swapKey={asking ? "ask" : phase} size={12}>
         <Icon name={phase === "stopping" ? "Hourglass" : "Square"} size={12} color={asking ? "#ffffff" : colors.foreground} />
       </IconSwap>

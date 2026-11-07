@@ -1,11 +1,7 @@
 {
   "id": "history",
   "icon": "icon.png",
-  "media": [
-    "images/1-conversation.png",
-    "images/2-tags.png",
-    "images/3-source.png"
-  ],
+  "media": ["images/1-conversation.png", "images/2-tags.png", "images/3-source.png"],
   "requirements": {
     "paseo": ">=0.13.0"
   }

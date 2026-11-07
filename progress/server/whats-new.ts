@@ -59,23 +59,32 @@ function note(bullet: string): WhatsNewNote {
   const tag = /^\[([a-z]+)\]\s*(.*)$/i.exec(bullet);
   const kind = tag ? noteKind(tag[1]) : undefined;
   const rest = kind ? tag![2] : bullet;
-  const text = rest.split(/(`[^`]+`)/).map((part, index) => index % 2 ? part : curly(part)).join("");
+  const text = rest
+    .split(/(`[^`]+`)/)
+    .map((part, index) => (index % 2 ? part : curly(part)))
+    .join("");
   const lead = /^\*\*([^*]+?[.!?])\*\*\s*(.*)$/.exec(text);
   return { ...(kind && { kind }), ...(lead ? { title: plain(lead[1]), body: lead[2] } : { body: text }) };
 }
 
 function noteKind(tag: string): NoteKind | undefined {
   const key = tag.toLowerCase();
-  return Object.hasOwn(NOTE_KINDS, key) ? key as NoteKind : undefined;
+  return Object.hasOwn(NOTE_KINDS, key) ? (key as NoteKind) : undefined;
 }
 
 // The README is typed with straight quotes; the panel shows typeset ones. Code keeps its own.
 function curly(text: string): string {
-  return text.replace(/(^|[\s([{])"/g, "$1\u201c").replace(/"/g, "\u201d").replace(/(^|[\s([{])'/g, "$1\u2018").replace(/'/g, "\u2019");
+  return text
+    .replace(/(^|[\s([{])"/g, "$1\u201c")
+    .replace(/"/g, "\u201d")
+    .replace(/(^|[\s([{])'/g, "$1\u2018")
+    .replace(/'/g, "\u2019");
 }
 
 function plain(markdown: string): string {
-  return spans(markdown).map((span) => span.text).join("");
+  return spans(markdown)
+    .map((span) => span.text)
+    .join("");
 }
 
 // A note's title, or else the first sentence of its body, without Markdown.
@@ -115,9 +124,9 @@ export async function whatsNew({ version, readme }: Release, home = homedir()): 
     await markWhatsNewSeen(version, home);
     return null;
   }
-  const releases = (readme === null ? [] : changelog(readme)).filter((release) => seen === null
-    ? release.version === version
-    : compareVersions(release.version, seen) > 0 && compareVersions(release.version, version) <= 0);
+  const releases = (readme === null ? [] : changelog(readme)).filter((release) =>
+    seen === null ? release.version === version : compareVersions(release.version, seen) > 0 && compareVersions(release.version, version) <= 0,
+  );
   if (!releases.length) return null;
   const notes = releases.flatMap((release) => release.notes);
   return { version, headline: headline(notes.find((note) => note.kind === "new") ?? notes[0]), releases };

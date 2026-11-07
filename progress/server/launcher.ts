@@ -8,9 +8,10 @@ export const PLUGIN_ID = "progress";
 // Paseo names for the agents and plugins it starts, PATH, then the app's
 // default install. The launcher script below carries the same list.
 export function paseoCommands(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string[] {
-  const installed = platform === "win32"
-    ? env.LOCALAPPDATA && win32.join(env.LOCALAPPDATA, "Programs", "Paseo", "resources", "bin", "paseo.cmd")
-    : "/Applications/Paseo.app/Contents/Resources/bin/paseo";
+  const installed =
+    platform === "win32"
+      ? env.LOCALAPPDATA && win32.join(env.LOCALAPPDATA, "Programs", "Paseo", "resources", "bin", "paseo.cmd")
+      : "/Applications/Paseo.app/Contents/Resources/bin/paseo";
   return [env.PASEO_BIN, env.PASEO_CLI, "paseo", installed].filter((cli): cli is string => Boolean(cli));
 }
 
@@ -91,7 +92,10 @@ type LauncherFile = { path: string; content: string };
 function launcherFiles(path: string, platform: NodeJS.Platform): LauncherFile[] {
   const files = [{ path, content: launcherScript() }];
   if (platform === "win32") {
-    files.push({ path: `${path}.cmd`, content: `@echo off\r\nrem ${MARKER}. Lets PowerShell and cmd run ${basename(path)}.\r\nnode "%~dp0${basename(path)}" %*\r\nexit /b %errorlevel%\r\n` });
+    files.push({
+      path: `${path}.cmd`,
+      content: `@echo off\r\nrem ${MARKER}. Lets PowerShell and cmd run ${basename(path)}.\r\nnode "%~dp0${basename(path)}" %*\r\nexit /b %errorlevel%\r\n`,
+    });
   }
   return files;
 }
@@ -132,12 +136,16 @@ export async function launcherStatus(path = defaultLauncherPath(), pathEnv = pro
   const files = await fileStates(path, platform);
   const states = files.map((file) => file.state);
   const foreign = files.find((file) => file.state === "foreign");
-  const state: LauncherState = foreign ? "foreign"
-    : states.every((each) => each === "current") ? "current"
-    : states.every((each) => each === "missing") ? "missing" : "outdated";
+  const state: LauncherState = foreign
+    ? "foreign"
+    : states.every((each) => each === "current")
+      ? "current"
+      : states.every((each) => each === "missing")
+        ? "missing"
+        : "outdated";
   // Windows paths ignore case and may end in either slash.
   const paths = platform === "win32" ? win32 : posix;
-  const folder = (dir: string) => platform === "win32" ? dir.replace(/[\\/]+$/, "").toLowerCase() : dir.replace(/\/+$/, "");
+  const folder = (dir: string) => (platform === "win32" ? dir.replace(/[\\/]+$/, "").toLowerCase() : dir.replace(/\/+$/, ""));
   return {
     path: foreign?.path ?? path,
     state,

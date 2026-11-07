@@ -10,8 +10,11 @@ export function TimeBar({ colors, workedMin, estimateMin }: { colors: Colors; wo
   const scale = Math.max(workedMin, estimateMin);
   const under = Math.min(workedMin, estimateMin);
   return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      style={{ height: 4, borderRadius: 2, overflow: "hidden", flexDirection: "row", backgroundColor: colors.surface2 }}>
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ height: 4, borderRadius: 2, overflow: "hidden", flexDirection: "row", backgroundColor: colors.surface2 }}
+    >
       <View style={{ width: `${(under / scale) * 100}%`, backgroundColor: colors.accent }} />
       {workedMin > estimateMin ? <View style={{ width: `${((workedMin - estimateMin) / scale) * 100}%`, backgroundColor: colors.statusDanger }} /> : null}
     </View>

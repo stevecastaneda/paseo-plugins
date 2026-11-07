@@ -7,9 +7,7 @@ type PaseoApi = ReturnType<typeof getPaseoClient>;
 type Handler<Subscribe> = Subscribe extends (handler: infer H) => unknown ? H : never;
 export type PaseoAgentUpdate = Parameters<Handler<PaseoApi["agents"]["subscribe"]>>[0];
 export type PaseoWorkspaceUpdate = Parameters<Handler<PaseoApi["workspaces"]["subscribe"]>>[0];
-type Message = Parameters<
-  Parameters<NonNullable<Awaited<ReturnType<PaseoApi["agents"]["list"]>>["subscription"]>["subscribe"]>[0]["update"]
->[0];
+type Message = Parameters<Parameters<NonNullable<Awaited<ReturnType<PaseoApi["agents"]["list"]>>["subscription"]>["subscribe"]>[0]["update"]>[0];
 type OwnedSubscription<T> = {
   subscribe(observer: { snapshot(snapshot: T): void; update(message: Message): void; error?(error: unknown): void }): () => void;
   release(): Promise<void>;

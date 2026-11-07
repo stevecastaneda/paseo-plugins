@@ -2,9 +2,11 @@ import { parseTaskNotification, type TaskNotification } from "./task-notificatio
 
 type RecordValue = Record<string, unknown>;
 function record(value: unknown): RecordValue {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as RecordValue) : {};
 }
-function string(value: unknown): string { return typeof value === "string" ? value : ""; }
+function string(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
 
 export interface HistoryEntry {
   raw: string;
@@ -24,102 +26,178 @@ export interface HistoryEntry {
 function contentText(value: unknown): string {
   if (typeof value === "string") return value;
   if (!Array.isArray(value)) return "";
-  return value.map((item) => {
-    const block = record(item);
-    return string(block.text) || string(block.thinking) || string(block.content)
-      || (block.type === "tool_use" ? `${string(block.name)}\n${JSON.stringify(block.input, null, 2)}` : "")
-      || (block.type === "tool_result" ? contentText(block.content) : "")
-      || (string(block.type).includes("image") ? "[Image]" : "");
-  }).filter(Boolean).join("\n\n");
+  return value
+    .map((item) => {
+      const block = record(item);
+      return (
+        string(block.text) ||
+        string(block.thinking) ||
+        string(block.content) ||
+        (block.type === "tool_use" ? `${string(block.name)}\n${JSON.stringify(block.input, null, 2)}` : "") ||
+        (block.type === "tool_result" ? contentText(block.content) : "") ||
+        (string(block.type).includes("image") ? "[Image]" : "")
+      );
+    })
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export function parseEntries(text: string): HistoryEntry[] {
-  return text.split("\n").filter((line) => line.trim()).map((raw) => {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      const data = record(parsed);
-      if (string(record(data.info).id).startsWith("ses_") || (data.info && Array.isArray(data.parts))) {
-        return parseOpenCodeEntry(data, raw);
+  return text
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((raw) => {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        const data = record(parsed);
+        if (string(record(data.info).id).startsWith("ses_") || (data.info && Array.isArray(data.parts))) {
+          return parseOpenCodeEntry(data, raw);
+        }
+        const payload = record(data.payload);
+        const kind = string(data.type) || "object";
+        const chat = kind === "user" || kind === "assistant";
+        const message = chat ? record(data.message) : {};
+        const body = Object.keys(payload).length ? payload : Object.keys(message).length ? message : data;
+        const subtype = string(body.type);
+        const role = string(body.role) || (chat ? kind : "");
+        const title = role ? `${role[0]!.toUpperCase()}${role.slice(1)}` : (subtype || kind).replace(/[_-]/g, " ");
+        const preview =
+          contentText(body.content) ||
+          string(body.message) ||
+          string(body.text) ||
+          string(body.output) ||
+          string(body.arguments) ||
+          string(body.summary) ||
+          string(body.cwd) ||
+          string(data.summary) ||
+          JSON.stringify(parsed);
+        const blocks = Array.isArray(body.content) ? body.content.map(record) : [];
+        const tool = /(?:function|custom_tool)_call/.test(subtype) || blocks.some((block) => block.type === "tool_use" || block.type === "tool_result");
+        const reasoning = subtype === "reasoning" || blocks.some((block) => block.type === "thinking");
+        const messageText =
+          typeof body.content === "string"
+            ? body.content
+            : blocks
+                .filter((block) => ["text", "input_text", "output_text"].includes(string(block.type)))
+                .map((block) => string(block.text))
+                .join("\n\n");
+        const conversation = role === "user" || role === "assistant";
+        // Claude Code delivers harness task envelopes as user entries, never as assistant text.
+        const envelope = role === "user" && /^\s*<task-notification>/.test(messageText);
+        const parsedNotification = envelope ? (parseTaskNotification(messageText) ?? undefined) : undefined;
+        // First matching rule wins. Claude Code marks text it injects (skill bodies,
+        // command expansions, compaction summaries) with isMeta or isCompactSummary.
+        const category =
+          (
+            [
+              ["context", role === "developer" || role === "system" || kind === "session_meta" || kind === "turn_context" || kind === "world_state"],
+              ["context", data.isMeta === true || data.isCompactSummary === true],
+              ["context", role === "user" && /^(?:# AGENTS\.md|<environment_context>|<recommended_plugins>)/.test(preview.trim())],
+              ["events", envelope && !parsedNotification],
+              ["message", conversation && Boolean(messageText)],
+              ["tools", tool],
+              ["reasoning", reasoning],
+              ["message", conversation],
+            ] as const
+          ).find(([, matches]) => matches)?.[0] ?? "events";
+        const displayText = category === "message" ? messageText || preview : preview;
+        const notification = category === "message" ? parsedNotification : undefined;
+        // Codex event_msg item_completed/message mirrors are kept as events; only
+        // canonical response_item messages enter the readable conversation.
+        return {
+          raw,
+          title,
+          kind: subtype && subtype !== kind ? `${kind} · ${subtype}` : kind,
+          timestamp: string(data.timestamp) || string(body.timestamp),
+          preview: displayText,
+          valid: true,
+          category,
+          role,
+          startsTurn: subtype === "task_started" || (kind === "user" && category === "message" && !tool && !notification),
+          hasTools: tool,
+          hasReasoning: reasoning,
+          notification,
+        };
+      } catch {
+        return {
+          raw,
+          title: "Unparsed entry",
+          kind: "raw text",
+          timestamp: "",
+          preview: "This line is incomplete or is not valid JSON. Its original text is preserved below.",
+          valid: false,
+          category: "events",
+          role: "",
+          startsTurn: false,
+          hasTools: false,
+          hasReasoning: false,
+        };
       }
-      const payload = record(data.payload);
-      const kind = string(data.type) || "object";
-      const chat = kind === "user" || kind === "assistant";
-      const message = chat ? record(data.message) : {};
-      const body = Object.keys(payload).length ? payload : Object.keys(message).length ? message : data;
-      const subtype = string(body.type);
-      const role = string(body.role) || (chat ? kind : "");
-      const title = role ? `${role[0]!.toUpperCase()}${role.slice(1)}`
-        : (subtype || kind).replace(/[_-]/g, " ");
-      const preview = contentText(body.content) || string(body.message) || string(body.text)
-        || string(body.output) || string(body.arguments) || string(body.summary)
-        || string(body.cwd) || string(data.summary) || JSON.stringify(parsed);
-      const blocks = Array.isArray(body.content) ? body.content.map(record) : [];
-      const tool = /(?:function|custom_tool)_call/.test(subtype) || blocks.some((block) => block.type === "tool_use" || block.type === "tool_result");
-      const reasoning = subtype === "reasoning" || blocks.some((block) => block.type === "thinking");
-      const messageText = typeof body.content === "string" ? body.content : blocks
-        .filter((block) => ["text", "input_text", "output_text"].includes(string(block.type)))
-        .map((block) => string(block.text)).join("\n\n");
-      const conversation = role === "user" || role === "assistant";
-      // Claude Code delivers harness task envelopes as user entries, never as assistant text.
-      const envelope = role === "user" && /^\s*<task-notification>/.test(messageText);
-      const parsedNotification = envelope ? parseTaskNotification(messageText) ?? undefined : undefined;
-      // First matching rule wins. Claude Code marks text it injects (skill bodies,
-      // command expansions, compaction summaries) with isMeta or isCompactSummary.
-      const category = ([
-        ["context", role === "developer" || role === "system" || kind === "session_meta" || kind === "turn_context" || kind === "world_state"],
-        ["context", data.isMeta === true || data.isCompactSummary === true],
-        ["context", role === "user" && /^(?:# AGENTS\.md|<environment_context>|<recommended_plugins>)/.test(preview.trim())],
-        ["events", envelope && !parsedNotification],
-        ["message", conversation && Boolean(messageText)],
-        ["tools", tool],
-        ["reasoning", reasoning],
-        ["message", conversation],
-      ] as const).find(([, matches]) => matches)?.[0] ?? "events";
-      const displayText = category === "message" ? messageText || preview : preview;
-      const notification = category === "message" ? parsedNotification : undefined;
-      // Codex event_msg item_completed/message mirrors are kept as events; only
-      // canonical response_item messages enter the readable conversation.
-      return { raw, title, kind: subtype && subtype !== kind ? `${kind} · ${subtype}` : kind,
-        timestamp: string(data.timestamp) || string(body.timestamp), preview: displayText, valid: true,
-        category, role, startsTurn: subtype === "task_started" || (kind === "user" && category === "message" && !tool && !notification),
-        hasTools: tool, hasReasoning: reasoning, notification };
-    } catch {
-      return { raw, title: "Unparsed entry", kind: "raw text", timestamp: "",
-        preview: "This line is incomplete or is not valid JSON. Its original text is preserved below.", valid: false,
-        category: "events", role: "", startsTurn: false, hasTools: false, hasReasoning: false };
-    }
-  });
+    });
 }
 
 function parseOpenCodeEntry(data: RecordValue, raw: string): HistoryEntry {
   const info = record(data.info);
   const role = string(info.role);
   const parts = Array.isArray(data.parts) ? data.parts.map(record) : [];
-  const text = parts.filter((part) => part.type === "text").map((part) => string(part.text)).filter(Boolean).join("\n\n");
+  const text = parts
+    .filter((part) => part.type === "text")
+    .map((part) => string(part.text))
+    .filter(Boolean)
+    .join("\n\n");
   const hasTools = parts.some((part) => part.type === "tool");
   const hasReasoning = parts.some((part) => part.type === "reasoning");
-  const attachments = parts.filter((part) => part.type === "file").map((part) => `[File: ${string(part.filename) || string(part.mime) || "attachment"}]`).join("\n");
-  const category = !role || role === "system" || role === "developer" ? "context"
-    : text || attachments ? "message" : hasTools ? "tools" : hasReasoning ? "reasoning" : "events";
-  const preview = [text, attachments].filter(Boolean).join("\n\n") || parts.map((part) => {
-    if (part.type === "reasoning") return string(part.text);
-    if (part.type === "tool") {
-      const state = record(part.state);
-      return [string(part.tool), JSON.stringify(state.input, null, 2), string(state.output) || string(state.error)].filter(Boolean).join("\n");
-    }
-    return JSON.stringify(part);
-  }).join("\n\n") || string(info.title) || JSON.stringify(info);
+  const attachments = parts
+    .filter((part) => part.type === "file")
+    .map((part) => `[File: ${string(part.filename) || string(part.mime) || "attachment"}]`)
+    .join("\n");
+  const category =
+    !role || role === "system" || role === "developer"
+      ? "context"
+      : text || attachments
+        ? "message"
+        : hasTools
+          ? "tools"
+          : hasReasoning
+            ? "reasoning"
+            : "events";
+  const preview =
+    [text, attachments].filter(Boolean).join("\n\n") ||
+    parts
+      .map((part) => {
+        if (part.type === "reasoning") return string(part.text);
+        if (part.type === "tool") {
+          const state = record(part.state);
+          return [string(part.tool), JSON.stringify(state.input, null, 2), string(state.output) || string(state.error)].filter(Boolean).join("\n");
+        }
+        return JSON.stringify(part);
+      })
+      .join("\n\n") ||
+    string(info.title) ||
+    JSON.stringify(info);
   const created = record(info.time).created;
   const timestamp = typeof created === "number" && Number.isFinite(new Date(created).getTime()) ? new Date(created).toISOString() : "";
-  const notification = category === "message" && role === "user" ? parseTaskNotification(preview) ?? undefined : undefined;
+  const notification = category === "message" && role === "user" ? (parseTaskNotification(preview) ?? undefined) : undefined;
   return {
-    raw, title: role ? `${role[0]!.toUpperCase()}${role.slice(1)}` : "Session details",
-    kind: `opencode · ${role || "session"}`, timestamp, preview, valid: true,
-    category, role, startsTurn: role === "user" && !notification, hasTools, hasReasoning, notification,
+    raw,
+    title: role ? `${role[0]!.toUpperCase()}${role.slice(1)}` : "Session details",
+    kind: `opencode · ${role || "session"}`,
+    timestamp,
+    preview,
+    valid: true,
+    category,
+    role,
+    startsTurn: role === "user" && !notification,
+    hasTools,
+    hasReasoning,
+    notification,
   };
 }
 
-export interface HistoryTurn { entries: HistoryEntry[]; title: string; }
+export interface HistoryTurn {
+  entries: HistoryEntry[];
+  title: string;
+}
 
 export function groupTurns(entries: HistoryEntry[]): HistoryTurn[] {
   const turns: HistoryTurn[] = [];

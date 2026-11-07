@@ -16,7 +16,14 @@ test("paginates exports on whole records with byte-correct Unicode offsets", () 
   assert.ok(first.nextOffset < first.totalBytes);
   const second = pageOpenCodeExport(json, sessionId, first.nextOffset, first.source);
   assert.equal(second.nextOffset, second.totalBytes);
-  assert.deepEqual((first.text + second.text).trim().split("\n").map(JSON.parse as (text: string) => unknown).slice(1), messages);
+  assert.deepEqual(
+    (first.text + second.text)
+      .trim()
+      .split("\n")
+      .map(JSON.parse as (text: string) => unknown)
+      .slice(1),
+    messages,
+  );
   assert.equal(first.modifiedAt, new Date(1).toISOString());
   assert.equal(pageOpenCodeExport(json, sessionId, second.nextOffset, second.source).text, "");
 });

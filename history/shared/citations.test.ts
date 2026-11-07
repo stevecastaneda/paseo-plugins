@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { hideCitations } from "./citations.ts";
 
 test("drops memory citations and keeps the message around them", () => {
-  const source = "**Found it.**\n\n<oai-mem-citation>\n<citation_entries>\nMEMORY.md:23-27\n</citation_entries>\n</oai-mem-citation>\n\nHere is the fix: <oai-mem-citation>MEMORY.md:4</oai-mem-citation>done.";
+  const source =
+    "**Found it.**\n\n<oai-mem-citation>\n<citation_entries>\nMEMORY.md:23-27\n</citation_entries>\n</oai-mem-citation>\n\nHere is the fix: <oai-mem-citation>MEMORY.md:4</oai-mem-citation>done.";
   assert.equal(hideCitations(source), "**Found it.**\n\nHere is the fix: done.");
 });
 

@@ -3,7 +3,32 @@ import { Icon, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { PulseTest, RunSnapshot } from "../shared/run";
-import { folders, assignSlots, attachmentKind, isLive, slowest, slowestPrompt, type Folder, errorPreview, failureMessage, formatClock, formatDuration, isFailure, testWhere, timeoutShare, runningSlotCount, workerCount, MAX_WORKER_DOTS, MAX_WORKER_DOTS_NARROW, shownFailure, stepFailure, verdict, verdictNote, type AttachmentKind, type Counts } from "../shared/view";
+import {
+  folders,
+  assignSlots,
+  attachmentKind,
+  isLive,
+  slowest,
+  slowestPrompt,
+  type Folder,
+  errorPreview,
+  failureMessage,
+  formatClock,
+  formatDuration,
+  isFailure,
+  testWhere,
+  timeoutShare,
+  runningSlotCount,
+  workerCount,
+  MAX_WORKER_DOTS,
+  MAX_WORKER_DOTS_NARROW,
+  shownFailure,
+  stepFailure,
+  verdict,
+  verdictNote,
+  type AttachmentKind,
+  type Counts,
+} from "../shared/view";
 import { IconSwap, PressScale } from "./motion";
 import { mono } from "./mono";
 import { useNarrow } from "./narrow";
@@ -21,8 +46,15 @@ export interface AttachmentActions {
 
 function Card({ colors, children, tone }: { colors: Colors; children: React.ReactNode; tone?: "danger" }) {
   return (
-    <View style={{ margin: 12, marginBottom: 0, borderRadius: 6, overflow: "hidden",
-      ...(tone === "danger" ? { borderWidth: 1, borderColor: colors.statusDanger } : raised(colors)) }}>
+    <View
+      style={{
+        margin: 12,
+        marginBottom: 0,
+        borderRadius: 6,
+        overflow: "hidden",
+        ...(tone === "danger" ? { borderWidth: 1, borderColor: colors.statusDanger } : raised(colors)),
+      }}
+    >
       {children}
     </View>
   );
@@ -37,7 +69,11 @@ const SLOW_STEP_MS = 2_000;
 export function RunningSection({ colors, run, now }: { colors: Colors; run: RunSnapshot; now: number }) {
   const running = run.tests.filter((test) => test.status === "running");
   const slots = useRef<(string | null)[]>([]);
-  slots.current = assignSlots(slots.current, running.map((test) => test.id), runningSlotCount(run, running.length));
+  slots.current = assignSlots(
+    slots.current,
+    running.map((test) => test.id),
+    runningSlotCount(run, running.length),
+  );
   const narrow = useNarrow();
   return (
     <Card colors={colors}>
@@ -61,12 +97,24 @@ function WorkerCount({ colors, count }: { colors: Colors; count: ReturnType<type
         {count.dots ? (
           <View style={{ flexDirection: "row", gap: 3 }}>
             {count.dots.map((busy, index) => (
-              <View key={index} style={{ width: 7, height: 7, borderRadius: 3.5, borderWidth: 1.5,
-                borderColor: busy ? colors.accent : colors.foregroundMuted, backgroundColor: busy ? colors.accent : "transparent", opacity: busy ? 1 : 0.6 }} />
+              <View
+                key={index}
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: 3.5,
+                  borderWidth: 1.5,
+                  borderColor: busy ? colors.accent : colors.foregroundMuted,
+                  backgroundColor: busy ? colors.accent : "transparent",
+                  opacity: busy ? 1 : 0.6,
+                }}
+              />
             ))}
           </View>
         ) : null}
-        <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{count.label}</Text>
+        <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
+          {count.label}
+        </Text>
       </View>
     </>
   );
@@ -81,10 +129,30 @@ function RunningTest({ colors, test, now }: { colors: Colors; test: PulseTest | 
   const stepElapsed = test?.step ? now - Date.parse(test.step.startedAt) : 0;
   const trail = [...(test?.recentSteps ?? [])].reverse().slice(0, TRAIL_ROWS);
   return (
-    <View style={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: 12, gap: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface1 }}>
+    <View
+      style={{
+        paddingHorizontal: 10,
+        paddingTop: 10,
+        paddingBottom: 12,
+        gap: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        backgroundColor: colors.surface1,
+      }}
+    >
       <View style={{ gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-          <Text numberOfLines={2} style={{ flex: 1, minHeight: 36, color: test ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: test ? "600" : "400" }}>
+          <Text
+            numberOfLines={2}
+            style={{
+              flex: 1,
+              minHeight: 36,
+              color: test ? colors.foreground : colors.foregroundMuted,
+              fontSize: 13,
+              lineHeight: 18,
+              fontWeight: test ? "600" : "400",
+            }}
+          >
             {test ? test.title : "Waiting for the next test"}
           </Text>
           {test?.retry ? <Badge colors={colors} color={colors.statusWarning} label={`Retry ${test.retry}`} /> : null}
@@ -94,23 +162,41 @@ function RunningTest({ colors, test, now }: { colors: Colors; test: PulseTest | 
             The space after the last "›" can't break, or the screen drops it. */}
         <View style={{ flexDirection: "row", minWidth: 0 }}>
           {test?.titlePath.length ? (
-            <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test.titlePath.join(" › ")}{" ›\u00a0"}</Text>
+            <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+              {test.titlePath.join(" › ")}
+              {" ›\u00a0"}
+            </Text>
           ) : null}
-          <Text numberOfLines={1} style={{ flexShrink: 0, maxWidth: "100%", color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test ? `${test.file}:${test.line}` : " "}</Text>
+          <Text numberOfLines={1} style={{ flexShrink: 0, maxWidth: "100%", color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+            {test ? `${test.file}:${test.line}` : " "}
+          </Text>
         </View>
       </View>
       <View style={{ borderRadius: 4, backgroundColor: colors.surface0, ...raised(colors), overflow: "hidden" }}>
-        <StepLine colors={colors} live
+        <StepLine
+          colors={colors}
+          live
           icon={test ? <Spinner color={colors.accent} size={12} /> : <WaitingDot color={colors.foregroundMuted} size={12} />}
-          title={test ? (test.step?.title ?? "Setting up") : ""} subtitle={test?.step?.subtitle}
-          context={test?.step?.context} time={stepElapsed >= SLOW_STEP_MS ? formatClock(stepElapsed) : undefined} />
+          title={test ? (test.step?.title ?? "Setting up") : ""}
+          subtitle={test?.step?.subtitle}
+          context={test?.step?.context}
+          time={stepElapsed >= SLOW_STEP_MS ? formatClock(stepElapsed) : undefined}
+        />
         {Array.from({ length: TRAIL_ROWS }, (_, index) => {
           const step = trail[index];
           return step ? (
-            <StepLine key={index} colors={colors} faded={index + 1}
+            <StepLine
+              key={index}
+              colors={colors}
+              faded={index + 1}
               icon={<Icon name={step.failed ? "X" : "Check"} size={12} color={step.failed ? colors.statusDanger : colors.statusSuccess} />}
-              title={step.title} subtitle={step.subtitle} time={formatDuration(step.duration)} />
-          ) : <StepLine key={index} colors={colors} hidden icon={null} title=" " />;
+              title={step.title}
+              subtitle={step.subtitle}
+              time={formatDuration(step.duration)}
+            />
+          ) : (
+            <StepLine key={index} colors={colors} hidden icon={null} title=" " />
+          );
         })}
       </View>
       <TimeoutBar colors={colors} share={share ?? 0} timeout={test?.timeout ?? 0} hidden={share === null} />
@@ -121,19 +207,59 @@ function RunningTest({ colors, test, now }: { colors: Colors; test: PulseTest | 
 // One step: icon, title, the locator or URL it acted on, and its time. The
 // live step always takes two lines and its "in" line, so a long locator or a
 // step with no context doesn't change the row's height.
-function StepLine({ colors, icon, title, subtitle, context, time, live, faded = 0, hidden }: {
-  colors: Colors; icon: React.ReactNode; title: string; subtitle?: string; context?: string; time?: string; live?: boolean; faded?: number; hidden?: boolean;
+function StepLine({
+  colors,
+  icon,
+  title,
+  subtitle,
+  context,
+  time,
+  live,
+  faded = 0,
+  hidden,
+}: {
+  colors: Colors;
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  context?: string;
+  time?: string;
+  live?: boolean;
+  faded?: number;
+  hidden?: boolean;
 }) {
   return (
-    <View aria-hidden={hidden} style={{ flexDirection: "row", gap: 8, paddingHorizontal: 8, paddingVertical: 6, opacity: hidden ? 0 : 1 - faded * 0.18,
-      borderTopWidth: live ? 0 : 1, borderTopColor: colors.border }}>
+    <View
+      aria-hidden={hidden}
+      style={{
+        flexDirection: "row",
+        gap: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        opacity: hidden ? 0 : 1 - faded * 0.18,
+        borderTopWidth: live ? 0 : 1,
+        borderTopColor: colors.border,
+      }}
+    >
       <View style={{ width: 12, paddingTop: 3, alignItems: "center" }}>{icon}</View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={live ? 2 : 1} style={{ minHeight: live ? 36 : undefined, color: live ? colors.foreground : colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+        <Text
+          numberOfLines={live ? 2 : 1}
+          style={{ minHeight: live ? 36 : undefined, color: live ? colors.foreground : colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}
+        >
           <Text style={{ fontWeight: live ? "600" : "400" }}>{title}</Text>
-          {subtitle ? <Text style={{ fontFamily: mono(), fontSize: 11, color: colors.foregroundMuted }}>{"  "}{subtitle}</Text> : null}
+          {subtitle ? (
+            <Text style={{ fontFamily: mono(), fontSize: 11, color: colors.foregroundMuted }}>
+              {"  "}
+              {subtitle}
+            </Text>
+          ) : null}
         </Text>
-        {live ? <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>{context ? `in ${context}` : " "}</Text> : null}
+        {live ? (
+          <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
+            {context ? `in ${context}` : " "}
+          </Text>
+        ) : null}
       </View>
       {time ? <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{time}</Text> : null}
     </View>
@@ -146,7 +272,14 @@ function TimeoutBar({ colors, share, timeout, hidden }: { colors: Colors; share:
   return (
     <View aria-hidden={hidden} style={{ flexDirection: "row", alignItems: "center", gap: 8, opacity: hidden ? 0 : 1 }}>
       <View style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.surface2, overflow: "hidden" }}>
-        <View style={{ width: `${Math.round(share * 100)}%`, height: 3, backgroundColor: late ? colors.statusWarning : colors.foregroundMuted, opacity: late ? 1 : 0.5 }} />
+        <View
+          style={{
+            width: `${Math.round(share * 100)}%`,
+            height: 3,
+            backgroundColor: late ? colors.statusWarning : colors.foregroundMuted,
+            opacity: late ? 1 : 0.5,
+          }}
+        />
       </View>
       <Text style={{ color: late ? colors.statusWarning : colors.foregroundMuted, fontSize: 11, lineHeight: 16, fontVariant: ["tabular-nums"] }}>
         {formatDuration(timeout)} timeout
@@ -175,15 +308,34 @@ export function FailuresSection({ colors, run, actions }: { colors: Colors; run:
   const step = (delta: 1 | -1) => setPicked(stepFailure(ids, shown?.id ?? null, delta));
   return (
     <Card colors={colors} tone="danger">
-      <SectionTitle colors={colors} icon="CircleX" title={failures.length === 1 ? "1 failure" : `${failures.length} failures`} color={colors.statusDanger}
-        style={failures.length > 1 ? { paddingVertical: 5 } : undefined}>
+      <SectionTitle
+        colors={colors}
+        icon="CircleX"
+        title={failures.length === 1 ? "1 failure" : `${failures.length} failures`}
+        color={colors.statusDanger}
+        style={failures.length > 1 ? { paddingVertical: 5 } : undefined}
+      >
         {failures.length > 1 ? (
           // One small control, not three: the arrows and count share a shape,
           // inset to the same edge as the text below.
           // The arrows' hover sits inset, with room before the count.
-          <View style={{ marginStart: "auto", flexDirection: "row", alignItems: "center", height: 24, padding: 2, borderRadius: 4, ...raised(colors), backgroundColor: colors.surface1 }}>
+          <View
+            style={{
+              marginStart: "auto",
+              flexDirection: "row",
+              alignItems: "center",
+              height: 24,
+              padding: 2,
+              borderRadius: 4,
+              ...raised(colors),
+              backgroundColor: colors.surface1,
+            }}
+          >
             <PagerButton colors={colors} icon="ChevronLeft" label="Previous failure" onPress={() => step(-1)} />
-            <Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 6, color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{ paddingHorizontal: 6, color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}
+            >
               {index + 1} of {failures.length}
             </Text>
             <PagerButton colors={colors} icon="ChevronRight" label="Next failure" onPress={() => step(1)} />
@@ -197,9 +349,19 @@ export function FailuresSection({ colors, run, actions }: { colors: Colors; run:
 
 function PagerButton({ colors, icon, label, onPress }: { colors: Colors; icon: string; label: string; onPress(): void }) {
   return (
-    <PressScale accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-      style={({ pressed, hovered }) => ({ width: 20, height: 20, alignItems: "center", justifyContent: "center", borderRadius: 2,
-        backgroundColor: pressed || hovered ? colors.surface2 : "transparent" })}>
+    <PressScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed, hovered }) => ({
+        width: 20,
+        height: 20,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 2,
+        backgroundColor: pressed || hovered ? colors.surface2 : "transparent",
+      })}
+    >
       <Icon name={icon} size={14} color={colors.foreground} />
     </PressScale>
   );
@@ -222,7 +384,10 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
   const byKind = new Map(files.map((file) => [file.kind, file]));
   const copy = () => {
     const text = [`${test.title} (${test.file}:${test.line})`, message, test.error?.snippet].filter(Boolean).join("\n\n");
-    copyText(text).then(() => toast.show("Copied the error", { variant: "success", durationMs: 2000 }), () => toast.error("Could not copy."));
+    copyText(text).then(
+      () => toast.show("Copied the error", { variant: "success", durationMs: 2000 }),
+      () => toast.error("Could not copy."),
+    );
   };
   return (
     <View style={{ paddingHorizontal: 10, paddingVertical: 10, gap: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
@@ -230,9 +395,13 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
           <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{test.title}</Text>
           {test.status === "timedOut" ? <Badge colors={colors} color={colors.statusWarning} label="Timed out" /> : null}
-          {test.duration !== undefined ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatDuration(test.duration)}</Text> : null}
+          {test.duration !== undefined ? (
+            <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatDuration(test.duration)}</Text>
+          ) : null}
         </View>
-        <Text numberOfLines={2} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{testWhere(test)}</Text>
+        <Text numberOfLines={2} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+          {testWhere(test)}
+        </Text>
         {test.failedStep ? (
           <Text numberOfLines={2} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             Failed at <Text style={{ color: colors.foreground }}>{test.failedStep}</Text>
@@ -244,15 +413,36 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
           {expanded ? message.trimEnd() : preview.text}
         </Text>
         {expanded && test.error?.snippet ? (
-          <Text selectable style={{ color: colors.foregroundMuted, fontFamily: mono(), fontSize: 11, lineHeight: 16, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Text
+            selectable
+            style={{
+              color: colors.foregroundMuted,
+              fontFamily: mono(),
+              fontSize: 11,
+              lineHeight: 16,
+              paddingTop: 6,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+            }}
+          >
             {test.error.snippet}
           </Text>
         ) : null}
         {preview.more || test.error?.snippet ? (
-          <PressScale static accessibilityRole="button" aria-expanded={expanded} onPress={() => setExpanded(!expanded)} outerStyle={{ alignSelf: "flex-start" }}
-            style={({ hovered }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: hovered ? 1 : 0.85 })}>
-            <IconSwap swapKey={expanded ? "up" : "down"} size={12}><Icon name={expanded ? "ChevronUp" : "ChevronDown"} size={12} color={colors.foregroundMuted} /></IconSwap>
-            <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, fontWeight: "600" }}>{expanded ? "Show less" : test.error?.snippet ? "Show all and the code" : "Show all"}</Text>
+          <PressScale
+            static
+            accessibilityRole="button"
+            aria-expanded={expanded}
+            onPress={() => setExpanded(!expanded)}
+            outerStyle={{ alignSelf: "flex-start" }}
+            style={({ hovered }) => ({ flexDirection: "row", alignItems: "center", gap: 4, opacity: hovered ? 1 : 0.85 })}
+          >
+            <IconSwap swapKey={expanded ? "up" : "down"} size={12}>
+              <Icon name={expanded ? "ChevronUp" : "ChevronDown"} size={12} color={colors.foregroundMuted} />
+            </IconSwap>
+            <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, fontWeight: "600" }}>
+              {expanded ? "Show less" : test.error?.snippet ? "Show all and the code" : "Show all"}
+            </Text>
           </PressScale>
         ) : null}
       </View>
@@ -260,8 +450,19 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
         {KIND_ORDER.map((kind) => {
           const file = byKind.get(kind);
           if (!file) return null;
-          return <ChipButton key={kind} colors={colors} icon={KIND_ICON[kind]} label={KIND_LABEL[kind]}
-            onPress={() => (kind === "screenshot" ? actions.preview(test, file.index) : actions.open({ testId: test.id, index: file.index, path: file.attachment.path }, kind))} />;
+          return (
+            <ChipButton
+              key={kind}
+              colors={colors}
+              icon={KIND_ICON[kind]}
+              label={KIND_LABEL[kind]}
+              onPress={() =>
+                kind === "screenshot"
+                  ? actions.preview(test, file.index)
+                  : actions.open({ testId: test.id, index: file.index, path: file.attachment.path }, kind)
+              }
+            />
+          );
         })}
         <ChipButton colors={colors} icon="Copy" label="Copy error" onPress={copy} />
       </View>
@@ -271,9 +472,21 @@ function Failure({ colors, test, actions }: { colors: Colors; test: PulseTest; a
 
 function ChipButton({ colors, icon, label, onPress }: { colors: Colors; icon: string; label: string; onPress(): void }) {
   return (
-    <PressScale accessibilityRole="button" onPress={onPress}
-      style={({ pressed, hovered }) => ({ flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 4, paddingStart: 7, paddingEnd: 9, borderRadius: 4,
-        ...raised(colors), backgroundColor: pressed ? colors.surface1 : hovered ? colors.surface2 : colors.surface1 })}>
+    <PressScale
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed, hovered }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingVertical: 4,
+        paddingStart: 7,
+        paddingEnd: 9,
+        borderRadius: 4,
+        ...raised(colors),
+        backgroundColor: pressed ? colors.surface1 : hovered ? colors.surface2 : colors.surface1,
+      })}
+    >
       <Icon name={icon} size={12} color={colors.foreground} />
       <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 16 }}>{label}</Text>
     </PressScale>
@@ -287,7 +500,10 @@ export function SlowestList({ colors, run }: { colors: Colors; run: RunSnapshot 
   const toast = useToast();
   const tests = slowest(run);
   const copy = (text: string, done: string) => {
-    copyText(text).then(() => toast.show(done, { variant: "success", durationMs: 2000 }), () => toast.error("Could not copy."));
+    copyText(text).then(
+      () => toast.show(done, { variant: "success", durationMs: 2000 }),
+      () => toast.error("Could not copy."),
+    );
   };
   return (
     <View>
@@ -297,14 +513,23 @@ export function SlowestList({ colors, run }: { colors: Colors; run: RunSnapshot 
           <View key={test.id} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 4, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
               <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{test.title}</Text>
-              <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatDuration(test.duration ?? 0)}</Text>
+              <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
+                {formatDuration(test.duration ?? 0)}
+              </Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-              <Text selectable numberOfLines={2} style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{test.file}:{test.line}</Text>
+              <Text selectable numberOfLines={2} style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+                {test.file}:{test.line}
+              </Text>
               {/* Optical: the 22px button centers on the 17px line without growing it, its glyph flush with the time above. */}
-              <PressScale accessibilityRole="button" accessibilityLabel={`Copy the path of ${test.title}`} hitSlop={6} outerStyle={{ marginVertical: -3, marginEnd: -4 }}
+              <PressScale
+                accessibilityRole="button"
+                accessibilityLabel={`Copy the path of ${test.title}`}
+                hitSlop={6}
+                outerStyle={{ marginVertical: -3, marginEnd: -4 }}
                 onPress={() => copy(`${test.file}:${test.line}`, "Copied the path")}
-                style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: rowTint(colors, { pressed, hovered }) })}>
+                style={({ pressed, hovered }) => ({ padding: 4, borderRadius: 4, backgroundColor: rowTint(colors, { pressed, hovered }) })}
+              >
                 <Icon name="Copy" size={14} color={colors.foregroundMuted} />
               </PressScale>
             </View>
@@ -313,8 +538,17 @@ export function SlowestList({ colors, run }: { colors: Colors; run: RunSnapshot 
         );
       })}
       <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-        <ChipButton colors={colors} icon="Copy" label={tests.length === 1 ? "Copy a prompt to speed it up" : "Copy a prompt to speed these up"}
-          onPress={() => copy(slowestPrompt(run, tests), tests.length === 1 ? "Copied a prompt for the slowest test" : `Copied a prompt for the ${tests.length} slowest tests`)} />
+        <ChipButton
+          colors={colors}
+          icon="Copy"
+          label={tests.length === 1 ? "Copy a prompt to speed it up" : "Copy a prompt to speed these up"}
+          onPress={() =>
+            copy(
+              slowestPrompt(run, tests),
+              tests.length === 1 ? "Copied a prompt for the slowest test" : `Copied a prompt for the ${tests.length} slowest tests`,
+            )
+          }
+        />
       </View>
     </View>
   );
@@ -343,10 +577,14 @@ export function FoldersList({ colors, run }: { colors: Colors; run: RunSnapshot 
           <FolderRow colors={colors} folder={folder} live={live} first={index === 0} open={open.has(folder.name)} onPress={() => toggle(folder.name)} />
           {open.has(folder.name) ? (
             <View style={{ backgroundColor: colors.surface1 }}>
-              {folder.tests.map((test) => <TestRow key={test.id} colors={colors} test={test} />)}
+              {folder.tests.map((test) => (
+                <TestRow key={test.id} colors={colors} test={test} />
+              ))}
               {folder.total > folder.tests.length ? (
                 <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-                  <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}><WaitingDot color={colors.foregroundMuted} size={14} /></View>
+                  <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
+                    <WaitingDot color={colors.foregroundMuted} size={14} />
+                  </View>
                   <Text style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
                     {folder.total - folder.tests.length} {live ? "to go" : "didn't run"}
                   </Text>
@@ -368,8 +606,26 @@ function FolderIcon({ colors, folder, live }: { colors: Colors; folder: Folder; 
   return <WaitingDot color={colors.foregroundMuted} size={14} />;
 }
 
-function FolderRow({ colors, folder, live, first, open, onPress }: { colors: Colors; folder: Folder; live: boolean; first: boolean; open: boolean; onPress(): void }) {
-  const notes = [folder.failed ? `${folder.failed} failed` : null, folder.flaky ? `${folder.flaky} flaky` : null, folder.skipped ? `${folder.skipped} skipped` : null].filter(Boolean);
+function FolderRow({
+  colors,
+  folder,
+  live,
+  first,
+  open,
+  onPress,
+}: {
+  colors: Colors;
+  folder: Folder;
+  live: boolean;
+  first: boolean;
+  open: boolean;
+  onPress(): void;
+}) {
+  const notes = [
+    folder.failed ? `${folder.failed} failed` : null,
+    folder.flaky ? `${folder.flaky} flaky` : null,
+    folder.skipped ? `${folder.skipped} skipped` : null,
+  ].filter(Boolean);
   const segments = [
     { key: "passed", flex: folder.passed, color: colors.statusSuccess },
     { key: "failed", flex: folder.failed, color: colors.statusDanger },
@@ -379,22 +635,47 @@ function FolderRow({ colors, folder, live, first, open, onPress }: { colors: Col
   ].filter((segment) => segment.flex > 0);
   const chevron = open ? "ChevronUp" : "ChevronDown";
   return (
-    <PressableRow colors={colors} accessibilityRole="button" aria-expanded={open}
-      accessibilityLabel={`${folder.name}: ${folder.done} of ${folder.total} done${notes.length ? `, ${notes.join(", ")}` : ""}`} onPress={onPress}
-      style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
-      <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}><FolderIcon colors={colors} folder={folder} live={live} /></View>
+    <PressableRow
+      colors={colors}
+      accessibilityRole="button"
+      aria-expanded={open}
+      accessibilityLabel={`${folder.name}: ${folder.done} of ${folder.total} done${notes.length ? `, ${notes.join(", ")}` : ""}`}
+      onPress={onPress}
+      style={{
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderTopWidth: first ? 0 : 1,
+        borderTopColor: colors.border,
+      }}
+    >
+      <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
+        <FolderIcon colors={colors} folder={folder} live={live} />
+      </View>
       <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-          <Text numberOfLines={1} style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{folder.name}</Text>
-          {notes.length ? <Text style={{ color: folder.failed ? colors.statusDanger : colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{notes.join(" · ")}</Text> : null}
-          <Text style={{ minWidth: 40, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{folder.done}/{folder.total}</Text>
+          <Text numberOfLines={1} style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
+            {folder.name}
+          </Text>
+          {notes.length ? (
+            <Text style={{ color: folder.failed ? colors.statusDanger : colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{notes.join(" · ")}</Text>
+          ) : null}
+          <Text style={{ minWidth: 40, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
+            {folder.done}/{folder.total}
+          </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 1, height: 3, borderRadius: 2, overflow: "hidden" }}>
-          {segments.map((segment) => <View key={segment.key} style={{ flex: segment.flex, backgroundColor: segment.color }} />)}
+          {segments.map((segment) => (
+            <View key={segment.key} style={{ flex: segment.flex, backgroundColor: segment.color }} />
+          ))}
         </View>
       </View>
       <View style={{ paddingTop: 2 }}>
-        <IconSwap swapKey={chevron} size={14}><Icon name={chevron} size={14} color={colors.foregroundMuted} /></IconSwap>
+        <IconSwap swapKey={chevron} size={14}>
+          <Icon name={chevron} size={14} color={colors.foregroundMuted} />
+        </IconSwap>
       </View>
     </PressableRow>
   );
@@ -402,12 +683,18 @@ function FolderRow({ colors, folder, live, first, open, onPress }: { colors: Col
 
 function TestIcon({ colors, test }: { colors: Colors; test: PulseTest }) {
   switch (verdict(test)) {
-    case "running": return <Spinner color={colors.accent} size={14} />;
-    case "passed": return <Icon name="Check" size={14} color={colors.statusSuccess} />;
-    case "flaky": return <Icon name="TriangleAlert" size={14} color={colors.statusWarning} />;
-    case "skipped": return <Icon name="CircleSlash" size={14} color={colors.foregroundMuted} />;
-    case "stopped": return <Icon name="CircleStop" size={14} color={colors.statusWarning} />;
-    default: return <Icon name={test.status === "timedOut" ? "Timer" : "X"} size={14} color={colors.statusDanger} />;
+    case "running":
+      return <Spinner color={colors.accent} size={14} />;
+    case "passed":
+      return <Icon name="Check" size={14} color={colors.statusSuccess} />;
+    case "flaky":
+      return <Icon name="TriangleAlert" size={14} color={colors.statusWarning} />;
+    case "skipped":
+      return <Icon name="CircleSlash" size={14} color={colors.foregroundMuted} />;
+    case "stopped":
+      return <Icon name="CircleStop" size={14} color={colors.statusWarning} />;
+    default:
+      return <Icon name={test.status === "timedOut" ? "Timer" : "X"} size={14} color={colors.statusDanger} />;
   }
 }
 
@@ -416,14 +703,28 @@ function TestRow({ colors, test }: { colors: Colors; test: PulseTest }) {
   const note = verdictNote(test);
   const flaky = verdict(test) === "flaky";
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: narrow ? 8 : 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-      <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}><TestIcon colors={colors} test={test} /></View>
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: narrow ? 8 : 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+      }}
+    >
+      <View style={{ width: 16, paddingTop: 2, alignItems: "center" }}>
+        <TestIcon colors={colors} test={test} />
+      </View>
       <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
         <Text style={{ color: test.status === "skipped" ? colors.foregroundMuted : colors.foreground, fontSize: 13, lineHeight: 18 }}>{test.title}</Text>
         {note ? <Text style={{ color: flaky ? colors.statusWarning : colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{note}</Text> : null}
       </View>
       {test.duration !== undefined && test.status !== "skipped" ? (
-        <Text style={{ minWidth: 36, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>{formatDuration(test.duration)}</Text>
+        <Text style={{ minWidth: 36, textAlign: "right", color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontVariant: ["tabular-nums"] }}>
+          {formatDuration(test.duration)}
+        </Text>
       ) : null}
     </View>
   );

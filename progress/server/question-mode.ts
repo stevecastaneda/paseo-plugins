@@ -48,7 +48,10 @@ export function mirrorQuestionMode(settings: Settings, home = homedir()): { stop
     return write(state);
   });
   // A change heard while the first read is in flight is newer than that read.
-  const settled = settings.read().catch(() => null).then((state) => (changed ? writes : write(state)));
+  const settled = settings
+    .read()
+    .catch(() => null)
+    .then((state) => (changed ? writes : write(state)));
   return {
     settled,
     async stop() {

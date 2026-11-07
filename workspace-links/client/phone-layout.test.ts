@@ -27,9 +27,12 @@ function renderer(modules: Record<string, unknown>) {
     useState(initial: unknown) {
       const slot = cursor++;
       if (!(slot in slots)) slots[slot] = typeof initial === "function" ? (initial as () => unknown)() : initial;
-      return [slots[slot], (value: unknown) => {
-        slots[slot] = typeof value === "function" ? (value as (current: unknown) => unknown)(slots[slot]) : value;
-      }];
+      return [
+        slots[slot],
+        (value: unknown) => {
+          slots[slot] = typeof value === "function" ? (value as (current: unknown) => unknown)(slots[slot]) : value;
+        },
+      ];
     },
     useEffect(effect: () => void) {
       const slot = cursor++;
@@ -83,11 +86,16 @@ function all(node: Node, matches: (element: Element) => boolean): Element[] {
 }
 
 function text(node: Node): string[] {
-  return all(node, (element) => element.type === "Text").map((element) => [element.props.children].flat().filter((child) => typeof child === "string" || typeof child === "number").join(""));
+  return all(node, (element) => element.type === "Text").map((element) =>
+    [element.props.children]
+      .flat()
+      .filter((child) => typeof child === "string" || typeof child === "number")
+      .join(""),
+  );
 }
 
 function flat(style: unknown): Record<string, unknown> {
-  return Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style && typeof style === "object" ? style as Record<string, unknown> : {};
+  return Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style && typeof style === "object" ? (style as Record<string, unknown>) : {};
 }
 
 function pressable(tree: Node, name: string): Record<string, any> & { style: Record<string, unknown> } {
@@ -165,7 +173,10 @@ test("phones get no Show label switch, and the Show as picker is 44pt", async ()
 });
 
 test("the open Show as picker tells screen readers on the web and on phones which choice is picked", async () => {
-  for (const [placement, picked] of [["header", "Header Button"], ["composer", "Composer Pill"]]) {
+  for (const [placement, picked] of [
+    ["header", "Header Button"],
+    ["composer", "Composer Pill"],
+  ]) {
     const render = panelRenderer(false, { placement, headerShowsLabel: false });
     pressable(await render(), `Show as, ${picked}`).onPress();
     const tree = await render();

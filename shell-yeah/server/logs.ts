@@ -20,7 +20,11 @@ export function defaultLogRoot(home = homedir(), env: NodeJS.ProcessEnv = proces
   return join(home, ".local", "state", "shell-yeah", "logs");
 }
 
-export function createLogStore({ root, now = Date.now, limits = LIMITS.logs }: {
+export function createLogStore({
+  root,
+  now = Date.now,
+  limits = LIMITS.logs,
+}: {
   root: string;
   now?: () => number;
   limits?: { maxAgeMs: number; maxBytes: number };
@@ -73,5 +77,13 @@ function safeName(id: string): string {
 
 // "npm test -- --watch" -> "npm-test-watch", so a person browsing the folder knows each file.
 function slug(command: string): string {
-  return command.split("\n")[0].toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+/, "").slice(0, 40).replace(/-+$/, "") || "output";
+  return (
+    command
+      .split("\n")[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+/, "")
+      .slice(0, 40)
+      .replace(/-+$/, "") || "output"
+  );
 }

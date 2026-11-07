@@ -1,22 +1,11 @@
 import { observeDirectory, type PaseoWorkspaceUpdate } from "./directory";
-import {
-  type PluginButtonContentProps,
-  type PluginButtonIconProps,
-  type PluginButtonRegistration,
-  type PluginClientContext,
-} from "@getpaseo/plugin/client";
+import { type PluginButtonContentProps, type PluginButtonIconProps, type PluginButtonRegistration, type PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useSyncExternalStore } from "react";
 import { ActivityIndicator } from "react-native";
 import type { SetupSnapshot } from "../shared/setup";
 import { getSetupStatus, runSetup } from "../shared/setup";
-import {
-  buttonLabel,
-  buttonTitle,
-  completedDurationMs,
-  shouldShowButton,
-  statusIconName,
-} from "../shared/snapshot";
+import { buttonLabel, buttonTitle, completedDurationMs, shouldShowButton, statusIconName } from "../shared/snapshot";
 import { SetupPopover } from "./popover";
 
 export function contributeClient(client: PluginClientContext) {
@@ -186,8 +175,11 @@ export function contributeClient(client: PluginClientContext) {
       if (stopped || !worktreeIds.has(workspaceId) || pending.get(workspaceId) !== request) return;
       rememberSnapshot(workspaceId, snapshot, runningForMs);
       publishButtons();
-    } catch { /* Retry on the next status refresh. */ }
-    finally { if (pending.get(workspaceId) === request) pending.delete(workspaceId); }
+    } catch {
+      /* Retry on the next status refresh. */
+    } finally {
+      if (pending.get(workspaceId) === request) pending.delete(workspaceId);
+    }
   };
   const sync = async () => {
     await Promise.all([...worktreeIds].map(refreshWorkspace));
@@ -195,10 +187,14 @@ export function contributeClient(client: PluginClientContext) {
   };
   const unsubscribeWorkspaces = observeDirectory({
     list: (options) => client.paseo.workspaces.list(options),
-    select: (message) => message.type === "workspace_update" ? message.payload : undefined,
+    select: (message) => (message.type === "workspace_update" ? message.payload : undefined),
     snapshot: (entries) => {
       const next = new Set(entries.filter((workspace) => workspace.workspaceKind === "worktree").map((workspace) => workspace.id));
-      for (const id of worktreeIds) if (!next.has(id)) { worktreeIds.delete(id); forgetWorkspace(id); }
+      for (const id of worktreeIds)
+        if (!next.has(id)) {
+          worktreeIds.delete(id);
+          forgetWorkspace(id);
+        }
       for (const id of next) {
         worktreeIds.add(id);
         void refreshWorkspace(id);

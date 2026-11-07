@@ -2,30 +2,30 @@ import type { ProgressMessages } from "../messages";
 
 export const messages: ProgressMessages = {
   status: {
-    "not_started": "未开始",
-    "working": "进行中",
-    "blocked": "受阻",
-    "done": "已完成",
-    "skipped": "已跳过"
+    not_started: "未开始",
+    working: "进行中",
+    blocked: "受阻",
+    done: "已完成",
+    skipped: "已跳过",
   },
   questionModes: {
-    "stop": {
-      "label": "停止",
-      "hint": "智能体提问后会停止所有工作，直到你回答。"
+    stop: {
+      label: "停止",
+      hint: "智能体提问后会停止所有工作，直到你回答。",
     },
     "work-around": {
-      "label": "继续其他工作",
-      "hint": "智能体暂停受回答影响的工作，继续处理其余事项。"
+      label: "继续其他工作",
+      hint: "智能体暂停受回答影响的工作，继续处理其余事项。",
     },
     "keep-building": {
-      "label": "继续构建",
-      "hint": "你做决定期间，智能体会先按推荐方案构建；若你选择其他方案，则调整方向。重大问题仍会等待回答。"
-    }
+      label: "继续构建",
+      hint: "你做决定期间，智能体会先按推荐方案构建；若你选择其他方案，则调整方向。重大问题仍会等待回答。",
+    },
   },
   noteKinds: {
-    "new": "新增",
-    "improved": "改进",
-    "fixed": "修复"
+    new: "新增",
+    improved: "改进",
+    fixed: "修复",
   },
   loading: "加载中…",
   loadingProgress: "正在加载进度",

@@ -19,7 +19,12 @@ function dialogHarness() {
       useState(initial: unknown) {
         const index = slot++;
         if (!(index in slots)) slots[index] = initial;
-        return [slots[index], (next: unknown) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
+        return [
+          slots[index],
+          (next: unknown) => {
+            slots[index] = typeof next === "function" ? next(slots[index]) : next;
+          },
+        ];
       },
       useRef(initial: unknown) {
         const index = slot++;
@@ -30,7 +35,12 @@ function dialogHarness() {
       useContext: () => ({ locale: "en", messages }),
     },
     "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
-    "@getpaseo/plugin/client/ui": { Modal: Object.assign(() => null, { Content: () => null }), Icon: () => null, useToast: () => ({}), copyText: async () => {} },
+    "@getpaseo/plugin/client/ui": {
+      Modal: Object.assign(() => null, { Content: () => null }),
+      Icon: () => null,
+      useToast: () => ({}),
+      copyText: async () => {},
+    },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { StackedDialog } = h.load("client/dialog-stack.tsx");
@@ -52,8 +62,13 @@ test("Esc leaves a full-screen image for the preview dialog, and a second Esc cl
   const render = dialogHarness();
   let closed = 0;
   const shot = { ref: "d1", title: "Home screen", path: "shots/home.png" };
-  const props = { colors: {}, now: 0, onClose: () => closed++, context: { workspaceId: "w", workspaceDirectory: "/w" },
-    root: { kind: "preview", attachment: shot, group: [shot], fullScreen: false } };
+  const props = {
+    colors: {},
+    now: 0,
+    onClose: () => closed++,
+    context: { workspaceId: "w", workspaceDirectory: "/w" },
+    root: { kind: "preview", attachment: shot, group: [shot], fullScreen: false },
+  };
 
   render(props).preview!.props.onFullScreen(true);
   let { modal, preview } = render(props);
@@ -76,8 +91,13 @@ test("stepping through the gallery keeps full screen for images and drops to the
   const home = { ref: "d1", title: "Home screen", path: "shots/home.png" };
   const settings = { ref: "d2", title: "Settings", path: "shots/settings.png" };
   const notes = { ref: "d3", title: "Notes", path: "notes.md" };
-  const props = { colors: {}, now: 0, onClose() {}, context: { workspaceId: "w", workspaceDirectory: "/w" },
-    root: { kind: "preview", attachment: home, group: [home, settings, notes], fullScreen: false } };
+  const props = {
+    colors: {},
+    now: 0,
+    onClose() {},
+    context: { workspaceId: "w", workspaceDirectory: "/w" },
+    root: { kind: "preview", attachment: home, group: [home, settings, notes], fullScreen: false },
+  };
   render(props).preview!.props.onFullScreen(true);
 
   render(props).preview!.props.gallery.onSelect(settings);

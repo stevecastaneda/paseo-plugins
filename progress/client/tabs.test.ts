@@ -23,15 +23,25 @@ function strip(overflow: "wrap" | "fit" | "scroll" | undefined, selected: Id) {
   let slots: unknown[] = [];
   let cursor = 0;
   const h = clientHarness(directory, {
-    react: { ...React, useEffect() {}, useState(initial: unknown) {
-      const slot = cursor++;
-      if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
-      return [slots[slot], (value: unknown) => { slots[slot] = value; }];
-    }, useRef(initial: unknown) {
-      const slot = cursor++;
-      if (!(slot in slots)) slots[slot] = { current: initial };
-      return slots[slot];
-    } },
+    react: {
+      ...React,
+      useEffect() {},
+      useState(initial: unknown) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
+        return [
+          slots[slot],
+          (value: unknown) => {
+            slots[slot] = value;
+          },
+        ];
+      },
+      useRef(initial: unknown) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = { current: initial };
+        return slots[slot];
+      },
+    },
     "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text", Pressable: "Pressable", ScrollView: "ScrollView" },
     "@getpaseo/plugin/client/ui": { Icon: "Icon" },
   });
@@ -41,14 +51,32 @@ function strip(overflow: "wrap" | "fit" | "scroll" | undefined, selected: Id) {
   const animated: boolean[] = [];
   const render = (shown: Id[] = ids, mode = overflow) => {
     cursor = 0;
-    const outer: Element = TabStrip({ colors: { border: "#333", accent: "#55f", foreground: "#fff", foregroundMuted: "#999", surface0: "#000000", surface2: "#222" },
-      tabs: shown.map((id) => ({ id, label: id, icon: "Dot", count: 2 })), selected, onSelect: (id: Id) => chosen.push(id), overflow: mode });
+    const outer: Element = TabStrip({
+      colors: { border: "#333", accent: "#55f", foreground: "#fff", foregroundMuted: "#999", surface0: "#000000", surface2: "#222" },
+      tabs: shown.map((id) => ({ id, label: id, icon: "Dot", count: 2 })),
+      selected,
+      onSelect: (id: Id) => chosen.push(id),
+      overflow: mode,
+    });
     // A scrolling row is its scroll view plus the edge fades laid over it.
     const [root, before, after]: Array<Element | null> = outer.props.children?.[0]?.type === "ScrollView" ? outer.props.children : [outer, null, null];
-    if (root!.props.ref) root!.props.ref.current = { scrollTo: ({ x, animated: moving }: { x: number; animated: boolean }) => { scrolledTo.push(Math.round(x)); animated.push(moving); } };
+    if (root!.props.ref)
+      root!.props.ref.current = {
+        scrollTo: ({ x, animated: moving }: { x: number; animated: boolean }) => {
+          scrolledTo.push(Math.round(x));
+          animated.push(moving);
+        },
+      };
     const tabs: Element[] = root!.props.children;
     const tab = (id: Id) => tabs.find((element) => element.props.entry.id === id)!;
-    return { root: root!, fades: { before: Boolean(before), after: Boolean(after) }, more: () => after!.props.onPress(), back: () => before!.props.onPress(), tab, layOut: (id: Id, layout = spans[id]) => tab(id).props.onLayout({ nativeEvent: { layout } }) };
+    return {
+      root: root!,
+      fades: { before: Boolean(before), after: Boolean(after) },
+      more: () => after!.props.onPress(),
+      back: () => before!.props.onPress(),
+      tab,
+      layOut: (id: Id, layout = spans[id]) => tab(id).props.onLayout({ nativeEvent: { layout } }),
+    };
   };
   return { render, chosen, scrolledTo, animated };
 }

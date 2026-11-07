@@ -54,7 +54,11 @@ export function contributePills(client: PluginClientContext) {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function PillIcon(props: PluginButtonIconProps) {
-    return <ProgressLanguageProvider><LocalizedPillIcon {...props} /></ProgressLanguageProvider>;
+    return (
+      <ProgressLanguageProvider>
+        <LocalizedPillIcon {...props} />
+      </ProgressLanguageProvider>
+    );
   }
 
   function LocalizedPillIcon(props: PluginButtonIconProps) {
@@ -65,15 +69,25 @@ export function contributePills(client: PluginClientContext) {
       publish();
     }, [language.locale]);
     const icon = useSyncExternalStore(
-      (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+      (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
       () => pillOf(props.workspaceId)?.icon ?? "open",
     );
     return (
       <IconSwap swapKey={icon} size={props.size}>
-        {icon === "stuck" ? <Icon name="OctagonAlert" size={props.size} color={props.theme.colors.statusDanger} />
-          : icon === "questions" ? <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />
-          : icon === "started" ? <Spinner color={props.color} size={props.size} />
-          : <Icon name="ListChecks" size={props.size} color={props.color} />}
+        {icon === "stuck" ? (
+          <Icon name="OctagonAlert" size={props.size} color={props.theme.colors.statusDanger} />
+        ) : icon === "questions" ? (
+          <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />
+        ) : icon === "started" ? (
+          <Spinner color={props.color} size={props.size} />
+        ) : (
+          <Icon name="ListChecks" size={props.size} color={props.color} />
+        )}
       </IconSwap>
     );
   }
@@ -83,12 +97,17 @@ export function contributePills(client: PluginClientContext) {
     client.openPanel(panel.id, { workspaceId, location: panel.location });
   };
 
-  const buttonFor = (workspaceId: string, mode: Pill["mode"], label: string) => mode === "attention"
-    ? { title: messagesFor(locale).needsYou, icon: PillIcon, label, behavior: { kind: "popover" as const, Content: PillContent } }
-    : { title: messagesFor(locale).openProgress, icon: PillIcon, label, behavior: { kind: "action" as const, onPress: () => openPanel(workspaceId) } };
+  const buttonFor = (workspaceId: string, mode: Pill["mode"], label: string) =>
+    mode === "attention"
+      ? { title: messagesFor(locale).needsYou, icon: PillIcon, label, behavior: { kind: "popover" as const, Content: PillContent } }
+      : { title: messagesFor(locale).openProgress, icon: PillIcon, label, behavior: { kind: "action" as const, onPress: () => openPanel(workspaceId) } };
 
   function PillContent(props: PluginButtonContentProps) {
-    return <ProgressLanguageProvider><AttentionPopover {...props} openPanel={() => openPanel(props.workspaceId)} /></ProgressLanguageProvider>;
+    return (
+      <ProgressLanguageProvider>
+        <AttentionPopover {...props} openPanel={() => openPanel(props.workspaceId)} />
+      </ProgressLanguageProvider>
+    );
   }
 
   const publish = () => {
@@ -149,7 +168,9 @@ export function contributePills(client: PluginClientContext) {
       if (isIdle(result)) idleWait.set(workspaceId, IDLE_POLL_EVERY - 1);
       else idleWait.delete(workspaceId);
       publish();
-    } catch { /* Try again on the next poll. */ } finally {
+    } catch {
+      /* Try again on the next poll. */
+    } finally {
       pending.delete(workspaceId);
     }
   };

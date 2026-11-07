@@ -70,7 +70,9 @@ export async function writeReporter(path: string, source: string): Promise<Repor
 
 // The server bundle doesn't know its own folder, so ask Paseo.
 export async function findPluginDirectory(): Promise<string> {
-  const clis = [process.env.PASEO_BIN, await findProgram("paseo"), "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter((cli): cli is string => Boolean(cli));
+  const clis = [process.env.PASEO_BIN, await findProgram("paseo"), "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter((cli): cli is string =>
+    Boolean(cli),
+  );
   for (const cli of clis) {
     try {
       const { stdout } = await promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"], { cwd: LAUNCH_FOLDER });

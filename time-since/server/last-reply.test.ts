@@ -19,10 +19,7 @@ test("recorded turn ends persist across store instances and archived agents are 
   await withTempRoot(async (root) => {
     const store = createLastReplyStore(root);
     assert.deepEqual(await store.list(), {});
-    await Promise.all([
-      store.record("a", "2026-09-25T12:00:00.000Z"),
-      store.record("b", "2026-09-25T12:05:00.000Z"),
-    ]);
+    await Promise.all([store.record("a", "2026-09-25T12:00:00.000Z"), store.record("b", "2026-09-25T12:05:00.000Z")]);
     await store.record("a", "2026-09-25T12:10:00.000Z");
     await store.forget("b");
     await store.forget("missing");

@@ -22,7 +22,15 @@ export type TabOverflow = "wrap" | "fit" | "scroll";
 
 // A row of tabs over a bottom rule, as in the panel's history card and the
 // ticket dialog. Narrow tightens the spacing so three tabs fit the 320px sidebar.
-export function TabStrip<Id extends string>({ colors, tabs, selected, onSelect, narrow = false, overflow = "wrap", style }: {
+export function TabStrip<Id extends string>({
+  colors,
+  tabs,
+  selected,
+  onSelect,
+  narrow = false,
+  overflow = "wrap",
+  style,
+}: {
   colors: Colors;
   tabs: Array<TabEntry<Id>>;
   selected: Id;
@@ -64,7 +72,9 @@ export function TabStrip<Id extends string>({ colors, tabs, selected, onSelect, 
     revealed.current = id;
   };
   // Scrolls to the chosen tab once it can be measured, and not again until the choice changes.
-  const settle = () => { if (revealed.current !== selected) reveal(selected); };
+  const settle = () => {
+    if (revealed.current !== selected) reveal(selected);
+  };
   // A chevron press moves the row most of its width that way.
   const page = (direction: 1 | -1) => {
     const { viewport, content, offset } = size.current;
@@ -79,19 +89,44 @@ export function TabStrip<Id extends string>({ colors, tabs, selected, onSelect, 
     if (before !== hidden.before || after !== hidden.after) setHidden({ before, after });
   };
   const items = tabs.map((entry) => (
-    <Tab key={entry.id} colors={colors} narrow={narrow} entry={iconless ? { ...entry, icon: null } : entry} selected={entry.id === selected}
-      onPress={() => { onSelect(entry.id); if (scroll) reveal(entry.id); }}
-      onLayout={scroll ? (event) => { widths.current.set(entry.id, event.nativeEvent.layout.width); settle(); } : undefined} />
+    <Tab
+      key={entry.id}
+      colors={colors}
+      narrow={narrow}
+      entry={iconless ? { ...entry, icon: null } : entry}
+      selected={entry.id === selected}
+      onPress={() => {
+        onSelect(entry.id);
+        if (scroll) reveal(entry.id);
+      }}
+      onLayout={
+        scroll
+          ? (event) => {
+              widths.current.set(entry.id, event.nativeEvent.layout.width);
+              settle();
+            }
+          : undefined
+      }
+    />
   ));
   if (scroll) {
     // Scrolling rows sit on Paseo's phone sheet, which is surface0.
     return (
       <View style={[{ position: "relative" }, style]}>
-        <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} accessibilityRole="tablist" scrollEventThrottle={16}
-          onLayout={(event) => { measure({ viewport: event.nativeEvent.layout.width }); settle(); }}
+        <ScrollView
+          ref={scroller}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          accessibilityRole="tablist"
+          scrollEventThrottle={16}
+          onLayout={(event) => {
+            measure({ viewport: event.nativeEvent.layout.width });
+            settle();
+          }}
           onContentSizeChange={(width) => measure({ content: width })}
           onScroll={(event) => measure({ offset: event.nativeEvent.contentOffset.x })}
-          contentContainerStyle={{ flexGrow: 1, flexDirection: "row", columnGap: gap, ...rule }}>
+          contentContainerStyle={{ flexGrow: 1, flexDirection: "row", columnGap: gap, ...rule }}
+        >
           {items}
         </ScrollView>
         {hidden.before ? <EdgeFade colors={colors} side="left" onPress={() => page(-1)} /> : null}
@@ -100,10 +135,18 @@ export function TabStrip<Id extends string>({ colors, tabs, selected, onSelect, 
     );
   }
   return (
-    <View accessibilityRole="tablist"
+    <View
+      accessibilityRole="tablist"
       // One row is 32px (8 + 18 + 6); anything taller wrapped.
-      onLayout={overflow === "fit" ? (event) => { if (!iconless && event.nativeEvent.layout.height > 40) setWrappedFor(ids); } : undefined}
-      style={[{ flexDirection: "row", flexWrap: "wrap", columnGap: gap, ...rule }, style]}>
+      onLayout={
+        overflow === "fit"
+          ? (event) => {
+              if (!iconless && event.nativeEvent.layout.height > 40) setWrappedFor(ids);
+            }
+          : undefined
+      }
+      style={[{ flexDirection: "row", flexWrap: "wrap", columnGap: gap, ...rule }, style]}
+    >
       {items}
     </View>
   );
@@ -120,8 +163,13 @@ function EdgeFade({ colors, side, onPress }: { colors: Colors; side: "left" | "r
       {Array.from({ length: FADE_SLICES }, (_, i) => (
         <View key={i} pointerEvents="none" style={{ width: 2, backgroundColor: withAlpha(colors.surface0, (i + 1) / (FADE_SLICES + 1)) ?? undefined }} />
       ))}
-      <Pressable accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onPress={onPress} hitSlop={8}
-        style={{ width: 16, justifyContent: "center", alignItems: side === "right" ? "flex-end" : "flex-start", backgroundColor: colors.surface0 }}>
+      <Pressable
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        onPress={onPress}
+        hitSlop={8}
+        style={{ width: 16, justifyContent: "center", alignItems: side === "right" ? "flex-end" : "flex-start", backgroundColor: colors.surface0 }}
+      >
         <Icon name={side === "right" ? "ChevronRight" : "ChevronLeft"} size={14} color={colors.foregroundMuted} />
       </Pressable>
     </View>
@@ -129,7 +177,14 @@ function EdgeFade({ colors, side, onPress }: { colors: Colors; side: "left" | "r
 }
 
 // Instant feedback: tabs switch often, so hover and press change color only.
-function Tab<Id extends string>({ colors, narrow, entry, selected, onPress, onLayout }: {
+function Tab<Id extends string>({
+  colors,
+  narrow,
+  entry,
+  selected,
+  onPress,
+  onLayout,
+}: {
   colors: Colors;
   narrow: boolean;
   entry: TabEntry<Id>;
@@ -139,19 +194,42 @@ function Tab<Id extends string>({ colors, narrow, entry, selected, onPress, onLa
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable accessibilityRole="tab" aria-selected={selected} onPress={onPress} onLayout={onLayout}
-      onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
+    <Pressable
+      accessibilityRole="tab"
+      aria-selected={selected}
+      onPress={onPress}
+      onLayout={onLayout}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => ({
-        flexDirection: "row", alignItems: "center", gap: narrow ? 4 : 6, paddingTop: 8, paddingBottom: 6, marginBottom: -1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: narrow ? 4 : 6,
+        paddingTop: 8,
+        paddingBottom: 6,
+        marginBottom: -1,
         borderBottomWidth: 2,
         borderBottomColor: selected ? colors.accent : pressed || hovered ? colors.border : "transparent",
-      })}>
+      })}
+    >
       {entry.icon ? <Icon name={entry.icon} size={14} color={selected ? colors.accent : colors.foregroundMuted} /> : null}
-      <Text style={{ color: selected || hovered ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{entry.label}</Text>
+      <Text style={{ color: selected || hovered ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>
+        {entry.label}
+      </Text>
       {/* Count badge: muted on both tabs; the chosen tab's number reads darker. */}
       {entry.count !== undefined ? (
         <View style={{ minWidth: 16, paddingHorizontal: 4, borderRadius: 4, alignItems: "center", backgroundColor: colors.surface2 }}>
-          <Text style={{ color: selected ? colors.foreground : colors.foregroundMuted, fontSize: 10, lineHeight: 14, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{entry.count}</Text>
+          <Text
+            style={{
+              color: selected ? colors.foreground : colors.foregroundMuted,
+              fontSize: 10,
+              lineHeight: 14,
+              fontWeight: "600",
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {entry.count}
+          </Text>
         </View>
       ) : null}
     </Pressable>

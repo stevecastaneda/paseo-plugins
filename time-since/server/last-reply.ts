@@ -6,10 +6,7 @@ type LastReplyStore = ReturnType<typeof createLastReplyStore>;
 
 // Turn ends arrive from the daemon without opening the agent, so the clock
 // can seed every pill at launch from this ledger instead of timeline reads.
-export function recordLastReplies(
-  server: Pick<PluginServerContext, "on">,
-  store: LastReplyStore = lastReplyStore,
-): () => void {
+export function recordLastReplies(server: Pick<PluginServerContext, "on">, store: LastReplyStore = lastReplyStore): () => void {
   const report = (error: unknown) => console.error("time-since could not update last replies", error);
   const stopTurns = server.on("agent.turn_ended", ({ agent }) => {
     void store.record(agent.id, new Date().toISOString()).catch(report);
@@ -24,8 +21,5 @@ export function recordLastReplies(
 }
 
 export function listLastRepliesHandler(store: LastReplyStore = lastReplyStore) {
-  return async (
-    _input: Record<string, never>,
-    _context: PluginHandlerContext,
-  ): Promise<{ lastReplyAt: LastReplies }> => ({ lastReplyAt: await store.list() });
+  return async (_input: Record<string, never>, _context: PluginHandlerContext): Promise<{ lastReplyAt: LastReplies }> => ({ lastReplyAt: await store.list() });
 }

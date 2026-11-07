@@ -20,7 +20,11 @@ export default function contribute(client: PluginClientContext) {
     title: "Progress",
     icon: "ListChecks",
     locations: [panel.location],
-    Component: (props) => <ProgressLanguageProvider><ProgressPanel {...props} openSettings={() => client.openSettings(SETTINGS_ID)} /></ProgressLanguageProvider>,
+    Component: (props) => (
+      <ProgressLanguageProvider>
+        <ProgressPanel {...props} openSettings={() => client.openSettings(SETTINGS_ID)} />
+      </ProgressLanguageProvider>
+    ),
   });
   const stopCommand = client.addCommandCenterItem({
     id: "open-progress",
@@ -33,26 +37,40 @@ export default function contribute(client: PluginClientContext) {
     },
   });
 
-  const stopPdf = showsPdfs(Platform.OS) ? client.addFilePanel({
-    id: "pdf",
-    title: "PDF",
-    icon: "BookOpenText",
-    files: { extensions: ["pdf"] },
-    Component: (props) => <ProgressLanguageProvider><PdfPanel {...props} /></ProgressLanguageProvider>,
-  }) : () => {};
+  const stopPdf = showsPdfs(Platform.OS)
+    ? client.addFilePanel({
+        id: "pdf",
+        title: "PDF",
+        icon: "BookOpenText",
+        files: { extensions: ["pdf"] },
+        Component: (props) => (
+          <ProgressLanguageProvider>
+            <PdfPanel {...props} />
+          </ProgressLanguageProvider>
+        ),
+      })
+    : () => {};
   const stopPage = addPageScreen(client);
   const stopSettings = client.addSettingsScreen({
     id: SETTINGS_ID,
     title: "Settings",
     icon: "Settings",
-    Component: (props) => <ProgressLanguageProvider><QuestionSettings {...props} /></ProgressLanguageProvider>,
+    Component: (props) => (
+      <ProgressLanguageProvider>
+        <QuestionSettings {...props} />
+      </ProgressLanguageProvider>
+    ),
   });
   const stopTransformer = client.addTimelineTransformer({ id: "tool-calls", query: { itemType: "tool_call" }, transform: transformChatRow });
   const stopRenderer = client.addTimelineRenderer({
     kind: CHAT_ROW_KIND,
     version: CHAT_ROW_VERSION,
     schema: chatRowSchema,
-    Component: (props) => <ProgressLanguageProvider><ChatRowView {...props} /></ProgressLanguageProvider>,
+    Component: (props) => (
+      <ProgressLanguageProvider>
+        <ChatRowView {...props} />
+      </ProgressLanguageProvider>
+    ),
   });
 
   return () => {

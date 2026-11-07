@@ -26,12 +26,18 @@ export function isFailure(test: PulseTest): boolean {
 // What a finished test's row says under its title, if anything.
 export function verdictNote(test: PulseTest): string | undefined {
   switch (verdict(test)) {
-    case "failed": return "Failed, details above";
-    case "flaky": return `Flaky: passed on retry ${test.retry}`;
-    case "stopped": return "Stopped before it finished";
-    case "skipped": return "Skipped";
-    case "passed": return test.status === "passed" ? undefined : "Failed, as expected";
-    default: return undefined;
+    case "failed":
+      return "Failed, details above";
+    case "flaky":
+      return `Flaky: passed on retry ${test.retry}`;
+    case "stopped":
+      return "Stopped before it finished";
+    case "skipped":
+      return "Skipped";
+    case "passed":
+      return test.status === "passed" ? undefined : "Failed, as expected";
+    default:
+      return undefined;
   }
 }
 
@@ -191,7 +197,20 @@ export function stepFailure(ids: readonly string[], picked: string | null, delta
 // A part of the suite: a folder of spec files, or a file when they share one.
 // `kind` is "file" for a spec file that sits beside the folders, or when
 // every spec file shares one folder.
-export type Folder = { name: string; kind: "folder" | "file"; total: number; done: number; passed: number; failed: number; flaky: number; skipped: number; stopped: number; running: number; duration: number; tests: PulseTest[] };
+export type Folder = {
+  name: string;
+  kind: "folder" | "file";
+  total: number;
+  done: number;
+  passed: number;
+  failed: number;
+  flaky: number;
+  skipped: number;
+  stopped: number;
+  running: number;
+  duration: number;
+  tests: PulseTest[];
+};
 
 const SPEC_SUFFIX = /\.(spec|test)\.[cm]?[jt]sx?$/;
 
@@ -275,10 +294,14 @@ export function slowestPrompt(run: RunSnapshot, tests: PulseTest[]): string {
 function promptNote(test: PulseTest): string | null {
   if (test.status === "timedOut") return "timed out";
   switch (verdict(test)) {
-    case "failed": return "failed";
-    case "flaky": return `flaky, passed on retry ${test.retry}`;
-    case "stopped": return "stopped before it finished";
-    default: return null;
+    case "failed":
+      return "failed";
+    case "flaky":
+      return `flaky, passed on retry ${test.retry}`;
+    case "stopped":
+      return "stopped before it finished";
+    default:
+      return null;
   }
 }
 

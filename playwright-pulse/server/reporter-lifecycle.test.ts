@@ -12,7 +12,10 @@ test("stopping while the plugin is still starting leaves no reporter behind", as
   const path = join(mkdtempSync(join(tmpdir(), "pulse-reporter-")), "reporter.mjs");
   let release = () => {};
   // Finding the plugin's own files takes a moment (it asks the paseo CLI).
-  const slowSource = () => new Promise<string>((resolve) => { release = () => resolve(SOURCE); });
+  const slowSource = () =>
+    new Promise<string>((resolve) => {
+      release = () => resolve(SOURCE);
+    });
   const starting = startReporter(path, slowSource);
   const stopping = stopReporter(path);
   release();

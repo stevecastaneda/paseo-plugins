@@ -15,7 +15,10 @@ export async function withLock<T>(lockPath: string, work: () => Promise<T>): Pro
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const since = await stat(lockPath).then((info) => Date.now() - info.mtimeMs, () => 0);
+      const since = await stat(lockPath).then(
+        (info) => Date.now() - info.mtimeMs,
+        () => 0,
+      );
       if (since > STALE_MS) {
         await rm(lockPath, { recursive: true, force: true });
         continue;

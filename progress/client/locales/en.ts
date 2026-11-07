@@ -2,30 +2,30 @@ import type { ProgressMessages } from "../messages";
 
 export const messages: ProgressMessages = {
   status: {
-    "not_started": "Not started",
-    "working": "Working",
-    "blocked": "Blocked",
-    "done": "Done",
-    "skipped": "Skipped"
+    not_started: "Not started",
+    working: "Working",
+    blocked: "Blocked",
+    done: "Done",
+    skipped: "Skipped",
   },
   questionModes: {
-    "stop": {
-      "label": "Stop",
-      "hint": "Agents stop all work when they ask, until you answer."
+    stop: {
+      label: "Stop",
+      hint: "Agents stop all work when they ask, until you answer.",
     },
     "work-around": {
-      "label": "Work around",
-      "hint": "Agents hold what your answer affects and keep working on the rest."
+      label: "Work around",
+      hint: "Agents hold what your answer affects and keep working on the rest.",
     },
     "keep-building": {
-      "label": "Keep building",
-      "hint": "Agents build their recommended option while you decide, and change course if you pick another. Big questions still wait."
-    }
+      label: "Keep building",
+      hint: "Agents build their recommended option while you decide, and change course if you pick another. Big questions still wait.",
+    },
   },
   noteKinds: {
-    "new": "New",
-    "improved": "Improved",
-    "fixed": "Fixed"
+    new: "New",
+    improved: "Improved",
+    fixed: "Fixed",
   },
   loading: "Loading…",
   loadingProgress: "Loading progress",
@@ -33,7 +33,8 @@ export const messages: ProgressMessages = {
   openSettings: "Open Progress settings",
   noProgress: "No progress recorded yet",
   emptyIntro: ["An agent working in this worktree records progress with the ", " command. It shows up here as soon as the first run starts."],
-  emptyIntroTools: "An agent working in this worktree records progress with the Progress tools Paseo gives it. It shows up here as soon as the first run starts.",
+  emptyIntroTools:
+    "An agent working in this worktree records progress with the Progress tools Paseo gives it. It shows up here as soon as the first run starts.",
   toolsOn: "Agents record progress with Paseo tools. The paseo-progress command is a fallback for agents without them.",
   toolsNote: [
     "Let agents record progress without the command.",
@@ -175,7 +176,8 @@ export const messages: ProgressMessages = {
   systemLanguage: "System",
   readProgressError: (error: string) => `Could not read progress: ${error}`,
   savedOutside: ["Progress is saved outside the repo, in ", ", so git never sees it."],
-  staleWarning: (duration: string) => `Possibly stale. No update for ${duration}. The work may have stopped, so working items show a warning until the next update.`,
+  staleWarning: (duration: string) =>
+    `Possibly stale. No update for ${duration}. The work may have stopped, so working items show a warning until the next update.`,
   itemHeading: (label: string) => `${label}s`,
   noItems: (label: string) => `No ${label.toLowerCase()}s yet.`,
   skippedLines: (count: number, file: string) => `Skipped ${count} ${count === 1 ? "line" : "lines"} in ${file}: `,
@@ -189,7 +191,7 @@ export const messages: ProgressMessages = {
   details: (id: string) => `${id} details`,
   stageStarted: (stage: string) => `${stage} stage started `,
   waitsFor: (title: string) => `Waits for ${title}`,
-  hasDeliverables: (count: number) => count === 1 ? "Has a deliverable" : `Has ${count} deliverables`,
+  hasDeliverables: (count: number) => (count === 1 ? "Has a deliverable" : `Has ${count} deliverables`),
   questionCount: (count: number) => `${count} ${count === 1 ? "question" : "questions"}`,
   shortQuestions: (count: number) => `${count}Q`,
   stuckCount: (count: number) => `${count} stuck`,
@@ -208,7 +210,8 @@ export const messages: ProgressMessages = {
   waitingForTicket: (id: string) => `Waiting for ${id}`,
   openItem: (title: string) => `Open ${title}`,
   workedEstimate: (worked: string, estimate: string) => `Worked ${worked} of a ${estimate} estimate`,
-  byTimeHint: (id: string, label: string) => `Items marked “by time” weren't tagged to ${id}; they happened while it was the ${label.toLowerCase()} being worked on.`,
+  byTimeHint: (id: string, label: string) =>
+    `Items marked “by time” weren't tagged to ${id}; they happened while it was the ${label.toLowerCase()} being worked on.`,
   openAgentChat: (title: string) => `Open the chat with ${title}`,
   stageLabel: (stage: string) => `${stage} stage`,
   soFar: (duration: string) => `${duration} so far`,
@@ -230,11 +233,13 @@ export const messages: ProgressMessages = {
   useNamedFolder: (name: string) => `Use ${name}`,
   launcherMissing: (path: string) => `Agents record progress with the paseo-progress command, which isn't installed yet. Installing adds it at ${path}`,
   launcherOutdated: (path: string) => `An older paseo-progress command is installed at ${path}.`,
-  launcherForeign: (path: string) => `Something else already exists at ${path}, so the plugin won't install there. The README shows how to install it elsewhere.`,
+  launcherForeign: (path: string) =>
+    `Something else already exists at ${path}, so the plugin won't install there. The README shows how to install it elsewhere.`,
   launcherOffPath: (path: string) => `paseo-progress is installed, but its folder isn't on the PATH Paseo uses, so agents need the full path: ${path}`,
   launcherInstalled: (path: string) => `Installed paseo-progress at ${path}`,
   skillSkipped: (paths: string) => ` Something else is already at ${paths}, so the plugin leaves it alone.`,
-  skillMissing: (paths: string, skipped: string) => `Agents learn when to record progress from the paseo-progress skill, which isn't installed yet. Installing adds a link in ${paths}.${skipped}`,
+  skillMissing: (paths: string, skipped: string) =>
+    `Agents learn when to record progress from the paseo-progress skill, which isn't installed yet. Installing adds a link in ${paths}.${skipped}`,
   skillOutdated: (paths: string, skipped: string) => `The paseo-progress skill in ${paths} points to a copy of the plugin Paseo no longer runs.${skipped}`,
   resetTo: (label: string) => `Go back to ${label}`,
   ago: (duration: string) => `${duration} ago`,

@@ -21,7 +21,8 @@ export function When({ colors, iso, now }: { colors: Colors; iso: string; now: n
   if (useNarrow()) return <Text>{ago}</Text>;
   return (
     <Text>
-      {formatClientClock(locale, iso)}<Text style={{ color: colors.foregroundMuted, opacity: 0.7 }}>{m.parenthetical(ago)}</Text>
+      {formatClientClock(locale, iso)}
+      <Text style={{ color: colors.foregroundMuted, opacity: 0.7 }}>{m.parenthetical(ago)}</Text>
     </Text>
   );
 }

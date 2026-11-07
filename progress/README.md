@@ -86,19 +86,19 @@ Versions before 0.2.0 kept progress in `.scratch/` in each worktree. From 1.14.1
 
 On Paseo 0.14 and later, Progress hands agents a tool for each common command, so recording progress needs nothing installed and every update names the agent that sent it. Paseo only gives plugin tools to agents while **Settings → your host → Agents → Enable Paseo tools** is on. It's off by default, and turning it on also gives agents Paseo's own tools for starting, messaging and stopping other agents. Progress never changes the setting. Once it's on, start a new chat or reload one to give it the tools.
 
-| Tool | Does what this command does |
-| --- | --- |
-| `progress_show` | `show` |
-| `progress_start` | `start` |
-| `progress_ticket_add` | `ticket add` |
-| `progress_ticket_update` | `ticket update` |
-| `progress_question_ask` | `question ask` |
-| `progress_question_answer` | `question answer` |
-| `progress_deliverable_add` | `deliverable add` |
-| `progress_activity_add` | `activity add` |
-| `progress_ticker` | `ticker set`, or `ticker clear` when the text is empty |
-| `progress_finish` | `finish` |
-| `paseo_progress` | Any command, given as the list of words you'd type after `paseo-progress` |
+| Tool                       | Does what this command does                                               |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `progress_show`            | `show`                                                                    |
+| `progress_start`           | `start`                                                                   |
+| `progress_ticket_add`      | `ticket add`                                                              |
+| `progress_ticket_update`   | `ticket update`                                                           |
+| `progress_question_ask`    | `question ask`                                                            |
+| `progress_question_answer` | `question answer`                                                         |
+| `progress_deliverable_add` | `deliverable add`                                                         |
+| `progress_activity_add`    | `activity add`                                                            |
+| `progress_ticker`          | `ticker set`, or `ticker clear` when the text is empty                    |
+| `progress_finish`          | `finish`                                                                  |
+| `paseo_progress`           | Any command, given as the list of words you'd type after `paseo-progress` |
 
 Each tool runs the command inside the plugin, so it checks the same things and answers with the same words. Statuses and deliverable kinds are listed in the tool, so an agent can't send one the command doesn't know. Paths are relative to the agent's folder, like the command run there. Claude Code shows them as `mcp__paseo__progress_show` and so on, and holds them back until the agent searches for them. The skill tells agents to search.
 

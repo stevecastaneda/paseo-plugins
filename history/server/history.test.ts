@@ -40,9 +40,12 @@ test("reads a derived Claude provider's log from the config dir in its env", asy
   await mkdir(join(dir, "projects", "project"), { recursive: true });
   const path = join(dir, "projects", "project", "session-123.jsonl");
   await writeFile(path, "{}\n");
-  const result = await handleReadHistory({ agentId: "agent", offset: 0 }, context("claude-my", {
-    "claude-my": { extends: "claude", label: "Claude My", env: { CLAUDE_CONFIG_DIR: dir } },
-  }));
+  const result = await handleReadHistory(
+    { agentId: "agent", offset: 0 },
+    context("claude-my", {
+      "claude-my": { extends: "claude", label: "Claude My", env: { CLAUDE_CONFIG_DIR: dir } },
+    }),
+  );
   assert.equal(result.path, path);
   assert.equal(result.provider, "claude");
 });
@@ -53,9 +56,12 @@ test("reads a derived Codex provider's log from the CODEX_HOME in its env", asyn
   await mkdir(join(dir, "sessions", "2026"), { recursive: true });
   const path = join(dir, "sessions", "2026", "rollout-2026-10-11-session-123.jsonl");
   await writeFile(path, "{}\n");
-  const result = await handleReadHistory({ agentId: "agent", offset: 0 }, context("codex-full-access", {
-    "codex-full-access": { extends: "codex", label: "Codex Full Access", env: { CODEX_HOME: dir } },
-  }));
+  const result = await handleReadHistory(
+    { agentId: "agent", offset: 0 },
+    context("codex-full-access", {
+      "codex-full-access": { extends: "codex", label: "Codex Full Access", env: { CODEX_HOME: dir } },
+    }),
+  );
   assert.equal(result.path, path);
   assert.equal(result.provider, "codex");
 });
@@ -65,9 +71,12 @@ test("a derived provider without its own config dir falls back to the daemon env
   await mkdir(join(dir, "projects", "project"), { recursive: true });
   const path = join(dir, "projects", "project", "session-123.jsonl");
   await writeFile(path, "{}\n");
-  const result = await handleReadHistory({ agentId: "agent", offset: 0 }, context("claude-work", {
-    "claude-work": { extends: "claude", label: "Claude Work" },
-  }));
+  const result = await handleReadHistory(
+    { agentId: "agent", offset: 0 },
+    context("claude-work", {
+      "claude-work": { extends: "claude", label: "Claude Work" },
+    }),
+  );
   assert.equal(result.path, path);
 });
 
@@ -77,17 +86,23 @@ test("the built-in Claude provider honours a config dir set on its own entry", a
   await mkdir(join(dir, "projects", "project"), { recursive: true });
   const path = join(dir, "projects", "project", "session-123.jsonl");
   await writeFile(path, "{}\n");
-  const result = await handleReadHistory({ agentId: "agent", offset: 0 }, context("claude", {
-    claude: { env: { CLAUDE_CONFIG_DIR: dir } },
-  }));
+  const result = await handleReadHistory(
+    { agentId: "agent", offset: 0 },
+    context("claude", {
+      claude: { env: { CLAUDE_CONFIG_DIR: dir } },
+    }),
+  );
   assert.equal(result.path, path);
 });
 
 test("still rejects providers that extend an unsupported harness", async () => {
   await assert.rejects(
-    handleReadHistory({ agentId: "agent", offset: 0 }, context("my-copilot", {
-      "my-copilot": { extends: "copilot", label: "My Copilot" },
-    })),
+    handleReadHistory(
+      { agentId: "agent", offset: 0 },
+      context("my-copilot", {
+        "my-copilot": { extends: "copilot", label: "My Copilot" },
+      }),
+    ),
     /Raw history is not supported for my-copilot yet/,
   );
 });

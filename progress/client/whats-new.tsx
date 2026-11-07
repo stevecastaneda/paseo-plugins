@@ -38,38 +38,84 @@ export function WhatsNewBanner({ colors, host }: { colors: Colors; host: PluginW
 
   return (
     <>
-      <Presence show={Boolean(whatsNew)}>{whatsNew ? (
-        // The headline gets the full width, with the button under it on the text's edge.
-        <View style={{ gap: 8, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-            <View style={{ height: 17, justifyContent: "center" }}><Icon name="Gift" size={14} color={colors.foregroundMuted} /></View>
-            <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-              <Text style={{ color: colors.foreground, fontWeight: "500" }}>{whatsNew.releases.length > 1 ? m.updatedTo(whatsNew.version) : m.newVersion(whatsNew.version)}</Text> {whatsNew.headline}
-            </Text>
-            {/* Centered on the first line without making it taller. */}
-            <PressScale accessibilityRole="button" accessibilityLabel={m.dismissWhatsNew} hitSlop={6} onPress={() => close(whatsNew.version)}
-              style={({ pressed, hovered }) => ({ marginVertical: -4.5, padding: 5, borderRadius: 4, backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent" })}>
-              <Icon name="X" size={16} color={colors.foregroundMuted} />
+      <Presence show={Boolean(whatsNew)}>
+        {whatsNew ? (
+          // The headline gets the full width, with the button under it on the text's edge.
+          <View style={{ gap: 8, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+              <View style={{ height: 17, justifyContent: "center" }}>
+                <Icon name="Gift" size={14} color={colors.foregroundMuted} />
+              </View>
+              <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+                <Text style={{ color: colors.foreground, fontWeight: "500" }}>
+                  {whatsNew.releases.length > 1 ? m.updatedTo(whatsNew.version) : m.newVersion(whatsNew.version)}
+                </Text>{" "}
+                {whatsNew.headline}
+              </Text>
+              {/* Centered on the first line without making it taller. */}
+              <PressScale
+                accessibilityRole="button"
+                accessibilityLabel={m.dismissWhatsNew}
+                hitSlop={6}
+                onPress={() => close(whatsNew.version)}
+                style={({ pressed, hovered }) => ({
+                  marginVertical: -4.5,
+                  padding: 5,
+                  borderRadius: 4,
+                  backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent",
+                })}
+              >
+                <Icon name="X" size={16} color={colors.foregroundMuted} />
+              </PressScale>
+            </View>
+            <PressScale
+              accessibilityRole="button"
+              onPress={() => {
+                setShown(whatsNew);
+                setOpen(true);
+              }}
+              style={({ pressed, hovered }) => ({
+                alignSelf: "flex-start",
+                marginStart: 24,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 4,
+                backgroundColor: colors.accent,
+                opacity: pressed ? 0.7 : hovered ? 0.85 : 1,
+              })}
+            >
+              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.seeWhatsNew}</Text>
             </PressScale>
           </View>
-          <PressScale accessibilityRole="button" onPress={() => { setShown(whatsNew); setOpen(true); }}
-            style={({ pressed, hovered }) => ({ alignSelf: "flex-start", marginStart: 24, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-            <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.seeWhatsNew}</Text>
-          </PressScale>
-        </View>
-      ) : null}</Presence>
-      <Modal title={!shown ? "" : shown.releases.length > 1 ? m.whatsNewAll : m.whatsNewTitle(shown.version)} icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
-        open={open} onOpenChange={(next) => { if (!next) closeDialog(); }}>
+        ) : null}
+      </Presence>
+      <Modal
+        title={!shown ? "" : shown.releases.length > 1 ? m.whatsNewAll : m.whatsNewTitle(shown.version)}
+        icon={<Icon name="Gift" size={16} color={colors.foregroundMuted} />}
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) closeDialog();
+        }}
+      >
         <Modal.Content>
-        <ProgressLanguageProvider>
-          {shown ? <Releases colors={colors} releases={shown.releases} /> : null}
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
-            <PressScale accessibilityRole="button" onPress={closeDialog}
-              style={({ pressed, hovered }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.accent, opacity: pressed ? 0.7 : hovered ? 0.85 : 1 })}>
-              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.gotIt}</Text>
-            </PressScale>
-          </View>
-        </ProgressLanguageProvider>
+          <ProgressLanguageProvider>
+            {shown ? <Releases colors={colors} releases={shown.releases} /> : null}
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
+              <PressScale
+                accessibilityRole="button"
+                onPress={closeDialog}
+                style={({ pressed, hovered }) => ({
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 6,
+                  backgroundColor: colors.accent,
+                  opacity: pressed ? 0.7 : hovered ? 0.85 : 1,
+                })}
+              >
+                <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{m.gotIt}</Text>
+              </PressScale>
+            </View>
+          </ProgressLanguageProvider>
         </Modal.Content>
       </Modal>
     </>
@@ -84,7 +130,9 @@ function Releases({ colors, releases }: { colors: Colors; releases: WhatsNewRele
     <View style={{ gap: 40 }}>
       {releases.map((release) => (
         <View key={release.version} style={{ gap: 12 }}>
-          <Text accessibilityRole="header" selectable style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{release.version}</Text>
+          <Text accessibilityRole="header" selectable style={{ color: colors.foreground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>
+            {release.version}
+          </Text>
           <Notes colors={colors} notes={release.notes} />
         </View>
       ))}
@@ -96,9 +144,13 @@ function Releases({ colors, releases }: { colors: Colors; releases: WhatsNewRele
 // written without titles stays a bulleted list.
 function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
   if (!notes.some((note) => note.title || note.kind)) {
-    return <View style={{ gap: 12 }}>{notes.map((note, index) => (
-      <BlockView key={index} colors={colors} block={{ kind: "item", marker: "•", depth: 0, spans: spans(note.body) }} first={index === 0} />
-    ))}</View>;
+    return (
+      <View style={{ gap: 12 }}>
+        {notes.map((note, index) => (
+          <BlockView key={index} colors={colors} block={{ kind: "item", marker: "•", depth: 0, spans: spans(note.body) }} first={index === 0} />
+        ))}
+      </View>
+    );
   }
   return (
     <View style={{ gap: 20 }}>
@@ -107,7 +159,11 @@ function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
           {note.title || note.kind ? (
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
               {note.kind ? <KindTag colors={colors} kind={note.kind} /> : null}
-              {note.title ? <Text accessibilityRole="header" selectable style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{note.title}</Text> : null}
+              {note.title ? (
+                <Text accessibilityRole="header" selectable style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>
+                  {note.title}
+                </Text>
+              ) : null}
             </View>
           ) : null}
           {note.body ? (
@@ -124,7 +180,7 @@ function Notes({ colors, notes }: { colors: Colors; notes: WhatsNewNote[] }) {
 // Paseo has no violet for plugins, so it's Paseo's own "merged" purple, which
 // shares the status colors' lightness and chroma.
 const TONE_COLOR: Record<NoteTone, (colors: Colors) => string> = {
-  violet: (colors) => isLight(colors) ? "#7347af" : "#a890d5",
+  violet: (colors) => (isLight(colors) ? "#7347af" : "#a890d5"),
   green: (colors) => colors.statusSuccess,
   amber: (colors) => colors.statusWarning,
 };
@@ -136,7 +192,9 @@ function KindTag({ colors, kind }: { colors: Colors; kind: NoteKind }) {
   const color = TONE_COLOR[NOTE_KINDS[kind].tone](colors);
   return (
     <View style={{ marginTop: 1, minWidth: 64, borderRadius: 4, paddingHorizontal: 7, backgroundColor: tint(color, colors) }}>
-      <Text numberOfLines={1} style={{ textAlign: "center", color, fontSize: 11, lineHeight: 18, fontWeight: "500" }}>{m.noteKinds[kind]}</Text>
+      <Text numberOfLines={1} style={{ textAlign: "center", color, fontSize: 11, lineHeight: 18, fontWeight: "500" }}>
+        {m.noteKinds[kind]}
+      </Text>
     </View>
   );
 }
