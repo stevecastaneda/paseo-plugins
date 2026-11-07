@@ -49,9 +49,7 @@ export function relativeCwd(cwd: string, worktreePath: string): string {
 export function shortCommand(command: string): string {
   const first = command.trim().split(/\n/)[0]?.trim() ?? "";
   if (!first) return "setup";
-  const install = first.match(
-    /\b((?:npm|pnpm|yarn|bun)(?:\s+(?:install|ci|i|run\s+\S+))?)\b/i,
-  );
+  const install = first.match(/\b((?:npm|pnpm|yarn|bun)(?:\s+(?:install|ci|i|run\s+\S+))?)\b/i);
   if (install?.[1]) return install[1].replace(/\s+/g, " ");
   const withoutCd = first.replace(/^cd\s+\S+\s*&&\s*/, "");
   const base = withoutCd.match(/([^/\s]+)$/);

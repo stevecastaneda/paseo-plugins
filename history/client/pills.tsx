@@ -9,8 +9,16 @@ import { modalEventBoundary } from "./web";
 export function contributePills(client: PluginClientContext) {
   let selected: string | null = null;
   const listeners = new Set<() => void>();
-  const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
-  const select = (id: string | null) => { selected = id; for (const listener of listeners) listener(); };
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+  const select = (id: string | null) => {
+    selected = id;
+    for (const listener of listeners) listener();
+  };
   const pills = new Map<string, { workspaceId: string; pill: PluginButtonRegistration }>();
 
   // The action toggles a controlled host modal mounted beside the custom icon.
@@ -18,37 +26,67 @@ export function contributePills(client: PluginClientContext) {
   // reactivate the host pill, whose pending state unmounts its icon subtree.
   function HistoryIcon(props: PluginButtonIconProps) {
     const agentId = props.context === "agent" ? props.agentId : "";
-    const open = useSyncExternalStore(subscribe, () => selected === agentId, () => false);
-    return <>
-      <Icon name="GalleryVerticalEnd" size={props.size} color={props.color} />
-      <View {...modalEventBoundary()}>
-        <Modal title="History" open={open} onOpenChange={(next) => { if (!next) select(null); }}>
-          <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0 }}>
-            {open ? <HistoryViewer {...props} agentId={agentId} /> : null}
-          </Modal.Content>
-        </Modal>
-      </View>
-    </>;
+    const open = useSyncExternalStore(
+      subscribe,
+      () => selected === agentId,
+      () => false,
+    );
+    return (
+      <>
+        <Icon name="GalleryVerticalEnd" size={props.size} color={props.color} />
+        <View {...modalEventBoundary()}>
+          <Modal
+            title="History"
+            open={open}
+            onOpenChange={(next) => {
+              if (!next) select(null);
+            }}
+          >
+            <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0 }}>
+              {open ? <HistoryViewer {...props} agentId={agentId} /> : null}
+            </Modal.Content>
+          </Modal>
+        </View>
+      </>
+    );
   }
 
   const remove = (id: string) => {
     if (selected === id) select(null);
-    pills.get(id)?.pill.remove(); pills.delete(id);
+    pills.get(id)?.pill.remove();
+    pills.delete(id);
   };
   const register = (agent: { id: string; workspaceId?: string | null; archivedAt?: string | null }) => {
-    if (!agent.workspaceId || agent.archivedAt) { remove(agent.id); return; }
+    if (!agent.workspaceId || agent.archivedAt) {
+      remove(agent.id);
+      return;
+    }
     const existing = pills.get(agent.id);
     if (existing?.workspaceId === agent.workspaceId) return;
     if (existing) remove(agent.id);
-    pills.set(agent.id, { workspaceId: agent.workspaceId, pill: client.addComposerPill({
-      id: "history", workspaceId: agent.workspaceId, agentId: agent.id,
-      button: { title: "History", label: "History", icon: HistoryIcon,
-        behavior: { kind: "action", onPress: () => { select(agent.id); } } },
-    }) });
+    pills.set(agent.id, {
+      workspaceId: agent.workspaceId,
+      pill: client.addComposerPill({
+        id: "history",
+        workspaceId: agent.workspaceId,
+        agentId: agent.id,
+        button: {
+          title: "History",
+          label: "History",
+          icon: HistoryIcon,
+          behavior: {
+            kind: "action",
+            onPress: () => {
+              select(agent.id);
+            },
+          },
+        },
+      }),
+    });
   };
   const stop = observeDirectory({
     list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
-    select: (message) => message.type === "agent_update" ? message.payload : undefined,
+    select: (message) => (message.type === "agent_update" ? message.payload : undefined),
     snapshot: (entries) => {
       const ids = new Set(entries.map(({ agent }) => agent.id));
       for (const id of pills.keys()) if (!ids.has(id)) remove(id);
@@ -60,8 +98,10 @@ export function contributePills(client: PluginClientContext) {
     },
   });
   return () => {
-    stop(); select(null);
+    stop();
+    select(null);
     for (const { pill } of pills.values()) pill.remove();
-    pills.clear(); listeners.clear();
+    pills.clear();
+    listeners.clear();
   };
 }

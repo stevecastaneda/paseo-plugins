@@ -3,19 +3,47 @@ import { Icon, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
 import { pastedKeys, terminalKeys, type KeyPress } from "../shared/keys.ts";
-import { basename, errorMessage } from "../shared/text.ts";
+import { errorMessage } from "../shared/text.ts";
 import { LIMITS } from "../shared/limits.ts";
 import { plainText, type RunRow } from "../shared/row.ts";
 import { dismiss, fullOutput, input, send, start, stop, tail } from "../shared/rpc.ts";
-import { agentName, capitalize, describe, formatDuration, pastRow, pastRunView, statusText, switcher, type Action, type NoteIcon, type Presentation, type RunInView } from "../shared/view.ts";
+import {
+  agentName,
+  describe,
+  formatDuration,
+  pastRow,
+  pastRunView,
+  statusText,
+  switcher,
+  type Action,
+  type NoteIcon,
+  type Presentation,
+  type RunInView,
+} from "../shared/view.ts";
 import { useResolvedRun, useRunUi } from "./live.ts";
 import { OutputWell } from "./output.tsx";
 import { PasteButton } from "./paste.tsx";
 import { makePalette, mix, withAlpha, type ThemeColors } from "./palette.ts";
 import { Badge, Button, IconSwap, PressScale, mono, nativeDriver, raised, toneColor, useReducedMotion, type ButtonTone } from "./ui.tsx";
 
-const NOTE_ICON: Record<NoteIcon, string> = { "eye-off": "EyeOff", eye: "Eye", scissors: "Scissors", clock: "Clock", info: "Info", folder: "Folder", keyboard: "Keyboard" };
-const ACTION_ICON: Record<Action["id"], string> = { run: "Play", dismiss: "X", stop: "Square", "force-stop": "SquareX", copy: "Copy", rerun: "RotateCw", send: "Send" };
+const NOTE_ICON: Record<NoteIcon, string> = {
+  "eye-off": "EyeOff",
+  eye: "Eye",
+  scissors: "Scissors",
+  clock: "Clock",
+  info: "Info",
+  folder: "Folder",
+  keyboard: "Keyboard",
+};
+const ACTION_ICON: Record<Action["id"], string> = {
+  run: "Play",
+  dismiss: "X",
+  stop: "Square",
+  "force-stop": "SquareX",
+  copy: "Copy",
+  rerun: "RotateCw",
+  send: "Send",
+};
 const ENTER_WITHIN_MS = 2_000;
 const STACK_SWITCHER_BELOW = 560;
 
@@ -88,7 +116,7 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
         case "copy": {
           // A suggestion has no output yet, so its Copy copies the command.
           const full = pres.layout === "proposed" ? null : await rpcOutput({ runId: run.runId }).catch(() => null);
-          await copyText(pres.layout === "proposed" ? pres.script : full?.text ?? plainText(run.output.lines));
+          await copyText(pres.layout === "proposed" ? pres.script : (full?.text ?? plainText(run.output.lines)));
           setCopied(true);
           setTimeout(() => setCopied(false), 1_200);
           return;
@@ -111,7 +139,8 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const paste = (text: string) => {
     const keys = pastedKeys(text);
     if (keys === null) return toast.show("The clipboard has no text to paste");
-    if (keys.length > LIMITS.commandChars) return toast.error(`That's too long to paste. The limit is ${LIMITS.commandChars.toLocaleString("en-US")} characters.`);
+    if (keys.length > LIMITS.commandChars)
+      return toast.error(`That's too long to paste. The limit is ${LIMITS.commandChars.toLocaleString("en-US")} characters.`);
     sendKeys(keys);
     // Later, so a closing paste box doesn't take the focus back.
     setTimeout(() => keyInput.current?.focus(), 300);
@@ -119,22 +148,24 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   const actions = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
       {pres.keyboard && compact ? <PasteButton colors={colors} onPaste={paste} /> : null}
-      {pres.actions.filter((action) => !(action.id === "rerun" && newerRunning)).map((action) => (
-        <Button
-          key={action.id}
-          icon={action.id === "copy" && copied ? "Check" : ACTION_ICON[action.id]}
-          label={action.id === "copy" && copied ? "Copied" : action.label}
-          reserveLabel={action.id === "copy" ? "Copied" : undefined}
-          tone={buttonTone(action)}
-          onPress={() => void act(action)}
-          busy={busy === action.id}
-          disabled={action.disabled}
-          compact={compact}
-          iconOnly={compact && !action.primary}
-          colors={colors}
-          accessibilityLabel={action.label}
-        />
-      ))}
+      {pres.actions
+        .filter((action) => !(action.id === "rerun" && newerRunning))
+        .map((action) => (
+          <Button
+            key={action.id}
+            icon={action.id === "copy" && copied ? "Check" : ACTION_ICON[action.id]}
+            label={action.id === "copy" && copied ? "Copied" : action.label}
+            reserveLabel={action.id === "copy" ? "Copied" : undefined}
+            tone={buttonTone(action)}
+            onPress={() => void act(action)}
+            busy={busy === action.id}
+            disabled={action.disabled}
+            compact={compact}
+            iconOnly={compact && !action.primary}
+            colors={colors}
+            accessibilityLabel={action.label}
+          />
+        ))}
     </View>
   );
 
@@ -143,7 +174,17 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   if (pres.layout === "proposed") {
     return (
       <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
-        <View testID="shell-yeah-run" style={{ borderRadius: 12, backgroundColor: mix(colors.surface0, colors.surface1, 0.6), borderWidth: 1, borderStyle: "dashed", borderColor: withAlpha(colors.foregroundMuted, 0.35), overflow: "hidden" }}>
+        <View
+          testID="shell-yeah-run"
+          style={{
+            borderRadius: 12,
+            backgroundColor: mix(colors.surface0, colors.surface1, 0.6),
+            borderWidth: 1,
+            borderStyle: "dashed",
+            borderColor: withAlpha(colors.foregroundMuted, 0.35),
+            overflow: "hidden",
+          }}
+        >
           <ProposalHeader pres={pres} colors={colors} />
           <Footer pres={pres} colors={colors} compact={compact} actions={actions} />
         </View>
@@ -154,8 +195,16 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
   return (
     <Enter timestamp={timestamp} reduced={reduced} entered={ui.entered} markEntered={ui.markEntered}>
       <Card colors={colors} tone={pres.tone} running={latestRunning} showingEarlierRun={past !== null} seenLive={ui.seenLive} reduced={reduced}>
-        <Header pres={pres} colors={colors} compact={compact} expanded={ui.expanded} onToggle={() => ui.setExpanded(!ui.expanded)}
-          steps={steps} newerRunning={newerRunning} onStep={(to) => setPicked(to === "latest" ? null : { runId: row.runId, at: to })} />
+        <Header
+          pres={pres}
+          colors={colors}
+          compact={compact}
+          expanded={ui.expanded}
+          onToggle={() => ui.setExpanded(!ui.expanded)}
+          steps={steps}
+          newerRunning={newerRunning}
+          onStep={(to) => setPicked(to === "latest" ? null : { runId: row.runId, at: to })}
+        />
         {pres.well?.kind === "output" ? (
           <OutputWell
             lines={run.output.lines}
@@ -172,12 +221,25 @@ export function RunRowView({ agentId, item, theme, layout, timestamp }: PluginTi
             reduced={reduced}
             cursor={listening ? run.cursor : null}
             listening={listening}
-            onPress={pres.keyboard ? () => keyInput.current?.focus() : undefined}>
+            onPress={pres.keyboard ? () => keyInput.current?.focus() : undefined}
+          >
             {pres.keyboard ? <KeyInput ref={keyInput} send={sendKeys} compact={compact} onTypingChange={setTyping} /> : null}
           </OutputWell>
         ) : pres.well?.kind === "message" ? (
-          <View style={{ marginHorizontal: 6, borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: withAlpha(colors.border, 0.6), paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: 18, color: colors.foreground }}>{pres.well.text}</Text>
+          <View
+            style={{
+              marginHorizontal: 6,
+              borderRadius: 6,
+              backgroundColor: palette.well,
+              borderWidth: 1,
+              borderColor: withAlpha(colors.border, 0.6),
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+            }}
+          >
+            <Text selectable style={{ fontFamily: mono(), fontSize: 12, lineHeight: 18, color: colors.foreground }}>
+              {pres.well.text}
+            </Text>
           </View>
         ) : null}
         <Footer pres={withTypingCue(pres, listening, compact)} colors={colors} compact={compact} actions={actions} />
@@ -200,7 +262,23 @@ function buttonTone(action: Action): ButtonTone {
 
 // The card: surface, ring, the running sweep along the top edge, and one flash of the
 // status color when a run this mount watched comes to an end.
-function Card({ children, colors, tone, running, showingEarlierRun, seenLive, reduced }: { children: React.ReactNode; colors: ThemeColors; tone: Presentation["tone"]; running: boolean; showingEarlierRun: boolean; seenLive: boolean; reduced: boolean }) {
+function Card({
+  children,
+  colors,
+  tone,
+  running,
+  showingEarlierRun,
+  seenLive,
+  reduced,
+}: {
+  children: React.ReactNode;
+  colors: ThemeColors;
+  tone: Presentation["tone"];
+  running: boolean;
+  showingEarlierRun: boolean;
+  seenLive: boolean;
+  reduced: boolean;
+}) {
   const [width, setWidth] = useState(0);
   const sweep = useRef(new Animated.Value(0)).current;
   const flash = useRef(new Animated.Value(0)).current;
@@ -222,18 +300,44 @@ function Card({ children, colors, tone, running, showingEarlierRun, seenLive, re
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
   const barWidth = Math.round(width * 0.28);
   return (
-    <View testID="shell-yeah-run" onLayout={onLayout} style={[{ borderRadius: 12, backgroundColor: colors.surface1, overflow: "hidden", borderWidth: 1, borderColor: "transparent" }, raised(colors)]}>
+    <View
+      testID="shell-yeah-run"
+      onLayout={onLayout}
+      style={[{ borderRadius: 12, backgroundColor: colors.surface1, overflow: "hidden", borderWidth: 1, borderColor: "transparent" }, raised(colors)]}
+    >
       {running && !showingEarlierRun ? (
         reduced ? (
           <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1, backgroundColor: withAlpha(colors.accent, 0.4) }} />
         ) : (
           <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1 }}>
-            <Animated.View style={{ position: "absolute", top: 0, height: 2, width: barWidth, backgroundColor: withAlpha(colors.accent, 0.9), transform: [{ translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-barWidth, width] }) }] }} />
+            <Animated.View
+              style={{
+                position: "absolute",
+                top: 0,
+                height: 2,
+                width: barWidth,
+                backgroundColor: withAlpha(colors.accent, 0.9),
+                transform: [{ translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-barWidth, width] }) }],
+              }}
+            />
           </View>
         )
       ) : null}
       {children}
-      <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12, borderWidth: 1, borderColor: toneColor(tone, colors), opacity: flash }} />
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: toneColor(tone, colors),
+          opacity: flash,
+        }}
+      />
     </View>
   );
 }
@@ -243,8 +347,13 @@ function Card({ children, colors, tone, running, showingEarlierRun, seenLive, re
 function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeColors }) {
   const firstLine = pres.title ? 20 : 18;
   const command = (
-    <Text selectable style={{ fontFamily: mono(), fontSize: pres.title ? 12 : 13, lineHeight: 18, fontWeight: pres.title ? "400" : "600", color: colors.foreground }}>
-      <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
+    <Text
+      selectable
+      style={{ fontFamily: mono(), fontSize: pres.title ? 12 : 13, lineHeight: 18, fontWeight: pres.title ? "400" : "600", color: colors.foreground }}
+    >
+      <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>
+        ${" "}
+      </Text>
       {pres.script}
     </Text>
   );
@@ -254,11 +363,17 @@ function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeCol
         <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
       </View>
       <View style={{ flex: 1, gap: 4 }}>
-        {pres.title ? <Text selectable style={{ fontSize: 14, lineHeight: 20, fontWeight: "600", color: colors.foreground }}>{pres.title}</Text> : null}
+        {pres.title ? (
+          <Text selectable style={{ fontSize: 14, lineHeight: 20, fontWeight: "600", color: colors.foreground }}>
+            {pres.title}
+          </Text>
+        ) : null}
         {command}
         {pres.warning ? (
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 1 }}>
-            <View style={{ paddingTop: 3 }}><Icon name="TriangleAlert" size={12} color={colors.statusWarning} /></View>
+            <View style={{ paddingTop: 3 }}>
+              <Icon name="TriangleAlert" size={12} color={colors.statusWarning} />
+            </View>
             <Text style={{ color: colors.statusWarning, fontSize: 12, lineHeight: 18, flexShrink: 1 }}>{pres.warning}</Text>
           </View>
         ) : null}
@@ -270,7 +385,25 @@ function ProposalHeader({ pres, colors }: { pres: Presentation; colors: ThemeCol
 
 type Steps = ReturnType<typeof switcher>;
 
-function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning, onStep }: { pres: Presentation; colors: ThemeColors; compact: boolean; expanded: boolean; onToggle(): void; steps: Steps; newerRunning: boolean; onStep(to: RunInView): void }) {
+function Header({
+  pres,
+  colors,
+  compact,
+  expanded,
+  onToggle,
+  steps,
+  newerRunning,
+  onStep,
+}: {
+  pres: Presentation;
+  colors: ThemeColors;
+  compact: boolean;
+  expanded: boolean;
+  onToggle(): void;
+  steps: Steps;
+  newerRunning: boolean;
+  onStep(to: RunInView): void;
+}) {
   const [first, ...rest] = pres.script.split("\n");
   const [hovered, setHovered] = useState(false);
   const [width, setWidth] = useState(0);
@@ -282,22 +415,61 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
     Animated.timing(rotate, { toValue: expanded ? 1 : 0, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver() }).start();
   }, [expanded]);
   const status = (
-    <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ flexShrink: 0, color: toneColor(pres.tone, colors), fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>
+    <Text
+      accessibilityLiveRegion="polite"
+      numberOfLines={1}
+      style={{ flexShrink: 0, color: toneColor(pres.tone, colors), fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}
+    >
       {pres.timerFrom !== null ? <Elapsed from={pres.timerFrom} prefix={pres.label ? `${pres.label} · ` : ""} /> : statusText(pres)}
     </Text>
   );
-  const switcher = steps ? <Switcher steps={steps} colors={colors} compact={compact} newerRunning={newerRunning} onStep={onStep} /> : null;
-  const content = (hovered: boolean) => (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, backgroundColor: hovered ? withAlpha(colors.surface2, 0.5) : "transparent" }}>
+  const switcherView = steps ? <Switcher steps={steps} colors={colors} compact={compact} newerRunning={newerRunning} onStep={onStep} /> : null;
+  const content = (highlighted: boolean) => (
+    <View
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      style={{
+        gap: 4,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        minHeight: 40,
+        backgroundColor: highlighted ? withAlpha(colors.surface2, 0.5) : "transparent",
+      }}
+    >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Badge kind={pres.badge} tone={pres.tone} colors={colors} />
-        <Text onLayout={command.onShownLayout} numberOfLines={expanded ? undefined : 1} style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}>
-          <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>$ </Text>
+        <Text
+          onLayout={command.onShownLayout}
+          numberOfLines={expanded ? undefined : 1}
+          style={{ flex: 1, minWidth: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600", color: colors.foreground }}
+        >
+          <Text selectable={false} style={{ color: colors.foregroundMuted, fontWeight: "400" }}>
+            ${" "}
+          </Text>
           {first}
         </Text>
-        <Text aria-hidden selectable={false} pointerEvents="none" onLayout={command.onFullLayout} numberOfLines={1} style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{`$ ${first}`}</Text>
-        {rest.length > 0 ? <Text numberOfLines={1} style={{ flexShrink: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text> : null}
-        {stacked ? null : switcher}
+        <Text
+          aria-hidden
+          selectable={false}
+          pointerEvents="none"
+          onLayout={command.onFullLayout}
+          numberOfLines={1}
+          style={{ position: "absolute", left: 0, top: 0, opacity: 0, fontFamily: mono(), fontSize: 13, lineHeight: 18, fontWeight: "600" }}
+        >{`$ ${first}`}</Text>
+        {rest.length > 0 ? (
+          <Text
+            numberOfLines={1}
+            style={{
+              flexShrink: 0,
+              color: colors.foregroundMuted,
+              fontSize: 11,
+              lineHeight: 16,
+              paddingHorizontal: 6,
+              borderRadius: 4,
+              backgroundColor: colors.surface2,
+            }}
+          >{`+${rest.length} ${rest.length === 1 ? "line" : "lines"}`}</Text>
+        ) : null}
+        {stacked ? null : switcherView}
         {status}
         <IconSwap swapKey={foldable ? "fold" : "none"} size={14}>
           {foldable ? (
@@ -307,7 +479,7 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
           ) : null}
         </IconSwap>
       </View>
-      {stacked && switcher ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcher}</View> : null}
+      {stacked && switcherView ? <View style={{ flexDirection: "row", paddingStart: 18 }}>{switcherView}</View> : null}
     </View>
   );
   if (!foldable) return content(false);
@@ -318,13 +490,26 @@ function Header({ pres, colors, compact, expanded, onToggle, steps, newerRunning
       aria-expanded={expanded}
       onPress={onToggle}
       onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}>
+      onHoverOut={() => setHovered(false)}
+    >
       {content(hovered)}
     </Pressable>
   );
 }
 
-function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: NonNullable<Steps>; colors: ThemeColors; compact: boolean; newerRunning: boolean; onStep(to: RunInView): void }) {
+function Switcher({
+  steps,
+  colors,
+  compact,
+  newerRunning,
+  onStep,
+}: {
+  steps: NonNullable<Steps>;
+  colors: ThemeColors;
+  compact: boolean;
+  newerRunning: boolean;
+  onStep(to: RunInView): void;
+}) {
   const size = compact ? 28 : 24;
   const arrow = (icon: string, label: string, to: RunInView | null, live = false) => (
     <PressScale
@@ -332,15 +517,34 @@ function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: Non
       accessibilityLabel={label}
       disabled={to === null}
       onPress={() => to !== null && onStep(to)}
-      style={({ hovered }) => ({ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered && to !== null ? colors.surface2 : "transparent", opacity: to === null ? 0.35 : 1 })}>
+      style={({ hovered }) => ({
+        width: size,
+        height: size,
+        borderRadius: 6,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: hovered && to !== null ? colors.surface2 : "transparent",
+        opacity: to === null ? 0.35 : 1,
+      })}
+    >
       <Icon name={icon} size={14} color={live ? colors.accent : colors.foregroundMuted} />
-      {live ? <View style={{ position: "absolute", top: size / 2 - 7, right: size / 2 - 7, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.accent }} /> : null}
+      {live ? (
+        <View
+          style={{ position: "absolute", top: size / 2 - 7, right: size / 2 - 7, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.accent }}
+        />
+      ) : null}
     </PressScale>
   );
   return (
     <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, marginVertical: -(size - 20) / 2 }}>
       {arrow("ChevronLeft", "Earlier run", steps.prev)}
-      <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}>{steps.label}</Text>
+      <Text
+        accessibilityLiveRegion="polite"
+        numberOfLines={1}
+        style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontVariant: ["tabular-nums"] }}
+      >
+        {steps.label}
+      </Text>
       {arrow("ChevronRight", newerRunning ? "Later run, still running" : "Later run", steps.next, newerRunning)}
     </View>
   );
@@ -350,10 +554,13 @@ function Switcher({ steps, colors, compact, newerRunning, onStep }: { steps: Non
 // is invisible and stays empty, at the bottom of the output box, so focusing it keeps the card in
 // view and a phone keyboard opens just under the newest output. What the command shows lands in
 // the output, so a password prompt shows nothing. Esc stops typing.
-const KeyInput = forwardRef<TextInput, { send(keys: string): void; compact: boolean; onTypingChange(typing: boolean): void }>(function KeyInput({ send, compact, onTypingChange }, ref) {
-  const input = useRef<TextInput | null>(null);
+const KeyInput = forwardRef<TextInput, { send(keys: string): void; compact: boolean; onTypingChange(typing: boolean): void }>(function KeyInput(
+  { send: sendKeys, compact, onTypingChange },
+  ref,
+) {
+  const inputRef = useRef<TextInput | null>(null);
   const setRef = (node: TextInput | null) => {
-    input.current = node;
+    inputRef.current = node;
     if (typeof ref === "function") ref(node);
     else if (ref) ref.current = node;
   };
@@ -362,26 +569,26 @@ const KeyInput = forwardRef<TextInput, { send(keys: string): void; compact: bool
       ref={setRef}
       value=""
       onChangeText={(text) => {
-        if (text) send(text);
+        if (text) sendKeys(text);
       }}
       onKeyPress={(event) => {
         const press = event.nativeEvent as KeyPress;
-        if (press.key === "Escape") return input.current?.blur();
+        if (press.key === "Escape") return inputRef.current?.blur();
         // On phones Enter arrives as a submit instead.
         if (press.key === "Enter" && Platform.OS !== "web") return;
         const keys = terminalKeys(press);
         if (keys === null) return;
         event.preventDefault();
-        send(keys);
+        sendKeys(keys);
       }}
-      onSubmitEditing={() => send("\r")}
+      onSubmitEditing={() => sendKeys("\r")}
       submitBehavior="submit"
       onFocus={() => onTypingChange(true)}
       onBlur={() => {
         onTypingChange(false);
         // Still focused after a blur means the window went to the background. Coming back would
         // focus the input again without a click, and the next key would go to the command.
-        if (input.current === (globalThis as { document?: { activeElement: unknown } }).document?.activeElement) input.current?.blur();
+        if (inputRef.current === (globalThis as { document?: { activeElement: unknown } }).document?.activeElement) inputRef.current?.blur();
       }}
       autoCapitalize="none"
       autoCorrect={false}
@@ -391,7 +598,18 @@ const KeyInput = forwardRef<TextInput, { send(keys: string): void; compact: bool
       accessibilityLabel="Type into the command"
       accessibilityHint="Each key goes to the command as you press it"
       // 16 px on phones: iOS Safari zooms the page into a smaller box when it's tapped.
-      style={{ position: "absolute", left: 0, bottom: 0, width: 1, height: 1, padding: 0, opacity: 0, fontSize: compact ? 16 : 13, color: "transparent", outlineWidth: 0 }}
+      style={{
+        position: "absolute",
+        left: 0,
+        bottom: 0,
+        width: 1,
+        height: 1,
+        padding: 0,
+        opacity: 0,
+        fontSize: compact ? 16 : 13,
+        color: "transparent",
+        outlineWidth: 0,
+      }}
     />
   );
 });
@@ -402,26 +620,29 @@ function useKeySender(runId: string): (keys: string) => void {
   const rpcInput = useRpc(input);
   const toast = useToast();
   const queue = useRef({ pending: [] as string[], sending: false });
-  return useCallback((keys: string) => {
-    const q = queue.current;
-    q.pending.push(...keys);
-    if (q.sending) return;
-    q.sending = true;
-    void (async () => {
-      try {
-        while (q.pending.length > 0) {
-          // Half the limit in characters: one character can take two of the limit's units.
-          const chunk = q.pending.splice(0, LIMITS.inputChars / 2).join("");
-          await rpcInput({ runId, keys: chunk });
+  return useCallback(
+    (keys: string) => {
+      const q = queue.current;
+      q.pending.push(...keys);
+      if (q.sending) return;
+      q.sending = true;
+      void (async () => {
+        try {
+          while (q.pending.length > 0) {
+            // Half the limit in characters: one character can take two of the limit's units.
+            const chunk = q.pending.splice(0, LIMITS.inputChars / 2).join("");
+            await rpcInput({ runId, keys: chunk });
+          }
+        } catch (error) {
+          q.pending = [];
+          toast.error(errorMessage(error));
+        } finally {
+          q.sending = false;
         }
-      } catch (error) {
-        q.pending = [];
-        toast.error(errorMessage(error));
-      } finally {
-        q.sending = false;
-      }
-    })();
-  }, [runId]);
+      })();
+    },
+    [runId],
+  );
 }
 
 function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors: ThemeColors; compact: boolean; actions: React.ReactNode }) {
@@ -433,7 +654,12 @@ function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors
           {notes.map((note) => (
             <View key={note.text} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
               <Icon name={NOTE_ICON[note.icon]} size={12} color={colors.foregroundMuted} />
-              <Text numberOfLines={compact ? 2 : 1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 1, fontVariant: ["tabular-nums"] }}>{note.text}</Text>
+              <Text
+                numberOfLines={compact ? 2 : 1}
+                style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 1, fontVariant: ["tabular-nums"] }}
+              >
+                {note.text}
+              </Text>
             </View>
           ))}
         </View>
@@ -441,7 +667,9 @@ function Footer({ pres, colors, compact, actions }: { pres: Presentation; colors
       </View>
       {pres.hint ? (
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4, paddingStart: 6, paddingBottom: 2 }}>
-          <View style={{ paddingTop: 3 }}><Icon name="Info" size={12} color={colors.foregroundMuted} /></View>
+          <View style={{ paddingTop: 3 }}>
+            <Icon name="Info" size={12} color={colors.foregroundMuted} />
+          </View>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, flexShrink: 1 }}>{pres.hint}</Text>
         </View>
       ) : null}
@@ -455,7 +683,12 @@ function Elapsed({ from, prefix }: { from: number; prefix: string }) {
   const now = useNow(elapsed < 10_000 ? 100 : 1_000);
   // A stopwatch starts at 0.0s; "<0.1s" is for runs that are already over.
   const ms = Math.max(0, now - from);
-  return <>{prefix}{ms < 100 ? "0.0s" : formatDuration(ms)}</>;
+  return (
+    <>
+      {prefix}
+      {ms < 100 ? "0.0s" : formatDuration(ms)}
+    </>
+  );
 }
 
 // Compares the width a one-line text gets with the width an unconstrained copy of it needs.
@@ -482,7 +715,19 @@ function useNow(intervalMs: number | null): number {
 
 // A row under two seconds old fades and rises in the first time it mounts; a virtualized
 // remount does not replay it, since the store remembers the row already entered.
-function Enter({ children, timestamp, reduced, entered, markEntered }: { children: React.ReactNode; timestamp: Date; reduced: boolean; entered: boolean; markEntered(): void }) {
+function Enter({
+  children,
+  timestamp,
+  reduced,
+  entered,
+  markEntered,
+}: {
+  children: React.ReactNode;
+  timestamp: Date;
+  reduced: boolean;
+  entered: boolean;
+  markEntered(): void;
+}) {
   const [fresh] = useState(() => !entered && Date.now() - timestamp.getTime() < ENTER_WITHIN_MS);
   const enter = useRef(new Animated.Value(fresh && !reduced ? 0 : 1)).current;
   useEffect(() => {

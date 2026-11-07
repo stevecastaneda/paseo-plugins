@@ -39,9 +39,16 @@ export function parseTaskNotification(source: string): TaskNotification | null {
   const usage = value.usage === undefined ? {} : fields(value.usage, new Set(["subagent_tokens", "tool_uses", "duration_ms"]));
   if (!usage) return null;
   return {
-    taskId: value["task-id"].trim(), toolUseId: value["tool-use-id"]?.trim(), outputFile: value["output-file"]?.trim(),
-    status: value.status.trim(), summary: value.summary.trim(), note: value.note?.trim(), result: value.result,
-    tokens: number(usage.subagent_tokens), toolUses: number(usage.tool_uses), durationMs: number(usage.duration_ms),
+    taskId: value["task-id"].trim(),
+    toolUseId: value["tool-use-id"]?.trim(),
+    outputFile: value["output-file"]?.trim(),
+    status: value.status.trim(),
+    summary: value.summary.trim(),
+    note: value.note?.trim(),
+    result: value.result,
+    tokens: number(usage.subagent_tokens),
+    toolUses: number(usage.tool_uses),
+    durationMs: number(usage.duration_ms),
   };
 }
 

@@ -28,10 +28,10 @@ npm run dev
 
 To see which copy Paseo is using, run `paseo plugin ls`. If `paseo` isn't on your `PATH`, use `/Applications/Paseo.app/Contents/Resources/bin/paseo`. `npm run dev` finds it either way.
 
-| Problem | Fix |
-| --- | --- |
+| Problem                                              | Fix                                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `npm run typecheck failed` in a copy you didn't edit | Its dependencies are out of date. Run `npm install`, then `npm run dev` again. |
-| Checks pass but the plugin isn't `running` | Run `paseo plugin logs <plugin>` to see why it didn't start. |
+| Checks pass but the plugin isn't `running`           | Run `paseo plugin logs <plugin>` to see why it didn't start.                   |
 
 Switching copies keeps what a plugin saved in `~/.paseo/plugin-data/`.
 
@@ -41,11 +41,11 @@ Each plugin versions itself in that directory's `package.json`. npm and the Pase
 
 Versions follow [semver](https://semver.org). Each plugin moves from 0.x to `1.0.0` at its next release. From then on:
 
-| The change | Bump | Example |
-| --- | --- | --- |
-| Breaks something for people already using the plugin: removes a feature or setting, moves saved data | First number | `1.4.2` to `2.0.0` |
-| Adds a feature, or raises the minimum Paseo version | Middle number | `1.4.2` to `1.5.0` |
-| Fixes a bug, or changes only the README or store page | Last number | `1.4.2` to `1.4.3` |
+| The change                                                                                           | Bump          | Example            |
+| ---------------------------------------------------------------------------------------------------- | ------------- | ------------------ |
+| Breaks something for people already using the plugin: removes a feature or setting, moves saved data | First number  | `1.4.2` to `2.0.0` |
+| Adds a feature, or raises the minimum Paseo version                                                  | Middle number | `1.4.2` to `1.5.0` |
+| Fixes a bug, or changes only the README or store page                                                | Last number   | `1.4.2` to `1.4.3` |
 
 A raised minimum Paseo version breaks nothing for current users. A Paseo older than the new `requirements.paseo` refuses the update and keeps the installed version running.
 

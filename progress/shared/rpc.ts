@@ -11,7 +11,14 @@ import type { WhatsNew } from "./whats-new.ts";
 // `inRepo`: saving history needs a git repo to keep the choice in.
 // `version` changes whenever anything else in the result does.
 export type DashboardResult = {
-  configured: boolean; dashboard: Dashboard; panelOpened: boolean; file: string; savedTo: string | null; inRepo: boolean; root: string; version: string;
+  configured: boolean;
+  dashboard: Dashboard;
+  panelOpened: boolean;
+  file: string;
+  savedTo: string | null;
+  inRepo: boolean;
+  root: string;
+  version: string;
 };
 
 export const getDashboard = defineRpc({

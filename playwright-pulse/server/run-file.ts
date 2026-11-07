@@ -1,13 +1,11 @@
 // Reads a worktree's latest run for the panel. The reporter rewrites its run's
 // file up to four times a second while tests run; the panel asks every second.
-import { execFile } from "node:child_process";
-import { readdir, readFile, rm, rmdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { promisify } from "node:util";
 import { isFailure } from "../shared/view.ts";
 import type { RunSnapshot } from "../shared/run.ts";
-import { LAUNCH_FOLDER, findPs } from "./programs.ts";
+import { findPs, removeFolderIn, removeIn, runProgram } from "./system.ts";
 import { LATEST_FILE_NAME, RUNS_FOLDER, RUN_ID, findRoot, pulseDirectory, runFile } from "./pulse-reporter.mjs";
 
 // `directory` holds the worktree's runs; `shown` names it for people.
@@ -41,7 +39,7 @@ export const processStartTime: StartTimeOf = async (pid) => {
   try {
     const ps = await findPs();
     if (!ps) return null;
-    const { stdout } = await promisify(execFile)(ps, ["-o", "lstart=", "-p", String(pid)], { cwd: LAUNCH_FOLDER });
+    const { stdout } = await runProgram(ps, ["-o", "lstart=", "-p", String(pid)]);
     const time = Date.parse(stdout.trim());
     return Number.isNaN(time) ? null : time;
   } catch {
@@ -158,10 +156,10 @@ export async function pruneRuns(home = homedir()): Promise<string[]> {
     try {
       const runs = join(directory, RUNS_FOLDER);
       const names = await readdir(runs).catch((error) => (isMissing(error) ? [] : Promise.reject(error)));
-      for (const name of names) if (REPORTER_FILE.test(name)) await rm(join(runs, name), { force: true });
-      await rmdir(runs).catch((error) => (isMissing(error) ? undefined : Promise.reject(error)));
-      for (const name of await readdir(directory)) if (REPORTER_FILE.test(name)) await rm(join(directory, name), { force: true });
-      await rmdir(directory);
+      for (const name of names) if (REPORTER_FILE.test(name)) await removeIn(runs, name);
+      await removeFolderIn(directory, RUNS_FOLDER).catch((error) => (isMissing(error) ? undefined : Promise.reject(error)));
+      for (const name of await readdir(directory)) if (REPORTER_FILE.test(name)) await removeIn(directory, name);
+      await removeFolderIn(parent, folder.name);
       removed.push(directory);
     } catch {
       // Something else is in there; leave it.

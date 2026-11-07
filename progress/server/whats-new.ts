@@ -9,15 +9,18 @@ import { z } from "zod";
 import { NOTE_KINDS, type NoteKind, type WhatsNew, type WhatsNewNote, type WhatsNewRelease } from "../shared/whats-new.ts";
 import { spans } from "../shared/blocks.ts";
 import { findPluginDirectory } from "./skill.ts";
-import { stateRoot, writeAtomic } from "./store.ts";
+import { stateRoot } from "./store.ts";
+import { writeFileIn } from "./system.ts";
 
 export type Release = { version: string; readme: string | null };
 
 const seenSchema = z.object({ seen: z.string().regex(/^\d+\.\d+\.\d+$/) });
 const packageSchema = z.object({ version: z.string() });
 
+const WHATS_NEW_NAME = "whats-new.json";
+
 export function whatsNewPath(home = homedir()): string {
-  return join(stateRoot(home), "whats-new.json");
+  return join(stateRoot(home), WHATS_NEW_NAME);
 }
 
 // Each `### x.y.z` under the README's `## Changelog` with its top-level
@@ -44,8 +47,8 @@ export function changelog(readme: string): WhatsNewRelease[] {
   }
   return releases
     .filter((release) => release.bullets.length)
-    .map(({ version, bullets }) => ({ version, notes: bullets.map(note) }))
-    .sort((a, b) => compareVersions(b.version, a.version));
+    .map(({ version, bullets }) => ({ version, notes: bullets.map(noteFromBullet) }))
+    .toSorted((a, b) => compareVersions(b.version, a.version));
 }
 
 function compareVersions(a: string, b: string): number {
@@ -55,27 +58,36 @@ function compareVersions(a: string, b: string): number {
 
 // A bullet can open with a kind tag, like `[Fixed]`, and then a bold
 // sentence, like `**Title.** Detail.`, which is its title.
-function note(bullet: string): WhatsNewNote {
+function noteFromBullet(bullet: string): WhatsNewNote {
   const tag = /^\[([a-z]+)\]\s*(.*)$/i.exec(bullet);
   const kind = tag ? noteKind(tag[1]) : undefined;
   const rest = kind ? tag![2] : bullet;
-  const text = rest.split(/(`[^`]+`)/).map((part, index) => index % 2 ? part : curly(part)).join("");
+  const text = rest
+    .split(/(`[^`]+`)/)
+    .map((part, index) => (index % 2 ? part : curly(part)))
+    .join("");
   const lead = /^\*\*([^*]+?[.!?])\*\*\s*(.*)$/.exec(text);
   return { ...(kind && { kind }), ...(lead ? { title: plain(lead[1]), body: lead[2] } : { body: text }) };
 }
 
 function noteKind(tag: string): NoteKind | undefined {
   const key = tag.toLowerCase();
-  return Object.hasOwn(NOTE_KINDS, key) ? key as NoteKind : undefined;
+  return Object.hasOwn(NOTE_KINDS, key) ? (key as NoteKind) : undefined;
 }
 
 // The README is typed with straight quotes; the panel shows typeset ones. Code keeps its own.
 function curly(text: string): string {
-  return text.replace(/(^|[\s([{])"/g, "$1\u201c").replace(/"/g, "\u201d").replace(/(^|[\s([{])'/g, "$1\u2018").replace(/'/g, "\u2019");
+  return text
+    .replace(/(^|[\s([{])"/g, "$1\u201c")
+    .replace(/"/g, "\u201d")
+    .replace(/(^|[\s([{])'/g, "$1\u2018")
+    .replace(/'/g, "\u2019");
 }
 
 function plain(markdown: string): string {
-  return spans(markdown).map((span) => span.text).join("");
+  return spans(markdown)
+    .map((span) => span.text)
+    .join("");
 }
 
 // A note's title, or else the first sentence of its body, without Markdown.
@@ -94,7 +106,7 @@ async function readSeen(home: string): Promise<string | null> {
 }
 
 export async function markWhatsNewSeen(version: string, home = homedir()): Promise<void> {
-  await writeAtomic(whatsNewPath(home), `${JSON.stringify({ seen: version })}\n`);
+  await writeFileIn(stateRoot(home), WHATS_NEW_NAME, `${JSON.stringify({ seen: version })}\n`, { atomic: true });
 }
 
 // A worktree's folder (see outsideDirectory) means the plugin was in use
@@ -115,9 +127,9 @@ export async function whatsNew({ version, readme }: Release, home = homedir()): 
     await markWhatsNewSeen(version, home);
     return null;
   }
-  const releases = (readme === null ? [] : changelog(readme)).filter((release) => seen === null
-    ? release.version === version
-    : compareVersions(release.version, seen) > 0 && compareVersions(release.version, version) <= 0);
+  const releases = (readme === null ? [] : changelog(readme)).filter((release) =>
+    seen === null ? release.version === version : compareVersions(release.version, seen) > 0 && compareVersions(release.version, version) <= 0,
+  );
   if (!releases.length) return null;
   const notes = releases.flatMap((release) => release.notes);
   return { version, headline: headline(notes.find((note) => note.kind === "new") ?? notes[0]), releases };

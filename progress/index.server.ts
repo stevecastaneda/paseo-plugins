@@ -6,7 +6,25 @@ import { mirrorQuestionMode } from "./server/question-mode";
 import { handleInstallSkill, handleReadSkill, handleSkillStatus, repairSkill } from "./server/skill";
 import { attachProgressTools, handleToolsStatus } from "./server/tool";
 import { handleDismissWhatsNew, handleGetWhatsNew } from "./server/whats-new";
-import { canOpenOnHost, dismissWhatsNew, getAttention, getDashboard, getLauncherStatus, getSkillStatus, getToolsStatus, getWhatsNew, installLauncher, installSkill, listFolders, readSkill, markPanelOpened, openDeliverable, previewDeliverable, readDeliverablePiece, setHistoryFolder } from "./shared/rpc";
+import {
+  canOpenOnHost,
+  dismissWhatsNew,
+  getAttention,
+  getDashboard,
+  getLauncherStatus,
+  getSkillStatus,
+  getToolsStatus,
+  getWhatsNew,
+  installLauncher,
+  installSkill,
+  listFolders,
+  readSkill,
+  markPanelOpened,
+  openDeliverable,
+  previewDeliverable,
+  readDeliverablePiece,
+  setHistoryFolder,
+} from "./shared/rpc";
 import { displaySettings, questionSettings } from "./shared/settings";
 
 export default function contribute(server: PluginServerContext) {

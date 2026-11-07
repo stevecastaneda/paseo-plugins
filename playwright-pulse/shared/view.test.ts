@@ -1,25 +1,82 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PulseTest, RunSnapshot } from "./run.ts";
-import { PILL_LINGER_MS, folderLabel, folders, formatTimeLeft, slowest, slowestPrompt, timeLeft, assignSlots, shownFailure, stepFailure, pillView, runBrief, attachmentKind, commandLine, counts, runningSlotCount, workerCount, errorPreview, failureMessage, verdict, verdictNote, formatAgo, formatClock, formatDuration, runElapsed, testWhere, timeoutShare } from "./view.ts";
+import {
+  PILL_LINGER_MS,
+  folderLabel,
+  folders,
+  formatTimeLeft,
+  slowest,
+  slowestPrompt,
+  timeLeft,
+  assignSlots,
+  shownFailure,
+  stepFailure,
+  pillView,
+  runBrief,
+  attachmentKind,
+  commandLine,
+  counts,
+  runningSlotCount,
+  workerCount,
+  errorPreview,
+  failureMessage,
+  verdict,
+  verdictNote,
+  formatAgo,
+  formatClock,
+  formatDuration,
+  runElapsed,
+  testWhere,
+  timeoutShare,
+} from "./view.ts";
 
 function pulseTest(overrides: Partial<PulseTest>): PulseTest {
-  return { id: "t", title: "User edits a lead", titlePath: [], file: "e2e/a.spec.ts", line: 3, project: "", status: "passed", retry: 0, timeout: 60_000, attachments: [], ...overrides };
+  return {
+    id: "t",
+    title: "User edits a lead",
+    titlePath: [],
+    file: "e2e/a.spec.ts",
+    line: 3,
+    project: "",
+    status: "passed",
+    retry: 0,
+    timeout: 60_000,
+    attachments: [],
+    ...overrides,
+  };
 }
 
 function run(tests: PulseTest[], overrides: Partial<RunSnapshot> = {}): RunSnapshot {
-  return { v: 1, id: "r", pid: 1, root: "/", args: [], status: "running", startedAt: "2026-10-04T12:00:00.000Z", updatedAt: "2026-10-04T12:00:30.000Z", total: 5, projects: [], workers: 1, tests, errors: [], ...overrides };
+  return {
+    v: 1,
+    id: "r",
+    pid: 1,
+    root: "/",
+    args: [],
+    status: "running",
+    startedAt: "2026-10-04T12:00:00.000Z",
+    updatedAt: "2026-10-04T12:00:30.000Z",
+    total: 5,
+    projects: [],
+    workers: 1,
+    tests,
+    errors: [],
+    ...overrides,
+  };
 }
 
 test("counts passed, flaky, failed, skipped and running tests", () => {
-  const tally = counts(run([
-    pulseTest({ status: "passed" }),
-    pulseTest({ status: "passed", outcome: "flaky" }),
-    pulseTest({ status: "failed" }),
-    pulseTest({ status: "timedOut" }),
-    pulseTest({ status: "skipped" }),
-    pulseTest({ status: "running" }),
-  ]));
+  const tally = counts(
+    run([
+      pulseTest({ status: "passed" }),
+      pulseTest({ status: "passed", outcome: "flaky" }),
+      pulseTest({ status: "failed" }),
+      pulseTest({ status: "timedOut" }),
+      pulseTest({ status: "skipped" }),
+      pulseTest({ status: "running" }),
+    ]),
+  );
   assert.deepEqual(tally, { passed: 2, failed: 2, flaky: 1, skipped: 1, stopped: 0, running: 1, done: 5, total: 6 });
 });
 
@@ -33,14 +90,28 @@ test("follows Playwright's verdict: expected failures pass, unexpected passes fa
   const failedThenStopped = pulseTest({ status: "interrupted", outcome: "unexpected" });
   const flaky = pulseTest({ status: "passed", outcome: "flaky", retry: 1 });
   const skipped = pulseTest({ status: "skipped", outcome: "skipped" });
-  assert.deepEqual([expectedFailure, unexpectedPass, stopped, failedThenStopped, flaky, skipped].map(verdict),
-    ["passed", "failed", "stopped", "failed", "flaky", "skipped"]);
+  assert.deepEqual([expectedFailure, unexpectedPass, stopped, failedThenStopped, flaky, skipped].map(verdict), [
+    "passed",
+    "failed",
+    "stopped",
+    "failed",
+    "flaky",
+    "skipped",
+  ]);
   assert.equal(verdictNote(expectedFailure), "Failed, as expected");
   assert.equal(verdictNote(stopped), "Stopped before it finished");
   assert.equal(verdictNote(flaky), "Flaky: passed on retry 1");
   assert.equal(failureMessage(unexpectedPass, String), "Marked as expected to fail, but it passed.");
-  assert.deepEqual(counts(run([expectedFailure, unexpectedPass, stopped, failedThenStopped, flaky, skipped])),
-    { passed: 2, failed: 2, flaky: 1, skipped: 1, stopped: 1, running: 0, done: 6, total: 6 });
+  assert.deepEqual(counts(run([expectedFailure, unexpectedPass, stopped, failedThenStopped, flaky, skipped])), {
+    passed: 2,
+    failed: 2,
+    flaky: 1,
+    skipped: 1,
+    stopped: 1,
+    running: 0,
+    done: 6,
+    total: 6,
+  });
 });
 
 test("running tests keep their row; a new test takes the first free one", () => {
@@ -51,9 +122,9 @@ test("running tests keep their row; a new test takes the first free one", () => 
   assert.deepEqual(assignSlots(["c", "b", null], ["b"], 3), [null, "b", null]);
   // More running than rows (retries can overlap): add rows rather than drop a test.
   assert.deepEqual(assignSlots(["a"], ["a", "b"], 1), ["a", "b"]);
-  const run = { workers: 4, total: 2 } as RunSnapshot;
-  assert.equal(runningSlotCount(run, 0), 2);
-  assert.equal(runningSlotCount({ ...run, total: 40 }, 1), 4);
+  const snapshot = { workers: 4, total: 2 } as RunSnapshot;
+  assert.equal(runningSlotCount(snapshot, 0), 2);
+  assert.equal(runningSlotCount({ ...snapshot, total: 40 }, 1), 4);
 });
 
 test("the running card's heading counts busy workers, a dot per row", () => {
@@ -107,42 +178,94 @@ test("groups the suite by folder, including folders that haven't started", () =>
     pulseTest({ id: "c", file: "e2e/leads/delete.spec.ts", status: "running" }),
   ];
   const [leads, billing] = folders(run(tests, { plan, total: 6 }));
-  assert.deepEqual({ ...leads, tests: leads.tests.length },
-    { name: "leads", kind: "folder", total: 3, done: 2, passed: 1, failed: 1, flaky: 0, skipped: 0, stopped: 0, running: 1, duration: 3000, tests: 3 });
+  assert.deepEqual(
+    { ...leads, tests: leads.tests.length },
+    { name: "leads", kind: "folder", total: 3, done: 2, passed: 1, failed: 1, flaky: 0, skipped: 0, stopped: 0, running: 1, duration: 3000, tests: 3 },
+  );
   assert.deepEqual([billing.name, billing.total, billing.done], ["billing", 3, 0]);
   assert.equal(folderLabel(folders(run(tests, { plan }))), "Folders");
   // Spec files in one folder: each file is its own row, and the tab says Files.
-  const flat = folders(run([], { plan: [{ file: "smoke/e2e/watch.spec.mjs", count: 1 }, { file: "smoke/e2e/demo.spec.mjs", count: 1 }] }));
-  assert.deepEqual(flat.map((folder) => folder.name), ["watch", "demo"]);
+  const flat = folders(
+    run([], {
+      plan: [
+        { file: "smoke/e2e/watch.spec.mjs", count: 1 },
+        { file: "smoke/e2e/demo.spec.mjs", count: 1 },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    flat.map((folder) => folder.name),
+    ["watch", "demo"],
+  );
   assert.equal(folderLabel(flat), "Files");
   // Older runs have no plan: folders come from the tests seen.
-  assert.deepEqual(folders(run([pulseTest({ file: "e2e/auth/login.spec.ts" })])).map((folder) => [folder.name, folder.total]), [["login", 1]]);
+  assert.deepEqual(
+    folders(run([pulseTest({ file: "e2e/auth/login.spec.ts" })])).map((folder) => [folder.name, folder.total]),
+    [["login", 1]],
+  );
 });
 
 test("writes a prompt to find out why the slowest tests are slow", () => {
   const tests = [
-    pulseTest({ id: "a", title: "User records a video", titlePath: ["Videos"], file: "e2e/videos/record.spec.ts", line: 44, project: "chromium", duration: 28_000 }),
-    pulseTest({ id: "b", title: "User copies a link", file: "e2e/shares/links.spec.ts", line: 99, project: "firefox", duration: 12_400, timeout: 180_000, status: "timedOut", outcome: "unexpected" }),
-    pulseTest({ id: "c", title: "User names a stranger", file: "e2e/calling/bar.spec.ts", line: 65, project: "chromium", duration: 9_000, timeout: 0, retry: 1, outcome: "flaky" }),
+    pulseTest({
+      id: "a",
+      title: "User records a video",
+      titlePath: ["Videos"],
+      file: "e2e/videos/record.spec.ts",
+      line: 44,
+      project: "chromium",
+      duration: 28_000,
+    }),
+    pulseTest({
+      id: "b",
+      title: "User copies a link",
+      file: "e2e/shares/links.spec.ts",
+      line: 99,
+      project: "firefox",
+      duration: 12_400,
+      timeout: 180_000,
+      status: "timedOut",
+      outcome: "unexpected",
+    }),
+    pulseTest({
+      id: "c",
+      title: "User names a stranger",
+      file: "e2e/calling/bar.spec.ts",
+      line: 65,
+      project: "chromium",
+      duration: 9_000,
+      timeout: 0,
+      retry: 1,
+      outcome: "flaky",
+    }),
   ];
   const ended = run(tests, { status: "passed", args: ["e2e/", "--project", "chromium"], projects: ["chromium", "firefox"] });
-  assert.equal(slowestPrompt(ended, tests), [
-    "Find out why these Playwright tests are slow, and how to make them faster without making them flaky. They're the slowest in the last run of `playwright test e2e/ --project chromium` in this worktree.",
-    "1. Videos › User records a video\n   e2e/videos/record.spec.ts:44 · took 28s of a 1m 00s timeout, project chromium",
-    "2. User copies a link\n   e2e/shares/links.spec.ts:99 · took 12s of a 3m 00s timeout, project firefox, timed out",
-    "3. User names a stranger\n   e2e/calling/bar.spec.ts:65 · took 9.0s, project chromium, flaky, passed on retry 1",
-    "For each one, read the test and the helpers it calls. Then run it on its own with `--trace on` and check each step's time in the trace. Look for fixed waits, setup that could go through the API or be shared, and waits on things the test doesn't check. Report where the time goes and what you'd change.",
-  ].join("\n\n"));
+  assert.equal(
+    slowestPrompt(ended, tests),
+    [
+      "Find out why these Playwright tests are slow, and how to make them faster without making them flaky. They're the slowest in the last run of `playwright test e2e/ --project chromium` in this worktree.",
+      "1. Videos › User records a video\n   e2e/videos/record.spec.ts:44 · took 28s of a 1m 00s timeout, project chromium",
+      "2. User copies a link\n   e2e/shares/links.spec.ts:99 · took 12s of a 3m 00s timeout, project firefox, timed out",
+      "3. User names a stranger\n   e2e/calling/bar.spec.ts:65 · took 9.0s, project chromium, flaky, passed on retry 1",
+      "For each one, read the test and the helpers it calls. Then run it on its own with `--trace on` and check each step's time in the trace. Look for fixed waits, setup that could go through the API or be shared, and waits on things the test doesn't check. Report where the time goes and what you'd change.",
+    ].join("\n\n"),
+  );
   // One test reads in the singular; a single project isn't named; a live run is "so far".
   const one = slowestPrompt(run(tests.slice(0, 1), { projects: ["chromium"] }), tests.slice(0, 1));
-  assert.match(one, /^Find out why this Playwright test is slow, and how to make it faster without making it flaky\. It's the slowest so far in the run of `playwright test` in this worktree\./);
+  assert.match(
+    one,
+    /^Find out why this Playwright test is slow, and how to make it faster without making it flaky\. It's the slowest so far in the run of `playwright test` in this worktree\./,
+  );
   assert.match(one, /record\.spec\.ts:44 · took 28s of a 1m 00s timeout\n/);
   assert.match(one, /\n\nFor it, read the test/);
 });
 
 test("lists the slowest finished tests and estimates the time left", () => {
   const tests = [1, 5, 3, 9, 2, 7].map((seconds, index) => pulseTest({ id: `t${index}`, duration: seconds * 1000 }));
-  assert.deepEqual(slowest(run([...tests, pulseTest({ status: "running" })]), 3).map((test) => test.duration), [9000, 7000, 5000]);
+  assert.deepEqual(
+    slowest(run([...tests, pulseTest({ status: "running" })]), 3).map((finished) => finished.duration),
+    [9000, 7000, 5000],
+  );
   const live = run(tests, { total: 12, testsStartedAt: "2026-10-04T12:00:00.000Z" });
   // Six done in a minute: six more take about another minute.
   assert.equal(timeLeft(live, Date.parse("2026-10-04T12:01:00.000Z")), 60_000);
@@ -179,19 +302,25 @@ test("a live run's clock keeps going; an ended one stops at its end", () => {
 });
 
 test("shows the command as typed", () => {
-  assert.equal(commandLine(["e2e/leads", "-g", "User edits a lead", "--project=authenticated"]),
-    'playwright test e2e/leads -g "User edits a lead" --project=authenticated');
+  assert.equal(
+    commandLine(["e2e/leads", "-g", "User edits a lead", "--project=authenticated"]),
+    'playwright test e2e/leads -g "User edits a lead" --project=authenticated',
+  );
   assert.equal(commandLine([]), "playwright test");
 });
 
 test("previews the first lines of an error", () => {
   assert.deepEqual(errorPreview("a\nb\nc\nd\ne\n"), { text: "a\nb\nc\nd", more: true });
   assert.deepEqual(errorPreview("only line\n\n"), { text: "only line", more: false });
-  const playwright = "Error: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('total')\nExpected: \"$5\"\nReceived: \"$6\"\n\nCall log:";
-  assert.deepEqual(errorPreview(playwright), {
-    text: "Error: expect(locator).toHaveText(expected) failed\nLocator: getByTestId('total')\nExpected: \"$5\"\nReceived: \"$6\"",
-    more: true,
-  }, "blank lines don't use up the preview");
+  const playwright = 'Error: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId(\'total\')\nExpected: "$5"\nReceived: "$6"\n\nCall log:';
+  assert.deepEqual(
+    errorPreview(playwright),
+    {
+      text: 'Error: expect(locator).toHaveText(expected) failed\nLocator: getByTestId(\'total\')\nExpected: "$5"\nReceived: "$6"',
+      more: true,
+    },
+    "blank lines don't use up the preview",
+  );
   assert.deepEqual(errorPreview("a\n\nb"), { text: "a\nb", more: false }, "nothing more to show than blank lines");
 });
 

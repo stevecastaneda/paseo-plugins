@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { defaultSettings, settingsSchema, type TimeSinceSettings } from "../shared/settings.ts";
 import { withWriteLock } from "./write-lock.ts";
+import { writeFileAtomicIn } from "./system.ts";
 
 export function settingsRootFromEnvironment(env: NodeJS.ProcessEnv = process.env): string {
   return env.PASEO_HOME ?? join(homedir(), ".paseo");
@@ -16,7 +16,7 @@ export function settingsFilePath(root: string): string {
 async function readFileSettings(filePath: string): Promise<TimeSinceSettings> {
   let contents: string;
   try {
-    contents = await fs.readFile(filePath, "utf8");
+    contents = await readFile(filePath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...defaultSettings };
     throw new Error(`Unable to read time-since settings at ${filePath}`, { cause: error });
@@ -36,14 +36,9 @@ async function readFileSettings(filePath: string): Promise<TimeSinceSettings> {
 }
 
 async function writeFileSettings(filePath: string, settings: TimeSinceSettings): Promise<void> {
-  const directory = join(filePath, "..");
-  await fs.mkdir(directory, { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await fs.writeFile(temporaryPath, `${JSON.stringify(settings)}\n`, "utf8");
-    await fs.rename(temporaryPath, filePath);
+    await writeFileAtomicIn(dirname(filePath), basename(filePath), `${JSON.stringify(settings)}\n`);
   } catch (error) {
-    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
     throw new Error(`Unable to write time-since settings at ${filePath}`, { cause: error });
   }
 }

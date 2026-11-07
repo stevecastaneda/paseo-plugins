@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { defaultShortcut, shortcutSchema, type ShortcutSettings } from "../shared/shortcut.ts";
+import { writeFileAtomicIn } from "./system.ts";
 
 const writes = new Map<string, Promise<void>>();
 
@@ -30,7 +30,7 @@ function withWriteLock<T>(filePath: string, operation: () => Promise<T>): Promis
 async function readFileSettings(filePath: string): Promise<ShortcutSettings> {
   let contents: string;
   try {
-    contents = await fs.readFile(filePath, "utf8");
+    contents = await readFile(filePath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...defaultShortcut };
     throw new Error(`Unable to read workspace-links settings at ${filePath}`, { cause: error });
@@ -50,14 +50,9 @@ async function readFileSettings(filePath: string): Promise<ShortcutSettings> {
 }
 
 async function writeFileSettings(filePath: string, settings: ShortcutSettings): Promise<void> {
-  const directory = join(filePath, "..");
-  await fs.mkdir(directory, { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await fs.writeFile(temporaryPath, `${JSON.stringify(settings)}\n`, "utf8");
-    await fs.rename(temporaryPath, filePath);
+    await writeFileAtomicIn(dirname(filePath), basename(filePath), `${JSON.stringify(settings)}\n`);
   } catch (error) {
-    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
     throw new Error(`Unable to write workspace-links settings at ${filePath}`, { cause: error });
   }
 }

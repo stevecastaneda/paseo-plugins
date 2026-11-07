@@ -1,18 +1,9 @@
 import { observeDirectory, type PaseoAgentUpdate } from "./directory";
-import {
-  type PluginButtonContentProps,
-  type PluginButtonIconProps,
-  type PluginButtonRegistration,
-  type PluginClientContext,
-} from "@getpaseo/plugin/client";
+import { type PluginButtonContentProps, type PluginButtonIconProps, type PluginButtonRegistration, type PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useSyncExternalStore } from "react";
 import { Text, View } from "react-native";
-import {
-  formatTimeSincePillLabel,
-  isWorkingStatus,
-  lastThreadMessageAtFromStream,
-} from "../shared/elapsed";
+import { formatTimeSincePillLabel, isWorkingStatus, lastThreadMessageAtFromStream } from "../shared/elapsed";
 import { listLastReplies, type LastReplies } from "../shared/last-reply";
 import { subscribeSettings, useSettings } from "./settings";
 import { defaultSettings, getSettings, type TimeSinceSettings } from "../shared/settings";
@@ -182,23 +173,29 @@ export function contributeClient(client: PluginClientContext) {
     settings = next;
     publishAll();
   });
-  void client.rpc(getSettings, {}).then((next) => {
-    if (stopped || settingsChanged) return;
-    settings = next;
-    publishAll();
-  }).catch(() => undefined);
+  void client
+    .rpc(getSettings, {})
+    .then((next) => {
+      if (stopped || settingsChanged) return;
+      settings = next;
+      publishAll();
+    })
+    .catch(() => undefined);
 
   // One read of the server's turn-end ledger seeds every pill; it never opens
   // an agent, unlike a per-agent timeline read.
-  void client.rpc(listLastReplies, {}).then(({ lastReplyAt }) => {
-    if (stopped) return;
-    lastReplies = lastReplyAt;
-    for (const agentId of tracked.keys()) {
-      const at = lastReplies[agentId];
-      if (at) rememberLastMessageAt(agentId, at);
-    }
-    publishAll();
-  }).catch(() => undefined);
+  void client
+    .rpc(listLastReplies, {})
+    .then(({ lastReplyAt }) => {
+      if (stopped) return;
+      lastReplies = lastReplyAt;
+      for (const agentId of tracked.keys()) {
+        const at = lastReplies[agentId];
+        if (at) rememberLastMessageAt(agentId, at);
+      }
+      publishAll();
+    })
+    .catch(() => undefined);
 
   const register = (agent: {
     id: string;
@@ -208,7 +205,10 @@ export function contributeClient(client: PluginClientContext) {
     createdAt?: string | null;
   }) => {
     if (stopped) return;
-    if (!agent.workspaceId) { remove(agent.id); return; }
+    if (!agent.workspaceId) {
+      remove(agent.id);
+      return;
+    }
     // The newest of the recorded turn end and the snapshot's last user message
     // wins. Agents with no recorded turn fall back to `lastUserMessageAt`, then
     // `createdAt`; both read older than the true reply, never newer. `updatedAt`
@@ -227,7 +227,7 @@ export function contributeClient(client: PluginClientContext) {
 
   const unsubscribe = observeDirectory({
     list: (options) => client.paseo.agents.list({ ...options, filter: { includeArchived: false } }),
-    select: (message) => message.type === "agent_update" ? message.payload : undefined,
+    select: (message) => (message.type === "agent_update" ? message.payload : undefined),
     snapshot: (entries) => {
       const ids = new Set(entries.map(({ agent }) => agent.id));
       for (const id of tracked.keys()) if (!ids.has(id)) remove(id);

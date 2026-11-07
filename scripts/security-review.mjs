@@ -85,9 +85,7 @@ function buildPrompt({ threatModel, pluginPath, name, version, head, base }) {
         const files = git("diff", "--name-status", range, "--", `:(top)${pluginPath}/`);
         const diff = git("diff", range, "--", `:(top)${pluginPath}/`);
         const diffText =
-          diff.length <= MAX_INLINE_DIFF
-            ? `\`\`\`diff\n${diff}\n\`\`\``
-            : "The diff is too long to include. Read each changed file listed above in full.";
+          diff.length <= MAX_INLINE_DIFF ? `\`\`\`diff\n${diff}\n\`\`\`` : "The diff is too long to include. Read each changed file listed above in full.";
         return [
           `Changes since the last published version (\`git diff ${range} -- ${pluginPath}/\`):`,
           "",
@@ -128,18 +126,7 @@ function review(prompt, repoRoot, logPath) {
   const log = openSync(logPath, "w");
   const result = run(
     "claude",
-    [
-      "-p",
-      "--model",
-      "opus",
-      "--restricted",
-      "--strict-mcp-config",
-      "--tools",
-      "Read,Grep,Glob",
-      "--permission-mode",
-      "dontAsk",
-      "--no-session-persistence",
-    ],
+    ["-p", "--model", "opus", "--restricted", "--strict-mcp-config", "--tools", "Read,Grep,Glob", "--permission-mode", "dontAsk", "--no-session-persistence"],
     { cwd: repoRoot, input: prompt, stdio: ["pipe", "pipe", log] },
   );
   closeSync(log);

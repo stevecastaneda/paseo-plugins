@@ -24,9 +24,15 @@ export function ChatRowView({ item, theme }: PluginTimelineItemProps<ChatRow>) {
   const active = more !== null && (hovered || expanded);
   const iconColor = failed ? colors.statusDanger : active ? colors.foreground : colors.foregroundMuted;
 
-  const icon = active
-    ? <View style={{ marginLeft: -4, transform: [{ scale: 1.3 }, { rotate: expanded ? "90deg" : "0deg" }] }}><Icon name="ChevronRight" size={12} color={colors.foreground} /></View>
-    : <View style={{ marginLeft: -1, opacity: failed ? 0.8 : 1 }}><Icon name={failed ? "TriangleAlert" : "ListChecks"} size={12} color={iconColor} /></View>;
+  const icon = active ? (
+    <View style={{ marginLeft: -4, transform: [{ scale: 1.3 }, { rotate: expanded ? "90deg" : "0deg" }] }}>
+      <Icon name="ChevronRight" size={12} color={colors.foreground} />
+    </View>
+  ) : (
+    <View style={{ marginLeft: -1, opacity: failed ? 0.8 : 1 }}>
+      <Icon name={failed ? "TriangleAlert" : "ListChecks"} size={12} color={iconColor} />
+    </View>
+  );
 
   return (
     <View style={{ marginHorizontal: -13 }}>
@@ -66,10 +72,17 @@ export function ChatRowView({ item, theme }: PluginTimelineItemProps<ChatRow>) {
         </Text>
       </Pressable>
       {open ? (
-        <View style={{ borderWidth: 1, borderTopWidth: 0, borderColor: colors.border, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, overflow: "hidden" }}>
+        <View
+          style={{ borderWidth: 1, borderTopWidth: 0, borderColor: colors.border, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, overflow: "hidden" }}
+        >
           {/* Scrolling past the end stays in the output instead of moving the chat. */}
-          <ScrollView style={[{ maxHeight: 320 }, Platform.OS === "web" ? ({ overscrollBehavior: "contain" } as object) : null]} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-            <Text selectable style={{ color: failed ? colors.statusDanger : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>{more}</Text>
+          <ScrollView
+            style={[{ maxHeight: 320 }, Platform.OS === "web" ? ({ overscrollBehavior: "contain" } as object) : null]}
+            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}
+          >
+            <Text selectable style={{ color: failed ? colors.statusDanger : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
+              {more}
+            </Text>
           </ScrollView>
         </View>
       ) : null}

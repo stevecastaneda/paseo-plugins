@@ -1,6 +1,7 @@
-import { open, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { openToRead } from "./system.ts";
 
 export const PAGE_BYTES = 64 * 1024;
 const MAX_ENTRY_BYTES = 4 * 1024 * 1024;
@@ -14,8 +15,9 @@ export async function findLog(roots: string[], sessionId: string, provider: stri
   async function walk(directory: string, depth: number): Promise<void> {
     if (depth > 8) return;
     let entries;
-    try { entries = await readdir(directory, { withFileTypes: true }); }
-    catch (error) {
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
       throw error;
     }
@@ -23,9 +25,10 @@ export async function findLog(roots: string[], sessionId: string, provider: stri
       if (++visited > 100_000) throw new Error("The session directory is too large to search.");
       const path = join(directory, entry.name);
       if (entry.isDirectory()) await walk(path, depth + 1);
-      else if (entry.isFile() && (provider === "claude"
-        ? entry.name === `${sessionId}.jsonl`
-        : entry.name.startsWith("rollout-") && entry.name.endsWith(`-${sessionId}.jsonl`))) {
+      else if (
+        entry.isFile() &&
+        (provider === "claude" ? entry.name === `${sessionId}.jsonl` : entry.name.startsWith("rollout-") && entry.name.endsWith(`-${sessionId}.jsonl`))
+      ) {
         matches.push(path);
       }
     }
@@ -37,7 +40,7 @@ export async function findLog(roots: string[], sessionId: string, provider: stri
 }
 
 export async function readPage(path: string, offset: number, expectedSource?: string) {
-  const file = await open(path, "r");
+  const file = await openToRead(path);
   try {
     const stat = await file.stat();
     if (!stat.isFile()) throw new Error("The session log is not a regular file.");
@@ -53,16 +56,24 @@ export async function readPage(path: string, offset: number, expectedSource?: st
       const { bytesRead } = await file.read(chunk, 0, chunk.length, offset + buffer.length);
       if (!bytesRead) break;
       buffer = Buffer.concat([buffer, chunk.subarray(0, bytesRead)]);
-      const newline = buffer.length <= PAGE_BYTES
-        ? buffer.lastIndexOf(10)
-        : buffer.indexOf(10);
-      if (newline >= 0) { end = newline + 1; break; }
+      const newline = buffer.length <= PAGE_BYTES ? buffer.lastIndexOf(10) : buffer.indexOf(10);
+      if (newline >= 0) {
+        end = newline + 1;
+        break;
+      }
       if (buffer.length >= MAX_ENTRY_BYTES) throw new Error("This entry exceeds 4 MiB. Open the source file in an editor to inspect it.");
     }
     if (!end) end = buffer.length;
     return {
-      path, source, text: buffer.subarray(0, end).toString("utf8"), offset,
-      nextOffset: offset + end, totalBytes: stat.size, modifiedAt: stat.mtime.toISOString(),
+      path,
+      source,
+      text: buffer.subarray(0, end).toString("utf8"),
+      offset,
+      nextOffset: offset + end,
+      totalBytes: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
     };
-  } finally { await file.close(); }
+  } finally {
+    await file.close();
+  }
 }

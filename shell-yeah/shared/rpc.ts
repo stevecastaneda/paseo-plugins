@@ -80,15 +80,17 @@ export const attachSearch = defineRpc({
   name: "shell-yeah.attach.search",
   input: z.object({ query: z.string() }),
   output: z.object({
-    items: z.array(z.object({
-      id: z.string(),
-      identifier: z.string(),
-      title: z.string(),
-      subtitle: z.string().optional(),
-      url: z.url(),
-      text: z.string(),
-      resourceType: z.string(),
-    })),
+    items: z.array(
+      z.object({
+        id: z.string(),
+        identifier: z.string(),
+        title: z.string(),
+        subtitle: z.string().optional(),
+        url: z.url(),
+        text: z.string(),
+        resourceType: z.string(),
+      }),
+    ),
   }),
 });
 

@@ -26,15 +26,25 @@ function popover(questions: string[]) {
   let slots: unknown[] = [];
   let cursor = 0;
   const h = clientHarness(directory, {
-    react: { ...React, useContext: () => ({ locale: "en", messages }), useState(initial: unknown) {
-      const slot = cursor++;
-      if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
-      return [slots[slot], (value: unknown) => { slots[slot] = value; }];
-    }, useRef(initial: unknown) {
-      const slot = cursor++;
-      if (!(slot in slots)) slots[slot] = { current: initial };
-      return slots[slot];
-    } },
+    react: {
+      ...React,
+      useContext: () => ({ locale: "en", messages }),
+      useState(initial: unknown) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
+        return [
+          slots[slot],
+          (value: unknown) => {
+            slots[slot] = value;
+          },
+        ];
+      },
+      useRef(initial: unknown) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = { current: initial };
+        return slots[slot];
+      },
+    },
     "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },
     "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", useToast: () => ({}), copyText: async () => {} },
   });
@@ -44,8 +54,16 @@ function popover(questions: string[]) {
   const dashboard = { questions: { open: questions.map((id) => ({ id, question: `Question ${id}`, options: [] })) }, stuck: [] };
   const render = () => {
     cursor = 0;
-    const tree = AttentionList({ colors: { surface0: "#ffffff", surface1: "#f4f4f5" }, dashboard, workspaceId: "w", compact: false, touch: false, onSurface1: true,
-      onCopy: (question: { id: string }, letter: string) => copied.push(`${question.id} ${letter}`), onOpenAttachment() {} });
+    const tree = AttentionList({
+      colors: { surface0: "#ffffff", surface1: "#f4f4f5" },
+      dashboard,
+      workspaceId: "w",
+      compact: false,
+      touch: false,
+      onSurface1: true,
+      onCopy: (question: { id: string }, letter: string) => copied.push(`${question.id} ${letter}`),
+      onOpenAttachment() {},
+    });
     const shown = find(tree, (props) => "question" in props && "onCopy" in props);
     const button = (label: string): Record<string, any> => {
       const step = find(tree, (props) => props.label === label);
@@ -60,10 +78,23 @@ function popover(questions: string[]) {
       const fade = drawn.props.children[1] as Element | null;
       return { scroll, fade: fade && (fade.type as (props: unknown) => Element)(fade.props) };
     };
-    return { drawList, shown: shown?.props.question.id, header: text(find(tree, (props) => typeof props.children?.[0] === "string" && props.children[0].startsWith("Question "))),
-      back: button("Previous question"), next: button("Next question"), copy: (letter: string) => shown!.props.onCopy(letter) };
+    return {
+      drawList,
+      shown: shown?.props.question.id,
+      header: text(find(tree, (props) => typeof props.children?.[0] === "string" && props.children[0].startsWith("Question "))),
+      back: button("Previous question"),
+      next: button("Next question"),
+      copy: (letter: string) => shown!.props.onCopy(letter),
+    };
   };
-  return { render, copied, open() { slots = []; return render(); } };
+  return {
+    render,
+    copied,
+    open() {
+      slots = [];
+      return render();
+    },
+  };
 }
 
 test("the pill popover shows one question at a time and steps with back and next", () => {
@@ -104,7 +135,10 @@ test("a single question has no stepping header", () => {
 
 test("a question taller than the list fades at the bottom until scrolled to the end", () => {
   const view = popover(["Q1"]).open();
-  const report = (event: string, ...args: unknown[]) => { view.drawList().scroll[event](...args); return Boolean(view.drawList().fade); };
+  const report = (event: string, ...args: unknown[]) => {
+    view.drawList().scroll[event](...args);
+    return Boolean(view.drawList().fade);
+  };
   assert.equal(Boolean(view.drawList().fade), false, "nothing measured yet");
   report("onLayout", { nativeEvent: { layout: { height: 300 } } });
   assert.equal(report("onContentSizeChange", 360, 500), true, "content continues below the viewport");
@@ -125,16 +159,37 @@ function arrowSize(layout: { compact: boolean; platform: "ios" | "android" | "we
   let messages: unknown;
   const dashboard = { questions: { open: ["Q1", "Q2"].map((id) => ({ id, question: `Question ${id}`, options: [] })) }, stuck: [] };
   const h = clientHarness(directory, {
-    react: { ...React, useContext: () => ({ locale: "en", messages }), useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => {}], useRef: (current: unknown) => ({ current }) },
+    react: {
+      ...React,
+      useContext: () => ({ locale: "en", messages }),
+      useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => {}],
+      useRef: (current: unknown) => ({ current }),
+    },
     "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },
     "@getpaseo/plugin/client": { useWorkspace: () => "/work", useRpc: () => async () => ({}), useAgent: () => null },
-    "@tanstack/react-query": { useQuery: () => ({ data: { configured: true, root: "/work", dashboard } }), useQueryClient: () => ({ getQueryData: () => undefined }) },
-    "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", Modal: "Modal", Markdown: "Markdown", useToast: () => ({}), copyText: async () => {} },
+    "@tanstack/react-query": {
+      useQuery: () => ({ data: { configured: true, root: "/work", dashboard } }),
+      useQueryClient: () => ({ getQueryData: () => undefined }),
+    },
+    "@getpaseo/plugin/client/ui": {
+      Icon: () => null,
+      ScrollView: "ScrollView",
+      Modal: "Modal",
+      Markdown: "Markdown",
+      useToast: () => ({}),
+      copyText: async () => {},
+    },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { AttentionPopover } = h.load("client/pill-popover.tsx");
-  const tree = AttentionPopover({ theme: { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#000" } }, host: { id: "h" }, layout,
-    workspaceId: "w", close() {}, openPanel() {} });
+  const tree = AttentionPopover({
+    theme: { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#000" } },
+    host: { id: "h" },
+    layout,
+    workspaceId: "w",
+    close() {},
+    openPanel() {},
+  });
   const list = find(tree, (props) => "dashboard" in props && "touch" in props)!;
   const drawn = (list.type as (props: unknown) => Element)(list.props);
   const next = find(drawn, (props) => props.label === "Next question")!;

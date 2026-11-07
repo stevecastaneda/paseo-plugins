@@ -27,7 +27,12 @@ export function absolutePath(path: string, root: string): string {
   return path === "./" ? `${base}/` : `${base}/${path}`;
 }
 
-export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigation, onPreview }: {
+export function useAttachmentOpener({
+  workspaceId,
+  workspaceDirectory,
+  navigation,
+  onPreview,
+}: {
   workspaceId: string;
   workspaceDirectory: string;
   navigation?: Navigation;
@@ -65,7 +70,14 @@ export function useAttachmentOpener({ workspaceId, workspaceDirectory, navigatio
     }
     // A page opens on the computer holding it, like a double-click, and in
     // Paseo only where that computer has no screen to open it on.
-    if (openPage && opensAsPage(attachment, { browser: Platform.OS === "web" }) && !(await checkHost({ workspaceId, workspaceDirectory }).then((result) => result.canOpen, () => false))) {
+    if (
+      openPage &&
+      opensAsPage(attachment, { browser: Platform.OS === "web" }) &&
+      !(await checkHost({ workspaceId, workspaceDirectory }).then(
+        (result) => result.canOpen,
+        () => false,
+      ))
+    ) {
       openPage({ workspaceId, workspaceDirectory, ref: attachment.ref, title: attachment.title });
       return;
     }
@@ -83,22 +95,54 @@ export const ATTACHMENT_ROW = { gap: 2, paddingVertical: 3, lineHeight: 17 };
 // A question's attachments as pressable rows.
 // Drawn in dialogs and the popover (surface1) unless `onSurface1` is false.
 // `onOpen` also gets the whole list, so a preview can step through its siblings.
-export function AttachmentList({ colors, attachments, onOpen, onSurface1 = true }: { colors: Colors; attachments: Attachment[]; onOpen(attachment: Attachment, group: Attachment[]): void; onSurface1?: boolean }) {
+export function AttachmentList({
+  colors,
+  attachments,
+  onOpen,
+  onSurface1 = true,
+}: {
+  colors: Colors;
+  attachments: Attachment[];
+  onOpen(attachment: Attachment, group: Attachment[]): void;
+  onSurface1?: boolean;
+}) {
   const { messages: m } = useProgressLanguage();
   if (!attachments.length) return null;
   return (
     <View style={{ gap: ATTACHMENT_ROW.gap }}>
       {attachments.map((attachment) => (
-        <PressableRow key={attachment.ref} colors={colors} onSurface1={onSurface1} accessibilityRole={attachment.url ? "link" : "button"} accessibilityLabel={m.openItem(attachment.title)}
+        <PressableRow
+          key={attachment.ref}
+          colors={colors}
+          onSurface1={onSurface1}
+          accessibilityRole={attachment.url ? "link" : "button"}
+          accessibilityLabel={m.openItem(attachment.title)}
           onPress={() => onOpen(attachment, attachments)}
-          style={{ flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: ATTACHMENT_ROW.paddingVertical, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 4 }}>
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            alignItems: "center",
+            paddingVertical: ATTACHMENT_ROW.paddingVertical,
+            paddingHorizontal: 4,
+            marginHorizontal: -4,
+            borderRadius: 4,
+          }}
+        >
           {/* A 14px slot, like a section icon, so the title lines up with the heading above. */}
-          <View style={{ width: 14, alignItems: "center" }}><Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} /></View>
+          <View style={{ width: 14, alignItems: "center" }}>
+            <Icon name={attachmentIcon(attachment)} size={12} color={colors.foregroundMuted} />
+          </View>
           {/* The row is the target, so nothing in it is styled as a link. */}
-          <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foreground, fontSize: 12, lineHeight: ATTACHMENT_ROW.lineHeight }}>{attachment.title}</Text>
+          <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.foreground, fontSize: 12, lineHeight: ATTACHMENT_ROW.lineHeight }}>
+            {attachment.title}
+          </Text>
           {shortName(attachment) !== attachment.title ? (
-            <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>{shortName(attachment)}</Text>
-          ) : <View style={{ flex: 1 }} />}
+            <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
+              {shortName(attachment)}
+            </Text>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
         </PressableRow>
       ))}
     </View>

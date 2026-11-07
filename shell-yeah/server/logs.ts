@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { LIMITS } from "../shared/limits.ts";
+import { removeFolderIn, removeIn, writePrivateFileIn } from "./system.ts";
 
 // Full logs of output too long to send whole, saved outside every repo for the agent to read
 // or grep. One folder per chat, one file per run. A chat's folder goes when the chat is
@@ -20,47 +21,43 @@ export function defaultLogRoot(home = homedir(), env: NodeJS.ProcessEnv = proces
   return join(home, ".local", "state", "shell-yeah", "logs");
 }
 
-export function createLogStore({ root, now = Date.now, limits = LIMITS.logs }: {
+export function createLogStore({
+  root,
+  now = Date.now,
+  limits = LIMITS.logs,
+}: {
   root: string;
   now?: () => number;
   limits?: { maxAgeMs: number; maxBytes: number };
 }): LogStore {
-  const folder = (agentId: string) => join(root, safeName(agentId));
   return {
-    async save({ agentId, runId, command, text }) {
-      const dir = folder(agentId);
-      await mkdir(dir, { recursive: true, mode: 0o700 });
-      const path = join(dir, `${slug(command)}-${safeName(runId)}.log`);
-      await writeFile(path, text, { mode: 0o600 });
-      return path;
-    },
+    save: ({ agentId, runId, command, text }) => writePrivateFileIn(root, join(safeName(agentId), `${slug(command)}-${safeName(runId)}.log`), text),
 
-    forget: (agentId) => rm(folder(agentId), { recursive: true, force: true }),
+    forget: (agentId) => removeIn(root, safeName(agentId), { recursive: true }),
 
     async prune() {
-      const files = (await logFiles(root)).sort((a, b) => b.mtimeMs - a.mtimeMs);
+      const files = (await logFiles(root)).toSorted((a, b) => b.mtimeMs - a.mtimeMs);
       const cutoff = now() - limits.maxAgeMs;
       let bytes = 0;
       for (const [i, file] of files.entries()) {
         bytes += file.size;
         // The newest log stays even past the cap: it is the one about to be sent.
-        if (file.mtimeMs < cutoff || (i > 0 && bytes > limits.maxBytes)) await rm(file.path, { force: true });
+        if (file.mtimeMs < cutoff || (i > 0 && bytes > limits.maxBytes)) await removeIn(root, join(file.folder, file.name));
       }
-      for (const dir of new Set(files.map((file) => file.dir))) await rmdir(dir).catch(() => undefined);
+      for (const folder of new Set(files.map((file) => file.folder))) await removeFolderIn(root, folder).catch(() => undefined);
     },
   };
 }
 
-async function logFiles(root: string): Promise<Array<{ dir: string; path: string; mtimeMs: number; size: number }>> {
+async function logFiles(root: string): Promise<Array<{ folder: string; name: string; mtimeMs: number; size: number }>> {
   const files = [];
   for (const entry of await readdir(root, { withFileTypes: true }).catch(() => [])) {
     if (!entry.isDirectory()) continue;
     const dir = join(root, entry.name);
     for (const name of await readdir(dir).catch(() => [])) {
       if (!name.endsWith(".log")) continue;
-      const path = join(dir, name);
-      const info = await stat(path).catch(() => null);
-      if (info) files.push({ dir, path, mtimeMs: info.mtimeMs, size: info.size });
+      const info = await stat(join(dir, name)).catch(() => null);
+      if (info) files.push({ folder: entry.name, name, mtimeMs: info.mtimeMs, size: info.size });
     }
   }
   return files;
@@ -73,5 +70,13 @@ function safeName(id: string): string {
 
 // "npm test -- --watch" -> "npm-test-watch", so a person browsing the folder knows each file.
 function slug(command: string): string {
-  return command.split("\n")[0].toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+/, "").slice(0, 40).replace(/-+$/, "") || "output";
+  return (
+    command
+      .split("\n")[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+/, "")
+      .slice(0, 40)
+      .replace(/-+$/, "") || "output"
+  );
 }

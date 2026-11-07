@@ -129,10 +129,7 @@ function requireWorkspaceId(workspaceId: unknown): asserts workspaceId is string
   }
 }
 
-export function createSetupStatusFetcher(
-  port: DaemonPort,
-  options?: RequestOptions,
-): (workspaceId: string) => Promise<SetupSnapshot | null> {
+export function createSetupStatusFetcher(port: DaemonPort, options?: RequestOptions): (workspaceId: string) => Promise<SetupSnapshot | null> {
   return async (workspaceId: string): Promise<SetupSnapshot | null> => {
     requireWorkspaceId(workspaceId);
     const payload = await requestFromDaemon(
@@ -147,10 +144,7 @@ export function createSetupStatusFetcher(
 }
 
 // Runs a blocked setup, as Paseo's own Setup panel does once you approve it.
-export function createSetupRunner(
-  port: DaemonPort,
-  options?: RequestOptions,
-): (workspaceId: string) => Promise<{ started: boolean; error: string | null }> {
+export function createSetupRunner(port: DaemonPort, options?: RequestOptions): (workspaceId: string) => Promise<{ started: boolean; error: string | null }> {
   return async (workspaceId: string) => {
     requireWorkspaceId(workspaceId);
     const payload = await requestFromDaemon(

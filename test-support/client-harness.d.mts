@@ -1,5 +1,8 @@
 // Host-facing values are intentionally loose: fixtures exercise partial SDK payloads.
-export function clientHarness(pluginDirectory: string, modules?: Record<string, unknown>): {
+export function clientHarness(
+  pluginDirectory: string,
+  modules?: Record<string, unknown>,
+): {
   client: any;
   load(path: string): any;
   agents: any;

@@ -11,68 +11,143 @@ import { HoverButton } from "./hover-button";
 import { TaskNotificationBody } from "./task-notification";
 
 type Colors = PluginButtonIconProps["theme"]["colors"];
-const mono = () => Platform.OS === "ios" ? "Menlo" : "monospace";
+const mono = () => (Platform.OS === "ios" ? "Menlo" : "monospace");
 
-function Action({ label, icon, text, disabled = false, active, onPress, colors }: {
-  label: string; icon: string; text?: string; disabled?: boolean; active?: boolean; onPress(): void; colors: Colors;
+function Action({
+  label,
+  icon,
+  text,
+  disabled = false,
+  active,
+  onPress,
+  colors,
+}: {
+  label: string;
+  icon: string;
+  text?: string;
+  disabled?: boolean;
+  active?: boolean;
+  onPress(): void;
+  colors: Colors;
 }) {
-  return <HoverButton colors={colors} active={active} accessibilityRole="button" accessibilityLabel={label}
-    aria-selected={active} aria-pressed={active} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => ({ paddingHorizontal: text ? 10 : 7, minHeight: 32, minWidth: 32,
-      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 6,
-      backgroundColor: pressed || active ? colors.surface2 : "transparent", opacity: disabled ? 0.4 : 1 })}>
-    {color => <>
-      <Icon name={icon} size={14} color={color} />
-      {text ? <Text numberOfLines={1} style={{ color, fontSize: 12 }}>{text}</Text> : null}
-    </>}
-  </HoverButton>;
+  return (
+    <HoverButton
+      colors={colors}
+      active={active}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      aria-selected={active}
+      aria-pressed={active}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        paddingHorizontal: text ? 10 : 7,
+        minHeight: 32,
+        minWidth: 32,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        borderRadius: 6,
+        backgroundColor: pressed || active ? colors.surface2 : "transparent",
+        opacity: disabled ? 0.4 : 1,
+      })}
+    >
+      {(color) => (
+        <>
+          <Icon name={icon} size={14} color={color} />
+          {text ? (
+            <Text numberOfLines={1} style={{ color, fontSize: 12 }}>
+              {text}
+            </Text>
+          ) : null}
+        </>
+      )}
+    </HoverButton>
+  );
 }
 
 function RawEntry({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors; copy(text: string): void }) {
   const [expanded, setExpanded] = useState(false);
-  return <View>
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-      <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${entry.kind}`}
-        aria-expanded={expanded} onPress={() => setExpanded(!expanded)}
-        style={({ pressed }) => ({ flex: 1, flexDirection: "row", gap: 8, alignItems: "center", minHeight: 36,
-          paddingHorizontal: 6, borderRadius: 4, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
-        {color => <>
-          <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={12} color={color} />
-          <View style={{ flex: 1, gap: 3, paddingVertical: 6 }}>
-            <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 12 }}>{entry.title}</Text>
-            {!expanded ? <Text numberOfLines={2} style={{ color, fontSize: 12, lineHeight: 18 }}>{entry.preview.slice(0, 240)}</Text> : null}
-          </View>
-        </>}
-      </HoverButton>
-      <Action colors={colors} label="Copy JSON" icon="Copy" onPress={() => copy(entry.raw)} />
+  return (
+    <View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <HoverButton
+          colors={colors}
+          accessibilityRole="button"
+          accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${entry.kind}`}
+          aria-expanded={expanded}
+          onPress={() => setExpanded(!expanded)}
+          style={({ pressed }) => ({
+            flex: 1,
+            flexDirection: "row",
+            gap: 8,
+            alignItems: "center",
+            minHeight: 36,
+            paddingHorizontal: 6,
+            borderRadius: 4,
+            backgroundColor: pressed ? colors.surface2 : "transparent",
+          })}
+        >
+          {(color) => (
+            <>
+              <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={12} color={color} />
+              <View style={{ flex: 1, gap: 3, paddingVertical: 6 }}>
+                <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 12 }}>
+                  {entry.title}
+                </Text>
+                {!expanded ? (
+                  <Text numberOfLines={2} style={{ color, fontSize: 12, lineHeight: 18 }}>
+                    {entry.preview.slice(0, 240)}
+                  </Text>
+                ) : null}
+              </View>
+            </>
+          )}
+        </HoverButton>
+        <Action colors={colors} label="Copy JSON" icon="Copy" onPress={() => copy(entry.raw)} />
+      </View>
+      {expanded ? (
+        <View style={{ padding: 12, marginVertical: 4, borderRadius: 6, backgroundColor: colors.surface0 }}>
+          <Text selectable style={{ fontFamily: mono(), color: colors.foregroundMuted, fontSize: 11, lineHeight: 18 }}>
+            {entry.valid ? JSON.stringify(JSON.parse(entry.raw), null, 2) : entry.raw}
+          </Text>
+        </View>
+      ) : null}
     </View>
-    {expanded ? <View style={{ padding: 12, marginVertical: 4, borderRadius: 6, backgroundColor: colors.surface0 }}>
-      <Text selectable style={{ fontFamily: mono(), color: colors.foregroundMuted, fontSize: 11, lineHeight: 18 }}>
-        {entry.valid ? JSON.stringify(JSON.parse(entry.raw), null, 2) : entry.raw}
-      </Text>
-    </View> : null}
-  </View>;
+  );
 }
 
 function Message({ entry, colors, copy }: { entry: HistoryEntry; colors: Colors; copy(text: string): void }) {
   const [raw, setRaw] = useState(false);
   const notification = entry.notification;
   const subject = notification?.summary.startsWith("Agent ") ? "Agent" : "Task";
-  const label = notification ? `${subject} ${notification.status === "completed" ? "finished" : notification.status}`
-    : entry.role === "user" ? "You" : "Assistant";
-  const icon = notification ? notification.status === "completed" ? "Check" : notification.status === "failed" ? "CircleAlert" : "Activity"
-    : entry.role === "user" ? "User" : "Sparkles";
-  return <View style={{ gap: 8, paddingVertical: 12 }}>
-    <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-      <Icon name={icon} size={14} color={colors.foregroundMuted} />
-      <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", flex: 1 }}>{label}</Text>
-      <Action colors={colors} label="Copy message" icon="Copy" onPress={() => copy(entry.preview)} />
-      <Action colors={colors} label="Show raw message" icon="Braces" active={raw} onPress={() => setRaw(!raw)} />
+  const label = notification
+    ? `${subject} ${notification.status === "completed" ? "finished" : notification.status}`
+    : entry.role === "user"
+      ? "You"
+      : "Assistant";
+  const icon = notification
+    ? notification.status === "completed"
+      ? "Check"
+      : notification.status === "failed"
+        ? "CircleAlert"
+        : "Activity"
+    : entry.role === "user"
+      ? "User"
+      : "Sparkles";
+  return (
+    <View style={{ gap: 8, paddingVertical: 12 }}>
+      <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <Icon name={icon} size={14} color={colors.foregroundMuted} />
+        <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", flex: 1 }}>{label}</Text>
+        <Action colors={colors} label="Copy message" icon="Copy" onPress={() => copy(entry.preview)} />
+        <Action colors={colors} label="Show raw message" icon="Braces" active={raw} onPress={() => setRaw(!raw)} />
+      </View>
+      {notification ? <TaskNotificationBody notification={notification} colors={colors} copy={copy} /> : <Markdown>{hideCitations(entry.preview)}</Markdown>}
+      {raw ? <RawEntry entry={entry} colors={colors} copy={copy} /> : null}
     </View>
-    {notification ? <TaskNotificationBody notification={notification} colors={colors} copy={copy} />
-      : <Markdown>{hideCitations(entry.preview)}</Markdown>}
-    {raw ? <RawEntry entry={entry} colors={colors} copy={copy} /> : null}
-  </View>;
+  );
 }
 
 function Turn({ turn, colors, copy, onLayout }: { turn: HistoryTurn; colors: Colors; copy(text: string): void; onLayout(event: LayoutChangeEvent): void }) {
@@ -80,31 +155,70 @@ function Turn({ turn, colors, copy, onLayout }: { turn: HistoryTurn; colors: Col
   const messages = turn.entries.filter((entry) => entry.category === "message");
   const timestamp = turn.entries.find((entry) => entry.timestamp)?.timestamp;
   const date = timestamp ? new Date(timestamp) : null;
-  const tags = ([['tools', 'Tools', 'Terminal'], ['reasoning', 'Reasoning', 'Brain'], ['context', 'Context', 'Files'], ['events', 'Events', 'Activity']] as const)
-    .map(([category, label, icon]) => ({ category, label, icon, entries: turn.entries.filter((entry) => entry.category === category
-      || (category === "tools" && entry.hasTools) || (category === "reasoning" && entry.hasReasoning)) }))
+  const tags = (
+    [
+      ["tools", "Tools", "Terminal"],
+      ["reasoning", "Reasoning", "Brain"],
+      ["context", "Context", "Files"],
+      ["events", "Events", "Activity"],
+    ] as const
+  )
+    .map(([category, label, icon]) => ({
+      category,
+      label,
+      icon,
+      entries: turn.entries.filter(
+        (entry) => entry.category === category || (category === "tools" && entry.hasTools) || (category === "reasoning" && entry.hasReasoning),
+      ),
+    }))
     .filter((tag) => tag.entries.length);
-  const shown = detail === "raw" ? turn.entries : tags.find((tag) => tag.category === detail)?.entries ?? [];
-  return <View onLayout={onLayout} style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 4 }}>
-    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: messages.length ? 4 : 0 }}>
-      <View style={{ flexDirection: "row", gap: 7, alignItems: "center" }}>
-        <Icon name={turn.title === "Session details" ? "Info" : "MessagesSquare"} size={13} color={colors.foregroundMuted} />
-        <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12 }}>{turn.title}</Text>
+  const shown = detail === "raw" ? turn.entries : (tags.find((tag) => tag.category === detail)?.entries ?? []);
+  return (
+    <View onLayout={onLayout} style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 4 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: messages.length ? 4 : 0 }}>
+        <View style={{ flexDirection: "row", gap: 7, alignItems: "center" }}>
+          <Icon name={turn.title === "Session details" ? "Info" : "MessagesSquare"} size={13} color={colors.foregroundMuted} />
+          <Text accessibilityRole="header" style={{ color: colors.foregroundMuted, fontSize: 12 }}>
+            {turn.title}
+          </Text>
+        </View>
+        <Text style={{ color: colors.foregroundMuted, fontSize: 11 }}>
+          {date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}
+        </Text>
       </View>
-      <Text style={{ color: colors.foregroundMuted, fontSize: 11 }}>{date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</Text>
+      {messages.map((entry, index) => (
+        <Message key={index} entry={entry} colors={colors} copy={copy} />
+      ))}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, marginLeft: -6 }}>
+        {tags.map((tag) => (
+          <Action
+            key={tag.category}
+            colors={colors}
+            label={`${tag.label}: ${tag.entries.length} entries`}
+            text={`${tag.label} ${tag.entries.length}`}
+            icon={tag.icon}
+            active={detail === tag.category}
+            onPress={() => setDetail(detail === tag.category ? null : tag.category)}
+          />
+        ))}
+        <Action
+          colors={colors}
+          label="Raw turn entries"
+          text="Raw"
+          icon="Braces"
+          active={detail === "raw"}
+          onPress={() => setDetail(detail === "raw" ? null : "raw")}
+        />
+      </View>
+      {detail ? (
+        <View style={{ marginTop: 4, paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: colors.border }}>
+          {shown.map((entry, index) => (
+            <RawEntry key={index} entry={entry} colors={colors} copy={copy} />
+          ))}
+        </View>
+      ) : null}
     </View>
-    {messages.map((entry, index) => <Message key={index} entry={entry} colors={colors} copy={copy} />)}
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, marginLeft: -6 }}>
-      {tags.map((tag) => <Action key={tag.category} colors={colors} label={`${tag.label}: ${tag.entries.length} entries`}
-        text={`${tag.label} ${tag.entries.length}`} icon={tag.icon} active={detail === tag.category}
-        onPress={() => setDetail(detail === tag.category ? null : tag.category)} />)}
-      <Action colors={colors} label="Raw turn entries" text="Raw" icon="Braces" active={detail === "raw"}
-        onPress={() => setDetail(detail === "raw" ? null : "raw")} />
-    </View>
-    {detail ? <View style={{ marginTop: 4, paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: colors.border }}>
-      {shown.map((entry, index) => <RawEntry key={index} entry={entry} colors={colors} copy={copy} />)}
-    </View> : null}
-  </View>;
+  );
 }
 
 export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agentId: string }) {
@@ -123,36 +237,60 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   // Where an arrow's animated scroll is heading. The arrows count from there until the view arrives or scrolling goes quiet.
   const [jump, setJump] = useState<number | null>(null);
   const jumpTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const endJump = () => { clearTimeout(jumpTimer.current); setJump(null); };
+  const endJump = () => {
+    clearTimeout(jumpTimer.current);
+    setJump(null);
+  };
   // Scroll events fire every frame while anything scrolls, so a gap means the jump finished, stopped short or never moved.
-  const holdJump = () => { clearTimeout(jumpTimer.current); jumpTimer.current = setTimeout(endJump, 250); };
+  const holdJump = () => {
+    clearTimeout(jumpTimer.current);
+    jumpTimer.current = setTimeout(endJump, 250);
+  };
   useEffect(() => () => clearTimeout(jumpTimer.current), []);
   const [positions, setPositions] = useState<Record<string, number>>({});
-  const measure = (key: string, y: number) => setPositions(previous => previous[key] === y ? previous : { ...previous, [key]: y });
+  const measure = (key: string, y: number) => setPositions((previous) => (previous[key] === y ? previous : { ...previous, [key]: y }));
   const colors = theme.colors;
   const entries = useMemo(() => parseEntries(text), [text]);
-  const turns = useMemo(() => groupTurns(entries).filter((turn) => turn.title !== "Session details"
-    || turn.entries.some((entry) => entry.category === "message")), [entries]);
+  const turns = useMemo(
+    () => groupTurns(entries).filter((turn) => turn.title !== "Session details" || turn.entries.some((entry) => entry.category === "message")),
+    [entries],
+  );
 
   async function load(append = false) {
     const id = ++request.current;
-    setBusy(true); setError(null); setNotice("");
+    setBusy(true);
+    setError(null);
+    setNotice("");
     try {
-      const result = await loadConversationBatch(rpc, { agentId, offset: append && page ? page.nextOffset : 0,
-        ...(append && page ? { source: page.source } : {}) }, () => request.current !== id);
+      const result = await loadConversationBatch(
+        rpc,
+        { agentId, offset: append && page ? page.nextOffset : 0, ...(append && page ? { source: page.source } : {}) },
+        () => request.current !== id,
+      );
       if (!result || request.current !== id) return;
-      if (!append) { setScrollY(0); endJump(); if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false }); }
-      setPage(result.page); setText((current) => append ? current + result.text : result.text);
+      if (!append) {
+        setScrollY(0);
+        endJump();
+        if (page) conversationScroll.current?.scrollTo({ y: 0, animated: false });
+      }
+      setPage(result.page);
+      setText((current) => (append ? current + result.text : result.text));
     } catch (reason) {
       if (request.current === id) setError(reason instanceof Error ? reason.message : "Could not read the log. Try again.");
-    } finally { if (request.current === id) setBusy(false); }
+    } finally {
+      if (request.current === id) setBusy(false);
+    }
   }
   useEffect(() => {
     void load();
-    return () => { request.current++; };
+    return () => {
+      request.current++;
+    };
   }, [agentId]);
   const copy = (value: string) => {
-    void copyText(value).then(() => setNotice("Copied")).catch(() => setError("Could not copy. You can select the text instead."));
+    void copyText(value)
+      .then(() => setNotice("Copied"))
+      .catch(() => setError("Could not copy. You can select the text instead."));
   };
   // Before the scroll area has its size nothing can scroll, so every stop is at the top.
   const maxScrollY = viewportHeight > 0 ? Math.max(0, contentHeight - viewportHeight) : 0;
@@ -162,8 +300,8 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
     return y === undefined ? [] : [Math.min(y, maxScrollY)];
   });
   const from = jump === null ? scrollY : Math.min(jump, maxScrollY);
-  const previousStop = stops.findLast(y => y < from - 2);
-  const nextStop = stops.find(y => y > from + 2);
+  const previousStop = stops.findLast((y) => y < from - 2);
+  const nextStop = stops.find((y) => y > from + 2);
   const jumpTo = (y: number | undefined) => {
     if (y === undefined) return;
     setJump(y);
@@ -173,55 +311,146 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const onScroll = (y: number) => {
     setScrollY(y);
     if (jump === null) return;
-    if (Math.abs(y - from) <= 2) endJump(); else holdJump();
+    if (Math.abs(y - from) <= 2) endJump();
+    else holdJump();
   };
   const hasMore = page && page.nextOffset < page.totalBytes;
-  return <View style={{ flex: 1, minHeight: 0 }}>
-    <View style={{ flexDirection: "row", gap: 4, alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-      <Action colors={colors} label="Conversation" text="Conversation" icon="MessagesSquare" active={!source} onPress={() => { if (source) setScrollY(0); setSource(false); }} />
-      <Action colors={colors} label="Raw source" text="Source" icon="FileJson" active={source} onPress={() => { endJump(); setSource(true); }} />
-      <View style={{ flex: 1 }} />
-      {busy ? <ActivityIndicator size="small" color={colors.foregroundMuted} accessibilityLabel="Loading history" />
-        : <Action colors={colors} label="Refresh history" icon="RefreshCw" onPress={() => void load()} />}
-    </View>
-    {source && page ? <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 10, alignItems: "flex-start" }}>
-      <Icon name="FileJson" size={13} color={colors.foregroundMuted} />
-      <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 11, lineHeight: 17 }}>{page.path}</Text>
-      <Action colors={colors} label="Copy source path" icon="Copy" onPress={() => copy(page.path)} />
-    </View> : null}
-    {error ? <View style={{ flexDirection: "row", gap: 8, padding: 16 }}>
-      <Icon name="CircleAlert" size={16} color={colors.statusDanger} />
-      <Text accessibilityRole="alert" style={{ flex: 1, color: colors.statusDanger, fontSize: 13, lineHeight: 20 }}>{error}</Text>
-    </View> : null}
-    {source ? <FlatList data={entries} keyExtractor={(_, index) => String(index)} style={{ flex: 1, minHeight: 0 }}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }} renderItem={({ item }) => <RawEntry entry={item} colors={colors} copy={copy} />} />
-      : <ScrollView ref={conversationScroll} style={{ flex: 1, minHeight: 0 }} scrollEventThrottle={16}
-        onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => setContentHeight(height)}
-        onScroll={event => onScroll(event.nativeEvent.contentOffset.y)} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        {turns.map((turn, index) => <Turn key={index} turn={turn} colors={colors} copy={copy}
-          onLayout={event => measure(`turn-${index}`, event.nativeEvent.layout.y)} />)}
-        {turns.length === 0 ? <Text style={{ color: colors.foregroundMuted, padding: 32 }}>{busy ? "Reading history…" : "No messages saved yet"}</Text> : null}
-      </ScrollView>}
-    <View style={{ flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
-      {!source ? <View style={{ flexDirection: "row" }}>
-        <Action colors={colors} label="Previous turn" icon="ChevronUp" disabled={busy || previousStop === undefined} onPress={() => jumpTo(previousStop)} />
-        <Action colors={colors} label="Next turn" icon="ChevronDown" disabled={busy || nextStop === undefined} onPress={() => jumpTo(nextStop)} />
-      </View> : null}
-      <View style={{ flex: 1 }} />
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 }}>
-        <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, flexShrink: 1 }}>
-          {notice || (page ? `${entries.length} entries` : 'Saved on this host')}
-        </Text>
-        {hasMore ? <>
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>·</Text>
-          <HoverButton colors={colors} accessibilityRole="button" accessibilityLabel="Load more history"
-            disabled={busy} onPress={() => void load(true)}
-            style={({ pressed }) => ({ minHeight: 32, paddingHorizontal: 4, justifyContent: "center", borderRadius: 4,
-              opacity: busy ? 0.4 : 1, backgroundColor: pressed ? colors.surface2 : "transparent" })}>
-            {color => <Text numberOfLines={1} style={{ color, fontSize: 12 }}>More</Text>}
-          </HoverButton>
-        </> : null}
+  return (
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 4,
+          alignItems: "center",
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        }}
+      >
+        <Action
+          colors={colors}
+          label="Conversation"
+          text="Conversation"
+          icon="MessagesSquare"
+          active={!source}
+          onPress={() => {
+            if (source) setScrollY(0);
+            setSource(false);
+          }}
+        />
+        <Action
+          colors={colors}
+          label="Raw source"
+          text="Source"
+          icon="FileJson"
+          active={source}
+          onPress={() => {
+            endJump();
+            setSource(true);
+          }}
+        />
+        <View style={{ flex: 1 }} />
+        {busy ? (
+          <ActivityIndicator size="small" color={colors.foregroundMuted} accessibilityLabel="Loading history" />
+        ) : (
+          <Action colors={colors} label="Refresh history" icon="RefreshCw" onPress={() => void load()} />
+        )}
+      </View>
+      {source && page ? (
+        <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 10, alignItems: "flex-start" }}>
+          <Icon name="FileJson" size={13} color={colors.foregroundMuted} />
+          <Text selectable style={{ flex: 1, color: colors.foregroundMuted, fontSize: 11, lineHeight: 17 }}>
+            {page.path}
+          </Text>
+          <Action colors={colors} label="Copy source path" icon="Copy" onPress={() => copy(page.path)} />
+        </View>
+      ) : null}
+      {error ? (
+        <View style={{ flexDirection: "row", gap: 8, padding: 16 }}>
+          <Icon name="CircleAlert" size={16} color={colors.statusDanger} />
+          <Text accessibilityRole="alert" style={{ flex: 1, color: colors.statusDanger, fontSize: 13, lineHeight: 20 }}>
+            {error}
+          </Text>
+        </View>
+      ) : null}
+      {source ? (
+        <FlatList
+          data={entries}
+          keyExtractor={(_, index) => String(index)}
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+          renderItem={({ item }) => <RawEntry entry={item} colors={colors} copy={copy} />}
+        />
+      ) : (
+        <ScrollView
+          ref={conversationScroll}
+          style={{ flex: 1, minHeight: 0 }}
+          scrollEventThrottle={16}
+          onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+          onContentSizeChange={(_, height) => setContentHeight(height)}
+          onScroll={(event) => onScroll(event.nativeEvent.contentOffset.y)}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+        >
+          {turns.map((turn, index) => (
+            <Turn key={index} turn={turn} colors={colors} copy={copy} onLayout={(event) => measure(`turn-${index}`, event.nativeEvent.layout.y)} />
+          ))}
+          {turns.length === 0 ? (
+            <Text style={{ color: colors.foregroundMuted, padding: 32 }}>{busy ? "Reading history…" : "No messages saved yet"}</Text>
+          ) : null}
+        </ScrollView>
+      )}
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "nowrap",
+          alignItems: "center",
+          gap: 12,
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+        }}
+      >
+        {!source ? (
+          <View style={{ flexDirection: "row" }}>
+            <Action colors={colors} label="Previous turn" icon="ChevronUp" disabled={busy || previousStop === undefined} onPress={() => jumpTo(previousStop)} />
+            <Action colors={colors} label="Next turn" icon="ChevronDown" disabled={busy || nextStop === undefined} onPress={() => jumpTo(nextStop)} />
+          </View>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 }}>
+          <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, flexShrink: 1 }}>
+            {notice || (page ? `${entries.length} entries` : "Saved on this host")}
+          </Text>
+          {hasMore ? (
+            <>
+              <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>·</Text>
+              <HoverButton
+                colors={colors}
+                accessibilityRole="button"
+                accessibilityLabel="Load more history"
+                disabled={busy}
+                onPress={() => void load(true)}
+                style={({ pressed }) => ({
+                  minHeight: 32,
+                  paddingHorizontal: 4,
+                  justifyContent: "center",
+                  borderRadius: 4,
+                  opacity: busy ? 0.4 : 1,
+                  backgroundColor: pressed ? colors.surface2 : "transparent",
+                })}
+              >
+                {(color) => (
+                  <Text numberOfLines={1} style={{ color, fontSize: 12 }}>
+                    More
+                  </Text>
+                )}
+              </HoverButton>
+            </>
+          ) : null}
+        </View>
       </View>
     </View>
-  </View>;
+  );
 }

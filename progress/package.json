@@ -2,24 +2,20 @@
   "name": "@stevecastaneda/paseo-progress",
   "version": "1.14.2",
   "description": "A live progress dashboard per worktree for Paseo, drawn from a file agents write with the Progress tools or the paseo-progress command.",
+  "keywords": [
+    "coding-agents",
+    "dashboard",
+    "paseo",
+    "paseo-plugin",
+    "progress"
+  ],
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/progress#readme",
   "license": "MIT",
   "author": "Steve Castaneda",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
     "directory": "progress"
-  },
-  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/progress#readme",
-  "keywords": [
-    "paseo",
-    "paseo-plugin",
-    "progress",
-    "dashboard",
-    "coding-agents"
-  ],
-  "type": "module",
-  "engines": {
-    "node": "^22.18.0 || >=23.6.0"
   },
   "files": [
     "paseo-plugin.json",
@@ -36,6 +32,7 @@
     "tsconfig.json",
     "!**/*.test.ts"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },
@@ -61,5 +58,8 @@
     "react-native": "0.81.5",
     "typescript": "^5.9.3",
     "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=23.6.0"
   }
 }

@@ -10,10 +10,7 @@ import { findStore, historyFolder, inGitRepo, listFolders, setHistoryFolder } fr
 
 const versions = new WeakMap<Dashboard, { key: string; version: string }>();
 
-export async function handleMarkPanelOpened(
-  input: { workspaceId: string; workspaceDirectory: string },
-  _context: PluginHandlerContext,
-) {
+export async function handleMarkPanelOpened(input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext) {
   await markPanelOpened((await findStore(findRoot(input.workspaceDirectory))).directory);
   return {};
 }
@@ -33,7 +30,12 @@ export async function handleGetDashboard(
   const key = JSON.stringify([result.panelOpened, file, savedTo, inRepo]);
   let cached = versions.get(result.dashboard);
   if (!cached || cached.key !== key) {
-    cached = { key, version: createHash("sha1").update(JSON.stringify(result) + key).digest("base64url") };
+    cached = {
+      key,
+      version: createHash("sha1")
+        .update(JSON.stringify(result) + key)
+        .digest("base64url"),
+    };
     versions.set(result.dashboard, cached);
   }
   const { version } = cached;
@@ -41,10 +43,7 @@ export async function handleGetDashboard(
 }
 
 // Just what a message-box pill needs, so polling every workspace stays small.
-export async function handleGetAttention(
-  input: { workspaceId: string; workspaceDirectory: string },
-  _context: PluginHandlerContext,
-): Promise<AttentionResult> {
+export async function handleGetAttention(input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext): Promise<AttentionResult> {
   const { configured, dashboard, panelOpened } = await readProgress((await findStore(findRoot(input.workspaceDirectory))).directory);
   return {
     configured,
@@ -55,10 +54,7 @@ export async function handleGetAttention(
   };
 }
 
-export async function handleListFolders(
-  input: { workspaceId: string; workspaceDirectory: string; folder: string },
-  _context: PluginHandlerContext,
-) {
+export async function handleListFolders(input: { workspaceId: string; workspaceDirectory: string; folder: string }, _context: PluginHandlerContext) {
   return listFolders(findRoot(input.workspaceDirectory), input.folder);
 }
 

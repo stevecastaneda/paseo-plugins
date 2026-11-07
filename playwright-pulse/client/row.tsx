@@ -13,7 +13,14 @@ export function rowTint(colors: Colors, state: { hovered: boolean; pressed: bool
 }
 
 // A full-width row that opens something. `resting` is its background at rest.
-export function PressableRow({ colors, onSurface1 = false, transparentAtRest = true, style, children, ...props }: Omit<PressableProps, "style" | "children"> & {
+export function PressableRow({
+  colors,
+  onSurface1 = false,
+  transparentAtRest = true,
+  style,
+  children,
+  ...props
+}: Omit<PressableProps, "style" | "children"> & {
   colors: Colors;
   onSurface1?: boolean;
   // Rows on a surface1 background rest transparent; the working ticket rests on surface1.
@@ -23,11 +30,15 @@ export function PressableRow({ colors, onSurface1 = false, transparentAtRest = t
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable {...props} onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
+    <Pressable
+      {...props}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => {
         const tint = rowTint(colors, { hovered, pressed }, onSurface1);
         return [style, { backgroundColor: !hovered && !pressed && transparentAtRest ? "transparent" : tint }];
-      }}>
+      }}
+    >
       {children}
     </Pressable>
   );

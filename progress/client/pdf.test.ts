@@ -9,15 +9,21 @@ const MB = 1024 * 1024;
 
 type Element = { type: unknown; props: Record<string, any> };
 
+const DocumentFrame = () => null;
+const Loading = () => null;
+
 function renderTab(size: number, platform: "web" | "ios") {
   let messages: unknown;
   const reads: unknown[] = [];
-  const DocumentFrame = () => null;
-  const Loading = () => null;
   const h = clientHarness(directory, {
     react: { ...React, useContext: () => ({ locale: "en", messages }) },
     "react-native": { Platform: { OS: platform }, View: "View", Text: "Text" },
-    "@getpaseo/plugin/client": { useFileUrl: (file: unknown) => { reads.push(file); return { status: "ready", url: "blob:spec" }; } },
+    "@getpaseo/plugin/client": {
+      useFileUrl: (file: unknown) => {
+        reads.push(file);
+        return { status: "ready", url: "blob:spec" };
+      },
+    },
     "@getpaseo/plugin/client/ui": { DocumentFrame, Loading },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
@@ -26,7 +32,8 @@ function renderTab(size: number, platform: "web" | "ios") {
     if (Array.isArray(node)) return node.map(expand);
     if (!node || typeof node !== "object") return node;
     const element = node as Element;
-    if (typeof element.type === "function" && element.type !== DocumentFrame && element.type !== Loading) return expand((element.type as (props: unknown) => unknown)(element.props));
+    if (typeof element.type === "function" && element.type !== DocumentFrame && element.type !== Loading)
+      return expand((element.type as (props: unknown) => unknown)(element.props));
     return { ...element, props: { ...element.props, children: expand(element.props?.children) } };
   };
   const file = { name: "spec.pdf", path: "/w/spec.pdf", size };
@@ -34,7 +41,7 @@ function renderTab(size: number, platform: "web" | "ios") {
   const find = (node: unknown, type: unknown): Element | undefined => {
     if (Array.isArray(node)) return node.map((child) => find(child, type)).find(Boolean);
     if (!node || typeof node !== "object") return undefined;
-    return (node as Element).type === type ? node as Element : find((node as Element).props?.children, type);
+    return (node as Element).type === type ? (node as Element) : find((node as Element).props?.children, type);
   };
   const text = (node: unknown): string[] => {
     if (typeof node === "string") return [node];

@@ -6,7 +6,22 @@ import { describe, formatDuration, pastRow, pastRunView, statusText, switcher, t
 const T0 = 1_700_000_000_000;
 
 function run(phase: Phase, overrides: Partial<ResolvedRun> = {}): ResolvedRun {
-  return { runId: "r1", origin: "user", command: "npm test", cwd: "/repo", terminal: false, rev: 1, phase, output: { lines: ["a", "b"], total: 2 }, cursor: null, sentAt: null, lostAt: null, lastOutputAt: null, clockOffset: 0, ...overrides };
+  return {
+    runId: "r1",
+    origin: "user",
+    command: "npm test",
+    cwd: "/repo",
+    terminal: false,
+    rev: 1,
+    phase,
+    output: { lines: ["a", "b"], total: 2 },
+    cursor: null,
+    sentAt: null,
+    lostAt: null,
+    lastOutputAt: null,
+    clockOffset: 0,
+    ...overrides,
+  };
 }
 
 const ended = { startedAt: T0, endedAt: T0 + 12_400 };
@@ -21,12 +36,18 @@ test("a proposal is a dashed card with Run filled, plus Copy and Dismiss", () =>
   assert.equal(primary(p), "run");
   assert.equal(p.well, null);
   assert.equal(p.label, "Suggested by Codex");
-  assert.deepEqual(p.notes, [{ icon: "eye-off", text: "Codex sees the output only if you send it" }, { icon: "folder", text: "repo" }]);
+  assert.deepEqual(p.notes, [
+    { icon: "eye-off", text: "Codex sees the output only if you send it" },
+    { icon: "folder", text: "repo" },
+  ]);
   assert.match(describe(run({ kind: "proposed" }, { origin: "claude" }), T0).notes[0].text, /^The agent sees/);
 });
 
 test("a suggestion shows the agent's title over the command, and warns when the command is hard to undo", () => {
-  const titled = describe(run({ kind: "proposed" }, { origin: "claude", command: "# Clean the build folder\nsudo rm -rf dist", output: { lines: [], total: 0 } }), T0);
+  const titled = describe(
+    run({ kind: "proposed" }, { origin: "claude", command: "# Clean the build folder\nsudo rm -rf dist", output: { lines: [], total: 0 } }),
+    T0,
+  );
   assert.equal(titled.title, "Clean the build folder");
   assert.equal(titled.script, "sudo rm -rf dist");
   assert.equal(titled.warning, "Runs as administrator (sudo) and deletes files");
@@ -40,7 +61,10 @@ test("a suggestion shows the agent's title over the command, and warns when the 
 });
 
 test("a running row shows a ticking timer, a line count, and Stop", () => {
-  const p = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["x"], total: 214 }, lastOutputAt: T0 + 5_000 }), T0 + 6_000);
+  const p = describe(
+    run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["x"], total: 214 }, lastOutputAt: T0 + 5_000 }),
+    T0 + 6_000,
+  );
   assert.equal(p.tone, "active");
   assert.equal(p.badge, "spinner");
   assert.equal(p.label, "");
@@ -49,7 +73,11 @@ test("a running row shows a ticking timer, a line count, and Stop", () => {
   assert.deepEqual(p.notes, [{ icon: "clock", text: "214 lines" }]);
   assert.deepEqual(p.well, { kind: "output", skipped: 213 });
   // Quiet for ten seconds: the note says so.
-  assert.equal(describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["x"], total: 214 }, lastOutputAt: T0 }), T0 + 12_000).notes[0].text, "214 lines · quiet for 12s");
+  assert.equal(
+    describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["x"], total: 214 }, lastOutputAt: T0 }), T0 + 12_000).notes[0]
+      .text,
+    "214 lines · quiet for 12s",
+  );
   // A skewed client clock is corrected for the timer and the quiet note.
   const skewed = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { clockOffset: 300_000, lastOutputAt: T0 }), T0 - 300_000 + 1_000);
   assert.equal(skewed.timerFrom, T0 - 300_000);
@@ -86,7 +114,10 @@ test("each ended state has its own label, tone and badge", () => {
 });
 
 test("a command that never started shows the reason as the well and no duration", () => {
-  const p = describe(run({ kind: "failed", ...ended, exitCode: null, signal: null, message: "Folder not found: /gone" }, { output: { lines: [], total: 0 } }), T0);
+  const p = describe(
+    run({ kind: "failed", ...ended, exitCode: null, signal: null, message: "Folder not found: /gone" }, { output: { lines: [], total: 0 } }),
+    T0,
+  );
   assert.equal(statusText(p), "Couldn't start");
   assert.deepEqual(p.well, { kind: "message", text: "Folder not found: /gone" });
 });
@@ -114,7 +145,11 @@ test("Send to Claude is filled for a Claude-suggested run and for a failure, qui
 test("truncated output gets a scissors note; empty output gets no well", () => {
   const cut = { output: { lines: Array(412).fill("x"), total: 12_408 } };
   assert.deepEqual(describe(run({ kind: "ok", ...ended }, cut), T0).notes[1], { icon: "scissors", text: "Last 412 of 12,408 lines" });
-  assert.equal(describe(run({ kind: "ok", ...ended }, { output: { lines: Array(60).fill("x"), total: 60 } }), T0).notes.length, 1, "every line is in the box, so nothing is called hidden");
+  assert.equal(
+    describe(run({ kind: "ok", ...ended }, { output: { lines: Array(60).fill("x"), total: 60 } }), T0).notes.length,
+    1,
+    "every line is in the box, so nothing is called hidden",
+  );
   const collapsed = describe(run({ kind: "ok", ...ended }, cut), T0);
   assert.deepEqual(collapsed.well, { kind: "output", skipped: 11_996 });
   assert.equal(collapsed.foldable, true);
@@ -124,7 +159,10 @@ test("truncated output gets a scissors note; empty output gets no well", () => {
   const tall = describe(run({ kind: "ok", ...ended }, { output: { lines: Array(13).fill("x"), total: 13 } }), T0);
   assert.equal(tall.foldable, true, "past 12 lines the header arrow can make the box taller");
   assert.deepEqual(tall.box, { lines: 12, fixed: false });
-  const failed = describe(run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, { output: { lines: Array(13).fill("x"), total: 13 } }), T0);
+  const failed = describe(
+    run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, { output: { lines: Array(13).fill("x"), total: 13 } }),
+    T0,
+  );
   assert.deepEqual(failed.box, { lines: 14, fixed: false }, "a failure's box is taller, so its cause stays in view");
   assert.equal(failed.foldable, false);
   const empty = describe(run({ kind: "ok", ...ended }, { output: { lines: [], total: 0 } }), T0);
@@ -138,15 +176,30 @@ test("hints: exit 127 or 'command not found' explains missing aliases; a prompt-
   assert.match(e127.hint ?? "", /aliases aren't loaded/);
   const text = describe(run({ kind: "ok", ...ended }, { output: { lines, total: 1 } }), T0);
   assert.match(text.hint ?? "", /aliases aren't loaded/);
-  const tty = describe(run({ kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, { output: { lines: ["sudo: a terminal is required to read the password"], total: 1 } }), T0);
+  const tty = describe(
+    run(
+      { kind: "failed", ...ended, exitCode: 1, signal: null, message: null },
+      { output: { lines: ["sudo: a terminal is required to read the password"], total: 1 } },
+    ),
+    T0,
+  );
   assert.match(tty.hint ?? "", /no keyboard/);
   // A known password prompt is a hint at once.
-  const password = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["Password:"], total: 1 }, lastOutputAt: T0 }), T0 + 1_000);
+  const password = describe(
+    run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["Password:"], total: 1 }, lastOutputAt: T0 }),
+    T0 + 1_000,
+  );
   assert.match(password.hint ?? "", /no keyboard/);
   // Any other line ending in ? or : counts only once the command has been silent for 8 s.
-  const prompt = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["Overwrite existing file?"], total: 1 }, lastOutputAt: T0 }), T0 + 9_000);
+  const prompt = describe(
+    run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["Overwrite existing file?"], total: 1 }, lastOutputAt: T0 }),
+    T0 + 9_000,
+  );
   assert.match(prompt.hint ?? "", /no keyboard/);
-  const chatty = describe(run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["Overwrite existing file?"], total: 1 }, lastOutputAt: T0 }), T0 + 2_000);
+  const chatty = describe(
+    run({ kind: "running", startedAt: T0, stopRequestedAt: null }, { output: { lines: ["Overwrite existing file?"], total: 1 }, lastOutputAt: T0 }),
+    T0 + 2_000,
+  );
   assert.equal(chatty.hint, null, "a fresh prompt-shaped line is not yet a stall");
   assert.equal(describe(run({ kind: "ok", ...ended }), T0).hint, null);
 });
@@ -172,7 +225,11 @@ test("a command in a terminal has its box before it prints anything, and keeps i
   const running = { kind: "running" as const, startedAt: T0, stopRequestedAt: null };
   const silent = { output: { lines: [], total: 0 } };
   assert.deepEqual(describe(run(running, { ...silent, terminal: true }), T0).well, { kind: "output", skipped: 0 });
-  assert.deepEqual(describe(run({ ...running, stopRequestedAt: T0 }, { ...silent, terminal: true }), T0 + 2_000).well, { kind: "output", skipped: 0 }, "Stop doesn't pull the box out from under the pointer");
+  assert.deepEqual(
+    describe(run({ ...running, stopRequestedAt: T0 }, { ...silent, terminal: true }), T0 + 2_000).well,
+    { kind: "output", skipped: 0 },
+    "Stop doesn't pull the box out from under the pointer",
+  );
   assert.equal(describe(run(running, silent), T0).well, null);
 });
 
@@ -206,7 +263,14 @@ test("durations read naturally at every scale", () => {
   assert.equal(formatDuration(3_720_000), "1h 02m");
 });
 
-const pastRun = (n: number, overrides: Partial<PastRun> = {}): PastRun => ({ runId: `r${n}`, runNumber: n, phase: { kind: "ok", ...ended }, output: { lines: [`run ${n}`], total: 1 }, sentAt: null, ...overrides });
+const pastRun = (n: number, overrides: Partial<PastRun> = {}): PastRun => ({
+  runId: `r${n}`,
+  runNumber: n,
+  phase: { kind: "ok", ...ended },
+  output: { lines: [`run ${n}`], total: 1 },
+  sentAt: null,
+  ...overrides,
+});
 
 test("a card with earlier runs switches between them: Run 2 of 3, with no arrow past either end", () => {
   const card = { runNumber: 3, past: [pastRun(1), pastRun(2)] };
@@ -221,11 +285,35 @@ test("past the cap, a card's run numbers still count every run", () => {
 });
 
 test("an earlier run shows as its own status and output, with Rerun, Copy and Send", () => {
-  const card: RunRow = { runId: "r3", cardId: "r1", runNumber: 3, rev: 9, origin: "user", command: "npm test", cwd: "/repo", phase: { kind: "running", startedAt: T0, stopRequestedAt: null }, output: { lines: ["now"], total: 1 }, sentAt: null, terminal: true };
+  const card: RunRow = {
+    runId: "r3",
+    cardId: "r1",
+    runNumber: 3,
+    rev: 9,
+    origin: "user",
+    command: "npm test",
+    cwd: "/repo",
+    phase: { kind: "running", startedAt: T0, stopRequestedAt: null },
+    output: { lines: ["now"], total: 1 },
+    sentAt: null,
+    terminal: true,
+  };
   const failed = pastRun(2, { phase: { kind: "failed", ...ended, exitCode: 1, signal: null, message: null }, output: { lines: ["boom"], total: 40 } });
   const p = describe(pastRunView(card, failed), T0);
   assert.deepEqual([p.layout, p.label, p.elapsed, p.timerFrom, p.keyboard], ["card", "Exit 1", "12s", null, false]);
   assert.deepEqual(ids(p), ["send", "copy", "rerun"]);
   assert.deepEqual(p.notes[1], { icon: "scissors", text: "Last 1 of 40 lines" });
-  assert.deepEqual(pastRow(card, failed), { runId: "r2", rev: 9, origin: "user", command: "npm test", cwd: "/repo", phase: failed.phase, output: failed.output, sentAt: null, terminal: true, cardId: "r1", runNumber: 2 });
+  assert.deepEqual(pastRow(card, failed), {
+    runId: "r2",
+    rev: 9,
+    origin: "user",
+    command: "npm test",
+    cwd: "/repo",
+    phase: failed.phase,
+    output: failed.output,
+    sentAt: null,
+    terminal: true,
+    cardId: "r1",
+    runNumber: 2,
+  });
 });

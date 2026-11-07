@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { lastReplySchema, type LastReplies } from "../shared/last-reply.ts";
 import { settingsRootFromEnvironment } from "./settings.storage.ts";
 import { withWriteLock } from "./write-lock.ts";
+import { writeFileAtomicIn } from "./system.ts";
 
 export function lastReplyFilePath(root: string): string {
   return join(root, "plugin-data", "time-since", "last-reply.json");
@@ -14,7 +14,7 @@ export function lastReplyFilePath(root: string): string {
 async function readLastReplies(filePath: string): Promise<LastReplies> {
   let contents: string;
   try {
-    contents = await fs.readFile(filePath, "utf8");
+    contents = await readFile(filePath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw new Error(`Unable to read time-since last replies at ${filePath}`, { cause: error });
@@ -28,13 +28,9 @@ async function readLastReplies(filePath: string): Promise<LastReplies> {
 }
 
 async function writeLastReplies(filePath: string, replies: LastReplies): Promise<void> {
-  await fs.mkdir(join(filePath, ".."), { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await fs.writeFile(temporaryPath, `${JSON.stringify(replies)}\n`, "utf8");
-    await fs.rename(temporaryPath, filePath);
+    await writeFileAtomicIn(dirname(filePath), basename(filePath), `${JSON.stringify(replies)}\n`);
   } catch (error) {
-    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
     throw new Error(`Unable to write time-since last replies at ${filePath}`, { cause: error });
   }
 }

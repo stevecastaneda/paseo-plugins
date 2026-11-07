@@ -25,9 +25,7 @@ export function formatElapsed(ms: number): string {
   return hours === 0 ? `${days}d` : `${days}d ${hours}h`;
 }
 
-export function isWorkingStatus(
-  status: "initializing" | "idle" | "running" | "error" | "closed" | null | undefined,
-): boolean {
+export function isWorkingStatus(status: "initializing" | "idle" | "running" | "error" | "closed" | null | undefined): boolean {
   return status === "running" || status === "initializing";
 }
 
@@ -37,11 +35,7 @@ export function formatTimeSinceLabel(lastActivityAt: string, nowMs: number): str
   return formatElapsed(nowMs - started);
 }
 
-export function formatTimeSincePillLabel(
-  lastActivityAt: string | null | undefined,
-  nowMs: number,
-  showAgo: boolean,
-): string {
+export function formatTimeSincePillLabel(lastActivityAt: string | null | undefined, nowMs: number, showAgo: boolean): string {
   const label = lastActivityAt ? formatTimeSinceLabel(lastActivityAt, nowMs) : null;
   return label ? `${label}${showAgo ? " ago" : ""}` : "…";
 }
@@ -50,10 +44,7 @@ export function isThreadMessageType(type: string | undefined): boolean {
   return type === "user_message" || type === "assistant_message";
 }
 
-export function lastThreadMessageAtFromStream(payload: {
-  timestamp?: string;
-  event?: { type?: string; item?: { type?: string } };
-}): string | null {
+export function lastThreadMessageAtFromStream(payload: { timestamp?: string; event?: { type?: string; item?: { type?: string } } }): string | null {
   if (payload.event?.type !== "timeline") return null;
   if (!isThreadMessageType(payload.event.item?.type)) return null;
   const at = payload.timestamp;

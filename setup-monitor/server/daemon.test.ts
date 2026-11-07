@@ -16,8 +16,8 @@ class FakePort implements DaemonPort {
   sent: string[] = [];
   private readonly listeners = new Set<(message: unknown) => void>();
 
-  send(frame: string): void {
-    this.sent.push(frame);
+  send(raw: string): void {
+    this.sent.push(raw);
   }
 
   onMessage(handler: (message: unknown) => void): () => void {
@@ -50,10 +50,10 @@ function frame(type: string, payload: unknown) {
 
 test("parsePaseoFrame unwraps session and bare messages", () => {
   assert.equal(parsePaseoFrame(null), null);
-  assert.deepEqual(
-    parsePaseoFrame(frame("workspace_setup_status_response", { requestId: "r1" })),
-    { type: "workspace_setup_status_response", payload: { requestId: "r1" } },
-  );
+  assert.deepEqual(parsePaseoFrame(frame("workspace_setup_status_response", { requestId: "r1" })), {
+    type: "workspace_setup_status_response",
+    payload: { requestId: "r1" },
+  });
   assert.deepEqual(
     parsePaseoFrame({
       type: "paseo_frame",
@@ -324,18 +324,20 @@ test("a new worktree's setup is watched from creation, so the clock starts with 
   const port = new FakePort();
   const clock = createSetupClock();
   let now = 1_000;
-  const watcher = createSetupWatcher(port, (id, snapshot) => {
-    clock.observe(id, snapshot, now);
-    watcher.observe(id, snapshot);
-  }, { timeoutMs: 200, createRequestId: () => "req-sub" });
+  const watcher = createSetupWatcher(
+    port,
+    (id, snapshot) => {
+      clock.observe(id, snapshot, now);
+      watcher.observe(id, snapshot);
+    },
+    { timeoutMs: 200, createRequestId: () => "req-sub" },
+  );
   const progress = createSetupProgressCache(port, (id, snapshot) => {
     clock.observe(id, snapshot, now);
     watcher.observe(id, snapshot);
   });
   const watching = watcher.watch("wks_new");
-  assert.deepEqual(sentMessages(port), [
-    { type: "workspace.setup.subscribe.request", workspaceId: "wks_new", requestId: "req-sub" },
-  ]);
+  assert.deepEqual(sentMessages(port), [{ type: "workspace.setup.subscribe.request", workspaceId: "wks_new", requestId: "req-sub" }]);
   port.emitSession("workspace.setup.subscribe.response", {
     requestId: "req-sub",
     subscriptionId: "sub-1",

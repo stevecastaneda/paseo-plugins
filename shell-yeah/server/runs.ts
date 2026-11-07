@@ -171,15 +171,31 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
 
   function rowOf(run: Run, lines: number): RunRow {
     return {
-      runId: run.id, rev: run.rev, origin: run.origin, command: run.command, cwd: run.cwd, phase: run.phase, output: run.screen.tail(lines), sentAt: run.sentAt, terminal: run.terminal,
-      cardId: run.cardId, runNumber: run.runNumber, ...(run.past.length > 0 ? { past: run.past } : {}),
+      runId: run.id,
+      rev: run.rev,
+      origin: run.origin,
+      command: run.command,
+      cwd: run.cwd,
+      phase: run.phase,
+      output: run.screen.tail(lines),
+      sentAt: run.sentAt,
+      terminal: run.terminal,
+      cardId: run.cardId,
+      runNumber: run.runNumber,
+      ...(run.past.length > 0 ? { past: run.past } : {}),
     };
   }
 
   function pastOf(row: RunRow): PastRun | null {
     const phase = row.phase.kind === "running" ? { kind: "interrupted" as const, startedAt: row.phase.startedAt, endedAt: deps.now() } : row.phase;
     if (!isEnded(phase)) return null;
-    return { runId: row.runId, runNumber: runNumberOf(row), phase, output: { lines: fitLines(row.output.lines, limits.pastRunOutputBytes), total: row.output.total }, sentAt: row.sentAt };
+    return {
+      runId: row.runId,
+      runNumber: runNumberOf(row),
+      phase,
+      output: { lines: fitLines(row.output.lines, limits.pastRunOutputBytes), total: row.output.total },
+      sentAt: row.sentAt,
+    };
   }
 
   const isLatest = (run: Run) => latestRunByCard.get(run.cardId) === run.id;
@@ -212,7 +228,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
   }
 
   function wake(run: Run) {
-    for (const waiter of [...run.waiters]) waiter();
+    for (const waiter of Array.from(run.waiters)) waiter();
   }
 
   function transition(run: Run, next: Phase) {
@@ -227,16 +243,18 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
     if (run.phase.kind !== "running") return;
     const clock = { startedAt: run.phase.startedAt, endedAt: deps.now() };
     const next: Phase =
-      run.phase.stopRequestedAt !== null ? { kind: "stopped", ...clock, exitCode: code, signal }
-      : code === 0 ? { kind: "ok", ...clock }
-      : { kind: "failed", ...clock, exitCode: code, signal, message: null };
+      run.phase.stopRequestedAt !== null
+        ? { kind: "stopped", ...clock, exitCode: code, signal }
+        : code === 0
+          ? { kind: "ok", ...clock }
+          : { kind: "failed", ...clock, exitCode: code, signal, message: null };
     transition(run, next);
     evict();
   }
 
-  function failToStart(run: Run, message: string) {
+  function failToStart(run: Run, reason: string) {
     if (run.phase.kind !== "running") return;
-    transition(run, { kind: "failed", startedAt: run.phase.startedAt, endedAt: deps.now(), exitCode: null, signal: null, message });
+    transition(run, { kind: "failed", startedAt: run.phase.startedAt, endedAt: deps.now(), exitCode: null, signal: null, message: reason });
     evict();
   }
 
@@ -338,18 +356,33 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
       if (runs.has(id)) return { runId: id };
       const last = rerunOf && pastOf(previous ? rowOf(previous, limits.scrollbackLines) : rerunOf);
       const past = rerunOf ? [...(previous?.past ?? rerunOf.past ?? []), ...(last ? [last] : [])].slice(-limits.pastRuns) : [];
-      const startedAt = deps.now();
+      const launchedAt = deps.now();
       const run: Run = {
-        id, agentId: input.agentId, origin: input.origin, command: input.command, cwd: input.cwd,
-        cardId, runNumber: rerunOf ? runNumberOf(rerunOf) + 1 : 1, past,
-        phase: { kind: "running", startedAt, stopRequestedAt: null },
-        rev: 0, screen: createScreen({ maxLines: limits.linesKept, maxLineChars: limits.lineChars }),
-        sentAt: null, lastOutputAt: null, proc: null, terminal: spawner.terminal, capturedBytes: 0, binary: false, capStopped: false,
-        waiters: new Set(), timers: [], escalation: [],
+        id,
+        agentId: input.agentId,
+        origin: input.origin,
+        command: input.command,
+        cwd: input.cwd,
+        cardId,
+        runNumber: rerunOf ? runNumberOf(rerunOf) + 1 : 1,
+        past,
+        phase: { kind: "running", startedAt: launchedAt, stopRequestedAt: null },
+        rev: 0,
+        screen: createScreen({ maxLines: limits.linesKept, maxLineChars: limits.lineChars }),
+        sentAt: null,
+        lastOutputAt: null,
+        proc: null,
+        terminal: spawner.terminal,
+        capturedBytes: 0,
+        binary: false,
+        capStopped: false,
+        waiters: new Set(),
+        timers: [],
+        escalation: [],
       };
       runs.set(id, run);
       const problem = await folderProblem(input.cwd);
-      if (problem) run.phase = { kind: "failed", startedAt, endedAt: deps.now(), exitCode: null, signal: null, message: problem };
+      if (problem) run.phase = { kind: "failed", startedAt: launchedAt, endedAt: deps.now(), exitCode: null, signal: null, message: problem };
       try {
         await publishRun(run, false);
       } catch (error) {
@@ -416,7 +449,7 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
 
     recent(limit) {
       return [...runs.values()]
-        .sort((a, b) => Number(b.phase.kind === "running") - Number(a.phase.kind === "running") || startedAt(b) - startedAt(a))
+        .toSorted((a, b) => Number(b.phase.kind === "running") - Number(a.phase.kind === "running") || startedAt(b) - startedAt(a))
         .slice(0, limit)
         .map((run) => ({ agentId: run.agentId, row: rowOf(run, limits.scrollbackLines) }));
     },
@@ -443,7 +476,11 @@ export function createRunRegistry(deps: RunsDeps): RunRegistry {
 
     dismiss({ agentId, runId, command, cwd }) {
       if (runs.has(runId)) return Promise.resolve();
-      return publishRow(agentId, { runId, rev: 1, origin: "claude", command, cwd, phase: { kind: "dismissed" }, output: { lines: [], total: 0 }, sentAt: null }, true);
+      return publishRow(
+        agentId,
+        { runId, rev: 1, origin: "claude", command, cwd, phase: { kind: "dismissed" }, output: { lines: [], total: 0 }, sentAt: null },
+        true,
+      );
     },
 
     async shutdown() {
@@ -501,7 +538,16 @@ async function folderProblem(cwd: string): Promise<string | null> {
   }
 }
 
-const STRIP = ["PASEO_NODE_ENV", "PASEO_DESKTOP_MANAGED", "PASEO_SUPERVISED", "ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ATTACH_CONSOLE", "ESBUILD_BINARY_PATH", "BASH_ENV", "NO_COLOR"];
+const STRIP = [
+  "PASEO_NODE_ENV",
+  "PASEO_DESKTOP_MANAGED",
+  "PASEO_SUPERVISED",
+  "ELECTRON_RUN_AS_NODE",
+  "ELECTRON_NO_ATTACH_CONSOLE",
+  "ESBUILD_BINARY_PATH",
+  "BASH_ENV",
+  "NO_COLOR",
+];
 
 // The user's environment minus what Paseo's worker put in, plus what makes tools
 // print color to a pipe. FORCE_COLOR=1 means 16 colors on purpose: the row

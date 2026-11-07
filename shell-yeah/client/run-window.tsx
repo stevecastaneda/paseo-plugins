@@ -43,9 +43,11 @@ function AgentRunWindow({ agentId, colors, compact, close }: { agentId: string; 
   // waits until the box is tapped.
   useEffect(() => {
     if (compact) return;
-    const timers = [100, 300, 600].map((ms) => setTimeout(() => {
-      if (!box.current?.isFocused()) box.current?.focus();
-    }, ms));
+    const timers = [100, 300, 600].map((ms) =>
+      setTimeout(() => {
+        if (!box.current?.isFocused()) box.current?.focus();
+      }, ms),
+    );
     return () => timers.forEach(clearTimeout);
   }, [compact]);
 
@@ -81,7 +83,17 @@ function AgentRunWindow({ agentId, colors, compact, close }: { agentId: string; 
   return (
     <View style={{ gap: 16, width: compact ? undefined : WINDOW_CONTENT_WIDTH }}>
       <View style={{ gap: 8 }}>
-        <View style={{ borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6), paddingHorizontal: 10, paddingVertical: compact ? 8 : 7 }} {...codeSurface()}>
+        <View
+          style={{
+            borderRadius: 6,
+            backgroundColor: palette.well,
+            borderWidth: 1,
+            borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6),
+            paddingHorizontal: 10,
+            paddingVertical: compact ? 8 : 7,
+          }}
+          {...codeSurface()}
+        >
           <TextInput
             ref={box}
             onLayout={(event) => setBoxWidth(event.nativeEvent.layout.width)}
@@ -111,23 +123,56 @@ function AgentRunWindow({ agentId, colors, compact, close }: { agentId: string; 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
             <Icon name="Folder" size={12} color={colors.foregroundMuted} />
-            <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>{cwd ? `Runs in ${basename(cwd)}` : "Finding the agent's folder…"}</Text>
+            <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>
+              {cwd ? `Runs in ${basename(cwd)}` : "Finding the agent's folder…"}
+            </Text>
           </View>
-          <Button icon="Play" label="Run" tone="primary" onPress={() => void run(text)} busy={running === text.trim() && running !== null} disabled={!text.trim() || !cwd} compact={compact} colors={colors} accessibilityLabel="Run this command" />
+          <Button
+            icon="Play"
+            label="Run"
+            tone="primary"
+            onPress={() => void run(text)}
+            busy={running === text.trim() && running !== null}
+            disabled={!text.trim() || !cwd}
+            compact={compact}
+            colors={colors}
+            accessibilityLabel="Run this command"
+          />
         </View>
       </View>
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16, fontWeight: "500" }}>From the agent's last reply</Text>
-        <Suggestions listing={listing} colors={colors} compact={compact} running={running} onRun={(command) => void run(command)} onEdit={(command) => {
-          setText(command);
-          box.current?.focus();
-        }} />
+        <Suggestions
+          listing={listing}
+          colors={colors}
+          compact={compact}
+          running={running}
+          onRun={(command) => void run(command)}
+          onEdit={(command) => {
+            setText(command);
+            box.current?.focus();
+          }}
+        />
       </View>
     </View>
   );
 }
 
-function Suggestions({ listing, colors, compact, running, onRun, onEdit }: { listing: Listing; colors: ThemeColors; compact: boolean; running: string | null; onRun(command: string): void; onEdit(command: string): void }) {
+function Suggestions({
+  listing,
+  colors,
+  compact,
+  running,
+  onRun,
+  onEdit,
+}: {
+  listing: Listing;
+  colors: ThemeColors;
+  compact: boolean;
+  running: string | null;
+  onRun(command: string): void;
+  onEdit(command: string): void;
+}) {
   if (listing.kind === "loading") {
     return (
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 }}>
@@ -137,18 +182,47 @@ function Suggestions({ listing, colors, compact, running, onRun, onEdit }: { lis
     );
   }
   if (listing.kind === "failed" || listing.commands.length === 0) {
-    return <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingVertical: 4 }}>{listing.kind === "failed" ? listing.message : "No commands in it. Paste one above."}</Text>;
+    return (
+      <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18, paddingVertical: 4 }}>
+        {listing.kind === "failed" ? listing.message : "No commands in it. Paste one above."}
+      </Text>
+    );
   }
   return (
     <View style={{ marginHorizontal: -6 }}>
       {listing.commands.map((command) => (
-        <Suggestion key={command} command={command} colors={colors} compact={compact} busy={running === command} disabled={running !== null} onRun={() => onRun(command)} onEdit={() => onEdit(splitTitle(command).script)} />
+        <Suggestion
+          key={command}
+          command={command}
+          colors={colors}
+          compact={compact}
+          busy={running === command}
+          disabled={running !== null}
+          onRun={() => onRun(command)}
+          onEdit={() => onEdit(splitTitle(command).script)}
+        />
       ))}
     </View>
   );
 }
 
-function Suggestion({ command, colors, compact, busy, disabled, onRun, onEdit }: { command: string; colors: ThemeColors; compact: boolean; busy: boolean; disabled: boolean; onRun(): void; onEdit(): void }) {
+function Suggestion({
+  command,
+  colors,
+  compact,
+  busy,
+  disabled,
+  onRun,
+  onEdit,
+}: {
+  command: string;
+  colors: ThemeColors;
+  compact: boolean;
+  busy: boolean;
+  disabled: boolean;
+  onRun(): void;
+  onEdit(): void;
+}) {
   const { title, script } = splitTitle(command);
   const risks = risksOf(script);
   // A row that can't show its whole script puts it in the box instead, where all of it shows.
@@ -163,7 +237,17 @@ function Suggestion({ command, colors, compact, busy, disabled, onRun, onEdit }:
       focusable={false}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      style={{ flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 6, paddingStart: 6, paddingEnd: 6, paddingVertical: 4, backgroundColor: pressed ? colors.border : hovered && !disabled ? colors.surface2 : "transparent" }}>
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        borderRadius: 6,
+        paddingStart: 6,
+        paddingEnd: 6,
+        paddingVertical: 4,
+        backgroundColor: pressed ? colors.border : hovered && !disabled ? colors.surface2 : "transparent",
+      }}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={oneTap ? `Run ${shortCommand(command)}` : `Edit ${shortCommand(command)} before running`}
@@ -171,19 +255,56 @@ function Suggestion({ command, colors, compact, busy, disabled, onRun, onEdit }:
         onPress={oneTap ? onRun : onEdit}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
-        style={{ flex: 1, minWidth: 0, gap: 4, paddingVertical: compact ? 4 : 0 }}>
-        {title ? <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{title}</Text> : null}
-        <Text numberOfLines={oneTap ? undefined : title ? 1 : 2} style={{ color: title ? colors.foregroundMuted : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>{oneTap ? script : firstLine}</Text>
+        style={{ flex: 1, minWidth: 0, gap: 4, paddingVertical: compact ? 4 : 0 }}
+      >
+        {title ? (
+          <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
+            {title}
+          </Text>
+        ) : null}
+        <Text
+          numberOfLines={oneTap ? undefined : title ? 1 : 2}
+          style={{ color: title ? colors.foregroundMuted : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}
+        >
+          {oneTap ? script : firstLine}
+        </Text>
         {moreLines.length > 0 || risks.length > 0 ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-            {moreLines.length > 0 ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>{moreLines.length === 1 ? "1 more line" : `${moreLines.length} more lines`}</Text> : null}
-            {risks.map((risk) => <RiskTag key={risk} risk={risk} colors={colors} />)}
+            {moreLines.length > 0 ? (
+              <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>
+                {moreLines.length === 1 ? "1 more line" : `${moreLines.length} more lines`}
+              </Text>
+            ) : null}
+            {risks.map((risk) => (
+              <RiskTag key={risk} risk={risk} colors={colors} />
+            ))}
           </View>
         ) : null}
       </Pressable>
-      <Button icon="Pencil" label="Edit" tone="ghost" onPress={onEdit} disabled={disabled} compact={compact} iconOnly colors={colors} accessibilityLabel={`Edit ${shortCommand(command)} before running`} />
+      <Button
+        icon="Pencil"
+        label="Edit"
+        tone="ghost"
+        onPress={onEdit}
+        disabled={disabled}
+        compact={compact}
+        iconOnly
+        colors={colors}
+        accessibilityLabel={`Edit ${shortCommand(command)} before running`}
+      />
       {oneTap ? (
-        <Button icon="Play" label="Run" tone="ghost" onPress={onRun} busy={busy} disabled={disabled && !busy} compact={compact} iconOnly colors={colors} accessibilityLabel={`Run ${shortCommand(command)}`} />
+        <Button
+          icon="Play"
+          label="Run"
+          tone="ghost"
+          onPress={onRun}
+          busy={busy}
+          disabled={disabled && !busy}
+          compact={compact}
+          iconOnly
+          colors={colors}
+          accessibilityLabel={`Run ${shortCommand(command)}`}
+        />
       ) : (
         <View style={{ width: compact ? 36 : 28 }} />
       )}
@@ -197,7 +318,9 @@ function RiskTag({ risk, colors }: { risk: string; colors: ThemeColors }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, height: 20, paddingStart: 5, paddingEnd: 6, borderRadius: 4, backgroundColor: tint }}>
       <Icon name="TriangleAlert" size={12} color={colors.statusWarning} />
-      <Text numberOfLines={1} style={{ color: colors.statusWarning, fontSize: 12, lineHeight: 16, fontWeight: "500" }}>{capitalize(risk)}</Text>
+      <Text numberOfLines={1} style={{ color: colors.statusWarning, fontSize: 12, lineHeight: 16, fontWeight: "500" }}>
+        {capitalize(risk)}
+      </Text>
     </View>
   );
 }

@@ -2,25 +2,21 @@
   "name": "@stevecastaneda/paseo-playwright-pulse",
   "version": "1.5.1",
   "description": "A live dashboard in Paseo for a worktree's Playwright test run.",
+  "keywords": [
+    "dashboard",
+    "e2e",
+    "paseo",
+    "paseo-plugin",
+    "playwright",
+    "testing"
+  ],
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/playwright-pulse#readme",
   "license": "MIT",
   "author": "Steve Castaneda",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
     "directory": "playwright-pulse"
-  },
-  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/playwright-pulse#readme",
-  "keywords": [
-    "paseo",
-    "paseo-plugin",
-    "playwright",
-    "e2e",
-    "testing",
-    "dashboard"
-  ],
-  "type": "module",
-  "engines": {
-    "node": "^22.18.0 || >=23.6.0"
   },
   "files": [
     "paseo-plugin.json",
@@ -35,6 +31,7 @@
     "tsconfig.json",
     "!**/*.test.ts"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },
@@ -55,5 +52,8 @@
     "react-native": "0.81.5",
     "typescript": "^5.9.3",
     "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=23.6.0"
   }
 }

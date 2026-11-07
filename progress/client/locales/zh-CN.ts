@@ -2,30 +2,30 @@ import type { ProgressMessages } from "../messages";
 
 export const messages: ProgressMessages = {
   status: {
-    "not_started": "未开始",
-    "working": "进行中",
-    "blocked": "受阻",
-    "done": "已完成",
-    "skipped": "已跳过"
+    not_started: "未开始",
+    working: "进行中",
+    blocked: "受阻",
+    done: "已完成",
+    skipped: "已跳过",
   },
   questionModes: {
-    "stop": {
-      "label": "停止",
-      "hint": "智能体提问后会停止所有工作，直到你回答。"
+    stop: {
+      label: "停止",
+      hint: "智能体提问后会停止所有工作，直到你回答。",
     },
     "work-around": {
-      "label": "继续其他工作",
-      "hint": "智能体暂停受回答影响的工作，继续处理其余事项。"
+      label: "继续其他工作",
+      hint: "智能体暂停受回答影响的工作，继续处理其余事项。",
     },
     "keep-building": {
-      "label": "继续构建",
-      "hint": "你做决定期间，智能体会先按推荐方案构建；若你选择其他方案，则调整方向。重大问题仍会等待回答。"
-    }
+      label: "继续构建",
+      hint: "你做决定期间，智能体会先按推荐方案构建；若你选择其他方案，则调整方向。重大问题仍会等待回答。",
+    },
   },
   noteKinds: {
-    "new": "新增",
-    "improved": "改进",
-    "fixed": "修复"
+    new: "新增",
+    improved: "改进",
+    fixed: "修复",
   },
   loading: "加载中…",
   loadingProgress: "正在加载进度",
@@ -182,7 +182,7 @@ export const messages: ProgressMessages = {
   issueLine: (line: number, reason: string) => `第 ${line} 行（${reason}）`,
   issueList: (items: string[], more: number) => `${items.join("，")}${more ? `，另有 ${more} 处` : ""}。`,
   overdueUpdate: (duration: string) => `超过预计的 ${duration} 未更新。最后更新于 `,
-  blockedSince: (note: string | undefined, narrow: boolean) => `受阻${note ? `：${note}` : ""}，始于 `,
+  blockedSince: (note: string | undefined, _narrow: boolean) => `受阻${note ? `：${note}` : ""}，始于 `,
   doneCount: (count: number) => `${count} 项已完成`,
   skippedCount: (count: number) => `${count} 项已跳过`,
   toggleFinished: (shown: boolean, label: string) => `${shown ? "收起" : "显示"} ${label}`,

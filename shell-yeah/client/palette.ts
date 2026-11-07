@@ -36,22 +36,38 @@ const TAILWIND = {
 };
 
 const FALLBACK: ThemeColors = {
-  surface0: "#18181b", surface1: "#1f1f23", surface2: "#27272a", border: "#3f3f46", foreground: "#f4f4f5", foregroundMuted: "#a1a1aa",
-  accent: "#e4e4e7", accentForeground: "#18181b", statusSuccess: "#6cb17b", statusWarning: "#c09664", statusDanger: "#d8847b",
+  surface0: "#18181b",
+  surface1: "#1f1f23",
+  surface2: "#27272a",
+  border: "#3f3f46",
+  foreground: "#f4f4f5",
+  foregroundMuted: "#a1a1aa",
+  accent: "#e4e4e7",
+  accentForeground: "#18181b",
+  statusSuccess: "#6cb17b",
+  statusWarning: "#c09664",
+  statusDanger: "#d8847b",
 };
 
 export function parseColor(color: string): Rgb | null {
   const hex = color.trim().match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
   if (hex) {
     const h = hex[1];
-    const digits = h.length <= 4 ? [...h.slice(0, 3)].map((d) => d + d) : h.slice(0, 6).match(/../g)!;
+    const digits = h.length <= 4 ? Array.from(h.slice(0, 3), (d) => d + d) : h.slice(0, 6).match(/../g)!;
     return digits.map((d) => parseInt(d, 16)) as Rgb;
   }
   const fn = color.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
   return fn ? (fn.slice(1, 4).map(Number) as Rgb) : null;
 }
 
-const toHex = ([r, g, b]: Rgb) => `#${[r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("")}`;
+const toHex = ([r, g, b]: Rgb) =>
+  `#${[r, g, b]
+    .map((v) =>
+      Math.round(Math.min(255, Math.max(0, v)))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 
 export function luminance(rgb: Rgb): number {
   const [r, g, b] = rgb.map((v) => {
@@ -131,8 +147,11 @@ function color256(n: number, ansi: readonly string[]): string {
     return toHex([v, v, v]);
   }
   const i = n - 16;
-  const step = (v: number) => (v === 0 ? 0 : 55 + v * 40);
   return toHex([step(Math.floor(i / 36)), step(Math.floor((i % 36) / 6)), step(i % 6)]);
+}
+
+function step(v: number): number {
+  return v === 0 ? 0 : 55 + v * 40;
 }
 
 // 16 ANSI colors from the 11 theme colors, so output looks like the app, not like xterm.
@@ -164,7 +183,7 @@ export function makePalette(input: ThemeColors): Palette {
     let bg: string | null = null;
     let inverse = false;
     const params = sgr === "" ? [] : sgr.split(";").map(Number);
-    for (let i = 0; i < params.length; ) {
+    for (let i = 0; i < params.length;) {
       const p = params[i];
       if (p === 1) s.bold = true;
       else if (p === 2) s.dim = true;

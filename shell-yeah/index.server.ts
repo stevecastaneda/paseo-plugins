@@ -1,5 +1,16 @@
 import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
-import { agentOf, attachItems, fetchTurn, latestAssistantText, proposeFromReply, scanProposals, sendToClaude, sendVia, withHandoffPrompt, type AttachDeps } from "./server/claude.ts";
+import {
+  agentOf,
+  attachItems,
+  fetchTurn,
+  latestAssistantText,
+  proposeFromReply,
+  scanProposals,
+  sendToClaude,
+  sendVia,
+  withHandoffPrompt,
+  type AttachDeps,
+} from "./server/claude.ts";
 import { createLogStore, defaultLogRoot } from "./server/logs.ts";
 import { createRunRegistry } from "./server/runs.ts";
 import { commandFinder } from "./server/shells.ts";
@@ -25,14 +36,14 @@ export default function contribute(server: PluginServerContext) {
   const saved: AttachDeps["saved"] = new Map();
   void logs.prune().catch(() => undefined);
 
-  server.handle(start, (input, ctx) => (bind(ctx), runs.start(input)));
+  server.handle(start, (params, ctx) => (bind(ctx), runs.start(params)));
   server.handle(stop, ({ runId, force }, ctx) => (bind(ctx), runs.stop(runId, force), { ok: true as const }));
   server.handle(input, ({ runId, keys }) => (runs.input(runId, keys), { ok: true as const }));
   server.handle(tail, ({ runId, lines, since, waitMs }, ctx) => (bind(ctx), runs.tail(runId, lines, since, waitMs)));
   server.handle(fullOutput, ({ runId }) => runs.fullText(runId));
-  server.handle(send, (input, ctx) => (bind(ctx), sendToClaude({ runs, logs, agent: agentOf(ctx.paseo), send: sendVia(ctx.paseo), sendCounts }, input)));
+  server.handle(send, (params, ctx) => (bind(ctx), sendToClaude({ runs, logs, agent: agentOf(ctx.paseo), send: sendVia(ctx.paseo), sendCounts }, params)));
   server.handle(attachSearch, async ({ query }) => ({ items: await attachItems({ runs, logs, saved }, query) }));
-  server.handle(dismiss, (input, ctx) => (bind(ctx), runs.dismiss(input).then(() => ({ ok: true as const }))));
+  server.handle(dismiss, (params, ctx) => (bind(ctx), runs.dismiss(params).then(() => ({ ok: true as const }))));
 
   // `refetch` also updates the ref's agent, so `cwd` is set after it.
   const latestTurn = async (agentId: string, ctx: PluginHandlerContext) => {

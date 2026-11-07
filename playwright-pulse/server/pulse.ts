@@ -19,15 +19,20 @@ export async function handleGetPulse(input: { workspaceDirectory: string; since?
 export async function handleGetBriefs(input: { directories: string[] }, home?: string): Promise<{ briefs: Record<string, RunBrief | null> }> {
   const byRoot = new Map<string, Promise<RunBrief | null>>();
   const briefs: Record<string, RunBrief | null> = {};
-  await Promise.all(input.directories.map(async (directory) => {
-    const location = locateRun(directory, home);
-    let brief = byRoot.get(location.directory);
-    if (!brief) {
-      brief = readRun(location).then((run) => (run ? runBrief(run) : null), () => null);
-      byRoot.set(location.directory, brief);
-    }
-    briefs[directory] = await brief;
-  }));
+  await Promise.all(
+    input.directories.map(async (directory) => {
+      const location = locateRun(directory, home);
+      let brief = byRoot.get(location.directory);
+      if (!brief) {
+        brief = readRun(location).then(
+          (run) => (run ? runBrief(run) : null),
+          () => null,
+        );
+        byRoot.set(location.directory, brief);
+      }
+      briefs[directory] = await brief;
+    }),
+  );
   return { briefs };
 }
 

@@ -4,11 +4,15 @@ import { formatAgo, formatClock, formatMinutes, formatWorkDone, minutesSince } f
 import type { QuestionState } from "./question-modes.ts";
 
 const STATUS: Record<string, string> = { not_started: "Not started", working: "Working", blocked: "Blocked", done: "Done", skipped: "Skipped" };
-const QUESTION_STATE: Record<QuestionState, string> = { stopped: "agent stopped until the answer", waiting: "waiting for the answer", building: "building with it" };
+const QUESTION_STATE: Record<QuestionState, string> = {
+  stopped: "agent stopped until the answer",
+  waiting: "waiting for the answer",
+  building: "building with it",
+};
 
 // The dashboard as plain text, so an agent can check what the user sees.
 export function dashboardText(dashboard: Dashboard, nowMs: number): string {
-  if (!dashboard.run && !dashboard.tickets.length) return "No run yet. Start one with: paseo-progress start \"<title>\"";
+  if (!dashboard.run && !dashboard.tickets.length) return 'No run yet. Start one with: paseo-progress start "<title>"';
   const lines: string[] = [];
   const when = (iso: string) => `${formatClock(iso)} (${formatAgo(iso, nowMs)})`;
   lines.push(dashboard.run?.title ?? "Progress");
@@ -22,7 +26,9 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.updatedAt) lines.push(`Last updated ${when(dashboard.updatedAt)}`);
   if (dashboard.stale && dashboard.updatedAt) lines.push(`POSSIBLY STALE: no update for ${formatMinutes(minutesSince(dashboard.updatedAt, nowMs))}.`);
   if (dashboard.progress.totalMin) {
-    lines.push(`${dashboard.progress.percent}% of estimated work done, ${dashboard.progress.tookMin !== undefined ? "took " : ""}${formatWorkDone(dashboard.progress.doneMin, dashboard.progress.totalMin, dashboard.progress.tookMin)}`);
+    lines.push(
+      `${dashboard.progress.percent}% of estimated work done, ${dashboard.progress.tookMin !== undefined ? "took " : ""}${formatWorkDone(dashboard.progress.doneMin, dashboard.progress.totalMin, dashboard.progress.tookMin)}`,
+    );
   }
   if (dashboard.issues.length) {
     lines.push("", `Skipped lines: ${dashboard.issues.map((issue) => `line ${issue.line} (${issue.reason})`).join(", ")}`);
@@ -30,9 +36,12 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.stuck.length) {
     lines.push("", "Stuck");
     for (const item of dashboard.stuck) {
-      const detail = item.kind === "overdue" ? `no update for longer than its ${formatMinutes(item.estimateMin)} estimate`
-        : item.kind === "blocked" ? `blocked${item.note ? `: ${item.note}` : ""}`
-        : `${item.id}: ${item.reason}`;
+      const detail =
+        item.kind === "overdue"
+          ? `no update for longer than its ${formatMinutes(item.estimateMin)} estimate`
+          : item.kind === "blocked"
+            ? `blocked${item.note ? `: ${item.note}` : ""}`
+            : `${item.id}: ${item.reason}`;
       lines.push(`  ${item.title} (${detail}), since ${when(item.since)}`);
     }
   }
@@ -46,7 +55,9 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   if (dashboard.questions.open.length) {
     lines.push("", "Questions waiting");
     for (const question of dashboard.questions.open) {
-      lines.push(`  ${question.id} ${question.ticketId ? `[${question.ticketId}] ` : ""}(${question.title}): ${question.question} You recommended ${question.recommended}, ${QUESTION_STATE[question.state]}${question.big ? `. Big: ${question.big}` : ""}`);
+      lines.push(
+        `  ${question.id} ${question.ticketId ? `[${question.ticketId}] ` : ""}(${question.title}): ${question.question} You recommended ${question.recommended}, ${QUESTION_STATE[question.state]}${question.big ? `. Big: ${question.big}` : ""}`,
+      );
       for (const option of question.options) lines.push(`      ${option.letter}) ${option.label}${option.consequence ? `: ${option.consequence}` : ""}`);
     }
   }
@@ -65,7 +76,8 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
   }
   if (dashboard.activity.length) {
     lines.push("", "Activity");
-    for (const entry of dashboard.activity.slice(0, 5)) lines.push(`  ${entry.id}  ${entry.ticketId ? `[${entry.ticketId}] ` : ""}${entry.text} (${formatAgo(entry.at, nowMs)})`);
+    for (const entry of dashboard.activity.slice(0, 5))
+      lines.push(`  ${entry.id}  ${entry.ticketId ? `[${entry.ticketId}] ` : ""}${entry.text} (${formatAgo(entry.at, nowMs)})`);
   }
   return lines.join("\n");
 }

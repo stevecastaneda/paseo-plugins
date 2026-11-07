@@ -38,7 +38,10 @@ export type Ended = z.infer<typeof endedPhase>;
 export const phase = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("proposed") }),
   z.object({ kind: z.literal("running"), startedAt: z.number(), stopRequestedAt: z.number().nullable() }),
-  ok, failed, stopped, interrupted,
+  ok,
+  failed,
+  stopped,
+  interrupted,
   z.object({ kind: z.literal("dismissed") }),
 ]);
 export type Phase = z.infer<typeof phase>;

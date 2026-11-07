@@ -2,23 +2,19 @@
   "name": "@stevecastaneda/paseo-setup-monitor",
   "version": "1.1.1",
   "description": "Live worktree setup progress and logs from a button in the Paseo top bar.",
-  "license": "MIT",
-  "author": "Steve Castaneda",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
-    "directory": "setup-monitor"
-  },
-  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/setup-monitor#readme",
   "keywords": [
     "paseo",
     "paseo-plugin",
     "setup",
     "worktree"
   ],
-  "type": "module",
-  "engines": {
-    "node": "^22.18.0 || >=23.6.0"
+  "homepage": "https://github.com/stevecastaneda/paseo-plugins/tree/main/setup-monitor#readme",
+  "license": "MIT",
+  "author": "Steve Castaneda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevecastaneda/paseo-plugins.git",
+    "directory": "setup-monitor"
   },
   "files": [
     "paseo-plugin.json",
@@ -33,6 +29,7 @@
     "tsconfig.json",
     "!**/*.test.ts"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },
@@ -53,5 +50,8 @@
     "react-native": "0.81.5",
     "typescript": "^5.9.3",
     "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=23.6.0"
   }
 }

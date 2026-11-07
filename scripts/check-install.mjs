@@ -39,7 +39,10 @@ const pkg = JSON.parse(readFileSync(join(pluginDir, "package.json"), "utf8"));
 
 console.log(`> npm pack`);
 must("npm", ["pack", "--pack-destination", work], pluginDir, "npm pack");
-const tarball = join(work, readdirSync(work).find((name) => name.endsWith(".tgz")));
+const tarball = join(
+  work,
+  readdirSync(work).find((name) => name.endsWith(".tgz")),
+);
 
 const latestPrefix = join(work, "npm-latest");
 must("npm", ["install", "--prefix", latestPrefix, "--no-audit", "--no-fund", "npm@latest"], work, "Fetching the latest npm");

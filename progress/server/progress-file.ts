@@ -2,11 +2,12 @@
 // the command appends to and the panel-opened marker. Each function takes the
 // folder that holds them, which `findStore` in store.ts picks. The command and
 // the panel's RPC handlers go through here, so they agree on how they're read.
-import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { EMPTY_DASHBOARD, latestRun, parseProgress, reduceProgress, type Dashboard, type NextIds } from "../shared/dashboard.ts";
 import { EVENT_VERSION, eventSchema, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, type ProgressEvent } from "../shared/events.ts";
 import { withLock } from "./lock.ts";
+import { appendFileIn, makeFolder, writeFileIn } from "./system.ts";
 
 const LOCK_NAME = `${PROGRESS_FILE_NAME}.lock`;
 
@@ -63,8 +64,8 @@ export async function appendProgress<T>(
   // Runs before the lock is released, with the whole file as it now is.
   after?: (text: string) => Promise<void>,
 ): Promise<T> {
-  await mkdir(directory, { recursive: true });
-  return withLock(join(directory, LOCK_NAME), async () => {
+  await makeFolder(directory);
+  return withLock(directory, LOCK_NAME, async () => {
     const text = (await readText(directory)) ?? "";
     const parsed = parseProgress(text);
     const { dashboard, nextIds } = reduceProgress(parsed, now());
@@ -76,15 +77,14 @@ export async function appendProgress<T>(
     // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
     const lead = text && !text.endsWith("\n") ? "\n" : "";
     const line = `${lead}${JSON.stringify(checked.data)}\n`;
-    await appendFile(join(directory, PROGRESS_FILE_NAME), line);
+    await appendFileIn(directory, PROGRESS_FILE_NAME, line);
     await after?.(text + line);
     return result;
   });
 }
 
 export async function markPanelOpened(directory: string): Promise<void> {
-  await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, PANEL_OPENED_NAME), "");
+  await writeFileIn(directory, PANEL_OPENED_NAME, "");
 }
 
 async function readText(directory: string): Promise<string | null> {

@@ -35,23 +35,45 @@ function text(node: unknown): string {
   return node && typeof node === "object" ? text((node as Element).props?.children) : "";
 }
 
+function AnimatedValue() {}
+
 function renderQuestion(question: Record<string, unknown>) {
   let messages: unknown;
   const h = clientHarness(directory, {
-    react: { ...React, useContext: () => ({ locale: "en", messages }), useState: (initial: unknown) => [initial, () => {}], useRef: (initial: unknown) => ({ current: initial }), useEffect() {} },
-    "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text", Pressable: "Pressable", AccessibilityInfo: { addEventListener: () => ({ remove() {} }), isReduceMotionEnabled: async () => false },
-      Easing: { out: (f: unknown) => f, quad: () => 0, cubic: () => 0, bezier: () => () => 0 }, Animated: { Value: class {}, timing: () => ({ start() {} }), loop: () => ({ start() {} }), View: "View" } },
+    react: {
+      ...React,
+      useContext: () => ({ locale: "en", messages }),
+      useState: (initial: unknown) => [initial, () => {}],
+      useRef: (initial: unknown) => ({ current: initial }),
+      useEffect() {},
+    },
+    "react-native": {
+      Platform: { OS: "web" },
+      View: "View",
+      Text: "Text",
+      Pressable: "Pressable",
+      AccessibilityInfo: { addEventListener: () => ({ remove() {} }), isReduceMotionEnabled: async () => false },
+      Easing: { out: (f: unknown) => f, quad: () => 0, cubic: () => 0, bezier: () => () => 0 },
+      Animated: { Value: AnimatedValue, timing: () => ({ start() {} }), loop: () => ({ start() {} }), View: "View" },
+    },
     "@getpaseo/plugin/client/ui": { Icon: () => null, Markdown: "Markdown", useToast: () => ({}), copyText: async () => {} },
   });
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { QuestionView } = h.load("client/questions.tsx");
-  const colors = new Proxy({}, { get: () => "#112233" });   // every theme color, one hex
+  const colors = new Proxy({}, { get: () => "#112233" }); // every theme color, one hex
   return expand(QuestionView({ colors, question, now: Date.parse("2026-11-06T12:00:00Z"), onCopy() {}, onOpenAttachment() {} }));
 }
 
 const question = {
-  id: "Q1", title: "Sign in", question: `Open ${URL_TEXT} to continue`, options: [{ letter: "A", label: `Use ${URL_TEXT}/a`, consequence: "Then reload" }],
-  recommended: "A", state: "waiting", background: `Why: sign in at ${URL_TEXT}/background first`, files: [], askedAt: "2026-11-06T11:00:00Z",
+  id: "Q1",
+  title: "Sign in",
+  question: `Open ${URL_TEXT} to continue`,
+  options: [{ letter: "A", label: `Use ${URL_TEXT}/a`, consequence: "Then reload" }],
+  recommended: "A",
+  state: "waiting",
+  background: `Why: sign in at ${URL_TEXT}/background first`,
+  files: [],
+  askedAt: "2026-11-06T11:00:00Z",
 };
 
 test("a question's text and background are drawn with Paseo's Markdown, so a URL in either is a link", () => {
@@ -59,7 +81,9 @@ test("a question's text and background are drawn with Paseo's Markdown, so a URL
   const drawn = collect(tree, "Markdown").map((element) => text(element));
   assert.ok(drawn.includes(`Open ${URL_TEXT} to continue`), `the question text is not drawn with Markdown: ${JSON.stringify(drawn)}`);
   assert.ok(drawn.includes(`Why: sign in at ${URL_TEXT}/background first`), `the background is not drawn with Markdown: ${JSON.stringify(drawn)}`);
-  const plain = collect(tree, "Text").filter((element) => !element.props.selectable).map((element) => text(element));
+  const plain = collect(tree, "Text")
+    .filter((element) => !element.props.selectable)
+    .map((element) => text(element));
   assert.ok(!plain.some((value) => value.includes(URL_TEXT + " to continue")), "the question text is also in plain, unselectable Text");
 });
 

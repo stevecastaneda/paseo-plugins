@@ -39,12 +39,22 @@ test("a Progress call from Claude Code draws the first line of what the tool ret
   const { transformer, transform, drawn } = contributed();
   assert.deepEqual(plain(transformer.query), { itemType: "tool_call" });
   const added = transform(claudeDone("mcp__paseo__progress_ticket_add", { output: "Added T01: Write the spec for the full tool set (30m)" }));
-  assert.deepEqual(drawn(added), { line: "Added T01: Write the spec for the full tool set (30m)", more: "Added T01: Write the spec for the full tool set (30m)" }, "a line that truncates on a phone still opens to its full text");
-  const started = transform(claudeDone("mcp__paseo__progress_start", { output: "Started run: Progress agent tools\nQuestion mode: Stop, set by the user in Paseo's Settings." }));
-  assert.deepEqual(drawn(started), {
-    line: "Started run: Progress agent tools",
-    more: "Started run: Progress agent tools\nQuestion mode: Stop, set by the user in Paseo's Settings.",
-  }, "the row opens to the full output");
+  assert.deepEqual(
+    drawn(added),
+    { line: "Added T01: Write the spec for the full tool set (30m)", more: "Added T01: Write the spec for the full tool set (30m)" },
+    "a line that truncates on a phone still opens to its full text",
+  );
+  const started = transform(
+    claudeDone("mcp__paseo__progress_start", { output: "Started run: Progress agent tools\nQuestion mode: Stop, set by the user in Paseo's Settings." }),
+  );
+  assert.deepEqual(
+    drawn(started),
+    {
+      line: "Started run: Progress agent tools",
+      more: "Started run: Progress agent tools\nQuestion mode: Stop, set by the user in Paseo's Settings.",
+    },
+    "the row opens to the full output",
+  );
   assert.equal(drawn(transform(claudeDone("progress_finish", { output: "Finished run: Export" }))).line, "Finished run: Export", "an unprefixed name");
 });
 
@@ -61,27 +71,43 @@ test("a Progress call from Codex, named server.tool with the MCP result, draws t
   const refused = { content: [{ type: "text", text: "No ticket T09.\nUsage: paseo-progress ticket update <id>" }], isError: true };
   const failure = transform(claudeDone("paseo.progress_ticket_update", refused));
   assert.equal(failure.items[0].data.state, "failed", "drawn in the error color");
-  assert.deepEqual(drawn(failure), {
-    line: "No ticket T09.",
-    more: "No ticket T09.\nUsage: paseo-progress ticket update <id>",
-  }, "a result Codex marks as an error draws as a failure");
+  assert.deepEqual(
+    drawn(failure),
+    {
+      line: "No ticket T09.",
+      more: "No ticket T09.\nUsage: paseo-progress ticket update <id>",
+    },
+    "a result Codex marks as an error draws as a failure",
+  );
 });
 
 test("a failed call carries the command's error, whichever way Claude Code stored it", () => {
   const { transform, drawn } = contributed();
   const error = 'Unknown status "in_progress". Statuses: not_started, working, blocked, done, skipped.\nUsage: paseo-progress ticket update <id>';
-  const failed = (stored: unknown) => transform({ name: "mcp__paseo__progress_ticket_update", status: "failed", detail: { type: "unknown", input: {}, output: null }, error: stored });
+  const failed = (stored: unknown) =>
+    transform({ name: "mcp__paseo__progress_ticket_update", status: "failed", detail: { type: "unknown", input: {}, output: null }, error: stored });
   const expected = { line: 'Unknown status "in_progress". Statuses: not_started, working, blocked, done, skipped.', more: error };
-  assert.deepEqual(plain(failed({ type: "tool_result", tool_use_id: "c1", content: error, is_error: true }).items[0].data), { tool: "progress_ticket_update", state: "failed", error });
+  assert.deepEqual(plain(failed({ type: "tool_result", tool_use_id: "c1", content: error, is_error: true }).items[0].data), {
+    tool: "progress_ticket_update",
+    state: "failed",
+    error,
+  });
   assert.deepEqual(drawn(failed({ type: "tool_result", content: error, is_error: true })), expected);
   assert.deepEqual(drawn(failed({ type: "tool_result", content: [{ type: "text", text: error }], is_error: true })), expected, "as text blocks");
   assert.deepEqual(drawn(failed({ message: "Tool call failed" })), { line: "Tool call failed", more: "Tool call failed" }, "Paseo's own failure message");
-  assert.deepEqual(drawn(failed({ type: "tool_result", content: "", is_error: true })), { line: "Update ticket: failed", more: null }, "an empty error still says it failed");
+  assert.deepEqual(
+    drawn(failed({ type: "tool_result", content: "", is_error: true })),
+    { line: "Update ticket: failed", more: null },
+    "an empty error still says it failed",
+  );
 });
 
 test("a running call shows what the tool is doing; a canceled one says so", () => {
   const { transform, drawn } = contributed();
-  const running = transform({ name: "mcp__paseo__progress_ticket_add", status: "running", detail: { type: "unknown", input: { title: "x" }, output: null } }, "streaming");
+  const running = transform(
+    { name: "mcp__paseo__progress_ticket_add", status: "running", detail: { type: "unknown", input: { title: "x" }, output: null } },
+    "streaming",
+  );
   assert.deepEqual(drawn(running), { line: "Adding ticket…", more: null });
   const canceled = transform({ name: "mcp__paseo__progress_question_ask", status: "canceled", detail: { type: "unknown", input: {}, output: null } });
   assert.deepEqual(drawn(canceled), { line: "Ask question: canceled", more: null });

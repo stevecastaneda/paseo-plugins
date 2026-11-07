@@ -7,11 +7,12 @@ import { clientHarness } from "../../test-support/client-harness.mjs";
 
 const directory = fileURLToPath(new URL("..", import.meta.url));
 
+// The harness runs plugin code in its own realm; compare plain copies.
+const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+
 test("registers the Progress panel and a Command Center item that opens it as a tab", async () => {
   const h = clientHarness(directory);
   const stop = h.load("index.client.tsx").default(h.client);
-  // The harness runs plugin code in its own realm; compare plain copies.
-  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
   assert.deepEqual(plain(h.panels.map(({ id, title, locations }) => ({ id, title, locations }))), [
     { id: "progress", title: "Progress", locations: ["explorer"] },
   ]);
@@ -19,15 +20,28 @@ test("registers the Progress panel and a Command Center item that opens it as a 
   assert.equal(item.title, "Open Progress");
   item.onSelect({ openPanel: (id: string, options?: object) => h.client.openPanel(id, { workspaceId: "w", ...options }) });
   assert.deepEqual(plain(h.openedPanels), [{ id: "progress", workspaceId: "w", location: "explorer" }], "Command Center opens the panel in Explorer");
-  assert.deepEqual(plain(h.settingsScreens.map(({ id, title }) => ({ id, title }))), [{ id: "settings", title: "Settings" }], "the plugin has a Settings page in Paseo's Settings");
+  assert.deepEqual(
+    plain(h.settingsScreens.map(({ id, title }) => ({ id, title }))),
+    [{ id: "settings", title: "Settings" }],
+    "the plugin has a Settings page in Paseo's Settings",
+  );
   const [page] = h.screens;
   assert.equal(page.id, "page", "an HTML deliverable has a screen of its own");
   assert.equal(page.title({ title: "How Mortly runs" }), "How Mortly runs", "the screen is titled after the deliverable");
-  assert.deepEqual(plain(h.filePanels.map(({ id, files }) => ({ id, files }))), [{ id: "pdf", files: { extensions: ["pdf"] } }], "Progress shows PDFs opened in a tab");
+  assert.deepEqual(
+    plain(h.filePanels.map(({ id, files }) => ({ id, files }))),
+    [{ id: "pdf", files: { extensions: ["pdf"] } }],
+    "Progress shows PDFs opened in a tab",
+  );
   assert.equal(h.requests.length, 0, "nothing is read until a panel is shown");
   stop();
-  assert.ok(h.panels.every((panel) => panel.removed) && h.commandItems.every((entry) => entry.removed) && h.settingsScreens.every((entry) => entry.removed) && h.screens.every((entry) => entry.removed)
-    && h.filePanels.every((entry) => entry.removed));
+  assert.ok(
+    h.panels.every((panel) => panel.removed) &&
+      h.commandItems.every((entry) => entry.removed) &&
+      h.settingsScreens.every((entry) => entry.removed) &&
+      h.screens.every((entry) => entry.removed) &&
+      h.filePanels.every((entry) => entry.removed),
+  );
 });
 
 test("on Android, PDFs opened in a tab keep Paseo's own panel", () => {
@@ -94,9 +108,16 @@ function attentionWith(questions: number, stuck: number, run: { open?: boolean; 
   return { configured: true, questions, stuck, runOpen: run.open ?? false, panelOpened: run.panelOpened ?? false };
 }
 
+function report(questions: number, stuck: number, runOpen: boolean, panelOpened: boolean) {
+  return { configured: true, questions, stuck, runOpen, panelOpened };
+}
+
+function openRun(panelOpened: boolean, questions = 0) {
+  return attentionWith(questions, 0, { open: true, panelOpened });
+}
+
 test("one rule decides what the pill shows, its icon, and whether pressing it opens the popover", () => {
   const { pillFor, isIdle } = clientHarness(directory).load("client/pill-state.ts");
-  const report = (questions: number, stuck: number, runOpen: boolean, panelOpened: boolean) => ({ configured: true, questions, stuck, runOpen, panelOpened });
   const desktop = { phone: false };
   const phone = { phone: true };
   const cases: Array<[string, unknown, { phone: boolean }, unknown]> = [
@@ -215,8 +236,7 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS } = h.load("client/pills.tsx");
   const { notePanelOpened } = h.load("client/panel-opened.ts");
-  const run = (panelOpened: boolean, questions = 0) => attentionWith(questions, 0, { open: true, panelOpened });
-  h.responses["progress.attention"] = run(false);
+  h.responses["progress.attention"] = openRun(false);
   const stop = contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
@@ -224,20 +244,24 @@ test("a run shows a Progress pill until the panel is opened, then never again", 
   const active = () => h.registrations.filter((entry) => !entry.removed) as unknown as Array<{ button: any }>;
   assert.equal(active()[0]?.button.label, "Progress");
   active()[0].button.behavior.onPress();
-  assert.deepEqual(JSON.parse(JSON.stringify(h.openedPanels)), [{ id: "progress", workspaceId: "w", location: "explorer" }], "pressing it opens the panel in Explorer");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(h.openedPanels)),
+    [{ id: "progress", workspaceId: "w", location: "explorer" }],
+    "pressing it opens the panel in Explorer",
+  );
 
-  h.responses["progress.attention"] = run(false, 2);
+  h.responses["progress.attention"] = openRun(false, 2);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active()[0]?.button.label, "2 questions", "questions take the pill over");
-  h.responses["progress.attention"] = run(false);
+  h.responses["progress.attention"] = openRun(false);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active()[0]?.button.label, "Progress", "and hand it back while the panel hasn't been opened");
 
   notePanelOpened("w");
   assert.equal(active().length, 0, "opening the panel removes it at once");
-  h.responses["progress.attention"] = run(true);
+  h.responses["progress.attention"] = openRun(true);
   await h.tick(PILL_POLL_MS);
   await h.flush();
   assert.equal(active().length, 0);
@@ -269,7 +293,10 @@ test("local deliverable paths resolve against the workspace directory", () => {
 
 test("a failed request shows the handler's own words, without Paseo's log wrapper", () => {
   const { errorText } = clientHarness(directory).load("client/errors.ts");
-  assert.equal(errorText(new Error("Request failed: Can't open files on steve-dev requestType=plugin.rpc.invoke.request code=handler_error"), "Could not open it"), "Can't open files on steve-dev");
+  assert.equal(
+    errorText(new Error("Request failed: Can't open files on steve-dev requestType=plugin.rpc.invoke.request code=handler_error"), "Could not open it"),
+    "Can't open files on steve-dev",
+  );
   assert.equal(errorText(new Error("shots/a.png no longer exists."), "Could not open it"), "shots/a.png no longer exists.");
   assert.equal(errorText("not an error", "Could not open it"), "Could not open it");
 });
@@ -279,7 +306,10 @@ test("the install banner shows until the command is installed and reachable", ()
   const { launcherNotice } = h.load("client/launcher.tsx");
   const path = "/Users/s/.local/bin/paseo-progress";
   assert.equal(launcherNotice({ path, state: "missing", onPath: true }).action, "Install command");
-  assert.match(launcherNotice({ path, state: "missing", onPath: true }).text, /isn't installed yet\. Installing adds it at \/Users\/s\/\.local\/bin\/paseo-progress/);
+  assert.match(
+    launcherNotice({ path, state: "missing", onPath: true }).text,
+    /isn't installed yet\. Installing adds it at \/Users\/s\/\.local\/bin\/paseo-progress/,
+  );
   assert.equal(launcherNotice({ path, state: "outdated", onPath: true }).action, "Update command");
   assert.equal(launcherNotice({ path, state: "foreign", onPath: true }).action, undefined, "never offers to replace another file");
   assert.equal(launcherNotice({ path, state: "current", onPath: true }), null);
@@ -296,7 +326,6 @@ test("with Paseo tools on, the command banner only offers an optional install; o
     assert.deepEqual(setupNotice(status, "off"), launcherNotice(status), `tools off, ${status.state}`);
   }
   const toolsOn = "Agents record progress with Paseo tools. The paseo-progress command is a fallback for agents without them.";
-  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
   assert.deepEqual(plain(setupNotice({ path, state: "missing", onPath: true }, "on")), { text: toolsOn, action: "Install command" });
   assert.deepEqual(plain(setupNotice({ path, state: "outdated", onPath: true }, "on")), { text: toolsOn, action: "Update command" });
   assert.equal(setupNotice({ path, state: "current", onPath: false }, "on"), null, "the command's PATH matters less once agents have tools");
@@ -304,8 +333,11 @@ test("with Paseo tools on, the command banner only offers an optional install; o
 });
 
 test("app-side code imports no Node modules, which Paseo refuses to bundle into the app", () => {
-  const files = ["client", "shared"].flatMap((folder) => readdirSync(join(directory, folder))
-    .filter((name) => /\.tsx?$/.test(name) && !name.endsWith(".test.ts")).map((name) => join(folder, name)));
+  const files = ["client", "shared"].flatMap((folder) =>
+    readdirSync(join(directory, folder))
+      .filter((name) => /\.tsx?$/.test(name) && !name.endsWith(".test.ts"))
+      .map((name) => join(folder, name)),
+  );
   const offenders = files.filter((file) => /from\s+["']node:|require\(["']node:/.test(readFileSync(join(directory, file), "utf8")));
   assert.deepEqual(offenders, []);
 });

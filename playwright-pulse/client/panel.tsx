@@ -4,7 +4,22 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, ScrollView, Text, View } from "react-native";
 import { openAttachment } from "../shared/rpc";
 import type { RunSnapshot } from "../shared/run";
-import { STATUS_TITLE, commandLine, counts, formatAgo, formatClock, formatDuration, formatTimeLeft, isLive, runElapsed, slowest, timeLeft, folderLabel, folders, type Counts } from "../shared/view";
+import {
+  STATUS_TITLE,
+  commandLine,
+  counts,
+  formatAgo,
+  formatClock,
+  formatDuration,
+  formatTimeLeft,
+  isLive,
+  runElapsed,
+  slowest,
+  timeLeft,
+  folderLabel,
+  folders,
+  type Counts,
+} from "../shared/view";
 import { mono } from "./mono";
 import { IconSwap, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { NARROW_MAX, NarrowProvider } from "./narrow";
@@ -30,18 +45,27 @@ function WorkspacePulse({ theme, workspaceId, host, tab }: PluginWorkspacePanelP
   const [narrow, setNarrow] = useState(false);
   return (
     <NarrowProvider value={narrow}>
-      <ScrollView onLayout={(event) => setNarrow(event.nativeEvent.layout.width <= NARROW_MAX)}
-        style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ paddingBottom: 16 }}>
-        {query.isPending && directory ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading test run" style={{ padding: 12 }} /> : null}
+      <ScrollView
+        onLayout={(event) => setNarrow(event.nativeEvent.layout.width <= NARROW_MAX)}
+        style={{ flex: 1, backgroundColor: colors.surface0 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      >
+        {query.isPending && directory ? (
+          <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading test run" style={{ padding: 12 }} />
+        ) : null}
         {query.error ? (
           <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18, padding: 12 }}>
             Could not read the test run: {query.error.message}
           </Text>
         ) : null}
         <ReporterBanner colors={colors} status={result?.reporter ?? null} />
-        <Presence show={Boolean(result && !result.run)}>{result && !result.run ? <EmptyState colors={colors} file={result.file} reporterPath={result.reporter.path} /> : null}</Presence>
+        <Presence show={Boolean(result && !result.run)}>
+          {result && !result.run ? <EmptyState colors={colors} file={result.file} reporterPath={result.reporter.path} /> : null}
+        </Presence>
         {/* Keyed by run: a new run starts with fresh folds and dialogs. */}
-        {result?.run ? <RunView key={result.run.id} colors={colors} tab={tab} run={result.run} workspaceId={workspaceId} workspaceDirectory={result.root} /> : null}
+        {result?.run ? (
+          <RunView key={result.run.id} colors={colors} tab={tab} run={result.run} workspaceId={workspaceId} workspaceDirectory={result.root} />
+        ) : null}
       </ScrollView>
     </NarrowProvider>
   );
@@ -59,7 +83,8 @@ function EmptyState({ colors, file, reporterPath }: { colors: Colors; file: stri
         </Text>
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        The next Playwright run in this worktree shows up here live: each test as it runs, its current step, and any failure with its screenshot and trace. Add the Pulse reporter to <Text style={{ color: colors.foreground }}>playwright.config.ts</Text>:
+        The next Playwright run in this worktree shows up here live: each test as it runs, its current step, and any failure with its screenshot and trace. Add
+        the Pulse reporter to <Text style={{ color: colors.foreground }}>playwright.config.ts</Text>:
       </Text>
       <View style={{ backgroundColor: colors.surface1, borderRadius: 6, padding: 10 }}>
         <Text selectable style={{ color: colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>
@@ -67,7 +92,12 @@ function EmptyState({ colors, file, reporterPath }: { colors: Colors; file: stri
         </Text>
       </View>
       <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
-        A <Text style={{ color: colors.foreground, fontFamily: mono(), fontSize: 11 }}>--reporter</Text> flag replaces the config's reporters, so leave it off. The README has the full snippet. Runs are kept outside the repo, in <Text selectable style={{ color: colors.foreground }}>{file}</Text>.
+        A <Text style={{ color: colors.foreground, fontFamily: mono(), fontSize: 11 }}>--reporter</Text> flag replaces the config's reporters, so leave it off.
+        The README has the full snippet. Runs are kept outside the repo, in{" "}
+        <Text selectable style={{ color: colors.foreground }}>
+          {file}
+        </Text>
+        .
       </Text>
     </View>
   );
@@ -85,7 +115,19 @@ function useNow(intervalMs: number | null): number {
   return now;
 }
 
-function RunView({ colors, tab, run, workspaceId, workspaceDirectory }: { colors: Colors; tab: PluginTab; run: RunSnapshot; workspaceId: string; workspaceDirectory: string }) {
+function RunView({
+  colors,
+  tab,
+  run,
+  workspaceId,
+  workspaceDirectory,
+}: {
+  colors: Colors;
+  tab: PluginTab;
+  run: RunSnapshot;
+  workspaceId: string;
+  workspaceDirectory: string;
+}) {
   const live = isLive(run);
   const now = useNow(live ? 1000 : 30_000);
   const tally = counts(run);
@@ -120,14 +162,39 @@ function RunView({ colors, tab, run, workspaceId, workspaceDirectory }: { colors
       {/* Folders and the slowest tests share one card: they're rarely wanted at once. */}
       <Presence show={run.status !== "starting" && tally.total > 0} order={4}>
         {run.status !== "starting" && tally.total > 0 ? (
-          <TabbedCard colors={colors} workspaceId={workspaceId} paseoTab={tab} tabs={[
-            { id: "folders", label: folderTab, icon: folderTab === "Files" ? "Files" : "FolderTree", count: folderList.length, empty: "No tests yet.", content: <FoldersList colors={colors} run={run} /> },
-            { id: "slowest", label: "Slowest", icon: "Hourglass", count: slowestCount, empty: "No finished tests yet.", content: <SlowestList colors={colors} run={run} /> },
-          ]} />
+          <TabbedCard
+            colors={colors}
+            workspaceId={workspaceId}
+            paseoTab={tab}
+            tabs={[
+              {
+                id: "folders",
+                label: folderTab,
+                icon: folderTab === "Files" ? "Files" : "FolderTree",
+                count: folderList.length,
+                empty: "No tests yet.",
+                content: <FoldersList colors={colors} run={run} />,
+              },
+              {
+                id: "slowest",
+                label: "Slowest",
+                icon: "Hourglass",
+                count: slowestCount,
+                empty: "No finished tests yet.",
+                content: <SlowestList colors={colors} run={run} />,
+              },
+            ]}
+          />
         ) : null}
       </Presence>
-      <ScreenshotDialog colors={colors} shot={shot} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory}
-        onClose={() => setShot(null)} onOpenOnHost={(target) => actions.open(target, "screenshot")} />
+      <ScreenshotDialog
+        colors={colors}
+        shot={shot}
+        workspaceId={workspaceId}
+        workspaceDirectory={workspaceDirectory}
+        onClose={() => setShot(null)}
+        onOpenOnHost={(target) => actions.open(target, "screenshot")}
+      />
     </StaggerRoot>
   );
 }
@@ -147,7 +214,8 @@ function useAttachmentActions(run: RunSnapshot, workspaceId: string, workspaceDi
           if (!traceCommand) return toast.show("Showed the trace in its folder", { durationMs: 2500 });
           return copyText(traceCommand).then(
             () => toast.show("Showed the trace in its folder and copied the command that views it", { variant: "success", durationMs: 4000 }),
-            () => toast.show(`Showed the trace in its folder. To view it, run: ${traceCommand}`, { durationMs: 8000 }));
+            () => toast.show(`Showed the trace in its folder. To view it, run: ${traceCommand}`, { durationMs: 8000 }),
+          );
         })
         .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not open it."));
     },
@@ -164,7 +232,21 @@ function statusColor(colors: Colors, run: RunSnapshot, tally: Counts): string {
 }
 
 // The run at a glance: its state and clock, the command, and the bar.
-function Header({ colors, run, tally, now, workspaceId, workspaceDirectory }: { colors: Colors; run: RunSnapshot; tally: Counts; now: number; workspaceId: string; workspaceDirectory: string }) {
+function Header({
+  colors,
+  run,
+  tally,
+  now,
+  workspaceId,
+  workspaceDirectory,
+}: {
+  colors: Colors;
+  run: RunSnapshot;
+  tally: Counts;
+  now: number;
+  workspaceId: string;
+  workspaceDirectory: string;
+}) {
   const live = isLive(run);
   const color = statusColor(colors, run, tally);
   // A live run that already has a failure says so in its title, in red.
@@ -174,13 +256,25 @@ function Header({ colors, run, tally, now, workspaceId, workspaceDirectory }: { 
       <View style={{ gap: 4 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <IconSwap swapKey={live ? "live" : run.status} size={16}>
-            {live ? <Spinner color={tally.failed ? colors.statusDanger : colors.accent} size={16} />
-              : <Icon name={STATUS_ICON[run.status] ?? "Circle"} size={16} color={color} />}
+            {live ? (
+              <Spinner color={tally.failed ? colors.statusDanger : colors.accent} size={16} />
+            ) : (
+              <Icon name={STATUS_ICON[run.status] ?? "Circle"} size={16} color={color} />
+            )}
           </IconSwap>
           <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={{ flex: 1, color, fontSize: 15, lineHeight: 21, fontWeight: "600" }}>
             {title}
           </Text>
-          <Text accessibilityLabel={live ? "Elapsed" : "Took"} style={{ color: live ? colors.foreground : colors.foregroundMuted, fontSize: 13, lineHeight: 21, fontWeight: live ? "600" : "400", fontVariant: ["tabular-nums"] }}>
+          <Text
+            accessibilityLabel={live ? "Elapsed" : "Took"}
+            style={{
+              color: live ? colors.foreground : colors.foregroundMuted,
+              fontSize: 13,
+              lineHeight: 21,
+              fontWeight: live ? "600" : "400",
+              fontVariant: ["tabular-nums"],
+            }}
+          >
             {live ? formatClock(runElapsed(run, now)) : formatDuration(runElapsed(run, now))}
           </Text>
           {live ? <StopButton colors={colors} runId={run.id} workspaceId={workspaceId} workspaceDirectory={workspaceDirectory} /> : null}
@@ -193,7 +287,9 @@ function Header({ colors, run, tally, now, workspaceId, workspaceDirectory }: { 
           </Text>
           {run.projects.map((project) => (
             <View key={project} style={{ maxWidth: "100%", paddingHorizontal: 6, borderRadius: 4, backgroundColor: colors.surface2 }}>
-              <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, fontWeight: "500" }}>{project}</Text>
+              <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16, fontWeight: "500" }}>
+                {project}
+              </Text>
             </View>
           ))}
         </View>
@@ -223,8 +319,18 @@ function ProgressBar({ colors, tally, live, left }: { colors: Colors; tally: Cou
   // The bar and its counts read as one group: 6 within, 12 to the text above.
   return (
     <View style={{ gap: 6 }}>
-      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: tally.total, now: tally.done }}
-        style={{ flexDirection: "row", gap: 2, height: 8, borderRadius: 4, overflow: "hidden", backgroundColor: segments.length ? "transparent" : colors.surface2 }}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 0, max: tally.total, now: tally.done }}
+        style={{
+          flexDirection: "row",
+          gap: 2,
+          height: 8,
+          borderRadius: 4,
+          overflow: "hidden",
+          backgroundColor: segments.length ? "transparent" : colors.surface2,
+        }}
+      >
         {segments.map((segment) => (
           <View key={segment.key} style={{ flex: segment.flex, backgroundColor: segment.color, opacity: segment.shimmer ? 0.5 : 1, overflow: "hidden" }}>
             {segment.shimmer ? <Shimmer /> : null}
@@ -266,10 +372,12 @@ function Tally({ colors, color, count, label }: { colors: Colors; color: string;
 function Shimmer() {
   const value = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(value, { toValue: 1, duration: 900, useNativeDriver: nativeDriver() }),
-      Animated.timing(value, { toValue: 0, duration: 900, useNativeDriver: nativeDriver() }),
-    ]));
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(value, { toValue: 1, duration: 900, useNativeDriver: nativeDriver() }),
+        Animated.timing(value, { toValue: 0, duration: 900, useNativeDriver: nativeDriver() }),
+      ]),
+    );
     loop.start();
     return () => loop.stop();
   }, [value]);
@@ -282,7 +390,9 @@ function StartingUp({ colors, run, now }: { colors: Colors; run: RunSnapshot; no
   const waited = now - Date.parse(run.startedAt);
   return (
     <View style={{ flexDirection: "row", gap: 10, margin: 12, marginBottom: 0, padding: 10, borderRadius: 6, backgroundColor: colors.surface1 }}>
-      <View style={{ paddingTop: 2 }}><Icon name="Server" size={14} color={colors.foregroundMuted} /></View>
+      <View style={{ paddingTop: 2 }}>
+        <Icon name="Server" size={14} color={colors.foregroundMuted} />
+      </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>Getting ready</Text>
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
@@ -296,7 +406,10 @@ function StartingUp({ colors, run, now }: { colors: Colors; run: RunSnapshot; no
 // Errors outside any test, like a web server that never came up.
 function RunErrors({ colors, errors }: { colors: Colors; errors: string[] }) {
   return (
-    <View accessibilityRole="alert" style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.statusDanger, borderRadius: 6, overflow: "hidden" }}>
+    <View
+      accessibilityRole="alert"
+      style={{ margin: 12, marginBottom: 0, borderWidth: 1, borderColor: colors.statusDanger, borderRadius: 6, overflow: "hidden" }}
+    >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8 }}>
         <Icon name="OctagonAlert" size={14} color={colors.statusDanger} />
         <Text accessibilityRole="header" style={{ color: colors.statusDanger, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>
@@ -304,7 +417,21 @@ function RunErrors({ colors, errors }: { colors: Colors; errors: string[] }) {
         </Text>
       </View>
       {errors.map((error, index) => (
-        <Text key={index} selectable numberOfLines={12} style={{ paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border, color: colors.foreground, fontFamily: mono(), fontSize: 11, lineHeight: 16 }}>
+        <Text
+          key={index}
+          selectable
+          numberOfLines={12}
+          style={{
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            color: colors.foreground,
+            fontFamily: mono(),
+            fontSize: 11,
+            lineHeight: 16,
+          }}
+        >
           {error}
         </Text>
       ))}

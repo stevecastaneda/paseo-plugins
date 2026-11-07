@@ -137,26 +137,30 @@ posixTest("a missing folder is a failed row with a plain reason, published once,
   await h.registry.shutdown();
 });
 
-posixTest("stop kills the whole process tree, including a background job the shell left behind, and the force path kills one that ignores signals", { timeout: 15_000 }, async () => {
-  // A non-interactive shell makes `&` jobs ignore SIGINT, so Stop's follow-up SIGTERM is what ends them.
-  const h = harness({ limits: { stopToTermMs: 300, stopToKillMs: 600 } });
-  const polite = await run(h.registry, "sleep 60 & echo $!; wait");
-  const politePid = await printedPid(h, polite);
-  h.registry.stop(polite, false);
-  await until(() => pidGone(politePid), 2_000);
-  assert.equal((await ended(h.registry, polite)).phase.kind, "stopped");
+posixTest(
+  "stop kills the whole process tree, including a background job the shell left behind, and the force path kills one that ignores signals",
+  { timeout: 15_000 },
+  async () => {
+    // A non-interactive shell makes `&` jobs ignore SIGINT, so Stop's follow-up SIGTERM is what ends them.
+    const h = harness({ limits: { stopToTermMs: 300, stopToKillMs: 600 } });
+    const polite = await run(h.registry, "sleep 60 & echo $!; wait");
+    const politePid = await printedPid(h, polite);
+    h.registry.stop(polite, false);
+    await until(() => pidGone(politePid), 2_000);
+    assert.equal((await ended(h.registry, polite)).phase.kind, "stopped");
 
-  const stubborn = await run(h.registry, 'trap "" INT TERM; sleep 60 & echo $!; wait');
-  const stubbornPid = await printedPid(h, stubborn);
-  h.registry.stop(stubborn, false);
-  await delay(100);
-  assert.equal(pidGone(stubbornPid), false, "SIGINT alone does not kill it");
-  h.registry.stop(stubborn, true);
-  await until(() => pidGone(stubbornPid), 2_000);
-  assert.equal((await ended(h.registry, stubborn)).phase.kind, "stopped");
-  assert.equal(pidGone(process.pid), false, "our own process group is untouched");
-  await h.registry.shutdown();
-});
+    const stubborn = await run(h.registry, 'trap "" INT TERM; sleep 60 & echo $!; wait');
+    const stubbornPid = await printedPid(h, stubborn);
+    h.registry.stop(stubborn, false);
+    await delay(100);
+    assert.equal(pidGone(stubbornPid), false, "SIGINT alone does not kill it");
+    h.registry.stop(stubborn, true);
+    await until(() => pidGone(stubbornPid), 2_000);
+    assert.equal((await ended(h.registry, stubborn)).phase.kind, "stopped");
+    assert.equal(pidGone(process.pid), false, "our own process group is untouched");
+    await h.registry.shutdown();
+  },
+);
 
 posixTest("without a terminal, a command that traps SIGINT and SIGTERM is killed by the escalation timer", { timeout: 15_000 }, async () => {
   const h = harness({ terminal: "off", limits: { stopToTermMs: 50, stopToKillMs: 150 } });
@@ -171,7 +175,7 @@ posixTest("without a terminal, a command that traps SIGINT and SIGTERM is killed
 
 posixTest("the row is published at start and at the end, never while output streams, and stays under the byte cap", { timeout: 20_000 }, async () => {
   const h = harness();
-  const id = await run(h.registry, "for i in $(seq 1 10000); do printf '\\033[1;31m%s\\033[0m \\033[32mok\\033[0m \"quoted\" é🎉\\n' \"line $i\"; done");
+  const id = await run(h.registry, 'for i in $(seq 1 10000); do printf \'\\033[1;31m%s\\033[0m \\033[32mok\\033[0m "quoted" é🎉\\n\' "line $i"; done');
   const row = await ended(h.registry, id);
   await until(() => h.phases(id).length === 2);
   assert.deepEqual(h.phases(id), ["running", "ok"]);
@@ -221,7 +225,11 @@ posixTest("a failing publish is retried; a start whose first publish fails runs 
   assert.deepEqual(h.phases(id), ["running", "ok"]);
 
   const cwd = dir();
-  const gone = harness({ publish: () => { throw new Error("Unknown agent"); } });
+  const gone = harness({
+    publish: () => {
+      throw new Error("Unknown agent");
+    },
+  });
   await assert.rejects(gone.registry.start({ agentId: "nope", cwd, command: "touch ran.marker", origin: "user", runId: "abcdef123456" }), /Unknown agent/);
   await delay(300);
   assert.equal(existsSync(join(cwd, "ran.marker")), false);
@@ -238,7 +246,6 @@ posixTest("starting the same run id twice spawns once; ending twice publishes on
   await ended(h.registry, input.runId);
   await delay(100);
   assert.equal(h.rows(input.runId).length, 2);
-  const { readFileSync } = await import("node:fs");
   assert.equal(readFileSync(join(cwd, "count.txt"), "utf8"), "once\n");
   await h.registry.shutdown();
   assert.deepEqual(h.phases(input.runId), ["running", "ok"], "shutdown does not re-publish an ended run");
@@ -318,47 +325,72 @@ posixTest("markSent publishes the row again with the time; recent lists running 
   const live = await run(h.registry, "sleep 30");
   h.registry.markSent(done.runId);
   await until(() => h.rows(done.runId).some((row) => row.sentAt !== null));
-  assert.deepEqual(h.registry.recent(5).map(({ row }) => row.runId), [live, done.runId]);
+  assert.deepEqual(
+    h.registry.recent(5).map(({ row }) => row.runId),
+    [live, done.runId],
+  );
   await h.registry.shutdown();
 });
 
+function proposedRow(runId: string): RunRow {
+  return {
+    runId,
+    rev: 0,
+    origin: "claude",
+    command: "gh auth login",
+    cwd: "/w",
+    phase: { kind: "proposed" },
+    output: { lines: [], total: 0 },
+    sentAt: null,
+  };
+}
+
 posixTest("proposals and dismissals go through the same publish path, and a stale proposal never overwrites a later state", async () => {
   const h = harness();
-  const card = (runId: string): RunRow => ({ runId, rev: 0, origin: "claude", command: "gh auth login", cwd: "/w", phase: { kind: "proposed" }, output: { lines: [], total: 0 }, sentAt: null });
-  await h.registry.propose(AGENT, card("p-aaaaaaaaaaaa"));
+  await h.registry.propose(AGENT, proposedRow("p-aaaaaaaaaaaa"));
   await h.registry.dismiss({ agentId: AGENT, runId: "p-aaaaaaaaaaaa", command: "gh auth login", cwd: "/w" });
-  await h.registry.propose(AGENT, card("p-aaaaaaaaaaaa"));
+  await h.registry.propose(AGENT, proposedRow("p-aaaaaaaaaaaa"));
   assert.deepEqual(h.phases("p-aaaaaaaaaaaa"), ["proposed", "dismissed"]);
   const dismissed = h.rows("p-aaaaaaaaaaaa")[1];
   assert.equal(dismissed.command, "gh auth login");
   // A card that became a run: the card's id is now a run, so another proposal or a dismiss is ignored.
-  await h.registry.propose(AGENT, card("p-bbbbbbbbbbbb"));
+  await h.registry.propose(AGENT, proposedRow("p-bbbbbbbbbbbb"));
   await ended(h.registry, await run(h.registry, "true", dir(), { runId: "p-bbbbbbbbbbbb", origin: "claude" }));
-  await h.registry.propose(AGENT, card("p-bbbbbbbbbbbb"));
+  await h.registry.propose(AGENT, proposedRow("p-bbbbbbbbbbbb"));
   await h.registry.dismiss({ agentId: AGENT, runId: "p-bbbbbbbbbbbb", command: "x", cwd: "/w" });
   await until(() => h.phases("p-bbbbbbbbbbbb").length === 3);
   assert.deepEqual(h.phases("p-bbbbbbbbbbbb"), ["proposed", "running", "ok"]);
   await h.registry.shutdown();
 });
 
-posixTest("in a terminal: a real tty 100 columns wide, the exit code, no pager, and nothing after the command ends", { skip: noTerminal, timeout: 15_000 }, async () => {
-  const h = harness();
-  const tty = await ended(h.registry, await run(h.registry, "test -t 0 && test -t 1 && echo tty; tput cols 2>/dev/null || stty size; echo \"$PAGER $GIT_PAGER\"; exit 3"));
-  assert.equal(tty.terminal, true);
-  assert.deepEqual([tty.phase.kind, (tty.phase as { exitCode: number }).exitCode], ["failed", 3]);
-  const [first, size, pager, ...rest] = h.text(tty.runId);
-  assert.equal(first, "tty");
-  assert.match(size, /\b100$/);
-  assert.equal(pager, "cat cat");
-  assert.deepEqual(rest, []);
-  const ok = await ended(h.registry, await run(h.registry, "echo done"));
-  assert.deepEqual([ok.phase.kind, h.text(ok.runId)], ["ok", ["done"]]);
-  await h.registry.shutdown();
-});
+posixTest(
+  "in a terminal: a real tty 100 columns wide, the exit code, no pager, and nothing after the command ends",
+  { skip: noTerminal, timeout: 15_000 },
+  async () => {
+    const h = harness();
+    const tty = await ended(
+      h.registry,
+      await run(h.registry, 'test -t 0 && test -t 1 && echo tty; tput cols 2>/dev/null || stty size; echo "$PAGER $GIT_PAGER"; exit 3'),
+    );
+    assert.equal(tty.terminal, true);
+    assert.deepEqual([tty.phase.kind, (tty.phase as { exitCode: number }).exitCode], ["failed", 3]);
+    const [first, size, pager, ...rest] = h.text(tty.runId);
+    assert.equal(first, "tty");
+    assert.match(size, /\b100$/);
+    assert.equal(pager, "cat cat");
+    assert.deepEqual(rest, []);
+    const ok = await ended(h.registry, await run(h.registry, "echo done"));
+    assert.deepEqual([ok.phase.kind, h.text(ok.runId)], ["ok", ["done"]]);
+    await h.registry.shutdown();
+  },
+);
 
 posixTest("in a terminal: typing answers a prompt, and a hidden prompt doesn't show what was typed", { skip: noTerminal, timeout: 15_000 }, async () => {
   const h = harness();
-  const id = await run(h.registry, "printf 'Code: '; read code; echo \"got $code\"; stty -echo; printf 'Password: '; read pw; stty echo; echo; echo \"${#pw} chars\"");
+  const id = await run(
+    h.registry,
+    "printf 'Code: '; read code; echo \"got $code\"; stty -echo; printf 'Password: '; read pw; stty echo; echo; echo \"${#pw} chars\"",
+  );
   await until(() => h.text(id).at(-1)?.startsWith("Code:") === true);
   h.registry.input(id, "123456\r");
   await until(() => h.text(id).at(-1)?.startsWith("Password:") === true);
@@ -428,7 +460,11 @@ windowsTest("on Windows: exit codes, UTF-8 output and the folder", { timeout: 60
   const three = await ended(h.registry, await run(h.registry, "exit 3", cwd));
   assert.deepEqual([three.phase.kind, (three.phase as { exitCode: number }).exitCode], ["failed", 3]);
   const native = await ended(h.registry, await run(h.registry, "cmd /c exit 5", cwd));
-  assert.deepEqual([native.phase.kind, (native.phase as { exitCode: number }).exitCode], ["failed", 5], "a failing program's own exit code, not PowerShell's 1");
+  assert.deepEqual(
+    [native.phase.kind, (native.phase as { exitCode: number }).exitCode],
+    ["failed", 5],
+    "a failing program's own exit code, not PowerShell's 1",
+  );
   const where = await ended(h.registry, await run(h.registry, "Split-Path -Leaf (Get-Location)", cwd));
   assert.ok(h.text(where.runId).includes(cwd.split(/[\\/]/).pop()!), JSON.stringify(h.text(where.runId)));
   await h.registry.shutdown();
@@ -436,7 +472,10 @@ windowsTest("on Windows: exit codes, UTF-8 output and the folder", { timeout: 60
 
 windowsTest("on Windows: typing answers Read-Host, and a hidden prompt doesn't show what was typed", { timeout: 60_000 }, async () => {
   const h = harness();
-  const id = await run(h.registry, "$c = Read-Host 'Code'; Write-Output \"got $c\"; $p = Read-Host 'Password' -AsSecureString; Write-Output \"$($p.Length) chars\"");
+  const id = await run(
+    h.registry,
+    "$c = Read-Host 'Code'; Write-Output \"got $c\"; $p = Read-Host 'Password' -AsSecureString; Write-Output \"$($p.Length) chars\"",
+  );
   await until(() => h.text(id).some((line) => line.startsWith("Code")), 30_000);
   h.registry.input(id, "123456\r");
   await until(() => h.text(id).some((line) => line.startsWith("Password")), 30_000);
@@ -459,9 +498,17 @@ windowsTest("on Windows: Stop is Ctrl+C, and the force path ends the program the
   assert.equal((await ended(h.registry, polite)).phase.kind, "stopped");
   assert.ok(Date.now() - stoppedAt < 10_000, "Ctrl+C ended it");
 
-  const child = await run(h.registry, "$p = Start-Process -PassThru -NoNewWindow ping -ArgumentList '-n','60','127.0.0.1'; Write-Output \"pid $($p.Id)\"; Wait-Process -Id $p.Id");
+  const child = await run(
+    h.registry,
+    "$p = Start-Process -PassThru -NoNewWindow ping -ArgumentList '-n','60','127.0.0.1'; Write-Output \"pid $($p.Id)\"; Wait-Process -Id $p.Id",
+  );
   await until(() => h.text(child).some((line) => /^pid \d+$/.test(line)), 30_000);
-  const pid = Number(h.text(child).find((line) => /^pid \d+$/.test(line))!.slice(4));
+  const pid = Number(
+    h
+      .text(child)
+      .find((line) => /^pid \d+$/.test(line))!
+      .slice(4),
+  );
   h.registry.stop(child, true);
   await until(() => pidGone(pid), 10_000);
   assert.equal((await ended(h.registry, child)).phase.kind, "stopped");
@@ -469,7 +516,10 @@ windowsTest("on Windows: Stop is Ctrl+C, and the force path ends the program the
 });
 
 windowsTest("on Windows: without PowerShell 7, Windows PowerShell runs the command", { timeout: 60_000 }, async () => {
-  const path = (process.env.Path ?? process.env.PATH ?? "").split(";").filter((entry) => !/PowerShell[\\/]7/i.test(entry)).join(";");
+  const path = (process.env.Path ?? process.env.PATH ?? "")
+    .split(";")
+    .filter((entry) => !/PowerShell[\\/]7/i.test(entry))
+    .join(";");
   const h = harness({ env: { ...process.env, Path: path, PATH: path } });
   const row = await ended(h.registry, await run(h.registry, "Write-Output $PSVersionTable.PSEdition; exit 4"));
   assert.ok(h.text(row.runId).includes("Desktop"), JSON.stringify(h.text(row.runId)));
@@ -511,13 +561,34 @@ posixTest("two Reruns of the same card start one command and both get its run", 
 posixTest("after a restart, Rerun builds the card's history from the card itself, and keeps at most 10 earlier runs", { timeout: 15_000 }, async () => {
   const h = harness();
   const clock = { startedAt: 1, endedAt: 2 };
-  const pastRuns = Array.from({ length: 10 }, (_, i) => ({ runId: `old-${i}`, runNumber: i + 2, phase: { kind: "ok" as const, ...clock }, output: { lines: [`run ${i + 2}`], total: 1 }, sentAt: null }));
-  const card: RunRow = { runId: "gone-run", cardId: "card-1", runNumber: 12, past: pastRuns, rev: 4, origin: "user", command: "true", cwd: dir(), phase: { kind: "running", startedAt: 5, stopRequestedAt: null }, output: { lines: ["last words"], total: 1 }, sentAt: 7 };
+  const pastRuns = Array.from({ length: 10 }, (_, i) => ({
+    runId: `old-${i}`,
+    runNumber: i + 2,
+    phase: { kind: "ok" as const, ...clock },
+    output: { lines: [`run ${i + 2}`], total: 1 },
+    sentAt: null,
+  }));
+  const card: RunRow = {
+    runId: "gone-run",
+    cardId: "card-1",
+    runNumber: 12,
+    past: pastRuns,
+    rev: 4,
+    origin: "user",
+    command: "true",
+    cwd: dir(),
+    phase: { kind: "running", startedAt: 5, stopRequestedAt: null },
+    output: { lines: ["last words"], total: 1 },
+    sentAt: 7,
+  };
   const id = await rerun(h.registry, card);
   await ended(h.registry, id);
   const shown = h.card("card-1");
   assert.deepEqual([shown.runId, shown.runNumber], [id, 13]);
-  assert.deepEqual(shown.past!.map((p) => p.runNumber), [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(
+    shown.past!.map((p) => p.runNumber),
+    [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  );
   const last = shown.past!.at(-1)!;
   assert.deepEqual([last.runId, last.phase.kind, last.output.lines, last.sentAt], ["gone-run", "interrupted", ["last words"], 7]);
   await h.registry.shutdown();
@@ -532,14 +603,26 @@ posixTest("sending an earlier run records it in the card's history, and the card
   await until(() => h.card(first.runId).past?.[0].sentAt != null);
   const shown = h.card(first.runId);
   assert.deepEqual([shown.runId, shown.sentAt], [second, null]);
-  assert.ok(h.published.every((row) => row.runId !== first.runId || row.runNumber === 1 && row.past === undefined), "the earlier run's own row is never published again");
+  assert.ok(
+    h.published.every((row) => row.runId !== first.runId || (row.runNumber === 1 && row.past === undefined)),
+    "the earlier run's own row is never published again",
+  );
   await h.registry.shutdown();
 });
 
 posixTest("after a rerun, a late proposal for the card's first run never overwrites it", { timeout: 15_000 }, async () => {
   const h = harness({ limits: { keepFinished: 1 } });
   const id = "p-cccccccccccc";
-  const proposal: RunRow = { runId: id, rev: 0, origin: "claude", command: "true", cwd: dir(), phase: { kind: "proposed" }, output: { lines: [], total: 0 }, sentAt: null };
+  const proposal: RunRow = {
+    runId: id,
+    rev: 0,
+    origin: "claude",
+    command: "true",
+    cwd: dir(),
+    phase: { kind: "proposed" },
+    output: { lines: [], total: 0 },
+    sentAt: null,
+  };
   await h.registry.propose(AGENT, proposal);
   const first = await ended(h.registry, await run(h.registry, "true", proposal.cwd, { runId: id, origin: "claude" }));
   const second = await rerun(h.registry, first);

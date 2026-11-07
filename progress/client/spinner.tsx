@@ -10,9 +10,11 @@ export function Spinner({ color, size = 12 }: { color: string; size?: number }) 
   const { messages: m } = useProgressLanguage();
   return (
     <View accessibilityLabel={m.status.working} style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      {Platform.OS === "ios"
-        ? <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: size / 20 }] }} />
-        : <ActivityIndicator size={size} color={color} />}
+      {Platform.OS === "ios" ? (
+        <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: size / 20 }] }} />
+      ) : (
+        <ActivityIndicator size={size} color={color} />
+      )}
     </View>
   );
 }
@@ -23,10 +25,12 @@ export function StalledPulse({ color, size = 12 }: { color: string; size?: numbe
   const { messages: m } = useProgressLanguage();
   const opacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(opacity, { toValue: 0.35, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: nativeDriver() }),
-      Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: nativeDriver() }),
-    ]));
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.35, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: nativeDriver() }),
+        Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: nativeDriver() }),
+      ]),
+    );
     loop.start();
     return () => loop.stop();
   }, [opacity]);

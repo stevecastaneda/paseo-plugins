@@ -2,27 +2,24 @@
 // in to saving. The working files never touch the repo: they live outside it,
 // one folder per worktree, so git never sees them and nothing needs hiding.
 // Only runs the user asks to save are written into the repo, one file per run.
-import { execFile } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { lstat, mkdir, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, normalize, resolve, sep } from "node:path";
-import { promisify } from "node:util";
+import { basename, join, normalize, resolve } from "node:path";
 import { latestRun, parseProgress } from "../shared/dashboard.ts";
 import { hasGitEntry, inGitFolder, outside } from "./paths.ts";
+import { makeFoldersIn, runProgram, writeFileIn } from "./system.ts";
 
 const SAVE_RUNS_KEY = "paseo-progress.saveRuns";
 
 // `directory` holds the working files. `shown` names it for people.
 export type Store = { directory: string; shown: string };
 
-// Git runs in the worktree through -C, started from the folder Node itself
-// lives in: Windows looks for a program in the folder it starts in before
-// PATH, and a cloned repo can commit a git.exe.
+// Git runs in the worktree through -C, never from it: a cloned repo can commit a git.exe.
 export async function git(root: string, args: string[]): Promise<{ code: number; stdout: string }> {
   try {
-    const { stdout } = await promisify(execFile)("git", ["-C", resolve(root), ...args], { cwd: dirname(process.execPath) });
+    const { stdout } = await runProgram("git", ["-C", resolve(root), ...args]);
     return { code: 0, stdout };
   } catch (error) {
     const failed = error as { code?: number | string; stdout?: string };
@@ -33,18 +30,6 @@ export async function git(root: string, args: string[]): Promise<{ code: number;
 // The plugin's per-user folder on this computer.
 export function stateRoot(home = homedir()): string {
   return join(home, ".local", "state", "paseo-progress");
-}
-
-// Readers see the old file or the new one, never half of one.
-export async function writeAtomic(path: string, text: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temp = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temp, text);
-    await rename(temp, path);
-  } finally {
-    await rm(temp, { force: true });
-  }
 }
 
 // One folder per worktree on this computer, named so a person can tell which
@@ -131,8 +116,16 @@ export async function setHistoryFolder(root: string, raw: string | null): Promis
 // title as it was at the start, so the name never changes and two runs never
 // share one.
 export function runFileName(startedAt: string, title: string): string {
-  const stamp = startedAt.replace(/\.\d+Z$/, "").replace(/[-:]/g, "").replace("T", "-");
-  const slug = title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+  const stamp = startedAt
+    .replace(/\.\d+Z$/, "")
+    .replace(/[-:]/g, "")
+    .replace("T", "-");
+  const slug = title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
   return `${stamp}${slug ? `-${slug}` : ""}.jsonl`;
 }
 
@@ -144,25 +137,17 @@ export async function saveRunCopy(root: string, text: string): Promise<void> {
   // The run the dashboard shows. A start line it can't read is no run.
   const [start] = latestRun(parseProgress(text).events);
   if (start?.event.type !== "run.start") return;
-  const lines = text.split("\n").slice(start.line - 1).filter((line) => line.trim());
-  const directory = await runsFolder(root, folder);
+  const lines = text
+    .split("\n")
+    .slice(start.line - 1)
+    .filter((line) => line.trim());
+  // The saved-runs folder in the real worktree, made one step at a time. None
+  // when any step is a link or a file: a cloned repo can commit a link that
+  // leads out of it.
+  const directory = await makeFoldersIn(await realpath(root), folder);
   if (!directory) return;
   // A rename replaces a link at the run's file instead of writing through it.
-  await writeAtomic(join(directory, runFileName(start.event.ts, start.event.title)), `${lines.join("\n")}\n`);
-}
-
-// The saved-runs folder in the real worktree, made one step at a time, or null
-// when any step is a link or a file: a cloned repo can commit a link that leads
-// out of it.
-async function runsFolder(root: string, folder: string): Promise<string | null> {
-  let directory = await realpath(root);
-  for (const name of folder.split(sep)) {
-    directory = join(directory, name);
-    const info = await lstat(directory).catch(() => null);
-    if (!info) await mkdir(directory);
-    else if (!info.isDirectory()) return null;
-  }
-  return directory;
+  await writeFileIn(directory, runFileName(start.event.ts, start.event.title), `${lines.join("\n")}\n`, { atomic: true });
 }
 
 // The folders directly inside one folder of the worktree ("" is the top), for
@@ -175,5 +160,5 @@ export async function listFolders(root: string, folder: string): Promise<{ folde
     throw error;
   });
   const folders = entries.filter((entry) => entry.isDirectory() && !inGitFolder(entry.name)).map((entry) => entry.name);
-  return { folder: checked.folder, folders: folders.sort((a, b) => a.localeCompare(b)) };
+  return { folder: checked.folder, folders: folders.toSorted((a, b) => a.localeCompare(b)) };
 }

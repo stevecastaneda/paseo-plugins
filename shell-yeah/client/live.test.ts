@@ -9,14 +9,37 @@ const directory = fileURLToPath(new URL("..", import.meta.url));
 const T0 = 1_700_000_000_000;
 
 function row(overrides: Partial<RunRow> = {}): RunRow {
-  return { runId: "run-1", rev: 1, origin: "user", command: "npm test", cwd: "/w", phase: { kind: "running", startedAt: T0, stopRequestedAt: null }, output: { lines: ["a"], total: 1 }, sentAt: null, ...overrides };
+  return {
+    runId: "run-1",
+    rev: 1,
+    origin: "user",
+    command: "npm test",
+    cwd: "/w",
+    phase: { kind: "running", startedAt: T0, stopRequestedAt: null },
+    output: { lines: ["a"], total: 1 },
+    sentAt: null,
+    ...overrides,
+  };
 }
 
 function view(rev: number, overrides: Partial<LiveView> = {}): LiveView {
-  return { rev, phase: { kind: "running", startedAt: T0, stopRequestedAt: null }, output: { lines: ["a", "b"], total: 2 }, cursor: null, sentAt: null, lastOutputAt: T0, serverNow: T0 + 1_000, ...overrides };
+  return {
+    rev,
+    phase: { kind: "running", startedAt: T0, stopRequestedAt: null },
+    output: { lines: ["a", "b"], total: 2 },
+    cursor: null,
+    sentAt: null,
+    lastOutputAt: T0,
+    serverNow: T0 + 1_000,
+    ...overrides,
+  };
 }
 
 type Call = { input: { runId: string; lines: number; since: number | null; waitMs: number }; resolve(value: unknown): void; reject(error: Error): void };
+
+function plain(value: unknown) {
+  return JSON.parse(JSON.stringify(value));
+}
 
 function setup(limits: Record<string, unknown> = {}) {
   const h = clientHarness(directory);
@@ -24,8 +47,19 @@ function setup(limits: Record<string, unknown> = {}) {
   const rpc = (input: Call["input"]) => new Promise((resolve, reject) => calls.push({ input, resolve, reject }));
   let now = T0 + 500;
   const store: LiveStore = h.load("client/live.ts").createLiveStore({ rpc, now: () => now, limits: { tailWaitMs: 100, ...limits } });
-  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
-  return { h, calls, store, plain, setNow: (value: number) => { now = value; }, async answer(value: unknown) { calls.shift()!.resolve(plain(value)); await h.flush(); } };
+  return {
+    h,
+    calls,
+    store,
+    plain,
+    setNow: (value: number) => {
+      now = value;
+    },
+    async answer(value: unknown) {
+      calls.shift()!.resolve(plain(value));
+      await h.flush();
+    },
+  };
 }
 
 test("polls only while the merged phase is running and something is mounted, and stops once the run ends", async () => {
@@ -103,7 +137,10 @@ test("errors back off 0.5, 1, 2, 4 s and recover; the clock offset corrects a sk
     s.calls.shift()!.reject(new Error("offline"));
     await s.h.flush();
     assert.equal(s.calls.length, 0, `waits ${delay} ms before trying again`);
-    assert.ok([...s.h.timers.values()].some((t) => t.delay === delay), `a ${delay} ms backoff is pending`);
+    assert.ok(
+      [...s.h.timers.values()].some((t) => t.delay === delay),
+      `a ${delay} ms backoff is pending`,
+    );
     await s.h.tick(delay);
     await s.h.flush();
     assert.equal(s.calls.length, 1);
@@ -113,7 +150,10 @@ test("errors back off 0.5, 1, 2, 4 s and recover; the clock offset corrects a sk
   assert.equal(s.store.resolve(r).clockOffset, 300_000);
   s.calls.shift()!.reject(new Error("offline"));
   await s.h.flush();
-  assert.ok([...s.h.timers.values()].some((t) => t.delay === 500), "a success resets the backoff");
+  assert.ok(
+    [...s.h.timers.values()].some((t) => t.delay === 500),
+    "a success resets the backoff",
+  );
 });
 
 test("toggling the taller box only changes the flag; the poll in flight still lands", async () => {

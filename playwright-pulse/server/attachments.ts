@@ -2,14 +2,12 @@
 // latest run, so the panel can never reach an arbitrary path. Only real files
 // inside the worktree resolve. A branch checked out after the run can replace
 // ignored files, so no step of the path may be a link.
-import { execFile, spawn } from "node:child_process";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, sep, win32 } from "node:path";
-import { promisify } from "node:util";
 import type { Attachment } from "../shared/run.ts";
 import { type AttachmentKind, attachmentKind } from "../shared/view.ts";
-import { LAUNCH_FOLDER, findProgram } from "./programs.ts";
+import { LAUNCH_FOLDER, findProgram, runProgram, startDetached } from "./system.ts";
 import { type RunLocation, readCurrentRun } from "./run-file.ts";
 
 export type AttachmentRef = { runId: string; testId: string; index: number; path: string };
@@ -105,18 +103,8 @@ async function hostCommand(action: "open" | "reveal", target: string, avoid: str
 export type Opener = (command: HostCommand) => Promise<void>;
 
 export const systemOpener: Opener = async ({ command, args, cwd, wait }) => {
-  if (wait) {
-    await promisify(execFile)(command, args, { cwd });
-    return;
-  }
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { cwd, detached: true, stdio: "ignore", windowsHide: true });
-    child.once("error", reject);
-    child.once("spawn", () => {
-      child.unref();
-      resolve();
-    });
-  });
+  if (wait) await runProgram(command, args, { cwd });
+  else await startDetached(command, args, { cwd });
 };
 
 // A command for the user to run in their own terminal. Run in the worktree,
@@ -131,7 +119,12 @@ function viewTraceCommand(trace: string, root: string, { platform, home }: Host)
 
 // Traces are shown in their folder, never opened: opening one would start a
 // trace viewer, and the worktree decides which one.
-export async function openFile(location: RunLocation, ref: AttachmentRef, opener: Opener = systemOpener, host: Host = thisHost()): Promise<{ opened: string; traceCommand?: string }> {
+export async function openFile(
+  location: RunLocation,
+  ref: AttachmentRef,
+  opener: Opener = systemOpener,
+  host: Host = thisHost(),
+): Promise<{ opened: string; traceCommand?: string }> {
   const { attachment, target, root } = await resolveAttachment(location, ref);
   const kind = attachmentKind(attachment);
   const { noun, extensions } = OPENS_AS[kind];

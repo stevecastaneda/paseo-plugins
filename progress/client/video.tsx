@@ -7,8 +7,8 @@ interface VideoElement {
   src: string;
   videoWidth: number;
   videoHeight: number;
-  onloadedmetadata: (() => void) | null;
-  onerror: (() => void) | null;
+  addEventListener(type: "loadedmetadata" | "error", listener: () => void): void;
+  removeEventListener(type: "loadedmetadata" | "error", listener: () => void): void;
 }
 const page = globalThis as unknown as { document: { createElement(tag: "video"): VideoElement } };
 
@@ -17,14 +17,21 @@ const page = globalThis as unknown as { document: { createElement(tag: "video"):
 export function videoRatio(blob: FileBlob): Promise<number | null> {
   const url = browser.URL.createObjectURL(blob);
   const video = page.document.createElement("video");
+  let stopListening: (() => void) | undefined;
   return new Promise<number | null>((resolve) => {
     setTimeout(() => resolve(null), 5_000);
-    video.onloadedmetadata = () => resolve(video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : null);
-    video.onerror = () => resolve(null);
+    const onMetadata = () => resolve(video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : null);
+    const onError = () => resolve(null);
+    video.addEventListener("loadedmetadata", onMetadata);
+    video.addEventListener("error", onError);
+    stopListening = () => {
+      video.removeEventListener("loadedmetadata", onMetadata);
+      video.removeEventListener("error", onError);
+    };
     video.preload = "metadata";
     video.src = url;
   }).finally(() => {
-    video.onloadedmetadata = video.onerror = null;
+    stopListening?.();
     video.src = "";
     browser.URL.revokeObjectURL(url);
   });
@@ -35,7 +42,9 @@ export function VideoPlayer({ blob, label, style }: { blob: FileBlob; label: str
   const url = useObjectUrl(blob);
   return (
     <View style={[style, { overflow: "hidden" }]}>
-      {url ? <video src={url} controls playsInline aria-label={label} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} /> : null}
+      {url ? (
+        <video src={url} controls playsInline aria-label={label} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
+      ) : null}
     </View>
   );
 }

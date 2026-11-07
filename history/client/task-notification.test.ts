@@ -16,10 +16,24 @@ test("shows result Markdown immediately, expands details, and copies the result"
   const Body = h.load("client/task-notification.tsx").TaskNotificationBody;
   const result = "## Findings\n\n**Everything passed.**\n\n<oai-mem-citation>MEMORY.md:3</oai-mem-citation>";
   let renderer;
-  await act(async () => { renderer = create(React.createElement(Body, {
-    notification: { taskId: "private-task-id", outputFile: "/tmp/private.output", note: "Can resume", status: "completed", summary: 'Agent "Check chart" finished', result, toolUses: 53 },
-    colors: {}, copy: (text) => copied.push(text), onError: assert.fail,
-  })); });
+  await act(async () => {
+    renderer = create(
+      React.createElement(Body, {
+        notification: {
+          taskId: "private-task-id",
+          outputFile: "/tmp/private.output",
+          note: "Can resume",
+          status: "completed",
+          summary: 'Agent "Check chart" finished',
+          result,
+          toolUses: 53,
+        },
+        colors: {},
+        copy: (text) => copied.push(text),
+        onError: assert.fail,
+      }),
+    );
+  });
   const initial = JSON.stringify(renderer.toJSON());
   assert.ok(initial.includes("Check chart"));
   assert.equal(renderer.root.findByType("Markdown").props.children, "## Findings\n\n**Everything passed.**");
@@ -29,12 +43,17 @@ test("shows result Markdown immediately, expands details, and copies the result"
   assert.ok(!initial.includes("/tmp/private.output"));
   await act(async () => {
     details().props.onPress();
-    renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === "Copy task result").props.onPress();
+    renderer.root
+      .findAllByType("Pressable")
+      .find((node) => node.props.accessibilityLabel === "Copy task result")
+      .props.onPress();
   });
   assert.equal(details().props["aria-expanded"], true);
   const expanded = JSON.stringify(renderer.toJSON());
   assert.ok(expanded.includes("private-task-id"));
   assert.ok(expanded.includes("/tmp/private.output"));
   assert.deepEqual(copied, [result]);
-  await act(async () => { renderer.unmount(); });
+  await act(async () => {
+    renderer.unmount();
+  });
 });

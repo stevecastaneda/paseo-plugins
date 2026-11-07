@@ -15,13 +15,37 @@ import { handleGetBriefs } from "./pulse.ts";
 const SOURCE = "// Written by the playwright-pulse Paseo plugin.\nexport default class {}\n";
 
 function pulseTest(overrides: Partial<PulseTest>): PulseTest {
-  return { id: "t1", title: "User edits a lead", titlePath: [], file: "e2e/a.spec.ts", line: 1, project: "", status: "passed", retry: 0, timeout: 60_000, attachments: [], ...overrides };
+  return {
+    id: "t1",
+    title: "User edits a lead",
+    titlePath: [],
+    file: "e2e/a.spec.ts",
+    line: 1,
+    project: "",
+    status: "passed",
+    retry: 0,
+    timeout: 60_000,
+    attachments: [],
+    ...overrides,
+  };
 }
 
 function snapshot(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
   return {
-    v: 1, id: "run1-4242", pid: 4242, root: "/repo", args: [], status: "running", startedAt: "2026-10-04T12:00:00.000Z",
-    updatedAt: "2026-10-04T12:00:05.000Z", total: 2, projects: [], workers: 1, tests: [], errors: [], ...overrides,
+    v: 1,
+    id: "run1-4242",
+    pid: 4242,
+    root: "/repo",
+    args: [],
+    status: "running",
+    startedAt: "2026-10-04T12:00:00.000Z",
+    updatedAt: "2026-10-04T12:00:05.000Z",
+    total: 2,
+    projects: [],
+    workers: 1,
+    tests: [],
+    errors: [],
+    ...overrides,
   };
 }
 
@@ -53,10 +77,10 @@ test("a run whose process is gone reads as interrupted, with its running test", 
 
 test("passed tests drop their step trail; failed ones keep it", () => {
   const trail = [{ title: "Click", duration: 10 }];
-  const run = runForPanel(snapshot({ tests: [
-    pulseTest({ id: "a", recentSteps: trail }),
-    pulseTest({ id: "b", status: "failed", recentSteps: trail }),
-   ] }), true);
+  const run = runForPanel(
+    snapshot({ tests: [pulseTest({ id: "a", recentSteps: trail }), pulseTest({ id: "b", status: "failed", recentSteps: trail })] }),
+    true,
+  );
   assert.equal(run.tests[0].recentSteps, undefined);
   assert.deepEqual(run.tests[1].recentSteps, trail);
 });
@@ -96,7 +120,10 @@ test("a live process id reused by a later process doesn't keep a dead run alive"
 test("briefs each workspace's newest run for the header pill", async () => {
   const { location, root, home } = worktree();
   const elsewhere = mkdtempSync(join(tmpdir(), "pulse-empty-"));
-  writeRun(location, snapshot({ status: "failed", endedAt: "2026-10-04T12:01:00.000Z", total: 2, tests: [pulseTest({ status: "failed" }), pulseTest({ id: "t2" })] }));
+  writeRun(
+    location,
+    snapshot({ status: "failed", endedAt: "2026-10-04T12:01:00.000Z", total: 2, tests: [pulseTest({ status: "failed" }), pulseTest({ id: "t2" })] }),
+  );
   const { briefs } = await handleGetBriefs({ directories: [root, join(root, "apps"), elsewhere] }, home);
   const brief = { runId: "run1-4242", status: "failed", done: 2, total: 2, failed: 1, endedAt: "2026-10-04T12:01:00.000Z" };
   assert.deepEqual(briefs, { [root]: brief, [join(root, "apps")]: brief, [elsewhere]: null });
@@ -128,10 +155,19 @@ test("opens only attachments of the latest run that sit inside the worktree", as
   writeFileSync(screenshot, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   const elsewhere = join(mkdtempSync(join(tmpdir(), "pulse-out-")), "secret.png");
   writeFileSync(elsewhere, "x");
-  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [
-    { name: "screenshot", contentType: "image/png", path: screenshot },
-    { name: "screenshot", contentType: "image/png", path: elsewhere },
-  ] })] }));
+  writeRun(
+    location,
+    snapshot({
+      tests: [
+        pulseTest({
+          attachments: [
+            { name: "screenshot", contentType: "image/png", path: screenshot },
+            { name: "screenshot", contentType: "image/png", path: elsewhere },
+          ],
+        }),
+      ],
+    }),
+  );
   const ref = { runId: "run1-4242", testId: "t1" };
   const first = { ...ref, index: 0, path: screenshot };
 
@@ -157,7 +193,9 @@ function sh(file: string, body: string) {
 
 function recorder() {
   const commands: HostCommand[] = [];
-  const opener: Opener = async (command) => { commands.push(command); };
+  const opener: Opener = async (command) => {
+    commands.push(command);
+  };
   return { commands, opener, ran: () => commands.map(({ command, args }) => [command, ...args]) };
 }
 
@@ -166,11 +204,20 @@ function isInside(root: string, path: string): boolean {
   return !inside.startsWith("..") && !isAbsolute(inside);
 }
 
+function at(index: number, path: string) {
+  return { runId: "run1-4242", testId: "t1", index, path };
+}
+
+async function playwright() {
+  return "node node_modules/@playwright/test/cli.js test -g edits";
+}
+
 test("a branch checked out after the run can't make Trace or Open run its files", async (t) => {
   if (process.platform === "win32") return t.skip("needs symlinks and sh");
   const root = mkdtempSync(join(tmpdir(), "pulse-git-"));
   const home = mkdtempSync(join(tmpdir(), "pulse-home-"));
-  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.symlinks=true", ...args], { cwd: root, stdio: "pipe" });
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.symlinks=true", ...args], { cwd: root, stdio: "pipe" });
   git("init", "-q", "-b", "main");
   writeFileSync(join(root, ".gitignore"), "node_modules/\ntest-results/\n");
   git("add", ".gitignore");
@@ -200,12 +247,20 @@ test("a branch checked out after the run can't make Trace or Open run its files"
   writeFileSync(video, "webm");
   writeFileSync(shot, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   const location = locateRun(root, home);
-  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [
-    { name: "trace", contentType: "application/zip", path: trace },
-    { name: "video", contentType: "video/webm", path: video },
-    { name: "screenshot", contentType: "image/png", path: shot },
-  ] })] }));
-  const at = (index: number, path: string) => ({ runId: "run1-4242", testId: "t1", index, path });
+  writeRun(
+    location,
+    snapshot({
+      tests: [
+        pulseTest({
+          attachments: [
+            { name: "trace", contentType: "application/zip", path: trace },
+            { name: "video", contentType: "video/webm", path: video },
+            { name: "screenshot", contentType: "image/png", path: shot },
+          ],
+        }),
+      ],
+    }),
+  );
 
   // xdg-open comes from PATH, skipping the worktree's folders and relative ones.
   const bin = mkdtempSync(join(tmpdir(), "pulse-bin-"));
@@ -216,7 +271,10 @@ test("a branch checked out after the run can't make Trace or Open run its files"
   const before = recorder();
   await openFile(location, at(1, video), before.opener, host);
   await openFile(location, at(2, shot), before.opener, host);
-  assert.deepEqual(before.ran(), [[join(bin, "xdg-open"), video], [join(bin, "xdg-open"), shot]]);
+  assert.deepEqual(before.ran(), [
+    [join(bin, "xdg-open"), video],
+    [join(bin, "xdg-open"), shot],
+  ]);
   for (const { cwd } of before.commands) assert.ok(!isInside(root, cwd), `${cwd} is outside the worktree`);
 
   git("checkout", "-q", "pr");
@@ -249,12 +307,20 @@ test("Open takes only a real file of the attachment's own type, never through a 
   writeFileSync(real, "webm");
   symlinkSync(dirname(real), join(root, "test-results", "linked"), "dir");
   const linked = join(root, "test-results", "linked", "video.webm");
-  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [
-    { name: "video", contentType: "video/webm", path: script },
-    { name: "video", contentType: "video/webm", path: linked },
-    { name: "video", contentType: "video/mp4", path: mp4 },
-  ] })] }));
-  const at = (index: number, path: string) => ({ runId: "run1-4242", testId: "t1", index, path });
+  writeRun(
+    location,
+    snapshot({
+      tests: [
+        pulseTest({
+          attachments: [
+            { name: "video", contentType: "video/webm", path: script },
+            { name: "video", contentType: "video/webm", path: linked },
+            { name: "video", contentType: "video/mp4", path: mp4 },
+          ],
+        }),
+      ],
+    }),
+  );
   const { opener, ran } = recorder();
   const host: Host = { platform: "darwin", env: {}, home };
   await assert.rejects(openFile(location, at(0, script), opener, host), /video isn't a video/);
@@ -270,11 +336,23 @@ test("each system's opener is called by absolute path, from a folder outside the
   mkdirSync(dirname(trace), { recursive: true });
   writeFileSync(trace, "PK");
   writeFileSync(video, "webm");
-  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [
-    { name: "trace", contentType: "application/zip", path: trace },
-    { name: "video", contentType: "video/webm", path: video },
-  ] })] }));
-  const refs = [{ runId: "run1-4242", testId: "t1", index: 0, path: trace }, { runId: "run1-4242", testId: "t1", index: 1, path: video }];
+  writeRun(
+    location,
+    snapshot({
+      tests: [
+        pulseTest({
+          attachments: [
+            { name: "trace", contentType: "application/zip", path: trace },
+            { name: "video", contentType: "video/webm", path: video },
+          ],
+        }),
+      ],
+    }),
+  );
+  const refs = [
+    { runId: "run1-4242", testId: "t1", index: 0, path: trace },
+    { runId: "run1-4242", testId: "t1", index: 1, path: video },
+  ];
   const both = async (host: Host) => {
     const { commands, opener, ran } = recorder();
     for (const ref of refs) await openFile(location, ref, opener, host);
@@ -282,9 +360,14 @@ test("each system's opener is called by absolute path, from a folder outside the
     return ran();
   };
   const [shownTrace, shownVideo] = [realpathSync(trace), realpathSync(video)];
-  assert.deepEqual(await both({ platform: "darwin", env: {}, home }), [["/usr/bin/open", "-R", shownTrace], ["/usr/bin/open", shownVideo]]);
-  assert.deepEqual(await both({ platform: "win32", env: { SystemRoot: "D:\\Windows" }, home }),
-    [["D:\\Windows\\explorer.exe", "/select,", shownTrace], ["D:\\Windows\\explorer.exe", shownVideo]]);
+  assert.deepEqual(await both({ platform: "darwin", env: {}, home }), [
+    ["/usr/bin/open", "-R", shownTrace],
+    ["/usr/bin/open", shownVideo],
+  ]);
+  assert.deepEqual(await both({ platform: "win32", env: { SystemRoot: "D:\\Windows" }, home }), [
+    ["D:\\Windows\\explorer.exe", "/select,", shownTrace],
+    ["D:\\Windows\\explorer.exe", shownVideo],
+  ]);
   // A missing or relative SystemRoot falls back to the usual folder, never a bare name.
   for (const env of [{}, { SystemRoot: "Windows" }]) {
     assert.equal((await both({ platform: "win32", env, home }))[0][0], "C:\\Windows\\explorer.exe");
@@ -305,8 +388,9 @@ test("no command is copied for a trace whose path a shell would read as code", a
 test("stops only a live run whose process is still Playwright and started with the run", async () => {
   const { location } = worktree();
   const signalled: number[] = [];
-  const signal = (pid: number) => { signalled.push(pid); };
-  const playwright = async () => "node node_modules/@playwright/test/cli.js test -g edits";
+  const signal = (pid: number) => {
+    signalled.push(pid);
+  };
   const startedAt = "2026-10-04T12:00:00.000Z";
   const startTimeOf = async () => Date.parse(startedAt) - 1_000;
   // The test process itself stands in for a live run.
@@ -319,7 +403,10 @@ test("stops only a live run whose process is still Playwright and started with t
   // An id the system reused for something else is left alone.
   await assert.rejects(stopRun(location, "run1-4242", { command: async () => "/usr/bin/vim notes.txt", signal, startTimeOf }), /already exited/);
   // So is one reused by another Playwright run that started later.
-  await assert.rejects(stopRun(location, "run1-4242", { command: playwright, signal, startTimeOf: async () => Date.parse(startedAt) + 5_000 }), /already exited/);
+  await assert.rejects(
+    stopRun(location, "run1-4242", { command: playwright, signal, startTimeOf: async () => Date.parse(startedAt) + 5_000 }),
+    /already exited/,
+  );
   // And when ps can't say when it started.
   await assert.rejects(stopRun(location, "run1-4242", { command: playwright, signal, startTimeOf: async () => null }), /already exited/);
   writeRun(location, snapshot({ pid: process.pid, status: "passed" }));

@@ -33,9 +33,7 @@ function findPaseo() {
   const onPath = spawnSync(quote("paseo"), ["--version"], { shell: isWindows, stdio: "ignore" });
   if (!onPath.error && onPath.status === 0) return "paseo";
   if (process.platform === "darwin" && existsSync(macAppCli)) return macAppCli;
-  fail(
-    "Could not find the paseo CLI. Put `paseo` on your PATH, or install the Paseo desktop app.",
-  );
+  fail("Could not find the paseo CLI. Put `paseo` on your PATH, or install the Paseo desktop app.");
 }
 
 function paseo(cli, args, options) {
@@ -54,10 +52,7 @@ for (const script of ["typecheck", "test"]) {
 }
 
 const cli = findPaseo();
-const findPlugin = () =>
-  JSON.parse(paseo(cli, ["plugin", "ls", "--json"], { capture: true }).stdout).find(
-    (plugin) => plugin.id === id,
-  );
+const findPlugin = () => JSON.parse(paseo(cli, ["plugin", "ls", "--json"], { capture: true }).stdout).find((plugin) => plugin.id === id);
 const current = findPlugin();
 
 if (current && current.path && resolve(current.path) === pluginDir) {

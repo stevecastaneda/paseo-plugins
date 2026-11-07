@@ -11,7 +11,11 @@ const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
 test("the pill's title carries the run status, so the phone menu row shows it", async () => {
   const h = clientHarness(directory);
   let brief: object = { runId: "r", status: "running", done: 25, total: 47, failed: 0 };
-  h.responses["pulse.briefs"] = { get briefs() { return { "/w": brief }; } };
+  h.responses["pulse.briefs"] = {
+    get briefs() {
+      return { "/w": brief };
+    },
+  };
   const stop = h.load("index.client.tsx").default(h.client);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
   await h.flush();

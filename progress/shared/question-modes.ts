@@ -19,13 +19,15 @@ interface QuestionModeRules {
   state(big: boolean): QuestionState;
 }
 
-const HOLD = "Build no option before the answer, not even your recommendation. Work on everything the question doesn't affect. If nothing else is left, end your turn, tell the user in chat which questions you're waiting on, and leave the run open.";
+const HOLD =
+  "Build no option before the answer, not even your recommendation. Work on everything the question doesn't affect. If nothing else is left, end your turn, tell the user in chat which questions you're waiting on, and leave the run open.";
 
 export const QUESTION_MODE_RULES: Record<QuestionMode, QuestionModeRules> = {
   stop: {
     label: "Stop",
     hint: "Agents stop all work when they ask, until you answer.",
-    askRule: () => "Ask any other questions you already have, then stop all work and resume only after an answer. End your turn now, tell the user in chat which questions you're waiting on, and leave the run open.",
+    askRule: () =>
+      "Ask any other questions you already have, then stop all work and resume only after an answer. End your turn now, tell the user in chat which questions you're waiting on, and leave the run open.",
     state: () => "stopped",
   },
   "work-around": {
@@ -37,9 +39,10 @@ export const QUESTION_MODE_RULES: Record<QuestionMode, QuestionModeRules> = {
   "keep-building": {
     label: "Keep building",
     hint: "Agents build their recommended option while you decide, and change course if you pick another. Big questions still wait.",
-    askRule: ({ recommend, big }) => big
-      ? `This question is big, so hold it like Work around. ${HOLD}`
-      : `Build ${recommend} now and keep working. If the user picks another option, undo the work built on ${recommend} and build their choice first. If the rest of the work is done while it's still open, leave it open and tell the user in chat; don't withdraw it.`,
+    askRule: ({ recommend, big }) =>
+      big
+        ? `This question is big, so hold it like Work around. ${HOLD}`
+        : `Build ${recommend} now and keep working. If the user picks another option, undo the work built on ${recommend} and build their choice first. If the rest of the work is done while it's still open, leave it open and tell the user in chat; don't withdraw it.`,
     state: (big) => (big ? "waiting" : "building"),
   },
 };

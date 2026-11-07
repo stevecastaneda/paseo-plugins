@@ -8,8 +8,15 @@ const directory = fileURLToPath(new URL("..", import.meta.url));
 
 type Element = { type: unknown; props: Record<string, any> };
 
-const command = (index: number, name: string, status: string) =>
-  ({ index, command: name, cwd: "/w", log: `${name} output`, status, exitCode: status === "failed" ? 1 : 0, durationMs: 1000 });
+const command = (index: number, name: string, status: string) => ({
+  index,
+  command: name,
+  cwd: "/w",
+  log: `${name} output`,
+  status,
+  exitCode: status === "failed" ? 1 : 0,
+  durationMs: 1000,
+});
 
 const FAILED = {
   status: "failed",
@@ -35,20 +42,40 @@ function popover() {
     useState(initial: unknown) {
       const slot = cursor++;
       if (!(slot in slots)) slots[slot] = typeof initial === "function" ? (initial as () => unknown)() : initial;
-      return [slots[slot], (value: unknown) => { slots[slot] = value; }];
+      return [
+        slots[slot],
+        (value: unknown) => {
+          slots[slot] = value;
+        },
+      ];
     },
   };
   const h = clientHarness(directory, {
     react,
-    "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text", Pressable: "Pressable", ScrollView: "ScrollView", ActivityIndicator: "ActivityIndicator" },
+    "react-native": {
+      Platform: { OS: "web" },
+      View: "View",
+      Text: "Text",
+      Pressable: "Pressable",
+      ScrollView: "ScrollView",
+      ActivityIndicator: "ActivityIndicator",
+    },
     "@getpaseo/plugin/client/ui": { Icon: "Icon" },
   });
   const { SetupPopover } = h.load("client/popover.tsx");
-  const props = { theme: { colors: new Proxy({}, { get: (_target, key) => String(key) }) }, snapshot: FAILED, runningSinceMs: null, onDismiss() {}, async onRunSetup() { return null; } };
+  const props = {
+    theme: { colors: new Proxy({}, { get: (_target, key) => String(key) }) },
+    snapshot: FAILED,
+    runningSinceMs: null,
+    onDismiss() {},
+    async onRunSetup() {
+      return null;
+    },
+  };
   const rows = (node: any): Element[] => {
     if (Array.isArray(node)) return node.flatMap(rows);
     if (!node || typeof node !== "object") return [];
-    const matches = node.type === "Pressable" && /^Show log for /.test(node.props.accessibilityLabel ?? "") ? [node] : [];
+    const matches = node.type === "Pressable" && (node.props.accessibilityLabel ?? "").startsWith("Show log for ") ? [node] : [];
     return [...matches, ...rows(node.props.children)];
   };
   return () => {
@@ -68,6 +95,8 @@ function chosen(rows: Element[]) {
 test("the command rows tell screen readers on the web and on phones which log is showing", () => {
   const render = popover();
   assert.deepEqual(chosen(render()), ["Show log for ./scripts/db-migrate.sh"], "the failed command's log shows first");
-  render().find((row) => row.props.accessibilityLabel === "Show log for ./scripts/install-deps.sh")!.props.onPress();
+  render()
+    .find((row) => row.props.accessibilityLabel === "Show log for ./scripts/install-deps.sh")!
+    .props.onPress();
   assert.deepEqual(chosen(render()), ["Show log for ./scripts/install-deps.sh"]);
 });

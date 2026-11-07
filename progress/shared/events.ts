@@ -121,16 +121,18 @@ export const eventSchema = z.discriminatedUnion("type", [
   }),
   z.object({ ...base, type: z.literal("question.remove"), id: text }),
   // `path` is relative to the worktree root, or absolute when outside it.
-  z.object({
-    ...base,
-    type: z.literal("deliverable.add"),
-    id: text,
-    title: text,
-    path: text.optional(),
-    url: httpUrl.optional(),
-    ticket: text.optional(),
-    kind: z.enum(DELIVERABLE_KINDS).optional(),
-  }).refine((event) => Boolean(event.path) !== Boolean(event.url), "A deliverable has a path or a URL"),
+  z
+    .object({
+      ...base,
+      type: z.literal("deliverable.add"),
+      id: text,
+      title: text,
+      path: text.optional(),
+      url: httpUrl.optional(),
+      ticket: text.optional(),
+      kind: z.enum(DELIVERABLE_KINDS).optional(),
+    })
+    .refine((event) => Boolean(event.path) !== Boolean(event.url), "A deliverable has a path or a URL"),
   z.object({ ...base, type: z.literal("deliverable.remove"), id: text }),
   z.object({ ...base, type: z.literal("activity.add"), id: text, text, ticket: text.optional() }),
   z.object({ ...base, type: z.literal("activity.update"), id: text, text }),

@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  formatElapsed,
-  formatTimeSinceLabel,
-  formatTimeSincePillLabel,
-  isWorkingStatus,
-  lastThreadMessageAtFromStream,
-} from "../shared/elapsed.ts";
+import { formatElapsed, formatTimeSinceLabel, formatTimeSincePillLabel, isWorkingStatus, lastThreadMessageAtFromStream } from "../shared/elapsed.ts";
 
 test("formatElapsed clamps negatives and reports seconds under a minute", () => {
   assert.equal(formatElapsed(-50), "0s");

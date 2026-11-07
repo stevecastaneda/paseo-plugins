@@ -5,7 +5,6 @@ import {
   blockedExplanation,
   errorRepeatsLog,
   commandLabel,
-  completedDurationMs,
   formatDuration,
   headline,
   buttonLabel,
@@ -30,12 +29,7 @@ function command(partial: Partial<SetupCommand> & Pick<SetupCommand, "command" |
   };
 }
 
-function snapshot(partial: {
-  status: SetupSnapshot["status"];
-  error?: string | null;
-  commands?: SetupCommand[];
-  log?: string;
-}): SetupSnapshot {
+function snapshot(partial: { status: SetupSnapshot["status"]; error?: string | null; commands?: SetupCommand[]; log?: string }): SetupSnapshot {
   return {
     status: partial.status,
     error: partial.error ?? null,
@@ -104,10 +98,7 @@ test("buttonLabel stays short", () => {
 });
 
 test("headline and commandLabel describe the current step", () => {
-  assert.equal(
-    headline(snapshot({ status: "failed", error: "npm ERR! EPERM" })),
-    "npm ERR! EPERM",
-  );
+  assert.equal(headline(snapshot({ status: "failed", error: "npm ERR! EPERM" })), "npm ERR! EPERM");
   assert.equal(
     headline(
       snapshot({
@@ -117,10 +108,7 @@ test("headline and commandLabel describe the current step", () => {
     ),
     "Setup finished in 1m 30s",
   );
-  assert.equal(
-    commandLabel(command({ command: "npm install", cwd: "/repo/api", status: "running" }), "/repo"),
-    "npm install in api",
-  );
+  assert.equal(commandLabel(command({ command: "npm install", cwd: "/repo/api", status: "running" }), "/repo"), "npm install in api");
 });
 
 test("trimSnapshot keeps the tail of oversized logs", () => {
@@ -138,14 +126,17 @@ test("trimSnapshot keeps the tail of oversized logs", () => {
   assert.equal(trimLog("short"), "short");
 });
 
+function failedCommand(log: string): SetupCommand {
+  return { index: 2, command: "./scripts/db-migrate.sh", cwd: "/repo", log, status: "failed", exitCode: 1 };
+}
+
 test("a failed setup's error is hidden when its step's log already shows it", () => {
-  const failed = (log: string): SetupCommand => ({ index: 2, command: "./scripts/db-migrate.sh", cwd: "/repo", log, status: "failed", exitCode: 1 });
   const error = 'Worktree setup command failed: ./scripts/db-migrate.sh\nerror: column "currency" contains null values';
-  assert.equal(errorRepeatsLog(error, failed('Running 6 migrations\nerror: column "currency" contains null values\n')), true);
-  assert.equal(errorRepeatsLog("Worktree setup command failed: ./scripts/db-migrate.sh", failed("exit 1\n")), true, "nothing past the command's name");
-  assert.equal(errorRepeatsLog(error, failed("")), false, "no log to show it");
-  assert.equal(errorRepeatsLog(error, failed("something else\n")), false, "the log doesn't have it");
-  assert.equal(errorRepeatsLog("Failed to create worktree: branch exists", failed("x\n")), false, "not a command's error");
+  assert.equal(errorRepeatsLog(error, failedCommand('Running 6 migrations\nerror: column "currency" contains null values\n')), true);
+  assert.equal(errorRepeatsLog("Worktree setup command failed: ./scripts/db-migrate.sh", failedCommand("exit 1\n")), true, "nothing past the command's name");
+  assert.equal(errorRepeatsLog(error, failedCommand("")), false, "no log to show it");
+  assert.equal(errorRepeatsLog(error, failedCommand("something else\n")), false, "the log doesn't have it");
+  assert.equal(errorRepeatsLog("Failed to create worktree: branch exists", failedCommand("x\n")), false, "not a command's error");
   assert.equal(errorRepeatsLog(error, null), false);
 });
 

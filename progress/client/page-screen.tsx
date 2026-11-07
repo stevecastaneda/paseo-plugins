@@ -14,7 +14,11 @@ export function addPageScreen(client: PluginClientContext) {
   const stop = client.addScreen({
     id: PAGE_SCREEN_ID,
     title: (params) => params.title ?? "",
-    Component: (props) => <ProgressLanguageProvider><PageScreen {...props} /></ProgressLanguageProvider>,
+    Component: (props) => (
+      <ProgressLanguageProvider>
+        <PageScreen {...props} />
+      </ProgressLanguageProvider>
+    ),
   });
   return () => {
     setPageOpener(null);
@@ -79,9 +83,24 @@ function PageScreen({ params, theme: { colors }, navigation }: PluginScreenProps
         {/* `allow-scripts` alone, as in Paseo's own HTML preview: the page runs its scripts
             (and loads them from the web, so no CSP) in an opaque origin that can't reach
             Paseo's DOM or storage, navigate the app, open windows or submit forms. */}
-        <iframe ref={frame as never} srcDoc={html} sandbox="allow-scripts" referrerPolicy="no-referrer" title={params.title} onLoad={() => setShownHtml(html)}
-          style={{ flex: 1, width: "100%", height: "100%", display: "block", border: "none", backgroundColor: "white",
-            opacity: shownHtml === html ? 1 : 0, transition: "opacity 150ms ease-out" }} />
+        <iframe
+          ref={frame as never}
+          srcDoc={html}
+          sandbox="allow-scripts"
+          referrerPolicy="no-referrer"
+          title={params.title}
+          onLoad={() => setShownHtml(html)}
+          style={{
+            flex: 1,
+            width: "100%",
+            height: "100%",
+            display: "block",
+            border: "none",
+            backgroundColor: "white",
+            opacity: shownHtml === html ? 1 : 0,
+            transition: "opacity 150ms ease-out",
+          }}
+        />
       </View>
     );
   }
@@ -91,7 +110,9 @@ function PageScreen({ params, theme: { colors }, navigation }: PluginScreenProps
         <Text accessibilityRole="alert" selectable style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 18 }}>
           {m.previewError(errorText(page.error, m.unknownError))}
         </Text>
-      ) : <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingPreview} />}
+      ) : (
+        <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel={m.loadingPreview} />
+      )}
     </View>
   );
 }

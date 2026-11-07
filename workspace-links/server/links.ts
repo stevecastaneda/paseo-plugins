@@ -39,9 +39,6 @@ function canonical(link: { label: string; url: string }) {
   return { label: link.label, url: url.href };
 }
 
-export async function handleGetLinks(
-  input: { workspaceId: string; workspaceDirectory: string },
-  _context: PluginHandlerContext,
-) {
+export async function handleGetLinks(input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext) {
   return readLinks(input.workspaceDirectory);
 }

@@ -10,30 +10,39 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 async function mount(roles) {
   const jumps = [];
   const stats = { reads: 0 };
-  const text = roles.map((role, index) => JSON.stringify({ type: role,
-    message: { role, content: `Message ${index}` } })).join("\n") + "\n";
+  const text = roles.map((role, index) => JSON.stringify({ type: role, message: { role, content: `Message ${index}` } })).join("\n") + "\n";
   const h = clientHarness(fileURLToPath(new URL("..", import.meta.url)), {
     "react-native": { View: "View", Text: "Text", Pressable: "Pressable", ActivityIndicator: "ActivityIndicator", Platform: { OS: "web" } },
-    "@getpaseo/plugin/client": { useRpc: () => async () => {
-      stats.reads++;
-      return { path: "/tmp/log", source: "one", provider: "claude", text, offset: 0, nextOffset: text.length, totalBytes: text.length };
-    } },
+    "@getpaseo/plugin/client": {
+      useRpc: () => async () => {
+        stats.reads++;
+        return { path: "/tmp/log", source: "one", provider: "claude", text, offset: 0, nextOffset: text.length, totalBytes: text.length };
+      },
+    },
     "@getpaseo/plugin/client/ui": {
-      Icon: "Icon", Markdown: "Markdown", copyText: async () => {}, FlatList: "list",
+      Icon: "Icon",
+      Markdown: "Markdown",
+      copyText: async () => {},
+      FlatList: "list",
       ScrollView: ({ ref, ...props }) => {
-        useImperativeHandle(ref, () => ({ scrollTo: args => jumps.push(args) }));
+        useImperativeHandle(ref, () => ({ scrollTo: (args) => jumps.push(args) }));
         return React.createElement("scroll", props, props.children);
       },
     },
   });
   let renderer;
-  await act(async () => { renderer = create(React.createElement(h.load("client/viewer.tsx").HistoryViewer, { agentId: "a", theme: { colors: {} } })); });
-  const button = label => renderer.root.findAllByType("Pressable").find(node => node.props.accessibilityLabel === label);
+  await act(async () => {
+    renderer = create(React.createElement(h.load("client/viewer.tsx").HistoryViewer, { agentId: "a", theme: { colors: {} } }));
+  });
+  const button = (label) => renderer.root.findAllByType("Pressable").find((node) => node.props.accessibilityLabel === label);
   const scroller = () => renderer.root.findByType("scroll");
   return {
-    renderer, jumps, stats, button,
+    renderer,
+    jumps,
+    stats,
+    button,
     layoutTurns(offsets) {
-      const nodes = renderer.root.findAllByType("View").filter(node => node.props.onLayout);
+      const nodes = renderer.root.findAllByType("View").filter((node) => node.props.onLayout);
       act(() => nodes.forEach((node, index) => node.props.onLayout({ nativeEvent: { layout: { y: offsets[index] } } })));
     },
     size(viewport, content) {
@@ -42,11 +51,20 @@ async function mount(roles) {
         scroller().props.onContentSizeChange(400, content);
       });
     },
-    scroll(y) { act(() => scroller().props.onScroll({ nativeEvent: { contentOffset: { y } } })); },
-    press(label) { act(() => button(label).props.onPress()); },
+    scroll(y) {
+      act(() => scroller().props.onScroll({ nativeEvent: { contentOffset: { y } } }));
+    },
+    press(label) {
+      act(() => button(label).props.onPress());
+    },
     // No scroll events for as long as the viewer waits: whatever was scrolling has stopped.
     quiet() {
-      act(() => [...h.timers].forEach(([id, timer]) => { h.timers.delete(id); timer.callback(); }));
+      act(() =>
+        [...h.timers].forEach(([id, timer]) => {
+          h.timers.delete(id);
+          timer.callback();
+        }),
+      );
     },
     arrows: () => ({ previous: !button("Previous turn").props.disabled, next: !button("Next turn").props.disabled }),
     unmount: () => act(async () => renderer.unmount()),
@@ -68,7 +86,7 @@ test("footer arrows navigate turns without replacing the conversation", async ()
   v.press("Previous turn");
   assert.equal(v.jumps[1].y, 0);
   assert.equal(v.stats.reads, 1);
-  assert.equal(v.renderer.root.findAllByType("Markdown").filter(node => /^Message \d$/.test(node.props.children)).length, 3);
+  assert.equal(v.renderer.root.findAllByType("Markdown").filter((node) => /^Message \d$/.test(node.props.children)).length, 3);
   v.press("Raw source");
   assert.equal(v.button("Next turn"), undefined);
   v.press("Conversation");
@@ -127,7 +145,10 @@ test("a double press moves two turns while the first jump is still scrolling", a
   v.press("Next turn");
   v.scroll(400);
   v.press("Next turn");
-  assert.deepEqual(v.jumps.map(jump => jump.y), [1000, 1400]);
+  assert.deepEqual(
+    v.jumps.map((jump) => jump.y),
+    [1000, 1400],
+  );
   assert.deepEqual(v.arrows(), { previous: true, next: false }, "Next is off as soon as the end is the destination");
   v.scroll(900);
   v.scroll(1400);
@@ -206,6 +227,9 @@ test("reversing during a jump keeps counting from the new destination", async ()
   // One more event from the first jump, still heading down.
   v.scroll(1120);
   v.press("Previous turn");
-  assert.deepEqual(v.jumps.map(jump => jump.y), [1400, 1000, 0]);
+  assert.deepEqual(
+    v.jumps.map((jump) => jump.y),
+    [1400, 1000, 0],
+  );
   await v.unmount();
 });

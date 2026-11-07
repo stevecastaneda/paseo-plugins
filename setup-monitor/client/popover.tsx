@@ -1,16 +1,7 @@
 import type { PluginButtonContentProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-  type TextStyle,
-  type ViewStyle,
-} from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { SetupCommand, SetupSnapshot, SetupStatus } from "../shared/setup";
 import {
   blockedExplanation,
@@ -27,12 +18,7 @@ type PluginTheme = PluginButtonContentProps["theme"];
 type Colors = PluginTheme["colors"];
 
 const LOG_HEIGHT = 200;
-const MONO =
-  Platform.OS === "web"
-    ? "ui-monospace, Menlo, monospace"
-    : Platform.OS === "android"
-      ? "monospace"
-      : "Menlo";
+const MONO = Platform.OS === "web" ? "ui-monospace, Menlo, monospace" : Platform.OS === "android" ? "monospace" : "Menlo";
 
 function StatusIcon({ status, colors }: { status: SetupStatus; colors: Colors }) {
   if (status === "running") return <ActivityIndicator size={14} color={colors.accent} />;
@@ -44,8 +30,7 @@ function StatusIcon({ status, colors }: { status: SetupStatus; colors: Colors })
 }
 
 function defaultCommandIndex(commands: readonly SetupCommand[]): number | null {
-  const command =
-    runningCommand(commands) ?? failedCommand(commands) ?? commands[commands.length - 1];
+  const command = runningCommand(commands) ?? failedCommand(commands) ?? commands[commands.length - 1];
   return command?.index ?? null;
 }
 
@@ -80,15 +65,10 @@ export function SetupPopover({
   }, [running]);
 
   const commands = snapshot?.detail.commands ?? [];
-  const selectedIndex =
-    pinned !== null && commands.some((command) => command.index === pinned)
-      ? pinned
-      : defaultCommandIndex(commands);
+  const selectedIndex = pinned !== null && commands.some((command) => command.index === pinned) ? pinned : defaultCommandIndex(commands);
   const selected = commands.find((command) => command.index === selectedIndex) ?? null;
   const overallLog = snapshot?.detail.log ?? "";
-  const rawLog = selected
-    ? selected.log.trim() || (selected.status === "running" ? overallLog : "")
-    : overallLog;
+  const rawLog = selected ? selected.log.trim() || (selected.status === "running" ? overallLog : "") : overallLog;
   const log = processCarriageReturns(rawLog).trimEnd();
 
   useEffect(() => {
@@ -110,12 +90,7 @@ export function SetupPopover({
   // The running step's own time: all of setup so far, less the finished steps.
   const stepElapsedMs = Math.max(0, elapsedMs - completedDurationMs(commands));
   // The command line below names the step, so the title only says where setup is.
-  const title =
-    snapshot.status === "failed"
-      ? "Setup failed"
-      : snapshot.status === "running"
-        ? "Setting up worktree"
-        : headline(snapshot);
+  const title = snapshot.status === "failed" ? "Setup failed" : snapshot.status === "running" ? "Setting up worktree" : headline(snapshot);
   // The failed step's row and log already say what Paseo's error says.
   const showError =
     snapshot.status === "failed" &&
@@ -142,15 +117,14 @@ export function SetupPopover({
         {/* The clock while setup runs; Dismiss once it's done. Up here, Dismiss
             stays in view when a long result makes the popover scroll. */}
         {running ? (
-          elapsedMs > 0 ? <Text style={styles.duration}>{formatDuration(elapsedMs)}</Text> : null
+          elapsedMs > 0 ? (
+            <Text style={styles.duration}>{formatDuration(elapsedMs)}</Text>
+          ) : null
         ) : (
           <Pressable
             accessibilityRole="button"
             onPress={onDismiss}
-            style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
-              styles.dismiss,
-              hovered || pressed ? styles.dismissActive : null,
-            ]}
+            style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [styles.dismiss, hovered || pressed ? styles.dismissActive : null]}
           >
             <Text style={styles.dismissLabel}>Dismiss</Text>
           </Pressable>
@@ -159,8 +133,14 @@ export function SetupPopover({
 
       {snapshot.status === "blocked" ? (
         <>
-          <Text style={styles.explain} selectable>{blockedExplanation(snapshot)}</Text>
-          {runError ? <Text style={styles.error} selectable>{runError}</Text> : null}
+          <Text style={styles.explain} selectable>
+            {blockedExplanation(snapshot)}
+          </Text>
+          {runError ? (
+            <Text style={styles.error} selectable>
+              {runError}
+            </Text>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             aria-busy={starting}
@@ -244,7 +224,6 @@ export function SetupPopover({
           </ScrollView>
         </View>
       )}
-
     </View>
   );
 }

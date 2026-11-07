@@ -3,7 +3,10 @@ export type WorkspaceLink = { label: string; url: string };
 /** The URL as people read it: no scheme, no `www.`, no lone trailing slash. */
 // The server sends each URL as the browser reads it, with no name before the site.
 export function displayUrl(url: string): string {
-  return url.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
+  return url
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/$/, "");
 }
 
 // First match wins, so specific services sit above the generic words that often share a name
@@ -30,7 +33,10 @@ const ICON_RULES: readonly (readonly [RegExp, string])[] = [
 
 function words(text: string): string {
   // Split camelCase and punctuation into words so `__design` and `adminPanel` still match.
-  return text.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  return text
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ");
 }
 
 function matchIcon(text: string): string | null {

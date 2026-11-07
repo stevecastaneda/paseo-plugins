@@ -23,10 +23,7 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
   const settings = query.data;
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.surface0 }}
-      contentContainerStyle={{ paddingBottom: 16 }}
-    >
+    <ScrollView style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ paddingBottom: 16 }}>
       {!settings && query.isPending ? <ActivityIndicator color={colors.foregroundMuted} accessibilityLabel="Loading options" style={{ padding: 12 }} /> : null}
       {query.isError ? (
         <View style={{ gap: 8, padding: 12 }}>
@@ -41,10 +38,12 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
 
       {settings ? (
         <>
-          {([
-            ["showIcon", "Show clock icon"],
-            ["showAgo", "Show “ago” suffix"],
-          ] as const).map(([key, label]) => (
+          {(
+            [
+              ["showIcon", "Show clock icon"],
+              ["showAgo", "Show “ago” suffix"],
+            ] as const
+          ).map(([key, label]) => (
             <Pressable
               key={key}
               accessibilityRole="switch"
@@ -66,17 +65,19 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
               })}
             >
               <Text style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{label}</Text>
-              <View style={{
-                width: 28,
-                height: 16,
-                borderRadius: 8,
-                padding: 2,
-                justifyContent: "center",
-                alignItems: settings[key] ? "flex-end" : "flex-start",
-                backgroundColor: settings[key] ? colors.accent : colors.surface2,
-                borderWidth: settings[key] ? 0 : 1,
-                borderColor: colors.border,
-              }}>
+              <View
+                style={{
+                  width: 28,
+                  height: 16,
+                  borderRadius: 8,
+                  padding: 2,
+                  justifyContent: "center",
+                  alignItems: settings[key] ? "flex-end" : "flex-start",
+                  backgroundColor: settings[key] ? colors.accent : colors.surface2,
+                  borderWidth: settings[key] ? 0 : 1,
+                  borderColor: colors.border,
+                }}
+              >
                 <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: settings[key] ? colors.accentForeground : colors.foregroundMuted }} />
               </View>
             </Pressable>
@@ -84,7 +85,21 @@ export function TimeSinceOptionsPanel({ theme, host }: PluginWorkspacePanelProps
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 12, paddingVertical: 12 }}>
             <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>Preview</Text>
             {/* Paseo's composer pill: 32 tall, 16 radius, 12 px sides, 8 px gap, a 14 px icon in a 16 px box. */}
-            <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 32, backgroundColor: colors.surface1, borderColor: colors.border, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 4 }}>
+            <View
+              style={{
+                alignSelf: "flex-start",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                minHeight: 32,
+                backgroundColor: colors.surface1,
+                borderColor: colors.border,
+                borderWidth: 1,
+                borderRadius: 16,
+                paddingHorizontal: 12,
+                paddingVertical: 4,
+              }}
+            >
               {settings.showIcon ? (
                 <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
                   <Icon name="Clock" size={14} color={colors.foregroundMuted} />

@@ -3,7 +3,10 @@ import { test } from "node:test";
 import { risksOf, shortCommand, splitTitle, wrappedLines } from "./text.ts";
 
 test("a leading comment is the command's title; a shebang or a lone comment is not", () => {
-  assert.deepEqual(splitTitle("# Log in to GitHub in your browser\ngh auth login --web"), { title: "Log in to GitHub in your browser", script: "gh auth login --web" });
+  assert.deepEqual(splitTitle("# Log in to GitHub in your browser\ngh auth login --web"), {
+    title: "Log in to GitHub in your browser",
+    script: "gh auth login --web",
+  });
   assert.deepEqual(splitTitle("#Build it\n\n  npm run build\nnpm test"), { title: "Build it", script: "npm run build\nnpm test" });
   assert.deepEqual(splitTitle("#!/bin/sh\necho hi"), { title: null, script: "#!/bin/sh\necho hi" });
   assert.deepEqual(splitTitle("# only a comment"), { title: null, script: "# only a comment" });

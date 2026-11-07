@@ -8,7 +8,10 @@ import { errorMessage, shortCommand } from "./shared/text.ts";
 
 // One leading "! " or "$ " that people paste along with the command.
 export function normalizeArgs(args: string): string {
-  return args.trim().replace(/^[!$]\s+/, "").trim();
+  return args
+    .trim()
+    .replace(/^[!$]\s+/, "")
+    .trim();
 }
 
 export default function contribute(client: PluginClientContext) {
@@ -29,7 +32,7 @@ export default function contribute(client: PluginClientContext) {
         try {
           await rpc(start, { agentId: agent.id, cwd: agent.cwd, command, origin: "user" });
         } catch (error) {
-          throw new Error(`Couldn't run "${shortCommand(command)}": ${errorMessage(error)}`);
+          throw new Error(`Couldn't run "${shortCommand(command)}": ${errorMessage(error)}`, { cause: error });
         }
       },
     }),
@@ -67,13 +70,13 @@ function addRunPills(client: PluginClientContext): () => void {
     select: (message) => (message.type === "agent_update" ? message.payload : undefined),
     snapshot: (entries) => {
       const ids = new Set(entries.map(({ agent }) => agent.id));
-      for (const id of [...pills.keys()]) if (!ids.has(id)) remove(id);
+      for (const id of Array.from(pills.keys())) if (!ids.has(id)) remove(id);
       for (const { agent } of entries) add(agent);
     },
     update: (update: PaseoAgentUpdate) => (update.kind === "remove" ? remove(update.agentId) : add(update.agent)),
   });
   return () => {
     stopAgents();
-    for (const id of [...pills.keys()]) remove(id);
+    for (const id of Array.from(pills.keys())) remove(id);
   };
 }

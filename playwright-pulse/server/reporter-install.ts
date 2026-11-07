@@ -7,13 +7,11 @@
 // shutdown, so this is how removing the plugin leaves nothing behind. A
 // config that names the copy only when it exists then falls back to its other
 // reporters. A run already going keeps the reporter it loaded.
-import { execFile } from "node:child_process";
-import { link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { promisify } from "node:util";
+import { basename, dirname, join } from "node:path";
 import type { ReporterStatus } from "../shared/rpc.ts";
-import { LAUNCH_FOLDER, findProgram } from "./programs.ts";
+import { findProgram, placeFileIn, removeIn, runProgram } from "./system.ts";
 
 export const PLUGIN_ID = "playwright-pulse";
 export const REPORTER_SOURCE = join("server", "pulse-reporter.mjs");
@@ -50,30 +48,23 @@ export async function writeReporter(path: string, source: string): Promise<Repor
   const state = await reporterState(path, source);
   if (state === "current") return state;
   if (state === "foreign") throw foreignFile(path);
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, source);
   try {
-    if (state === "outdated") {
-      await rename(temporary, path);
-      return "current";
-    }
-    await link(temporary, path);
+    await placeFileIn(dirname(path), basename(path), source, { replace: state === "outdated" });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     if ((await reporterState(path, source)) !== "current") throw foreignFile(path);
-  } finally {
-    await rm(temporary, { force: true });
   }
   return "current";
 }
 
 // The server bundle doesn't know its own folder, so ask Paseo.
 export async function findPluginDirectory(): Promise<string> {
-  const clis = [process.env.PASEO_BIN, await findProgram("paseo"), "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter((cli): cli is string => Boolean(cli));
+  const clis = [process.env.PASEO_BIN, await findProgram("paseo"), "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter((cli): cli is string =>
+    Boolean(cli),
+  );
   for (const cli of clis) {
     try {
-      const { stdout } = await promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"], { cwd: LAUNCH_FOLDER });
+      const { stdout } = await runProgram(cli, ["plugin", "ls", PLUGIN_ID, "--json"]);
       const plugin = (JSON.parse(stdout) as Array<{ id: string; path?: string }>).find((entry) => entry.id === PLUGIN_ID);
       if (plugin?.path) return plugin.path;
     } catch {
@@ -131,7 +122,7 @@ export async function reporterStatus(path = defaultReporterPath()): Promise<Repo
 export async function removeReporter(path: string): Promise<boolean> {
   const current = await readFile(path, "utf8").catch(() => null);
   if (current === null || !current.startsWith(MARKER)) return false;
-  await rm(path, { force: true });
+  await removeIn(dirname(path), basename(path));
   return true;
 }
 
@@ -147,7 +138,7 @@ export async function startReporter(path = defaultReporterPath(), readSource = r
 // When the plugin stops. Never throws: Paseo is shutting the plugin down.
 export async function stopReporter(path = defaultReporterPath()): Promise<void> {
   stopped = true;
-  await Promise.allSettled([...writes]);
+  await Promise.allSettled(writes);
   await removeReporter(path).catch((error) => console.error(`playwright-pulse: could not remove ${path}:`, error));
 }
 

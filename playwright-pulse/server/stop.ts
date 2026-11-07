@@ -2,9 +2,7 @@
 // running tests, runs teardown, stops its web servers, and reports the run as
 // interrupted. A second press while it winds down forces it, as a second
 // Ctrl+C does.
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { LAUNCH_FOLDER, findPs } from "./programs.ts";
+import { findPs, runProgram } from "./system.ts";
 import { type RunLocation, type StartTimeOf, isOpen, processStartTime, readCurrentRun, runProcessAlive } from "./run-file.ts";
 
 // The command line of a process on this host, or null when it's gone.
@@ -14,7 +12,7 @@ export const commandOf: CommandOf = async (pid) => {
   try {
     const ps = await findPs();
     if (!ps) return null;
-    const { stdout } = await promisify(execFile)(ps, ["-o", "command=", "-p", String(pid)], { cwd: LAUNCH_FOLDER });
+    const { stdout } = await runProgram(ps, ["-o", "command=", "-p", String(pid)]);
     return stdout.trim() || null;
   } catch {
     return null;
@@ -27,7 +25,11 @@ export const interrupt: Signal = (pid) => {
   process.kill(pid, "SIGINT");
 };
 
-export async function stopRun(location: RunLocation, runId: string, { command = commandOf, signal = interrupt, startTimeOf = processStartTime }: { command?: CommandOf; signal?: Signal; startTimeOf?: StartTimeOf } = {}): Promise<{ stopped: true }> {
+export async function stopRun(
+  location: RunLocation,
+  runId: string,
+  { command = commandOf, signal = interrupt, startTimeOf = processStartTime }: { command?: CommandOf; signal?: Signal; startTimeOf?: StartTimeOf } = {},
+): Promise<{ stopped: true }> {
   const run = await readCurrentRun(location, runId);
   if (!isOpen(run)) throw new Error("That run has already ended.");
   // The run names a process id, and ids get reused: signal only the process

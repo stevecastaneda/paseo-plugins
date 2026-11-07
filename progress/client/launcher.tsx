@@ -5,7 +5,16 @@ import React from "react";
 import { Text, View } from "react-native";
 import { PressScale, Presence } from "./motion";
 import { raised } from "./surfaces";
-import { getLauncherStatus, getSkillStatus, getToolsStatus, installLauncher, installSkill, type LauncherStatus, type SkillStatus, type ToolsState } from "../shared/rpc";
+import {
+  getLauncherStatus,
+  getSkillStatus,
+  getToolsStatus,
+  installLauncher,
+  installSkill,
+  type LauncherStatus,
+  type SkillStatus,
+  type ToolsState,
+} from "../shared/rpc";
 import { messagesFor, type ProgressMessages } from "./i18n";
 import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
@@ -111,7 +120,13 @@ export function SkillBanner({ colors, host }: { colors: Colors; host: PluginWork
   return <SetupBanner colors={colors} icon="Sparkles" notice={skill.notice} pending={skill.pending} onPress={skill.install} />;
 }
 
-function SetupBanner({ colors, icon, notice, pending, onPress }: {
+function SetupBanner({
+  colors,
+  icon,
+  notice,
+  pending,
+  onPress,
+}: {
   colors: Colors;
   icon: string;
   notice: { text: string; action?: string } | null;
@@ -120,20 +135,47 @@ function SetupBanner({ colors, icon, notice, pending, onPress }: {
 }) {
   const { messages: m } = useProgressLanguage();
   return (
-    <Presence show={Boolean(notice)}>{notice ? (
-    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, margin: 12, marginBottom: 0, padding: 8, borderRadius: 12, ...raised(colors), backgroundColor: colors.surface1 }}>
-      {/* Held on the first line: the text wraps to several lines in the Explorer pane. */}
-      <View style={{ alignSelf: "flex-start", height: 17, justifyContent: "center" }}><Icon name={icon} size={14} color={colors.foregroundMuted} /></View>
-      <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{notice.text}</Text>
-      {notice.action ? (
-        <PressScale accessibilityRole="button" disabled={pending} onPress={onPress}
-          style={({ pressed, hovered }) => ({ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4, backgroundColor: colors.accent, opacity: pressed || pending ? 0.7 : hovered ? 0.85 : 1 })}>
-          <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>
-            {pending ? m.installing : notice.action}
+    <Presence show={Boolean(notice)}>
+      {notice ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
+            margin: 12,
+            marginBottom: 0,
+            padding: 8,
+            borderRadius: 12,
+            ...raised(colors),
+            backgroundColor: colors.surface1,
+          }}
+        >
+          {/* Held on the first line: the text wraps to several lines in the Explorer pane. */}
+          <View style={{ alignSelf: "flex-start", height: 17, justifyContent: "center" }}>
+            <Icon name={icon} size={14} color={colors.foregroundMuted} />
+          </View>
+          <Text selectable style={{ flex: 1, minWidth: 200, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+            {notice.text}
           </Text>
-        </PressScale>
+          {notice.action ? (
+            <PressScale
+              accessibilityRole="button"
+              disabled={pending}
+              onPress={onPress}
+              style={({ pressed, hovered }) => ({
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 4,
+                backgroundColor: colors.accent,
+                opacity: pressed || pending ? 0.7 : hovered ? 0.85 : 1,
+              })}
+            >
+              <Text style={{ color: colors.accentForeground, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>{pending ? m.installing : notice.action}</Text>
+            </PressScale>
+          ) : null}
+        </View>
       ) : null}
-    </View>
-    ) : null}</Presence>
+    </Presence>
   );
 }

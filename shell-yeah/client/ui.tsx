@@ -1,6 +1,18 @@
 import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Platform, Pressable, Text, View, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  Text,
+  View,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import type { Badge as BadgeKind, Tone } from "../shared/view.ts";
 import { isLight, withAlpha, type ThemeColors } from "./palette.ts";
 
@@ -45,16 +57,26 @@ export function raised(colors: ThemeColors): ViewStyle {
 
 export function toneColor(tone: Tone, colors: ThemeColors): string {
   switch (tone) {
-    case "success": return colors.statusSuccess;
-    case "danger": return colors.statusDanger;
-    case "warning": return colors.statusWarning;
-    case "active": return colors.accent;
-    case "muted": return colors.foregroundMuted;
+    case "success":
+      return colors.statusSuccess;
+    case "danger":
+      return colors.statusDanger;
+    case "warning":
+      return colors.statusWarning;
+    case "active":
+      return colors.accent;
+    case "muted":
+      return colors.foregroundMuted;
   }
 }
 
 // A button that scales to 0.96 while pressed.
-export function PressScale({ style, outerStyle, children, ...props }: Omit<PressableProps, "style" | "children"> & {
+export function PressScale({
+  style,
+  outerStyle,
+  children,
+  ...props
+}: Omit<PressableProps, "style" | "children"> & {
   outerStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle> | ((state: { pressed: boolean; hovered: boolean }) => StyleProp<ViewStyle>);
   children: React.ReactNode;
@@ -64,14 +86,29 @@ export function PressScale({ style, outerStyle, children, ...props }: Omit<Press
   const [pressed, setPressed] = useState(false);
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable {...props} style={outerStyle}
-      onHoverIn={(event) => { setHovered(true); props.onHoverIn?.(event); }}
-      onHoverOut={(event) => { setHovered(false); props.onHoverOut?.(event); }}
-      onPressIn={(event) => { setPressed(true); to(0.96); props.onPressIn?.(event); }}
-      onPressOut={(event) => { setPressed(false); to(1); props.onPressOut?.(event); }}>
-      <Animated.View style={[typeof style === "function" ? style({ pressed, hovered }) : style, { transform: [{ scale }] }]}>
-        {children}
-      </Animated.View>
+    <Pressable
+      {...props}
+      style={outerStyle}
+      onHoverIn={(event) => {
+        setHovered(true);
+        props.onHoverIn?.(event);
+      }}
+      onHoverOut={(event) => {
+        setHovered(false);
+        props.onHoverOut?.(event);
+      }}
+      onPressIn={(event) => {
+        setPressed(true);
+        to(0.96);
+        props.onPressIn?.(event);
+      }}
+      onPressOut={(event) => {
+        setPressed(false);
+        to(1);
+        props.onPressOut?.(event);
+      }}
+    >
+      <Animated.View style={[typeof style === "function" ? style({ pressed, hovered }) : style, { transform: [{ scale }] }]}>{children}</Animated.View>
     </Pressable>
   );
 }
@@ -121,9 +158,11 @@ function Nudge({ children }: { children: React.ReactNode }) {
 export function Spinner({ color, size = 12 }: { color: string; size?: number }) {
   return (
     <View accessibilityLabel="Working" style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      {Platform.OS === "ios"
-        ? <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: size / 20 }] }} />
-        : <ActivityIndicator size={size} color={color} />}
+      {Platform.OS === "ios" ? (
+        <ActivityIndicator size="small" color={color} style={{ transform: [{ scale: size / 20 }] }} />
+      ) : (
+        <ActivityIndicator size={size} color={color} />
+      )}
     </View>
   );
 }
@@ -134,14 +173,27 @@ const BADGE_ICON: Record<Exclude<BadgeKind, "spinner">, string> = { play: "Play"
 export function Badge({ kind, tone, colors }: { kind: BadgeKind; tone: Tone; colors: ThemeColors }) {
   const color = toneColor(tone, colors);
   const light = isLight(colors) ?? false;
-  const glyph = kind === "spinner" ? <Spinner color={colors.accent} size={12} /> : kind === "play" ? <Nudge><Icon name="Play" size={12} color={color} /></Nudge> : <Icon name={BADGE_ICON[kind]} size={12} color={color} />;
+  const glyph =
+    kind === "spinner" ? (
+      <Spinner color={colors.accent} size={12} />
+    ) : kind === "play" ? (
+      <Nudge>
+        <Icon name="Play" size={12} color={color} />
+      </Nudge>
+    ) : (
+      <Icon name={BADGE_ICON[kind]} size={12} color={color} />
+    );
   return (
-    <View style={[
-      { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-      { backgroundColor: withAlpha(color, light ? 0.12 : 0.14) },
-      kind === "play" ? { borderWidth: 1, borderStyle: "dashed", borderColor: withAlpha(color, 0.6), backgroundColor: "transparent" } : null,
-    ]}>
-      <IconSwap swapKey={kind} size={12}>{glyph}</IconSwap>
+    <View
+      style={[
+        { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+        { backgroundColor: withAlpha(color, light ? 0.12 : 0.14) },
+        kind === "play" ? { borderWidth: 1, borderStyle: "dashed", borderColor: withAlpha(color, 0.6), backgroundColor: "transparent" } : null,
+      ]}
+    >
+      <IconSwap swapKey={kind} size={12}>
+        {glyph}
+      </IconSwap>
     </View>
   );
 }
@@ -149,7 +201,21 @@ export function Badge({ kind, tone, colors }: { kind: BadgeKind; tone: Tone; col
 // "ghost" has no fill until hovered, for actions repeated down a list.
 export type ButtonTone = "primary" | "quiet" | "ghost" | "danger" | "danger-filled";
 
-export function Button({ icon, label, reserveLabel, tone, onPress, busy = false, disabled = false, compact, iconOnly = false, floating = false, radius = 6, colors, accessibilityLabel }: {
+export function Button({
+  icon,
+  label,
+  reserveLabel,
+  tone,
+  onPress,
+  busy = false,
+  disabled = false,
+  compact,
+  iconOnly = false,
+  floating = false,
+  radius = 6,
+  colors,
+  accessibilityLabel,
+}: {
   icon: string;
   label: string;
   // A longer label this button can switch to ("Copied"), so the switch doesn't shift its neighbors.
@@ -169,7 +235,8 @@ export function Button({ icon, label, reserveLabel, tone, onPress, busy = false,
 }) {
   const filled = tone === "primary" || tone === "danger-filled";
   const background = tone === "primary" ? colors.accent : tone === "danger-filled" ? colors.statusDanger : tone === "ghost" ? "transparent" : colors.surface2;
-  const foreground = tone === "primary" ? colors.accentForeground : tone === "danger-filled" ? colors.surface0 : tone === "danger" ? colors.statusDanger : colors.foreground;
+  const foreground =
+    tone === "primary" ? colors.accentForeground : tone === "danger-filled" ? colors.surface0 : tone === "danger" ? colors.statusDanger : colors.foreground;
   const height = compact ? 36 : 28;
   const labelStyle = { color: foreground, fontSize: 12, lineHeight: 16, fontWeight: filled ? ("600" as const) : ("500" as const) };
   const showLabel = !iconOnly || filled;
@@ -193,13 +260,26 @@ export function Button({ icon, label, reserveLabel, tone, onPress, busy = false,
         gap: 6,
         backgroundColor: filled || !hovered || disabled ? background : colors.border,
         opacity: disabled ? 0.5 : filled && hovered ? 0.88 : 1,
-      })}>
+      })}
+    >
       <IconSwap swapKey={busy ? "busy" : icon} size={14}>
-        {busy ? <Spinner color={foreground} size={14} /> : icon === "Play" ? <Nudge><Icon name={icon} size={14} color={foreground} /></Nudge> : <Icon name={icon} size={14} color={foreground} />}
+        {busy ? (
+          <Spinner color={foreground} size={14} />
+        ) : icon === "Play" ? (
+          <Nudge>
+            <Icon name={icon} size={14} color={foreground} />
+          </Nudge>
+        ) : (
+          <Icon name={icon} size={14} color={foreground} />
+        )}
       </IconSwap>
       {showLabel ? (
         <View>
-          {reserveLabel ? <Text accessible={false} importantForAccessibility="no" style={[labelStyle, { opacity: 0 }]}>{reserveLabel}</Text> : null}
+          {reserveLabel ? (
+            <Text accessible={false} importantForAccessibility="no" style={[labelStyle, { opacity: 0 }]}>
+              {reserveLabel}
+            </Text>
+          ) : null}
           <Text style={[labelStyle, reserveLabel ? { position: "absolute", left: 0, right: 0, top: 0, textAlign: "center" } : null]}>{label}</Text>
         </View>
       ) : null}

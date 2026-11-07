@@ -44,31 +44,63 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
   // Links and other files leave Paseo, so the popover closes for those.
   const [previewing, setPreviewing] = useState<{ attachment: Attachment; group: Attachment[] } | null>(null);
   const group = useRef<Attachment[]>([]);
-  const opener = useAttachmentOpener({ workspaceId, workspaceDirectory: root, onPreview: (attachment) => setPreviewing({ attachment, group: galleryFiles(group.current) }) });
+  const opener = useAttachmentOpener({
+    workspaceId,
+    workspaceDirectory: root,
+    onPreview: (attachment) => setPreviewing({ attachment, group: galleryFiles(group.current) }),
+  });
   return (
     <View style={{ width: 360, maxWidth: "100%", gap: 8 }}>
       {dashboard ? (
-        <AttentionList colors={colors} dashboard={dashboard} workspaceId={workspaceId} compact={layout.compact} touch={touch} onSurface1={onSurface1}
+        <AttentionList
+          colors={colors}
+          dashboard={dashboard}
+          workspaceId={workspaceId}
+          compact={layout.compact}
+          touch={touch}
+          onSurface1={onSurface1}
           onCopy={async (question, letter) => {
             await copy(question, letter);
             close();
-          }} onOpenAttachment={(attachment, from) => {
+          }}
+          onOpenAttachment={(attachment, from) => {
             group.current = from;
             if (!isPreviewable(attachment)) close();
             void opener.open(attachment);
-          }} />
+          }}
+        />
       ) : (
         <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
           {query.error ? m.readProgressError(errorText(query.error, m.unknownError)) : m.loading}
         </Text>
       )}
-      <StackedDialog colors={colors} now={Date.now()} onClose={() => setPreviewing(null)} context={{ workspaceId, workspaceDirectory: root }}
-        root={previewing ? { kind: "preview", ...previewing, fullScreen: false } : null} />
+      <StackedDialog
+        colors={colors}
+        now={Date.now()}
+        onClose={() => setPreviewing(null)}
+        context={{ workspaceId, workspaceDirectory: root }}
+        root={previewing ? { kind: "preview", ...previewing, fullScreen: false } : null}
+      />
       <View style={{ paddingTop: touch ? 12 : 8, borderTopWidth: 1, borderTopColor: colors.border }}>
         {/* A full 44pt touch target on phones; desktop keeps the compact button. */}
-        <PressScale accessibilityRole="button" onPress={() => { close(); openPanel(); }}
-          style={({ pressed }) => ({ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: touch ? 8 : 6, paddingVertical: 6, minHeight: touch ? TOUCH_TARGET : undefined, borderRadius: touch ? 8 : 4, ...raised(colors),
-            backgroundColor: onSurface1 ? (pressed ? colors.surface1 : colors.surface2) : pressed ? colors.surface2 : colors.surface1 })}>
+        <PressScale
+          accessibilityRole="button"
+          onPress={() => {
+            close();
+            openPanel();
+          }}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: touch ? 8 : 6,
+            paddingVertical: 6,
+            minHeight: touch ? TOUCH_TARGET : undefined,
+            borderRadius: touch ? 8 : 4,
+            ...raised(colors),
+            backgroundColor: onSurface1 ? (pressed ? colors.surface1 : colors.surface2) : pressed ? colors.surface2 : colors.surface1,
+          })}
+        >
           {/* Beside the chat on desktop; on a phone it opens as its own tab, shown with the tab's icon. */}
           <Icon name={touch ? "ListChecks" : "PanelRight"} size={touch ? 16 : 12} color={colors.foreground} />
           <Text style={{ color: colors.foreground, fontSize: touch ? 15 : 12, lineHeight: touch ? 20 : 16, fontWeight: "600" }}>{m.openProgress}</Text>
@@ -92,10 +124,14 @@ function List({ compact, maxHeight, surface, children }: { compact: boolean; max
   };
   return (
     <View style={{ position: "relative" }}>
-      <ScrollView style={{ maxHeight }} contentContainerStyle={{ gap: 12 }} scrollEventThrottle={16}
+      <ScrollView
+        style={{ maxHeight }}
+        contentContainerStyle={{ gap: 12 }}
+        scrollEventThrottle={16}
         onLayout={(event) => measure({ viewport: event.nativeEvent.layout.height })}
         onContentSizeChange={(_, height) => measure({ content: height })}
-        onScroll={(event) => measure({ offset: event.nativeEvent.contentOffset.y })}>
+        onScroll={(event) => measure({ offset: event.nativeEvent.contentOffset.y })}
+      >
         {children}
       </ScrollView>
       {moreBelow ? <BottomFade color={surface} /> : null}
@@ -116,7 +152,16 @@ function BottomFade({ color }: { color: string }) {
   );
 }
 
-export function AttentionList({ colors, dashboard, workspaceId, compact, touch, onSurface1, onCopy, onOpenAttachment }: {
+export function AttentionList({
+  colors,
+  dashboard,
+  workspaceId,
+  compact,
+  touch,
+  onSurface1,
+  onCopy,
+  onOpenAttachment,
+}: {
   colors: Colors;
   dashboard: Dashboard;
   workspaceId: string;
@@ -150,7 +195,9 @@ export function AttentionList({ colors, dashboard, workspaceId, compact, touch, 
       {stepping ? (
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontVariant: ["tabular-nums"] }}>
-            {position[0]}<Text style={{ color: colors.foreground, fontWeight: "600" }}>{index + 1}</Text>{position[1]}
+            {position[0]}
+            <Text style={{ color: colors.foreground, fontWeight: "600" }}>{index + 1}</Text>
+            {position[1]}
           </Text>
           <View style={{ flexDirection: "row", gap: touch ? stepSlop * 2 : 4 }}>
             <StepButton {...step} icon="ChevronLeft" label={m.previousQuestion} target={open[index - 1]} />
@@ -158,7 +205,12 @@ export function AttentionList({ colors, dashboard, workspaceId, compact, touch, 
           </View>
         </View>
       ) : null}
-      <List key={question?.id} compact={compact} surface={onSurface1 ? colors.surface1 : colors.surface0} maxHeight={stepping ? LIST_MAX_HEIGHT - stepSize(touch) - HEADER_GAP : LIST_MAX_HEIGHT}>
+      <List
+        key={question?.id}
+        compact={compact}
+        surface={onSurface1 ? colors.surface1 : colors.surface0}
+        maxHeight={stepping ? LIST_MAX_HEIGHT - stepSize(touch) - HEADER_GAP : LIST_MAX_HEIGHT}
+      >
         {question ? (
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
@@ -168,10 +220,17 @@ export function AttentionList({ colors, dashboard, workspaceId, compact, touch, 
                 <QuestionState colors={colors} question={question} />
               </View>
             </View>
-            <QuestionDetail colors={colors} question={question} now={now} onSurface1={onSurface1} onOpenAttachment={onOpenAttachment} onCopy={(letter) => {
-              advancePast(question);
-              onCopy(question, letter);
-            }} />
+            <QuestionDetail
+              colors={colors}
+              question={question}
+              now={now}
+              onSurface1={onSurface1}
+              onOpenAttachment={onOpenAttachment}
+              onCopy={(letter) => {
+                advancePast(question);
+                onCopy(question, letter);
+              }}
+            />
           </View>
         ) : null}
         {dashboard.stuck.length ? (
@@ -198,7 +257,15 @@ export function AttentionList({ colors, dashboard, workspaceId, compact, touch, 
 const stepSize = (touch: boolean) => (touch ? 36 : 24);
 const stepSlop = (TOUCH_TARGET - stepSize(true)) / 2;
 
-function StepButton({ colors, touch, onSurface1, icon, label, target, onPress }: {
+function StepButton({
+  colors,
+  touch,
+  onSurface1,
+  icon,
+  label,
+  target,
+  onPress,
+}: {
   colors: Colors;
   touch: boolean;
   onSurface1: boolean;
@@ -210,10 +277,23 @@ function StepButton({ colors, touch, onSurface1, icon, label, target, onPress }:
   const button = onSurface1 ? { rest: colors.surface2, pressed: colors.surface1 } : { rest: colors.surface1, pressed: colors.surface2 };
   const size = stepSize(touch);
   return (
-    <PressScale accessibilityRole="button" accessibilityLabel={label} disabled={!target}
-      onPress={target ? () => onPress(target) : undefined} hitSlop={touch ? stepSlop : undefined}
-      style={({ pressed }) => ({ width: size, height: size, alignItems: "center", justifyContent: "center", borderRadius: touch ? 8 : 4, opacity: target ? 1 : 0.35, ...raised(colors),
-        backgroundColor: pressed ? button.pressed : button.rest })}>
+    <PressScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={!target}
+      onPress={target ? () => onPress(target) : undefined}
+      hitSlop={touch ? stepSlop : undefined}
+      style={({ pressed }) => ({
+        width: size,
+        height: size,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: touch ? 8 : 4,
+        opacity: target ? 1 : 0.35,
+        ...raised(colors),
+        backgroundColor: pressed ? button.pressed : button.rest,
+      })}
+    >
       <Icon name={icon} size={touch ? 16 : 14} color={colors.foreground} />
     </PressScale>
   );

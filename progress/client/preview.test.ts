@@ -14,11 +14,24 @@ type Window = { width: number; height: number };
 // Renders an image preview, in full screen unless told otherwise, by calling the
 // component with its effects run once. Returns what it drew, the full-screen
 // layer if drawn, and what the preview asked full screen to become.
-function renderPreview(query: Query, { window = { width: 1200, height: 800 }, fullScreen = true, leftFullScreen = false }: { window?: Window; fullScreen?: boolean; leftFullScreen?: boolean } = {}): { preview: unknown; layer: Element | undefined; fullScreenCalls: boolean[] } {
+function renderPreview(
+  query: Query,
+  {
+    window = { width: 1200, height: 800 },
+    fullScreen = true,
+    leftFullScreen = false,
+  }: { window?: Window; fullScreen?: boolean; leftFullScreen?: boolean } = {},
+): { preview: unknown; layer: Element | undefined; fullScreenCalls: boolean[] } {
   let messages: unknown;
   const h = clientHarness(directory, {
-    react: { ...React, useState: (initial: unknown) => [initial, () => {}], useRef: (current: unknown) => ({ current }), useEffect: (effect: () => void) => effect(), useMemo: (make: () => unknown) => make(),
-      useContext: () => ({ locale: "en", messages }) },
+    react: {
+      ...React,
+      useState: (initial: unknown) => [initial, () => {}],
+      useRef: (current: unknown) => ({ current }),
+      useEffect: (effect: () => void) => effect(),
+      useMemo: (make: () => unknown) => make(),
+      useContext: () => ({ locale: "en", messages }),
+    },
     "react-native": { Platform: { OS: "web" }, useWindowDimensions: () => window },
     "@tanstack/react-query": { useQueryClient: () => ({}), useQuery: () => ({ isPending: false, isPlaceholderData: false, ...query }) },
     "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
@@ -28,8 +41,21 @@ function renderPreview(query: Query, { window = { width: 1200, height: 800 }, fu
   const { PreviewContent } = h.load("client/preview.tsx");
   const shot = { ref: "shot", title: "Shot", path: "shot.png" };
   const fullScreenCalls: boolean[] = [];
-  const preview = PreviewContent({ colors: { surface0: "#000000", surface1: "#000000" }, attachment: shot, workspaceId: "w", workspaceDirectory: "/w", fullScreen, leftFullScreen,
-    onFullScreen(on: boolean) { fullScreenCalls.push(on); }, onLong() {}, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
+  const preview = PreviewContent({
+    colors: { surface0: "#000000", surface1: "#000000" },
+    attachment: shot,
+    workspaceId: "w",
+    workspaceDirectory: "/w",
+    fullScreen,
+    leftFullScreen,
+    onFullScreen(on: boolean) {
+      fullScreenCalls.push(on);
+    },
+    onLong() {},
+    onOpenOnHost() {},
+    onCopyPath() {},
+    onOpenEntry() {},
+  });
   return { preview, layer: findElement(preview, (props) => "onExit" in props), fullScreenCalls };
 }
 
@@ -100,18 +126,35 @@ test("leaving full screen puts focus back on the Full screen button without a fo
 
 type MarkdownCase = { markdown: string; truncated?: boolean; ownScroll?: boolean; latched?: boolean; stepping?: boolean };
 
+const Markdown = () => null;
+
 function renderMarkdown({ markdown, truncated = false, ownScroll = false, latched = false, stepping = false }: MarkdownCase) {
   let messages: unknown;
-  const Markdown = () => null;
   const latches: unknown[] = [];
   const h = clientHarness(directory, {
-    react: { ...React, useState: (initial: unknown) => [initial, () => {}], useRef: (current: unknown) => ({ current }), useEffect: (effect: () => void) => effect(),
-      useMemo: (make: () => unknown) => make(), useContext: () => ({ locale: "en", messages }) },
-    "react-native": { Platform: { OS: "web" }, useWindowDimensions: () => ({ width: 1200, height: 800 }), View: "View", Text: "Text", ActivityIndicator: "ActivityIndicator" },
+    react: {
+      ...React,
+      useState: (initial: unknown) => [initial, () => {}],
+      useRef: (current: unknown) => ({ current }),
+      useEffect: (effect: () => void) => effect(),
+      useMemo: (make: () => unknown) => make(),
+      useContext: () => ({ locale: "en", messages }),
+    },
+    "react-native": {
+      Platform: { OS: "web" },
+      useWindowDimensions: () => ({ width: 1200, height: 800 }),
+      View: "View",
+      Text: "Text",
+      ActivityIndicator: "ActivityIndicator",
+    },
     "@tanstack/react-query": {
       useQueryClient: () => ({ setQueryData: (key: unknown, value: unknown) => latches.push([key, value]) }),
-      useQuery: ({ queryKey }: { queryKey: unknown[] }) => queryKey[1] === "preview-long" ? { data: latched ? true : undefined }
-        : queryKey[1] === "preview" ? { isPending: false, isPlaceholderData: stepping, data: { kind: "markdown", markdown, bytes: markdown.length, truncated } } : {},
+      useQuery: ({ queryKey }: { queryKey: unknown[] }) =>
+        queryKey[1] === "preview-long"
+          ? { data: latched ? true : undefined }
+          : queryKey[1] === "preview"
+            ? { isPending: false, isPlaceholderData: stepping, data: { kind: "markdown", markdown, bytes: markdown.length, truncated } }
+            : {},
     },
     "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
     "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", Markdown, useToast: () => ({}), copyText: async () => {} },
@@ -120,8 +163,22 @@ function renderMarkdown({ markdown, truncated = false, ownScroll = false, latche
   const { PreviewContent, markdownFloor, roomForContent } = h.load("client/preview.tsx");
   const doc = { ref: "D1", title: "Report", path: "docs/report.md" };
   const longCalls: boolean[] = [];
-  const preview = PreviewContent({ colors: { surface0: "#000000", surface1: "#000000" }, attachment: doc, workspaceId: "w", workspaceDirectory: "/w", fullScreen: false, leftFullScreen: false,
-    ownScroll, onFullScreen() {}, onLong(long: boolean) { longCalls.push(long); }, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
+  const preview = PreviewContent({
+    colors: { surface0: "#000000", surface1: "#000000" },
+    attachment: doc,
+    workspaceId: "w",
+    workspaceDirectory: "/w",
+    fullScreen: false,
+    leftFullScreen: false,
+    ownScroll,
+    onFullScreen() {},
+    onLong(long: boolean) {
+      longCalls.push(long);
+    },
+    onOpenOnHost() {},
+    onCopyPath() {},
+    onOpenEntry() {},
+  });
   return {
     long: longCalls.at(-1),
     markdown: findType(preview, Markdown),
@@ -206,13 +263,25 @@ test("the Markdown floor stays under the real height at Paseo's smallest text si
 function renderPdf(query: Query & { isFetching?: boolean }, loading?: number) {
   let messages: unknown;
   const h = clientHarness(directory, {
-    react: { ...React, useState: (initial: unknown) => [initial, () => {}], useRef: (current: unknown) => ({ current }), useEffect: (effect: () => void) => effect(),
-      useMemo: (make: () => unknown) => make(), useContext: () => ({ locale: "en", messages }) },
-    "react-native": { Platform: { OS: "web" }, useWindowDimensions: () => ({ width: 1200, height: 800 }), View: "View", Text: "Text", ActivityIndicator: "ActivityIndicator" },
+    react: {
+      ...React,
+      useState: (initial: unknown) => [initial, () => {}],
+      useRef: (current: unknown) => ({ current }),
+      useEffect: (effect: () => void) => effect(),
+      useMemo: (make: () => unknown) => make(),
+      useContext: () => ({ locale: "en", messages }),
+    },
+    "react-native": {
+      Platform: { OS: "web" },
+      useWindowDimensions: () => ({ width: 1200, height: 800 }),
+      View: "View",
+      Text: "Text",
+      ActivityIndicator: "ActivityIndicator",
+    },
     "@tanstack/react-query": {
       useQueryClient: () => ({}),
-      useQuery: ({ queryKey }: { queryKey: unknown[] }) => queryKey[1] === "preview-loading" ? { data: loading }
-        : queryKey[1] === "preview" ? { isPending: false, isPlaceholderData: false, ...query } : {},
+      useQuery: ({ queryKey }: { queryKey: unknown[] }) =>
+        queryKey[1] === "preview-loading" ? { data: loading } : queryKey[1] === "preview" ? { isPending: false, isPlaceholderData: false, ...query } : {},
     },
     "@getpaseo/plugin/client": { useRpc: () => async () => ({}) },
     "@getpaseo/plugin/client/ui": { Icon: () => null, ScrollView: "ScrollView", useToast: () => ({}), copyText: async () => {} },
@@ -222,8 +291,22 @@ function renderPdf(query: Query & { isFetching?: boolean }, loading?: number) {
   const { PdfFrame } = h.load("client/pdf.tsx");
   const spec = { ref: "D1", title: "Spec", path: "docs/spec.pdf" };
   const longCalls: boolean[] = [];
-  const preview = PreviewContent({ colors: { surface0: "#000000", surface1: "#000000" }, attachment: spec, workspaceId: "w", workspaceDirectory: "/w", fullScreen: false, leftFullScreen: false,
-    ownScroll: false, onFullScreen() {}, onLong(long: boolean) { longCalls.push(long); }, onOpenOnHost() {}, onCopyPath() {}, onOpenEntry() {} });
+  const preview = PreviewContent({
+    colors: { surface0: "#000000", surface1: "#000000" },
+    attachment: spec,
+    workspaceId: "w",
+    workspaceDirectory: "/w",
+    fullScreen: false,
+    leftFullScreen: false,
+    ownScroll: false,
+    onFullScreen() {},
+    onLong(long: boolean) {
+      longCalls.push(long);
+    },
+    onOpenOnHost() {},
+    onCopyPath() {},
+    onOpenEntry() {},
+  });
   const text = (node: unknown): string[] => {
     if (typeof node === "string") return [node];
     if (Array.isArray(node)) return node.flatMap(text);

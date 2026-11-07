@@ -53,7 +53,26 @@ export function encodePowerShell(command: string): string {
 }
 
 // Words a shell runs without a program on the PATH.
-const BUILTINS = new Set(["cd", "export", "source", ".", "echo", "printf", "set", "unset", "alias", "eval", "exec", "pushd", "popd", "ulimit", "umask", "for", "if", "while"]);
+const BUILTINS = new Set([
+  "cd",
+  "export",
+  "source",
+  ".",
+  "echo",
+  "printf",
+  "set",
+  "unset",
+  "alias",
+  "eval",
+  "exec",
+  "pushd",
+  "popd",
+  "ulimit",
+  "umask",
+  "for",
+  "if",
+  "while",
+]);
 const POWERSHELL_WORDS = new Set(["cd", "ls", "dir", "cat", "echo", "rm", "cp", "mv", "del", "copy", "move", "mkdir", "type", "cls", "&"]);
 
 // Whether a word starts a command here: a shell builtin, a program on the PATH, or a path to

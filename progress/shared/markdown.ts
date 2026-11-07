@@ -42,7 +42,9 @@ export interface FileLocation {
 }
 
 export function prepareMarkdown(bytes: Uint8Array, truncated: boolean, where: FileLocation): string {
-  const text = previewText(bytes, truncated).replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  const text = previewText(bytes, truncated)
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n?/g, "\n");
   return rewriteTargets(fenceFrontMatter(text), where);
 }
 
@@ -195,7 +197,8 @@ function rewriteTargets(source: string, where: FileLocation): string {
       if (!lines[index].definition) continue;
       const lineText = source.slice(lines[index].start, lines[index].end);
       const target = definitionTarget(lineText);
-      if (target && !mask[lines[index].start - offset + target.start]) add(lines[index].start - offset + target.start, lines[index].start - offset + target.end, target.target, false);
+      if (target && !mask[lines[index].start - offset + target.start])
+        add(lines[index].start - offset + target.start, lines[index].start - offset + target.end, target.target, false);
     }
     for (const tag of text.matchAll(/<(img|a)\b[^>]*>/gi)) {
       if (mask[tag.index]) continue;
@@ -428,11 +431,15 @@ function blockUnits(body: string): { units: Unit[]; definitions: Line[] } {
     const text = body.slice(line.start, line.end);
     const current = unit as Unit | null;
     const inFence = line.kind === "fence-body" || line.kind === "fence-close";
-    const continues = current !== null && (
-      (current.kind === "fence" && inFence)
-      || (current.kind === "code" && line.kind === "indented-code")
-      || (current.kind === "item" && !line.topLevelItem && line.kind !== "blank" && (inFence || indentOf(text) >= 2 || (!afterBlank && line.kind === "text" && !line.headingLevel)))
-      || (current.kind === "paragraph" && line.kind === "text" && !line.headingLevel && !line.topLevelItem && !line.definition));
+    const continues =
+      current !== null &&
+      ((current.kind === "fence" && inFence) ||
+        (current.kind === "code" && line.kind === "indented-code") ||
+        (current.kind === "item" &&
+          !line.topLevelItem &&
+          line.kind !== "blank" &&
+          (inFence || indentOf(text) >= 2 || (!afterBlank && line.kind === "text" && !line.headingLevel))) ||
+        (current.kind === "paragraph" && line.kind === "text" && !line.headingLevel && !line.topLevelItem && !line.definition));
     if (continues) {
       current.end = line.end;
       current.lines.push(line);
@@ -468,7 +475,8 @@ function cutFirstBlock(body: string, first: Unit, maxChars: number): { end: numb
 
 function visibleLength(body: string, unit: Unit, maxChars: number): number {
   const text = body.slice(unit.start, unit.end);
-  if (unit.kind === "fence" || unit.kind === "code") return (unit.kind === "fence" ? unit.lines.slice(1, -1) : unit.lines).reduce((sum, line) => sum + line.end - line.start, 0);
+  if (unit.kind === "fence" || unit.kind === "code")
+    return (unit.kind === "fence" ? unit.lines.slice(1, -1) : unit.lines).reduce((sum, line) => sum + line.end - line.start, 0);
   if (/!\[[^\]]*\]\(|<img\b/i.test(text)) return maxChars;
   return text
     .replace(/<!--[\s\S]*?-->|<[^>]+>/g, "")

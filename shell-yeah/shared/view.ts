@@ -8,8 +8,10 @@ export type ActionId = "run" | "dismiss" | "stop" | "force-stop" | "copy" | "rer
 export type NoteIcon = "eye-off" | "eye" | "scissors" | "clock" | "info" | "folder" | "keyboard";
 
 // A row after merging its data with the freshest live reply (see client/live.ts).
-export type ResolvedRun = Pick<RunRow, "runId" | "origin" | "command" | "cwd"> & { terminal: boolean } &
-  Pick<LiveView, "rev" | "phase" | "output" | "sentAt" | "cursor"> & {
+export type ResolvedRun = Pick<RunRow, "runId" | "origin" | "command" | "cwd"> & { terminal: boolean } & Pick<
+    LiveView,
+    "rev" | "phase" | "output" | "sentAt" | "cursor"
+  > & {
     // Client time when a poll said the daemon never saw this run while the row still claimed running.
     lostAt: number | null;
     lastOutputAt: number | null;
@@ -24,10 +26,7 @@ export interface Action {
   disabled: boolean;
 }
 
-export type Well =
-  | { kind: "output"; skipped: number }
-  | { kind: "message"; text: string }
-  | { kind: "empty"; text: string };
+export type Well = { kind: "output"; skipped: number } | { kind: "message"; text: string } | { kind: "empty"; text: string };
 
 export interface Presentation {
   // proposed: dashed card with the full command. card: the receipt. dismissed: draws nothing.
@@ -83,9 +82,10 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string; 
   const phase = effectivePhase(run);
   const { lines, total } = run.output;
   const skipped = Math.max(0, total - lines.length);
-  const box = phase.kind === "running" && now + run.clockOffset - phase.startedAt >= LIMITS.liveBoxAfterMs
-    ? { lines: LIMITS.liveBoxLines, fixed: true }
-    : { lines: phase.kind === "failed" ? LIMITS.failedBoxLines : LIMITS.boxLines, fixed: false };
+  const box =
+    phase.kind === "running" && now + run.clockOffset - phase.startedAt >= LIMITS.liveBoxAfterMs
+      ? { lines: LIMITS.liveBoxLines, fixed: true }
+      : { lines: phase.kind === "failed" ? LIMITS.failedBoxLines : LIMITS.boxLines, fixed: false };
   const visible = trimBlankEnds(lines, skipped === 0).length;
   const { title, script } = splitTitle(run.command);
   const foldable = visible > box.lines || script.includes("\n") || script.length > LIMITS.headerCommandChars;
@@ -94,14 +94,44 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string; 
 
   if (phase.kind === "proposed") {
     return {
-      layout: "proposed", title, script, warning: warningFor(risksOf(script)), tone: "muted", badge: "play", label: `Suggested by ${agent}`, elapsed: null, timerFrom: null,
+      layout: "proposed",
+      title,
+      script,
+      warning: warningFor(risksOf(script)),
+      tone: "muted",
+      badge: "play",
+      label: `Suggested by ${agent}`,
+      elapsed: null,
+      timerFrom: null,
       actions: [action("run", "Run", true), action("copy", "Copy"), action("dismiss", "Dismiss")],
-      foldable: false, box, hint: null, well: null, keyboard: false,
-      notes: [{ icon: "eye-off", text: `${capitalize(agent)} sees the output only if you send it` }, { icon: "folder", text: basename(run.cwd) }],
+      foldable: false,
+      box,
+      hint: null,
+      well: null,
+      keyboard: false,
+      notes: [
+        { icon: "eye-off", text: `${capitalize(agent)} sees the output only if you send it` },
+        { icon: "folder", text: basename(run.cwd) },
+      ],
     };
   }
   if (phase.kind === "dismissed") {
-    return { layout: "dismissed", ...shown, tone: "muted", badge: "x", label: "Dismissed", elapsed: null, timerFrom: null, actions: [], foldable: false, box, notes: [], hint: null, well: null, keyboard: false };
+    return {
+      layout: "dismissed",
+      ...shown,
+      tone: "muted",
+      badge: "x",
+      label: "Dismissed",
+      elapsed: null,
+      timerFrom: null,
+      actions: [],
+      foldable: false,
+      box,
+      notes: [],
+      hint: null,
+      well: null,
+      keyboard: false,
+    };
   }
   if (phase.kind === "running") {
     const stopping = phase.stopRequestedAt !== null;
@@ -112,11 +142,18 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string; 
     const quiet = silentFor >= LIMITS.quietNoteMs ? ` · quiet for ${Math.floor(silentFor / 1000)}s` : "";
     const takesKeys = run.terminal;
     return {
-      layout: "card", ...shown, tone: "active", badge: "spinner",
+      layout: "card",
+      ...shown,
+      tone: "active",
+      badge: "spinner",
       label: stopping ? "Stopping" : "",
       elapsed: null,
       timerFrom: phase.startedAt - run.clockOffset,
-      actions: forceReady ? [action("force-stop", "Force stop", true)] : stopping ? [{ ...action("stop", "Stopping…", true), disabled: true }] : [action("stop", "Stop", true)],
+      actions: forceReady
+        ? [action("force-stop", "Force stop", true)]
+        : stopping
+          ? [{ ...action("stop", "Stopping…", true), disabled: true }]
+          : [action("stop", "Stop", true)],
       foldable,
       box,
       notes: [{ icon: "clock", text: total === 0 ? "No output yet" : `${formatCount(total)} ${total === 1 ? "line" : "lines"}${quiet}` }],
@@ -132,16 +169,21 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string; 
   const send = action("send", run.sentAt === null ? `Send to ${agent.replace(/^the /, "")}` : "Send again", sendIsPrimary);
   const actions = sendIsPrimary ? [send, action("copy", "Copy"), action("rerun", "Rerun")] : [action("copy", "Copy"), action("rerun", "Rerun"), send];
   const notes: Presentation["notes"] = [
-    run.sentAt === null ? { icon: "eye-off", text: `${capitalize(agent)} can't see this` } : { icon: "eye", text: `Sent to ${agent} ${formatClock(run.sentAt)}` },
+    run.sentAt === null
+      ? { icon: "eye-off", text: `${capitalize(agent)} can't see this` }
+      : { icon: "eye", text: `Sent to ${agent} ${formatClock(run.sentAt)}` },
   ];
   if (skipped > 0) notes.push({ icon: "scissors", text: `Last ${formatCount(lines.length)} of ${formatCount(total)} lines` });
   const notFound = (phase.kind === "failed" && phase.exitCode === 127) || /command not found/i.test(outputText);
   const hint = notFound ? NO_SHELL_FILES_HINT : !run.terminal && INPUT_PATTERNS.test(outputText) ? NO_KEYBOARD_HINT : null;
 
   const base = { layout: "card" as const, ...shown, elapsed, timerFrom: null, actions, foldable, box, notes, hint, keyboard: false };
-  const well: Well | null = phase.kind === "failed" && phase.message !== null
-    ? { kind: "message", text: phase.message }
-    : total === 0 ? { kind: "empty", text: "No output" } : { kind: "output", skipped };
+  const well: Well | null =
+    phase.kind === "failed" && phase.message !== null
+      ? { kind: "message", text: phase.message }
+      : total === 0
+        ? { kind: "empty", text: "No output" }
+        : { kind: "output", skipped };
   switch (phase.kind) {
     case "ok":
       return { ...base, tone: "success", badge: "check", label: "Done", well };
@@ -151,12 +193,31 @@ export function describe(run: ResolvedRun, now: number, opts: { agent?: string; 
     case "stopped":
       return { ...base, tone: "warning", badge: "square", label: "Stopped", well };
     case "interrupted":
-      return { ...base, tone: "warning", badge: "unplug", label: "Interrupted", well, notes: [...notes, { icon: "info" as const, text: "Stopped when the plugin restarted" }].slice(0, 2) };
+      return {
+        ...base,
+        tone: "warning",
+        badge: "unplug",
+        label: "Interrupted",
+        well,
+        notes: [...notes, { icon: "info" as const, text: "Stopped when the plugin restarted" }].slice(0, 2),
+      };
   }
 }
 
 export function pastRow(card: RunRow, past: PastRun): RunRow {
-  return { runId: past.runId, rev: card.rev, origin: card.origin, command: card.command, cwd: card.cwd, phase: past.phase, output: past.output, sentAt: past.sentAt, terminal: card.terminal, cardId: cardIdOf(card), runNumber: past.runNumber };
+  return {
+    runId: past.runId,
+    rev: card.rev,
+    origin: card.origin,
+    command: card.command,
+    cwd: card.cwd,
+    phase: past.phase,
+    output: past.output,
+    sentAt: past.sentAt,
+    terminal: card.terminal,
+    cardId: cardIdOf(card),
+    runNumber: past.runNumber,
+  };
 }
 
 export function pastRunView(card: RunRow, past: PastRun): ResolvedRun {
@@ -166,7 +227,10 @@ export function pastRunView(card: RunRow, past: PastRun): ResolvedRun {
 // An index into the card's past runs, or its latest run.
 export type RunInView = number | "latest";
 
-export function switcher(card: Pick<RunRow, "runNumber" | "past">, viewing: RunInView): { label: string; prev: RunInView | null; next: RunInView | null } | null {
+export function switcher(
+  card: Pick<RunRow, "runNumber" | "past">,
+  viewing: RunInView,
+): { label: string; prev: RunInView | null; next: RunInView | null } | null {
   const past = card.past ?? [];
   if (past.length === 0) return null;
   const at = viewing === "latest" ? past.length : viewing;
@@ -200,12 +264,15 @@ function action(id: ActionId, label: string, primary = false): Action {
 // Programs often open or close with blank lines (npm prints one before its "> script" banner).
 // Leading ones only go when the first kept line is the program's first line.
 export function trimBlankEnds(lines: readonly Line[], atStart: boolean): readonly Line[] {
-  const blank = (line: Line) => lineText(line).trim() === "";
   let from = 0;
   let to = lines.length;
-  while (atStart && from < to && blank(lines[from])) from++;
+  if (atStart) while (from < to && blank(lines[from])) from++;
   while (to > from && blank(lines[to - 1])) to--;
   return from === 0 && to === lines.length ? lines : lines.slice(from, to);
+}
+
+function blank(line: Line): boolean {
+  return lineText(line).trim() === "";
 }
 
 // Same format as playwright-pulse: "0.8s", "9.9s", "12s", "1m 05s", "1h 02m", with

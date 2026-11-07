@@ -48,6 +48,10 @@ const CONTROL = /[\x00-\x1f\x7f]/;
 const MAX_PENDING = 4096;
 const CLAMP_MARK = "…";
 
+function emptyRow(): Row {
+  return { segs: [], len: 0, clamped: false };
+}
+
 export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Screen {
   const rows: Row[] = [emptyRow()];
   let row = 0;
@@ -57,10 +61,6 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
   const pen: Pen = { attrs: new Set(), fg: null, bg: null };
   let penKey = "";
   const interned = new Map<string, string>();
-
-  function emptyRow(): Row {
-    return { segs: [], len: 0, clamped: false };
-  }
 
   function trimRows() {
     // The empty row the cursor sits on after a newline is not a line yet.
@@ -166,20 +166,38 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
     const nums = params.split(";").map((p) => (p === "" ? 0 : Number.parseInt(p, 10)));
     const n = Math.max(1, nums[0] || 0);
     switch (final) {
-      case "A": row = Math.max(0, row - n); break;
-      case "B": moveTo(row + n); break;
-      case "C": col = toCol(col + n); break;
-      case "D": col = Math.max(0, col - n); break;
-      case "E": moveTo(row + n); col = 0; break;
-      case "F": row = Math.max(0, row - n); col = 0; break;
-      case "G": col = toCol(n - 1); break;
+      case "A":
+        row = Math.max(0, row - n);
+        break;
+      case "B":
+        moveTo(row + n);
+        break;
+      case "C":
+        col = toCol(col + n);
+        break;
+      case "D":
+        col = Math.max(0, col - n);
+        break;
+      case "E":
+        moveTo(row + n);
+        col = 0;
+        break;
+      case "F":
+        row = Math.max(0, row - n);
+        col = 0;
+        break;
+      case "G":
+        col = toCol(n - 1);
+        break;
       case "H":
       case "f": {
         moveTo((nums[0] || 1) - 1);
         col = toCol((nums[1] || 1) - 1);
         break;
       }
-      case "K": eraseLine(nums[0] || 0); break;
+      case "K":
+        eraseLine(nums[0] || 0);
+        break;
       case "J": {
         const mode = nums[0] || 0;
         if (mode === 0) {
@@ -188,8 +206,11 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
         } else if (mode >= 2) clearAll();
         break;
       }
-      case "m": if (!params.startsWith("?")) applySgr(nums); break;
-      default: break;
+      case "m":
+        if (!params.startsWith("?")) applySgr(nums);
+        break;
+      default:
+        break;
     }
   }
 
@@ -222,7 +243,7 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
         else pen.bg = value;
       }
     }
-    const key = [...[...pen.attrs].sort((a, b) => a - b).map(String), ...(pen.fg ? [pen.fg] : []), ...(pen.bg ? [pen.bg] : [])].join(";");
+    const key = [...[...pen.attrs].toSorted((a, b) => a - b).map(String), ...(pen.fg ? [pen.fg] : []), ...(pen.bg ? [pen.bg] : [])].join(";");
     penKey = interned.get(key) ?? (interned.set(key, key), key);
   }
 
@@ -309,7 +330,9 @@ export function createScreen(limits: ScreenLimits = DEFAULT_SCREEN_LIMITS): Scre
       return { lines, total: dropped + visible.length, cursor: up < lines.length ? { up, col } : null };
     },
     text() {
-      return visibleRows().map((r) => r.segs.map((s) => s.text).join("")).join("\n");
+      return visibleRows()
+        .map((r) => r.segs.map((s) => s.text).join(""))
+        .join("\n");
     },
     get dropped() {
       return dropped;

@@ -77,10 +77,15 @@ export function clientHeadline(locale: ProgressLocale, dashboard: Dashboard): He
 
 export function timelineLabel(m: ProgressMessages, label: TimelineLabel): string {
   switch (label.kind) {
-    case "added": return m.added;
-    case "reset": return m.resetStatus;
-    case "stage": return m.stageLabel(label.stage);
-    case "status": return m.status[label.status];
-    case "waiting": return m.waitingForTicket(label.id);
+    case "added":
+      return m.added;
+    case "reset":
+      return m.resetStatus;
+    case "stage":
+      return m.stageLabel(label.stage);
+    case "status":
+      return m.status[label.status];
+    case "waiting":
+      return m.waitingForTicket(label.id);
   }
 }

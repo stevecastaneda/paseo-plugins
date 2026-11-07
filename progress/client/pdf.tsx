@@ -29,15 +29,29 @@ function PdfFile({ file, colors }: { file: PluginFile; colors: Colors }) {
   const { messages: m } = useProgressLanguage();
   const url = useFileUrl(file);
   if (url.status === "loading") return <Loading />;
-  if (url.status === "error") return <Note colors={colors} alert>{m.previewError(errorText(url.error, m.unknownError))}</Note>;
-  return <View style={{ flex: 1, minHeight: 0 }}><DocumentFrame url={url.url} /></View>;
+  if (url.status === "error")
+    return (
+      <Note colors={colors} alert>
+        {m.previewError(errorText(url.error, m.unknownError))}
+      </Note>
+    );
+  return (
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <DocumentFrame url={url.url} />
+    </View>
+  );
 }
 
 function Note({ colors, alert = false, children }: { colors: Colors; alert?: boolean; children: string }) {
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <Text accessibilityRole={alert ? "alert" : undefined} selectable
-        style={{ maxWidth: 360, textAlign: "center", color: alert ? colors.statusDanger : colors.foregroundMuted, fontSize: 13, lineHeight: 19 }}>{children}</Text>
+      <Text
+        accessibilityRole={alert ? "alert" : undefined}
+        selectable
+        style={{ maxWidth: 360, textAlign: "center", color: alert ? colors.statusDanger : colors.foregroundMuted, fontSize: 13, lineHeight: 19 }}
+      >
+        {children}
+      </Text>
     </View>
   );
 }

@@ -4,8 +4,12 @@ import { LIMITS, type Limits } from "../shared/limits.ts";
 import { isEnded, type LiveView, type RunRow } from "../shared/row.ts";
 import type { ResolvedRun } from "../shared/view.ts";
 
-export type TailRpc = (input: { runId: string; lines: number; since: number | null; waitMs: number }) =>
-  Promise<{ state: "unknown" } | { state: "unchanged"; rev: number } | { state: "view"; view: LiveView }>;
+export type TailRpc = (input: {
+  runId: string;
+  lines: number;
+  since: number | null;
+  waitMs: number;
+}) => Promise<{ state: "unknown" } | { state: "unchanged"; rev: number } | { state: "view"; view: LiveView }>;
 
 // Per-run client state that must outlive a remount (web virtualizes rows after 100 items).
 export interface LiveEntry {
@@ -53,7 +57,7 @@ export interface LiveStore {
 export function createLiveStore(deps: LiveStoreDeps): LiveStore {
   const limits: Limits = { ...LIMITS, ...deps.limits };
   const now = deps.now ?? (() => Date.now());
-  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((wake) => setTimeout(wake, ms)));
   const entries = new Map<string, LiveEntry>();
   let active = true;
 
@@ -61,7 +65,23 @@ export function createLiveStore(deps: LiveStoreDeps): LiveStore {
     let e = entries.get(runId);
     if (!e) {
       trim();
-      e = { row: row!, view: null, lostAt: null, clockOffset: 0, expanded: false, following: true, seenLive: false, subscribers: 0, listeners: new Set(), polling: false, token: 0, refresh: false, touchedAt: now(), version: 0, entered: false };
+      e = {
+        row: row!,
+        view: null,
+        lostAt: null,
+        clockOffset: 0,
+        expanded: false,
+        following: true,
+        seenLive: false,
+        subscribers: 0,
+        listeners: new Set(),
+        polling: false,
+        token: 0,
+        refresh: false,
+        touchedAt: now(),
+        version: 0,
+        entered: false,
+      };
       entries.set(runId, e);
     }
     if (row) e.row = row;
@@ -87,7 +107,11 @@ export function createLiveStore(deps: LiveStoreDeps): LiveStore {
     const useView = v !== null && (v.rev > row.rev || (v.rev === row.rev && isEnded(v.phase)));
     const live = useView ? v : null;
     return {
-      runId: row.runId, origin: row.origin, command: row.command, cwd: row.cwd, terminal: row.terminal === true,
+      runId: row.runId,
+      origin: row.origin,
+      command: row.command,
+      cwd: row.cwd,
+      terminal: row.terminal === true,
       rev: live?.rev ?? row.rev,
       phase: live?.phase ?? row.phase,
       output: live?.output ?? row.output,
@@ -211,18 +235,38 @@ function appStore(rpc: TailRpc): LiveStore {
 // while the merged phase is running, something is mounted, and the app is active.
 export function useResolvedRun(row: RunRow, rpc: TailRpc): ResolvedRun {
   const store = appStore(rpc);
-  useSyncExternalStore((listener) => store.subscribe(row.runId, listener), () => store.entry(row.runId).version);
+  useSyncExternalStore(
+    (listener) => store.subscribe(row.runId, listener),
+    () => store.entry(row.runId).version,
+  );
   useEffect(() => store.attach(row), [row.runId]);
   useEffect(() => store.update(row), [row]);
   return store.resolve(row);
 }
 
-export function useRunUi(runId: string, rpc: TailRpc): { expanded: boolean; setExpanded(v: boolean): void; following: boolean; setFollowing(v: boolean): void; seenLive: boolean; entered: boolean; markEntered(): void } {
+export function useRunUi(
+  runId: string,
+  rpc: TailRpc,
+): {
+  expanded: boolean;
+  setExpanded(v: boolean): void;
+  following: boolean;
+  setFollowing(v: boolean): void;
+  seenLive: boolean;
+  entered: boolean;
+  markEntered(): void;
+} {
   const store = appStore(rpc);
-  useSyncExternalStore((listener) => store.subscribe(runId, listener), () => store.entry(runId).version);
+  useSyncExternalStore(
+    (listener) => store.subscribe(runId, listener),
+    () => store.entry(runId).version,
+  );
   const { expanded, following, seenLive, entered } = store.entry(runId);
   return {
-    expanded, following, seenLive, entered,
+    expanded,
+    following,
+    seenLive,
+    entered,
     markEntered: () => store.markEntered(runId),
     setExpanded: (v) => store.setExpanded(runId, v),
     setFollowing: (v) => store.setFollowing(runId, v),

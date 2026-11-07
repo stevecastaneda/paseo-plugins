@@ -10,9 +10,12 @@ const SOURCE = "// Written by the playwright-pulse Paseo plugin.\nexport default
 
 test("stopping while the plugin is still starting leaves no reporter behind", async () => {
   const path = join(mkdtempSync(join(tmpdir(), "pulse-reporter-")), "reporter.mjs");
-  let release = () => {};
+  let release!: () => void;
   // Finding the plugin's own files takes a moment (it asks the paseo CLI).
-  const slowSource = () => new Promise<string>((resolve) => { release = () => resolve(SOURCE); });
+  const slowSource = () =>
+    new Promise<string>((resolve) => {
+      release = () => resolve(SOURCE);
+    });
   const starting = startReporter(path, slowSource);
   const stopping = stopReporter(path);
   release();

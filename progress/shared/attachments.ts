@@ -19,7 +19,18 @@ export function deliverableAttachment(deliverable: Deliverable): Attachment {
 }
 
 function fileAttachment(ref: string, file: FileLink): Attachment {
-  return { ref, title: file.label ?? (file.path ?? file.url ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "", path: file.path, url: file.url };
+  return {
+    ref,
+    title:
+      file.label ??
+      (file.path ?? file.url ?? "")
+        .replace(/[\\/]+$/, "")
+        .split(/[\\/]/)
+        .pop() ??
+      "",
+    path: file.path,
+    url: file.url,
+  };
 }
 
 export function questionAttachments(question: Question): Attachment[] {
@@ -176,7 +187,7 @@ export function attachmentIcon(attachment: Attachment): string {
   if (attachment.url) return "Globe";
   if (!attachment.path) return "File";
   const kind = previewKind(attachment.path);
-  return kind ? PREVIEW_ICON[kind] : /[\/]$/.test(attachment.path) ? "Folder" : "File";
+  return kind ? PREVIEW_ICON[kind] : attachment.path.endsWith("/") ? "Folder" : "File";
 }
 
 // An HTML page is too wide for the dialog, so where the host can't open it the
@@ -197,7 +208,16 @@ export function opensInTab(attachment: Attachment, where: { platform: string }):
 // The short name people recognize: a file or folder's own name, or a link's site.
 export function shortName(attachment: Attachment): string {
   if (attachment.url) {
-    try { return new URL(attachment.url).host.replace(/^www\./, ""); } catch { return attachment.url; }
+    try {
+      return new URL(attachment.url).host.replace(/^www\./, "");
+    } catch {
+      return attachment.url;
+    }
   }
-  return (attachment.path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+  return (
+    (attachment.path ?? "")
+      .replace(/[\\/]+$/, "")
+      .split(/[\\/]/)
+      .pop() ?? ""
+  );
 }

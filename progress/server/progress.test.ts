@@ -16,8 +16,29 @@ import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format
 import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
-import { canOpenFiles, hostOpener, MAX_FOLDER_ENTRIES, MAX_PREVIEW_BYTES, MAX_PREVIEW_TEXT_BYTES, openCommand, openDeliverable, PIECE_BYTES, PIECED_LIMIT_BYTES, previewDeliverable, readDeliverablePiece } from "./open.ts";
-import { attachmentIcon, canPreview, deliverableAttachment, opensAsPage, opensInTab, findAttachment, folderAttachments, imageMimeType } from "../shared/attachments.ts";
+import {
+  canOpenFiles,
+  hostOpener,
+  MAX_FOLDER_ENTRIES,
+  MAX_PREVIEW_BYTES,
+  MAX_PREVIEW_TEXT_BYTES,
+  openCommand,
+  openDeliverable,
+  PIECE_BYTES,
+  PIECED_LIMIT_BYTES,
+  previewDeliverable,
+  readDeliverablePiece,
+} from "./open.ts";
+import {
+  attachmentIcon,
+  canPreview,
+  deliverableAttachment,
+  opensAsPage,
+  opensInTab,
+  findAttachment,
+  folderAttachments,
+  imageMimeType,
+} from "../shared/attachments.ts";
 import { findStore, outsideDirectory, runFileName } from "./store.ts";
 import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMode } from "./question-mode.ts";
 import type { QuestionMode } from "../shared/question-modes.ts";
@@ -35,8 +56,10 @@ const git = async (cwd: string, ...args: string[]) =>
   (await promisify(execFile)("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd })).stdout;
 
 const WORK_AROUND_LINE = `Question mode: Work around, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`;
-const HOLD_RULE = "Build no option before the answer, not even your recommendation. Work on everything the question doesn't affect. If nothing else is left, end your turn, tell the user in chat which questions you're waiting on, and leave the run open.";
-const STOP_RULE = "Ask any other questions you already have, then stop all work and resume only after an answer. End your turn now, tell the user in chat which questions you're waiting on, and leave the run open.";
+const HOLD_RULE =
+  "Build no option before the answer, not even your recommendation. Work on everything the question doesn't affect. If nothing else is left, end your turn, tell the user in chat which questions you're waiting on, and leave the run open.";
+const STOP_RULE =
+  "Ask any other questions you already have, then stop all work and resume only after an answer. End your turn now, tell the user in chat which questions you're waiting on, and leave the run open.";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const minutes = (count: number) => new Date(T0 + count * 60_000);
@@ -53,7 +76,9 @@ async function worktree(t: TestContext) {
     // Where the working files are, outside the repo.
     store,
     output,
-    at(minute: number) { clock = minute; },
+    at(minute: number) {
+      clock = minute;
+    },
     run(...argv: string[]) {
       return this.runAs(undefined, ...argv);
     },
@@ -74,7 +99,10 @@ test("a line cut short by a killed command doesn't swallow the next event", asyn
   await appendFile(join(w.store, "progress.jsonl"), '{"v":1,"ts":"2026-01-01T00:00:00.000Z","type":"activity.ad');
   assert.equal((await w.run("activity", "add", "After the crash")).code, 0);
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.activity.map((entry) => entry.text), ["After the crash"]);
+  assert.deepEqual(
+    dashboard.activity.map((entry) => entry.text),
+    ["After the crash"],
+  );
   assert.equal(dashboard.issues.length, 1, "only the cut line is skipped");
 });
 
@@ -165,28 +193,58 @@ test("a ticket's story: its stages with durations, and what belongs to it exactl
 
   const { dashboard } = await w.dashboard(50);
   const t01 = dashboard.tickets.find((ticket) => ticket.id === "T01")!;
-  const story = ticketStory(t01, {
-    deliverables: dashboard.deliverables,
-    questions: [...dashboard.questions.open, ...dashboard.questions.answered],
-    activity: [...dashboard.activity].reverse(),
-  }, minutes(50).getTime());
-  assert.deepEqual(story.timeline.map((step) => [step.label, step.minutes === null ? null : Math.round(step.minutes)]), [
-    [{ kind: "added" }, 10], [{ kind: "stage", stage: "Build" }, 15], [{ kind: "stage", stage: "Review" }, 15], [{ kind: "status", status: "done" }, null],
-  ]);
+  const story = ticketStory(
+    t01,
+    {
+      deliverables: dashboard.deliverables,
+      questions: [...dashboard.questions.open, ...dashboard.questions.answered],
+      activity: dashboard.activity.toReversed(),
+    },
+    minutes(50).getTime(),
+  );
+  assert.deepEqual(
+    story.timeline.map((step) => [step.label, step.minutes === null ? null : Math.round(step.minutes)]),
+    [
+      [{ kind: "added" }, 10],
+      [{ kind: "stage", stage: "Build" }, 15],
+      [{ kind: "stage", stage: "Review" }, 15],
+      [{ kind: "status", status: "done" }, null],
+    ],
+  );
   assert.deepEqual(story.timeline[2].notes, ["Build went fast"]);
   assert.equal(Math.round(story.workedMin), 30);
-  assert.deepEqual(story.activity.map((entry) => [entry.text, entry.link]), [
-    ["Untagged, while T01 worked", "by-time"],
-    ["Tagged to T01", "tagged"],
-    ["Tagged to T01 later", "tagged"],
-  ]);
-  assert.deepEqual(story.questions.map((question) => [question.id, question.link]), [["Q1", "tagged"]]);
-  assert.deepEqual(story.deliverables.map((deliverable) => deliverable.id), ["D1"]);
+  assert.deepEqual(
+    story.activity.map((entry) => [entry.text, entry.link]),
+    [
+      ["Untagged, while T01 worked", "by-time"],
+      ["Tagged to T01", "tagged"],
+      ["Tagged to T01 later", "tagged"],
+    ],
+  );
+  assert.deepEqual(
+    story.questions.map((question) => [question.id, question.link]),
+    [["Q1", "tagged"]],
+  );
+  assert.deepEqual(
+    story.deliverables.map((deliverable) => deliverable.id),
+    ["D1"],
+  );
 
   const t02 = dashboard.tickets.find((ticket) => ticket.id === "T02")!;
-  const current = ticketStory(t02, { deliverables: [], questions: [], activity: [...dashboard.activity].reverse() }, minutes(50).getTime());
-  assert.deepEqual(current.timeline.map((step) => [step.label, Math.round(step.minutes!)]), [[{ kind: "added" }, 40], [{ kind: "status", status: "working" }, 10]], "the step still going runs to now");
-  assert.deepEqual(current.activity.map((entry) => entry.text), ["Untagged, while T02 worked"], "tags to another ticket never match by time");
+  const current = ticketStory(t02, { deliverables: [], questions: [], activity: dashboard.activity.toReversed() }, minutes(50).getTime());
+  assert.deepEqual(
+    current.timeline.map((step) => [step.label, Math.round(step.minutes!)]),
+    [
+      [{ kind: "added" }, 40],
+      [{ kind: "status", status: "working" }, 10],
+    ],
+    "the step still going runs to now",
+  );
+  assert.deepEqual(
+    current.activity.map((entry) => entry.text),
+    ["Untagged, while T02 worked"],
+    "tags to another ticket never match by time",
+  );
 });
 
 test("a ticket waiting for another is not stuck, even if marked blocked, until that one is done", async (t) => {
@@ -202,14 +260,22 @@ test("a ticket waiting for another is not stuck, even if marked blocked, until t
 
   let { dashboard } = await w.dashboard();
   assert.deepEqual(dashboard.tickets.find((ticket) => ticket.id === "T02")?.waitingFor, { id: "T01", title: "Ticket 01: Build" });
-  assert.deepEqual(dashboard.stuck.map((item) => item.key), ["blocked:T03"], "only the outside blocker is stuck");
+  assert.deepEqual(
+    dashboard.stuck.map((item) => item.key),
+    ["blocked:T03"],
+    "only the outside blocker is stuck",
+  );
   assert.equal(dashboard.progress.segments.find((segment) => segment.id === "T02")?.waiting, true);
   assert.match((await w.run("show")).text, /T02 {2}Waiting for T01/);
 
   await w.run("ticket", "update", "T01", "--status", "done");
   ({ dashboard } = await w.dashboard());
   assert.equal(dashboard.tickets.find((ticket) => ticket.id === "T02")?.waitingFor, undefined, "done unblocks the wait");
-  assert.deepEqual(dashboard.stuck.map((item) => item.key), ["blocked:T02", "blocked:T03"], "still marked blocked after it: now that's stuck");
+  assert.deepEqual(
+    dashboard.stuck.map((item) => item.key),
+    ["blocked:T02", "blocked:T03"],
+    "still marked blocked after it: now that's stuck",
+  );
   await w.run("ticket", "update", "T02", "--waits-for", "");
   assert.equal((await w.dashboard()).dashboard.tickets.find((ticket) => ticket.id === "T02")?.waitsFor, undefined, "an empty value clears it");
 });
@@ -250,16 +316,31 @@ test("tickets added and updated by the agent show up with ids, statuses, and the
   assert.equal(dashboard.updatedAt, minutes(30).toISOString());
   assert.deepEqual(
     dashboard.tickets.map(({ id, status, estimateMin }) => [id, status, estimateMin]),
-    [["T01", "done", 120], ["T02", "done", 150], ["T03", "working", 120], ["T04", "not_started", 75]],
+    [
+      ["T01", "done", 120],
+      ["T02", "done", 150],
+      ["T03", "working", 120],
+      ["T04", "not_started", 75],
+    ],
   );
   assert.equal(dashboard.tickets[2].note, "Fixes after review");
   assert.deepEqual(dashboard.issues, []);
 });
 
+function ticketsWith(...statuses: Ticket["status"][]) {
+  return statuses.map((status, index) => ({ id: `T0${index + 1}`, title: "", estimateMin: 10, status, statusSince: "", history: [] }));
+}
+
+function folded(...statuses: Ticket["status"][]) {
+  return finishedToFold(ticketsWith(...statuses)).map((ticket) => ticket.id);
+}
+
 test("the panel folds every finished ticket, and only two or more", () => {
-  const list = (...statuses: Ticket["status"][]) => statuses.map((status, index) => ({ id: `T0${index + 1}`, title: "", estimateMin: 10, status, statusSince: "", history: [] }));
-  const folded = (...statuses: Ticket["status"][]) => finishedToFold(list(...statuses)).map((ticket) => ticket.id);
-  assert.deepEqual(folded("done", "skipped", "done", "working", "done", "not_started"), ["T01", "T02", "T03", "T05"], "the done ticket after the working one folds too");
+  assert.deepEqual(
+    folded("done", "skipped", "done", "working", "done", "not_started"),
+    ["T01", "T02", "T03", "T05"],
+    "the done ticket after the working one folds too",
+  );
   assert.deepEqual(folded("not_started", "done", "done"), ["T02", "T03"]);
   assert.deepEqual(folded("done", "working", "not_started"), [], "one finished ticket isn't worth a fold row");
   assert.deepEqual(folded("done", "skipped", "done"), [], "once everything is finished, the whole list shows");
@@ -275,7 +356,10 @@ test("removed tickets leave the dashboard and their ids are never reused", async
   assert.match((await w.run("ticket", "add", "Three", "--estimate", "10")).text, /^Added T03/);
   await w.run("ticket", "update", "T03", "--status", "skipped");
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.id), ["T01", "T03"]);
+  assert.deepEqual(
+    dashboard.tickets.map((ticket) => ticket.id),
+    ["T01", "T03"],
+  );
   assert.equal(headlineText(dashboard), "0 of 1 ticket done", "skipped tickets are not counted");
 });
 
@@ -338,7 +422,11 @@ test("a workspace below the worktree root reads the root's progress and attachme
 test("the handler reads the requested workspace directory without calling Paseo", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");
-  const paseo = new Proxy({} as PluginHandlerContext["paseo"], { get() { throw new Error("must not call paseo"); } });
+  const paseo = new Proxy({} as PluginHandlerContext["paseo"], {
+    get() {
+      throw new Error("must not call paseo");
+    },
+  });
   const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: w.directory }, { paseo });
   assert.ok("dashboard" in result);
   assert.equal(result.dashboard.run?.title, "Run");
@@ -398,10 +486,16 @@ test("each working ticket's overdue moment ends the cached dashboard", async (t)
   const first = (await w.dashboard(0)).dashboard;
   assert.strictEqual((await w.dashboard(5)).dashboard, first);
   const one = (await after(5)).dashboard;
-  assert.deepEqual(one.stuck.map((item) => item.ticketId), ["T01"]);
+  assert.deepEqual(
+    one.stuck.map((item) => item.ticketId),
+    ["T01"],
+  );
   assert.strictEqual((await w.dashboard(10)).dashboard, one);
   const both = (await after(10)).dashboard;
-  assert.deepEqual(both.stuck.map((item) => item.ticketId), ["T01", "T02"]);
+  assert.deepEqual(
+    both.stuck.map((item) => item.ticketId),
+    ["T01", "T02"],
+  );
 });
 
 test("rewriting or deleting the file invalidates the reduced dashboard", async (t) => {
@@ -453,8 +547,14 @@ test("each event records the Paseo agent that wrote it, from PASEO_AGENT_ID", as
   const { PASEO_AGENT_ID: _, ...outside } = process.env;
   await run({ ...process.env, PASEO_AGENT_ID: "agent-a" }, "start", "Run");
   await run(outside, "ticker", "set", "From a terminal");
-  const lines = (await readFile(join(w.store, "progress.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-  assert.deepEqual(lines.map((line) => line.by), ["agent-a", undefined]);
+  const lines = (await readFile(join(w.store, "progress.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    lines.map((line) => line.by),
+    ["agent-a", undefined],
+  );
 });
 
 test("an agent hears about tickets another session added, once, on its next command", async (t) => {
@@ -470,13 +570,22 @@ test("an agent hears about tickets another session added, once, on its next comm
   await w.runAs("b", "ticket", "remove", "T05");
 
   const shown = await w.runAs("a", "show");
-  assert.match(shown.text, /Another session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket\.$/);
+  assert.match(
+    shown.text,
+    /Another session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket\.$/,
+  );
   const told = await w.runAs("a", "ticker", "set", "Building");
-  assert.equal(told.text, "Ticker: Building\n\nAnother session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket.");
+  assert.equal(
+    told.text,
+    "Ticker: Building\n\nAnother session added 2 tickets since your last update:\n  T02  Ticket 02: Theirs\n  T03  Ticket 03: From a terminal\nThey are part of this run: work them in order after your current ticket.",
+  );
   assert.equal((await w.runAs("a", "ticker", "set", "Still building")).text, "Ticker: Still building", "each alert shows once");
 
   await w.runAs("b", "ticket", "add", "Ticket 06: One more", "--estimate", "20");
-  assert.match((await w.runAs("a", "ticket", "update", "T01", "--stage", "Review")).text, /added a ticket since your last update:\n  T06  Ticket 06: One more\nIt is part of this run: work it in order after your current ticket\.$/);
+  assert.match(
+    (await w.runAs("a", "ticket", "update", "T01", "--stage", "Review")).text,
+    /added a ticket since your last update:\n  T06  Ticket 06: One more\nIt is part of this run: work it in order after your current ticket\.$/,
+  );
 });
 
 test("an agent new to the run, a command outside Paseo, and a new run hear nothing", async (t) => {
@@ -489,7 +598,10 @@ test("an agent new to the run, a command outside Paseo, and a new run hear nothi
   assert.doesNotMatch((await w.run("ticker", "set", "From a terminal")).text, /Another session/);
   assert.doesNotMatch((await w.runAs("a", "start", "Next run", "--item-label", "Step")).text, /Another session/);
   await w.runAs("b", "ticket", "add", "Third", "--estimate", "30");
-  assert.match((await w.runAs("a", "ticker", "set", "Back")).text, /Another session added a step since your last update:\n  T01  Third\nIt is part of this run: work it in order after your current step\.$/);
+  assert.match(
+    (await w.runAs("a", "ticker", "set", "Back")).text,
+    /Another session added a step since your last update:\n  T01  Third\nIt is part of this run: work it in order after your current step\.$/,
+  );
 });
 
 test("a ticket links to where it's written up: a file in the worktree or a link, changed or cleared later", async (t) => {
@@ -497,43 +609,60 @@ test("a ticket links to where it's written up: a file in the worktree or a link,
   await mkdir(join(w.directory, "specs"));
   await writeFile(join(w.directory, "specs", "01-login.md"), "# Login\n");
   await w.run("start", "Run");
-  assert.equal((await w.run("ticket", "add", "Ticket 01: Login", "--estimate", "30", "--source", "specs/01-login.md")).text, "Added T01: Ticket 01: Login (30m), source specs/01-login.md");
+  assert.equal(
+    (await w.run("ticket", "add", "Ticket 01: Login", "--estimate", "30", "--source", "specs/01-login.md")).text,
+    "Added T01: Ticket 01: Login (30m), source specs/01-login.md",
+  );
   await w.run("ticket", "add", "Ticket 02: Reset", "--estimate", "20", "--source", "https://linear.app/acme/issue/ENG-12=ENG-12");
   await w.run("ticket", "add", "Ticket 03: No write-up", "--estimate", "20");
   let { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, { url: "https://linear.app/acme/issue/ENG-12", label: "ENG-12" }, undefined]);
+  assert.deepEqual(
+    dashboard.tickets.map((ticket) => ticket.source),
+    [{ path: "specs/01-login.md" }, { url: "https://linear.app/acme/issue/ENG-12", label: "ENG-12" }, undefined],
+  );
   assert.deepEqual(findAttachment(dashboard, "T01.source"), { ref: "T01.source", title: "01-login.md", path: "specs/01-login.md", url: undefined });
   assert.equal(findAttachment(dashboard, "T03.source"), null);
-  assert.match((await w.run("show")).text, /T01 .*Ticket 01: Login\n      Source: specs\/01-login.md\n.*T02 .*\n      Source: https:\/\/linear.app\/acme\/issue\/ENG-12 \(ENG-12\)\n.*T03 .*No write-up(\n|$)/);
+  assert.match(
+    (await w.run("show")).text,
+    /T01 .*Ticket 01: Login\n      Source: specs\/01-login.md\n.*T02 .*\n      Source: https:\/\/linear.app\/acme\/issue\/ENG-12 \(ENG-12\)\n.*T03 .*No write-up(\n|$)/,
+  );
 
   assert.deepEqual(await previewDeliverable(w.directory, "T01.source"), { kind: "markdown", markdown: "# Login\n", bytes: 8, truncated: false });
 
   assert.equal((await w.run("ticket", "update", "T03", "--source", "specs/01-login.md=Shared spec")).text, "Updated T03: source specs/01-login.md");
   await w.run("ticket", "update", "T02", "--source", "");
   ({ dashboard } = await w.dashboard());
-  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.source), [{ path: "specs/01-login.md" }, undefined, { path: "specs/01-login.md", label: "Shared spec" }]);
+  assert.deepEqual(
+    dashboard.tickets.map((ticket) => ticket.source),
+    [{ path: "specs/01-login.md" }, undefined, { path: "specs/01-login.md", label: "Shared spec" }],
+  );
 });
 
 test("Progress's own Markdown reads as headings, paragraphs, list items and code", () => {
-  const blocks = parseBlocks([
-    "# Ticket 01: Login",
-    "",
-    "Let people sign in with **email** and a [magic link](https://x.y).",
-    "It wraps onto",
-    "two lines.",
-    "",
-    "## Acceptance",
-    "- [ ] Sends the `link`",
-    "  within a minute",
-    "  1. Nested _step_",
-    "---",
-    "```",
-    "npm test",
-    "```",
-  ].join("\n"));
+  const blocks = parseBlocks(
+    [
+      "# Ticket 01: Login",
+      "",
+      "Let people sign in with **email** and a [magic link](https://x.y).",
+      "It wraps onto",
+      "two lines.",
+      "",
+      "## Acceptance",
+      "- [ ] Sends the `link`",
+      "  within a minute",
+      "  1. Nested _step_",
+      "---",
+      "```",
+      "npm test",
+      "```",
+    ].join("\n"),
+  );
   assert.deepEqual(blocks, [
     { kind: "heading", level: 1, spans: [{ text: "Ticket 01: Login" }] },
-    { kind: "paragraph", spans: [{ text: "Let people sign in with " }, { text: "email", strong: true }, { text: " and a magic link. It wraps onto two lines." }] },
+    {
+      kind: "paragraph",
+      spans: [{ text: "Let people sign in with " }, { text: "email", strong: true }, { text: " and a magic link. It wraps onto two lines." }],
+    },
     { kind: "heading", level: 2, spans: [{ text: "Acceptance" }] },
     { kind: "item", marker: "☐", depth: 0, spans: [{ text: "Sends the " }, { text: "link", code: true }, { text: " within a minute" }] },
     { kind: "item", marker: "1.", depth: 1, spans: [{ text: "Nested step" }] },
@@ -557,7 +686,10 @@ test("each ticket and the ticker remember the agent that last wrote them", async
   await w.run("ticket", "update", "T01", "--stage", "Review");
   await w.runAs("b", "ticker", "set", "Reviewing");
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.tickets.map((ticket) => ticket.agentId), ["b", undefined]);
+  assert.deepEqual(
+    dashboard.tickets.map((ticket) => ticket.agentId),
+    ["b", undefined],
+  );
   assert.equal(dashboard.ticker?.by, "b");
 });
 
@@ -573,8 +705,17 @@ test("plain steps, with no write-ups, stages or Paseo agent, still get a dialog 
   assert.equal(step.source, undefined, "no write-up section");
   assert.equal(step.agentId, undefined, "no agent row");
   assert.equal(dashboard.ticker?.by, undefined, "the status line goes by the one working step");
-  assert.deepEqual(ticketStory(step, { deliverables: [], questions: [], activity: [] }, minutes(12).getTime()).timeline.map(({ label, minutes }) => ({ label, minutes })),
-    [{ label: { kind: "added" }, minutes: 0 }, { label: { kind: "status", status: "working" }, minutes: 12 }], "one working span for the time bar");
+  assert.deepEqual(
+    ticketStory(step, { deliverables: [], questions: [], activity: [] }, minutes(12).getTime()).timeline.map(({ label, minutes: elapsed }) => ({
+      label,
+      minutes: elapsed,
+    })),
+    [
+      { label: { kind: "added" }, minutes: 0 },
+      { label: { kind: "status", status: "working" }, minutes: 12 },
+    ],
+    "one working span for the time bar",
+  );
 });
 
 async function screenshotRun(t: TestContext) {
@@ -607,7 +748,10 @@ test("skipped tickets leave the progress bar and the totals", async (t) => {
   const { progress } = (await w.dashboard()).dashboard;
   assert.equal(progress.totalMin, 390);
   assert.equal(progress.percent, 69);
-  assert.deepEqual(progress.segments.map((segment) => segment.id), ["T01", "T02", "T03"]);
+  assert.deepEqual(
+    progress.segments.map((segment) => segment.id),
+    ["T01", "T02", "T03"],
+  );
 });
 
 test("the dashboard turns stale exactly 15 minutes after the last event", async (t) => {
@@ -684,10 +828,16 @@ test("a working ticket becomes stuck once it goes longer than its estimate witho
   const w = await screenshotRun(t);
   assert.deepEqual((await w.dashboard(120)).dashboard.stuck, [], "exactly at the estimate is not stuck");
   const { dashboard } = await w.dashboard(617);
-  assert.deepEqual(dashboard.stuck, [{
-    kind: "overdue", key: "overdue:T03", ticketId: "T03", title: "Ticket 03",
-    since: minutes(0).toISOString(), estimateMin: 120,
-  }]);
+  assert.deepEqual(dashboard.stuck, [
+    {
+      kind: "overdue",
+      key: "overdue:T03",
+      ticketId: "T03",
+      title: "Ticket 03",
+      since: minutes(0).toISOString(),
+      estimateMin: 120,
+    },
+  ]);
   assert.equal(headlineText(dashboard), "2 of 4 tickets done, 1 stuck");
   assert.deepEqual(dashboard.headline.at(-1), { text: "1 stuck", tone: "danger" });
 });
@@ -702,8 +852,11 @@ test("a stage change, note or tagged activity restarts a working ticket's stuck 
   w.at(215);
   await w.run("activity", "add", "Untagged work");
   const { dashboard } = await w.dashboard(340);
-  assert.deepEqual(dashboard.stuck.map((item) => item.since), [minutes(210).toISOString()],
-    "timed from the last update that belongs to the ticket");
+  assert.deepEqual(
+    dashboard.stuck.map((item) => item.since),
+    [minutes(210).toISOString()],
+    "timed from the last update that belongs to the ticket",
+  );
 });
 
 test("blocked tickets and flagged blockers are stuck until cleared", async (t) => {
@@ -712,7 +865,10 @@ test("blocked tickets and flagged blockers are stuck until cleared", async (t) =
   await w.run("ticket", "update", "T04", "--status", "blocked", "--note", "Waiting on the API key");
   assert.equal((await w.run("stuck", "set", "Staging is down", "--ticket", "t03")).text, "Flagged S1: Staging is down");
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.stuck.map((item) => item.key), ["blocked:T04", "manual:S1"]);
+  assert.deepEqual(
+    dashboard.stuck.map((item) => item.key),
+    ["blocked:T04", "manual:S1"],
+  );
   assert.equal(dashboard.stuck[0].since, minutes(3).toISOString());
   assert.equal(dashboard.stuck[1].title, "Ticket 03");
   assert.equal((await w.run("stuck", "clear", "s1")).text, "Cleared S1: Staging is down");
@@ -724,25 +880,48 @@ test("blocked tickets and flagged blockers are stuck until cleared", async (t) =
 
 test("questions carry the agent's recommendation and wait for the answer, then are answered by reference", async (t) => {
   const w = await screenshotRun(t);
-  const ask = await w.run("question", "ask", "Row spacing", "Should we even out the spacing?",
-    "--option", "A=Even it out | Cards look balanced",
-    "--option", "b=Leave it | No change",
-    "--recommend", "a",
-    "--background", "13px left, 20px right.",
-    "--file", ".scratch/shots/row.png=Before",
-    "--raised-by", "Ticket 01 design review");
+  const ask = await w.run(
+    "question",
+    "ask",
+    "Row spacing",
+    "Should we even out the spacing?",
+    "--option",
+    "A=Even it out | Cards look balanced",
+    "--option",
+    "b=Leave it | No change",
+    "--recommend",
+    "a",
+    "--background",
+    "13px left, 20px right.",
+    "--file",
+    ".scratch/shots/row.png=Before",
+    "--raised-by",
+    "Ticket 01 design review",
+  );
   assert.deepEqual(ask, { code: 0, text: `Asked Q1 (Row spacing). You recommend A. Mode: Work around. ${HOLD_RULE}` });
   await w.run("question", "ask", "PDF check", "Do the PDFs match the page?", "--recommend", "Looks right");
   let { dashboard } = await w.dashboard();
   assert.equal(headlineText(dashboard), "2 of 4 tickets done, 2 questions waiting for you");
-  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.recommended]), [["Q1", "A"], ["Q2", "Looks right"]]);
+  assert.deepEqual(
+    dashboard.questions.open.map((question) => [question.id, question.recommended]),
+    [
+      ["Q1", "A"],
+      ["Q2", "Looks right"],
+    ],
+  );
   assert.deepEqual(dashboard.questions.open[0].options[1], { letter: "B", label: "Leave it", consequence: "No change" });
   assert.deepEqual(dashboard.questions.open[0].files, [{ path: ".scratch/shots/row.png", label: "Before" }]);
 
-  assert.equal((await w.run("question", "update", "Q1", "--background", "Walkthrough: 13px left, 20px right.", "--file", "shots/after.png=After")).text, "Updated Q1 (Row spacing)");
+  assert.equal(
+    (await w.run("question", "update", "Q1", "--background", "Walkthrough: 13px left, 20px right.", "--file", "shots/after.png=After")).text,
+    "Updated Q1 (Row spacing)",
+  );
   ({ dashboard } = await w.dashboard());
   assert.equal(dashboard.questions.open[0].background, "Walkthrough: 13px left, 20px right.");
-  assert.deepEqual(dashboard.questions.open[0].files.map((file) => file.label), ["Before", "After"]);
+  assert.deepEqual(
+    dashboard.questions.open[0].files.map((file) => file.label),
+    ["Before", "After"],
+  );
   assert.equal(dashboard.questions.open[0].recommended, "A", "updates keep the recommendation");
   assert.match((await w.run("question", "update", "Q1")).text, /Nothing to change/);
   assert.match((await w.run("question", "proceed", "Q1")).text, /Unknown command/, "there's no going ahead without the answer");
@@ -753,22 +932,35 @@ test("questions carry the agent's recommendation and wait for the answer, then a
   assert.equal((await w.run("question", "answer", "Q2", "Looks right")).text, "Answered Q2: Looks right (as you recommended). Build it now.");
   ({ dashboard } = await w.dashboard());
   assert.deepEqual(dashboard.questions.open, []);
-  assert.deepEqual(dashboard.questions.answered.map((question) => question.id), ["Q2", "Q1"], "most recent answer first");
+  assert.deepEqual(
+    dashboard.questions.answered.map((question) => question.id),
+    ["Q2", "Q1"],
+    "most recent answer first",
+  );
   assert.deepEqual(dashboard.questions.answered[1].answer, { choice: "B", words: "Leave it alone.", changedCourse: undefined, at: minutes(20).toISOString() });
   assert.equal(headlineText(dashboard), "2 of 4 tickets done");
 });
 
+function eventLine(event: object) {
+  return JSON.stringify({ v: 1, ts: minutes(0).toISOString(), ...event });
+}
+
 test("questions from before recommendations show their default as the pick, and keep a changed course", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");
-  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), ...event });
-  await appendFile(join(w.store, "progress.jsonl"), [
-    line({ type: "question.ask", id: "Q1", title: "Old", question: "Old?", default: "Yes", waits: true }),
-    line({ type: "question.answer", id: "Q1", choice: "No", changedCourse: true }),
-  ].join("\n") + "\n");
+  await appendFile(
+    join(w.store, "progress.jsonl"),
+    [
+      eventLine({ type: "question.ask", id: "Q1", title: "Old", question: "Old?", default: "Yes", waits: true }),
+      eventLine({ type: "question.answer", id: "Q1", choice: "No", changedCourse: true }),
+    ].join("\n") + "\n",
+  );
   const { dashboard } = await w.dashboard();
   assert.equal(dashboard.issues.length, 0);
-  assert.deepEqual(dashboard.questions.answered.map((question) => [question.recommended, question.answer?.changedCourse]), [["Yes", true]]);
+  assert.deepEqual(
+    dashboard.questions.answered.map((question) => [question.recommended, question.answer?.changedCourse]),
+    [["Yes", true]],
+  );
 });
 
 // The mode the user picked in Paseo's Settings, as the server mirrors it, until the test ends.
@@ -785,7 +977,10 @@ async function lastEvent(w: Awaited<ReturnType<typeof worktree>>) {
 test("in Stop mode the agent asks what it has, then stops all work until an answer", async (t) => {
   await questionMode(t, "stop");
   const w = await screenshotRun(t);
-  assert.equal((await w.run("start", "Next")).text, `Started run: Next\nQuestion mode: Stop, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`);
+  assert.equal(
+    (await w.run("start", "Next")).text,
+    `Started run: Next\nQuestion mode: Stop, set by the user in Paseo's Settings. For each question, do what "question ask" prints.`,
+  );
   const ask = await w.run("question", "ask", "Spacing", "Even it out?", "--option", "A=Yes", "--option", "B=No", "--recommend", "A");
   assert.equal(ask.text, `Asked Q1 (Spacing). You recommend A. Mode: Stop. ${STOP_RULE}`);
   assert.deepEqual([(await lastEvent(w)).mode, (await lastEvent(w)).big], ["stop", undefined]);
@@ -793,7 +988,13 @@ test("in Stop mode the agent asks what it has, then stops all work until an answ
   assert.equal(big.text, `Asked Q2 (Push). You recommend Yes. Mode: Stop. ${STOP_RULE}`, "--big changes nothing");
   assert.equal((await lastEvent(w)).big, "pushes to GitHub", "--big is still recorded");
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.state, question.big]), [["Q1", "stopped", undefined], ["Q2", "stopped", "pushes to GitHub"]]);
+  assert.deepEqual(
+    dashboard.questions.open.map((question) => [question.id, question.state, question.big]),
+    [
+      ["Q1", "stopped", undefined],
+      ["Q2", "stopped", "pushes to GitHub"],
+    ],
+  );
   const show = (await runShow(w, 0)).text;
   assert.ok(show.includes("Question mode: Stop,"), show);
   assert.ok(show.includes("Even it out? You recommended A, agent stopped until the answer"), show);
@@ -805,12 +1006,22 @@ test("in Stop mode the agent asks what it has, then stops all work until an answ
 test("with no question mode set, the agent works around questions", async (t) => {
   const w = await screenshotRun(t);
   assert.equal(await readQuestionMode(), "work-around");
-  assert.equal((await w.run("question", "ask", "Spacing", "Even it out?", "--recommend", "Yes")).text, `Asked Q1 (Spacing). You recommend Yes. Mode: Work around. ${HOLD_RULE}`);
+  assert.equal(
+    (await w.run("question", "ask", "Spacing", "Even it out?", "--recommend", "Yes")).text,
+    `Asked Q1 (Spacing). You recommend Yes. Mode: Work around. ${HOLD_RULE}`,
+  );
   assert.equal((await lastEvent(w)).mode, "work-around");
-  assert.equal((await w.run("question", "ask", "Push", "Push it?", "--recommend", "Yes", "--big", "pushes to GitHub")).text, `Asked Q2 (Push). You recommend Yes. Mode: Work around. ${HOLD_RULE}`, "--big changes nothing");
+  assert.equal(
+    (await w.run("question", "ask", "Push", "Push it?", "--recommend", "Yes", "--big", "pushes to GitHub")).text,
+    `Asked Q2 (Push). You recommend Yes. Mode: Work around. ${HOLD_RULE}`,
+    "--big changes nothing",
+  );
   assert.equal((await lastEvent(w)).big, "pushes to GitHub", "--big is still recorded");
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.questions.open.map((question) => question.state), ["waiting", "waiting"]);
+  assert.deepEqual(
+    dashboard.questions.open.map((question) => question.state),
+    ["waiting", "waiting"],
+  );
   const show = (await runShow(w, 0)).text;
   assert.ok(show.includes(WORK_AROUND_LINE), show);
   assert.ok(show.includes("Even it out? You recommended Yes, waiting for the answer"), show);
@@ -824,32 +1035,56 @@ test("in Keep building mode the agent builds its recommendation, and changes cou
   const w = await screenshotRun(t);
   assert.match((await w.run("start", "Next")).text, /^Started run: Next\nQuestion mode: Keep building, set by the user in Paseo's Settings\./);
   const ask = await w.run("question", "ask", "Row spacing", "Even out the spacing?", "--option", "A=Even it out", "--option", "B=Leave it", "--recommend", "A");
-  assert.equal(ask.text, "Asked Q1 (Row spacing). You recommend A. Mode: Keep building. Build A now and keep working. If the user picks another option, undo the work built on A and build their choice first. If the rest of the work is done while it's still open, leave it open and tell the user in chat; don't withdraw it.");
+  assert.equal(
+    ask.text,
+    "Asked Q1 (Row spacing). You recommend A. Mode: Keep building. Build A now and keep working. If the user picks another option, undo the work built on A and build their choice first. If the rest of the work is done while it's still open, leave it open and tell the user in chat; don't withdraw it.",
+  );
   assert.equal((await lastEvent(w)).mode, "keep-building");
   await w.run("question", "ask", "Theme", "Dark by default?", "--option", "A=Yes", "--option", "B=No", "--recommend", "B");
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.questions.open.map((question) => question.state), ["building", "building"]);
+  assert.deepEqual(
+    dashboard.questions.open.map((question) => question.state),
+    ["building", "building"],
+  );
   const show = await runShow(w, 0);
   assert.ok(show.text.includes("Question mode: Keep building"), show.text);
   assert.ok(show.text.includes("Even out the spacing? You recommended A, building with it"), show.text);
 
-  assert.equal((await w.run("question", "answer", "Q1", "B")).text, "Answered Q1: B (not your recommendation, A). Undo the work built on your recommendation and build B before anything else.");
+  assert.equal(
+    (await w.run("question", "answer", "Q1", "B")).text,
+    "Answered Q1: B (not your recommendation, A). Undo the work built on your recommendation and build B before anything else.",
+  );
   assert.equal((await lastEvent(w)).changedCourse, true);
   w.at(1);
   assert.equal((await w.run("question", "answer", "Q2", "B")).text, "Answered Q2: B (as you recommended). Carry on with it.");
   assert.equal((await lastEvent(w)).changedCourse, undefined);
   const answered = (await w.dashboard()).dashboard.questions.answered;
-  assert.deepEqual(answered.map((question) => [question.id, question.answer?.changedCourse]), [["Q2", undefined], ["Q1", true]]);
+  assert.deepEqual(
+    answered.map((question) => [question.id, question.answer?.changedCourse]),
+    [
+      ["Q2", undefined],
+      ["Q1", true],
+    ],
+  );
 });
 
 test("an open question's recommendation can change, and the answer is compared with the new one", async (t) => {
   const w = await screenshotRun(t);
   await w.run("question", "ask", "Spacing", "Even it out?", "--option", "A=Yes", "--option", "B=No", "--recommend", "B");
   await w.run("question", "ask", "Check", "Do the PDFs match?", "--recommend", "Yes");
-  assert.equal((await w.run("question", "update", "Q1", "--recommend", "a", "--background", "On a closer look, the gap is uneven.")).text, `Q1 now recommends A (was B). Mode: Work around. ${HOLD_RULE}`);
+  assert.equal(
+    (await w.run("question", "update", "Q1", "--recommend", "a", "--background", "On a closer look, the gap is uneven.")).text,
+    `Q1 now recommends A (was B). Mode: Work around. ${HOLD_RULE}`,
+  );
   assert.equal((await w.run("question", "update", "Q2", "--recommend", "Mostly")).text, `Q2 now recommends Mostly (was Yes). Mode: Work around. ${HOLD_RULE}`);
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.recommended, question.state]), [["Q1", "A", "waiting"], ["Q2", "Mostly", "waiting"]]);
+  assert.deepEqual(
+    dashboard.questions.open.map((question) => [question.id, question.recommended, question.state]),
+    [
+      ["Q1", "A", "waiting"],
+      ["Q2", "Mostly", "waiting"],
+    ],
+  );
   assert.equal(dashboard.questions.open[0].background, "On a closer look, the gap is uneven.");
   assert.ok((await runShow(w, 0)).text.includes("Even it out? You recommended A, waiting for the answer"));
 
@@ -876,7 +1111,10 @@ test("in Keep building mode a changed recommendation moves the work built on the
   await questionMode(t, "keep-building");
   const w = await screenshotRun(t);
   await w.run("question", "ask", "Spacing", "Even it out?", "--option", "A=Yes", "--option", "B=No", "--recommend", "B");
-  assert.equal((await w.run("question", "update", "Q1", "--recommend", "A")).text, "Q1 now recommends A (was B). Undo the work built on B and build A instead.");
+  assert.equal(
+    (await w.run("question", "update", "Q1", "--recommend", "A")).text,
+    "Q1 now recommends A (was B). Undo the work built on B and build A instead.",
+  );
   assert.equal((await lastEvent(w)).recommend, "A");
   const question = (await w.dashboard()).dashboard.questions.open[0];
   assert.deepEqual([question.recommended, question.state], ["A", "building"]);
@@ -902,21 +1140,40 @@ test("in Keep building mode a big question holds like Work around, and says why"
 test("question ask --help names the three modes and the three big tests", async (t) => {
   const w = await worktree(t);
   const help = (await w.run("question", "ask", "--help")).text;
-  assert.match(help, /Stop \(stop all work until an answer\), Work around \(build nothing the question affects, work on the rest\), or Keep building \(build your recommendation now, change course if the user picks another\)/);
-  assert.ok(help.includes("A question is big when one of these holds, and only then: (1) building your recommendation before the answer would mean something leaves this computer: pushing, publishing, deploying, changing live data, sending messages, spending money; (2) the answer sets something people or programs outside this repo will rely on: a saved data format, a database schema, a public API, command or setting name, or removing or renaming something people already use; (3) most of the tickets or steps still ahead would be built on the answer. Every other question is small, large code changes included. When you can't name the test it meets, it's small. Name the test in the --big reason."), help);
+  assert.match(
+    help,
+    /Stop \(stop all work until an answer\), Work around \(build nothing the question affects, work on the rest\), or Keep building \(build your recommendation now, change course if the user picks another\)/,
+  );
+  assert.ok(
+    help.includes(
+      "A question is big when one of these holds, and only then: (1) building your recommendation before the answer would mean something leaves this computer: pushing, publishing, deploying, changing live data, sending messages, spending money; (2) the answer sets something people or programs outside this repo will rely on: a saved data format, a database schema, a public API, command or setting name, or removing or renaming something people already use; (3) most of the tickets or steps still ahead would be built on the answer. Every other question is small, large code changes included. When you can't name the test it meets, it's small. Name the test in the --big reason.",
+    ),
+    help,
+  );
 });
+
+function oldQuestionLine(event: object) {
+  return JSON.stringify({ v: 1, ts: minutes(0).toISOString(), title: "Old", question: "Old?", type: "question.ask", ...event });
+}
 
 test("questions from earlier versions keep their state: a default without waits was built, the rest waited", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");
-  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), title: "Old", question: "Old?", type: "question.ask", ...event });
-  await appendFile(join(w.store, "progress.jsonl"), [
-    line({ id: "Q1", default: "A" }),
-    line({ id: "Q2", default: "A", waits: true }),
-    line({ id: "Q3", recommend: "A" }),
-  ].join("\n") + "\n");
+  await appendFile(
+    join(w.store, "progress.jsonl"),
+    [oldQuestionLine({ id: "Q1", default: "A" }), oldQuestionLine({ id: "Q2", default: "A", waits: true }), oldQuestionLine({ id: "Q3", recommend: "A" })].join(
+      "\n",
+    ) + "\n",
+  );
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.questions.open.map((question) => [question.id, question.state]), [["Q1", "building"], ["Q2", "waiting"], ["Q3", "waiting"]]);
+  assert.deepEqual(
+    dashboard.questions.open.map((question) => [question.id, question.state]),
+    [
+      ["Q1", "building"],
+      ["Q2", "waiting"],
+      ["Q3", "waiting"],
+    ],
+  );
 });
 
 test("the server mirrors the question mode for the command, falling back to Work around, and removes it on cleanup", async (t) => {
@@ -940,7 +1197,7 @@ test("the server mirrors the question mode for the command, falling back to Work
   await listeners[0]({ status: "ready", revision: "3", values: { mode: "keep-building" } });
   await listeners[0]({ status: "invalid", revision: "4", error: "bad" });
   assert.equal(await readQuestionMode(home), "work-around", "invalid settings work around");
-  assert.deepEqual((await readdir(join(home, ".local", "state", "paseo-progress"))), ["settings.json"], "no temp files left");
+  assert.deepEqual(await readdir(join(home, ".local", "state", "paseo-progress")), ["settings.json"], "no temp files left");
   await writeFile(questionModePath(home), "{ not json");
   assert.equal(await readQuestionMode(home), "work-around", "a damaged mirror works around");
 
@@ -960,11 +1217,19 @@ test("cleanup during the first read leaves no mirror behind", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "progress-home-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   let finishRead!: () => void;
-  const read = new Promise<void>((resolve) => { finishRead = resolve; });
-  const mirror = mirrorQuestionMode({
-    read: async () => { await read; return { status: "ready" as const, revision: "1", values: { mode: "stop" as const } }; },
-    subscribe: () => () => {},
-  }, home);
+  const read = new Promise<void>((resolve) => {
+    finishRead = resolve;
+  });
+  const mirror = mirrorQuestionMode(
+    {
+      read: async () => {
+        await read;
+        return { status: "ready" as const, revision: "1", values: { mode: "stop" as const } };
+      },
+      subscribe: () => () => {},
+    },
+    home,
+  );
   const stopped = mirror.stop();
   finishRead();
   await stopped;
@@ -1000,20 +1265,33 @@ test("deliverables are listed newest first with root-relative paths, their ticke
   await mkdir(join(w.directory, ".scratch", "shots"), { recursive: true });
   const nested = join(w.directory, "packages", "app");
   await mkdir(nested, { recursive: true });
-  assert.equal((await w.run("deliverable", "add", "Browser check screenshots", ".scratch/shots", "--ticket", "T03")).text, "Added D1: Browser check screenshots");
-  const fromBelow = await runCli(["deliverable", "add", "Review report", "report.html", "--kind", "report"], { cwd: nested, now: () => minutes(1), out: () => {} });
+  assert.equal(
+    (await w.run("deliverable", "add", "Browser check screenshots", ".scratch/shots", "--ticket", "T03")).text,
+    "Added D1: Browser check screenshots",
+  );
+  const fromBelow = await runCli(["deliverable", "add", "Review report", "report.html", "--kind", "report"], {
+    cwd: nested,
+    now: () => minutes(1),
+    out: () => {},
+  });
   assert.equal(fromBelow, 0);
   await w.run("deliverable", "add", "Preview", "https://example.com/preview");
   await w.run("deliverable", "add", "Outside", "/tmp/elsewhere.png");
   const { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.deliverables.map(({ id, path, url, kind, ticketLabel }) => ({ id, path, url, kind, ticketLabel })), [
-    { id: "D4", path: "/tmp/elsewhere.png", url: undefined, kind: "screenshot", ticketLabel: undefined },
-    { id: "D3", path: undefined, url: "https://example.com/preview", kind: "link", ticketLabel: undefined },
-    { id: "D2", path: "packages/app/report.html", url: undefined, kind: "report", ticketLabel: undefined },
-    { id: "D1", path: ".scratch/shots/", url: undefined, kind: "folder", ticketLabel: "Ticket 03" },
-  ]);
+  assert.deepEqual(
+    dashboard.deliverables.map(({ id, path, url, kind, ticketLabel }) => ({ id, path, url, kind, ticketLabel })),
+    [
+      { id: "D4", path: "/tmp/elsewhere.png", url: undefined, kind: "screenshot", ticketLabel: undefined },
+      { id: "D3", path: undefined, url: "https://example.com/preview", kind: "link", ticketLabel: undefined },
+      { id: "D2", path: "packages/app/report.html", url: undefined, kind: "report", ticketLabel: undefined },
+      { id: "D1", path: ".scratch/shots/", url: undefined, kind: "folder", ticketLabel: "Ticket 03" },
+    ],
+  );
   assert.equal((await w.run("deliverable", "remove", "d2")).text, "Removed D2: Review report");
-  assert.deepEqual((await w.dashboard()).dashboard.deliverables.map((deliverable) => deliverable.id), ["D4", "D3", "D1"]);
+  assert.deepEqual(
+    (await w.dashboard()).dashboard.deliverables.map((deliverable) => deliverable.id),
+    ["D4", "D3", "D1"],
+  );
   for (const [argv, message] of [
     [["deliverable", "add", "Bad", "ftp://example.com/x"], /Only http\(s\) URLs/],
     [["deliverable", "add", "Bad", "x.txt", "--kind", "video"], /--kind must be one of/],
@@ -1037,10 +1315,13 @@ test("activity notes list newest first and can be reworded or removed; the ticke
   await w.run("activity", "remove", "A3");
   assert.equal((await w.run("ticker", "set", "Running the browser check")).text, "Ticker: Running the browser check");
   let { dashboard } = await w.dashboard();
-  assert.deepEqual(dashboard.activity.map(({ id, text, at }) => [id, text, at]), [
-    ["A2", "Ticket 03 moved to its Fixes stage.", minutes(5).toISOString()],
-    ["A1", "Dashboard set up.", minutes(0).toISOString()],
-  ]);
+  assert.deepEqual(
+    dashboard.activity.map(({ id, text, at }) => [id, text, at]),
+    [
+      ["A2", "Ticket 03 moved to its Fixes stage.", minutes(5).toISOString()],
+      ["A1", "Dashboard set up.", minutes(0).toISOString()],
+    ],
+  );
   assert.deepEqual(dashboard.ticker, { text: "Running the browser check", since: minutes(6).toISOString() });
   await w.run("ticker", "clear");
   ({ dashboard } = await w.dashboard());
@@ -1053,18 +1334,29 @@ test("bad lines are skipped and named while the rest of the dashboard renders", 
   const w = await screenshotRun(t);
   const file = join(w.store, "progress.jsonl");
   const lines = (await readFile(file, "utf8")).split("\n");
-  lines.splice(2, 0, "{not json", JSON.stringify({ v: 2, ts: minutes(0).toISOString(), type: "ticket.add" }), JSON.stringify({ v: 1, ts: "yesterday", type: "ticket.add" }), "[]");
+  lines.splice(
+    2,
+    0,
+    "{not json",
+    JSON.stringify({ v: 2, ts: minutes(0).toISOString(), type: "ticket.add" }),
+    JSON.stringify({ v: 1, ts: "yesterday", type: "ticket.add" }),
+    "[]",
+  );
   const text = lines.join("\n") + JSON.stringify({ v: 1, ts: minutes(1).toISOString(), type: "ticket.update", id: "T09", status: "done" }) + "\n";
   await writeFile(file, `${text}{"v":1,"ts":"2026-09-27T20:00:00.000Z","type":"ticket.upd`);
   const { dashboard } = await w.dashboard();
   assert.equal(dashboard.progress.percent, 58, "good lines still count");
-  assert.deepEqual(dashboard.issues, [
-    { line: 3, reason: "not valid JSON" },
-    { line: 4, reason: "written by a newer version of the plugin (v2)" },
-    { line: 5, reason: "invalid ticket.add event" },
-    { line: 6, reason: "not a progress event" },
-    { line: 13, reason: "unknown ticket T09" },
-  ], "the unfinished last line is skipped without an issue");
+  assert.deepEqual(
+    dashboard.issues,
+    [
+      { line: 3, reason: "not valid JSON" },
+      { line: 4, reason: "written by a newer version of the plugin (v2)" },
+      { line: 5, reason: "invalid ticket.add event" },
+      { line: 6, reason: "not a progress event" },
+      { line: 13, reason: "unknown ticket T09" },
+    ],
+    "the unfinished last line is skipped without an issue",
+  );
 });
 
 test("a new run shows a fresh dashboard while the old history stays in the file", async (t) => {
@@ -1085,9 +1377,11 @@ test("concurrent writers never share an id or produce a broken line", async (t) 
   await w.run("start", "Busy");
   const cli = fileURLToPath(new URL("./cli.ts", import.meta.url));
   const spawned = Array.from({ length: 6 }, (_, index) =>
-    promisify(execFile)(process.execPath, [cli, "ticket", "add", `Spawned ${index}`, "--estimate", "5"], { cwd: w.directory }));
+    promisify(execFile)(process.execPath, [cli, "ticket", "add", `Spawned ${index}`, "--estimate", "5"], { cwd: w.directory }),
+  );
   const inProcess = Array.from({ length: 14 }, (_, index) =>
-    runCli(["ticket", "add", `Local ${index}`, "--estimate", "5"], { cwd: w.directory, out: () => {} }));
+    runCli(["ticket", "add", `Local ${index}`, "--estimate", "5"], { cwd: w.directory, out: () => {} }),
+  );
   await Promise.all([...spawned, ...inProcess]);
   const { dashboard } = await w.dashboard();
   const ids = dashboard.tickets.map((ticket) => ticket.id);
@@ -1095,7 +1389,13 @@ test("concurrent writers never share an id or produce a broken line", async (t) 
   assert.equal(new Set(ids).size, 20, "every ticket got its own id");
   assert.deepEqual(dashboard.issues, []);
   const text = await readFile(join(w.store, "progress.jsonl"), "utf8");
-  assert.ok(text.endsWith("\n") && text.trim().split("\n").every((line) => JSON.parse(line)));
+  assert.ok(
+    text.endsWith("\n") &&
+      text
+        .trim()
+        .split("\n")
+        .every((line) => JSON.parse(line)),
+  );
 });
 
 test("a lock left behind by a crashed command is taken over", async (t) => {
@@ -1127,7 +1427,8 @@ test("show prints the dashboard as text for the agent", async (t) => {
     "      B) No",
     "D1  Screenshots: .scratch/shots/, Ticket 03",
     "A1  Ticket 03 moved to Fixes.",
-  ]) assert.ok(text.includes(expected), `missing: ${expected}\n\n${text}`);
+  ])
+    assert.ok(text.includes(expected), `missing: ${expected}\n\n${text}`);
 });
 
 async function runShow(w: Awaited<ReturnType<typeof worktree>>, minute: number) {
@@ -1139,7 +1440,7 @@ async function runShow(w: Awaited<ReturnType<typeof worktree>>, minute: number) 
 test("the launcher runs the command from the plugin folder Paseo reports", async (t) => {
   const w = await worktree(t);
   const target = join(w.directory, "bin", "paseo-progress");
-  assert.equal((await runCli(["install-launcher", target], { cwd: w.directory, out: () => {} })), 0);
+  assert.equal(await runCli(["install-launcher", target], { cwd: w.directory, out: () => {} }), 0);
   const output: string[] = [];
   await runCli(["install-launcher", target], { cwd: w.directory, out: (line) => output.push(line) });
   assert.match(output[0], /already current/);
@@ -1190,8 +1491,12 @@ test("on Windows the launcher gets a .cmd beside it, and Paseo is looked for whe
 
   const windowsPath = "C:\\Users\\Jane Doe\\.local\\bin\\paseo-progress";
   assert.equal((await launcherStatus(windowsPath, "C:\\Windows;c:\\users\\jane doe\\.local\\bin\\", "win32")).onPath, true);
-  assert.deepEqual(paseoCommands({ PASEO_BIN: "bin", PASEO_CLI: "cli", LOCALAPPDATA: "C:\\Users\\J\\AppData\\Local" }, "win32"),
-    ["bin", "cli", "paseo", "C:\\Users\\J\\AppData\\Local\\Programs\\Paseo\\resources\\bin\\paseo.cmd"]);
+  assert.deepEqual(paseoCommands({ PASEO_BIN: "bin", PASEO_CLI: "cli", LOCALAPPDATA: "C:\\Users\\J\\AppData\\Local" }, "win32"), [
+    "bin",
+    "cli",
+    "paseo",
+    "C:\\Users\\J\\AppData\\Local\\Programs\\Paseo\\resources\\bin\\paseo.cmd",
+  ]);
   assert.deepEqual(paseoCommands({}, "darwin"), ["paseo", "/Applications/Paseo.app/Contents/Resources/bin/paseo"]);
 });
 
@@ -1204,7 +1509,9 @@ test("a local deliverable opens on the daemon host by id, only inside the worktr
   await w.run("deliverable", "add", "Outside", tmpdir());
   await w.run("deliverable", "add", "Preview", "https://example.com");
   const opened: string[] = [];
-  const opener = async (path: string) => { opened.push(path); };
+  const opener = async (path: string) => {
+    opened.push(path);
+  };
   const root = await realpath(w.directory);
   assert.deepEqual(await openDeliverable(w.directory, "D1", opener), { opened: join(root, "reports", "review.html") });
   assert.deepEqual(opened, [join(root, "reports", "review.html")]);
@@ -1230,20 +1537,40 @@ test("a folder deliverable previews as its files, each found by the folder's id"
   const folder = deliverableAttachment(dashboard.deliverables[0]);
   assert.equal(canPreview(folder, { browser: false }), true, "pressing a folder opens it in Paseo, not on the computer running Paseo");
   const listed = await previewDeliverable(w.directory, "D1");
-  assert.deepEqual(listed, {
-    kind: "folder",
-    entries: [{ name: "older", folder: true }, { name: "step 2.md", folder: false }, { name: "step 10.md", folder: false }],
-    truncated: false,
-  }, "folders first, numbers in order, hidden files left out");
+  assert.deepEqual(
+    listed,
+    {
+      kind: "folder",
+      entries: [
+        { name: "older", folder: true },
+        { name: "step 2.md", folder: false },
+        { name: "step 10.md", folder: false },
+      ],
+      truncated: false,
+    },
+    "folders first, numbers in order, hidden files left out",
+  );
   const files = folderAttachments(folder, listed.kind === "folder" ? listed.entries : []);
-  assert.deepEqual(files.map((file) => [file.ref, file.path]), [["D1/older", "shots/older/"], ["D1/step 2.md", "shots/step 2.md"], ["D1/step 10.md", "shots/step 10.md"]]);
-  assert.ok(files.every((file) => canPreview(file, { browser: false })), "a folder and its text files preview on any screen");
+  assert.deepEqual(
+    files.map((file) => [file.ref, file.path]),
+    [
+      ["D1/older", "shots/older/"],
+      ["D1/step 2.md", "shots/step 2.md"],
+      ["D1/step 10.md", "shots/step 10.md"],
+    ],
+  );
+  assert.ok(
+    files.every((file) => canPreview(file, { browser: false })),
+    "a folder and its text files preview on any screen",
+  );
   assert.equal(findAttachment(dashboard, "Q1.1")?.path, "shots/", "a folder given without a slash is stored as one, so it lists too");
   assert.deepEqual(await previewDeliverable(w.directory, "D1/step 2.md"), { kind: "markdown", markdown: "# Two", bytes: 5, truncated: false });
   assert.deepEqual(await previewDeliverable(w.directory, "D1/older"), { kind: "folder", entries: [{ name: "first.md", folder: false }], truncated: false });
   assert.deepEqual(await previewDeliverable(w.directory, "D1/older/first.md"), { kind: "markdown", markdown: "# First", bytes: 7, truncated: false });
   const opened: string[] = [];
-  await openDeliverable(w.directory, "D1/older/first.md", async (path) => { opened.push(path); });
+  await openDeliverable(w.directory, "D1/older/first.md", async (path) => {
+    opened.push(path);
+  });
   assert.deepEqual(opened, [join(await realpath(w.directory), "shots", "older", "first.md")]);
 });
 
@@ -1258,9 +1585,16 @@ test("a file inside a folder deliverable can't step out of the folder or the wor
   await symlink(join(away, "x.md"), join(w.directory, "shots", "link.md"));
   await w.run("deliverable", "add", "Screenshots", "shots/");
   await assert.rejects(previewDeliverable(w.directory, "D1/../secret.md"), /secret\.md is outside shots\//);
-  await assert.rejects(previewDeliverable(w.directory, `D1/${join(w.directory, "secret.md")}`), /^Error: shots\/.+\/secret\.md no longer exists/, "an absolute path is read inside the folder");
+  await assert.rejects(
+    previewDeliverable(w.directory, `D1/${join(w.directory, "secret.md")}`),
+    /^Error: shots\/.+\/secret\.md no longer exists/,
+    "an absolute path is read inside the folder",
+  );
   await assert.rejects(previewDeliverable(w.directory, "D1/link.md"), /shots\/link\.md is outside this worktree/);
-  await assert.rejects(openDeliverable(w.directory, "D9/a.md", async () => {}), /No local deliverable D9/);
+  await assert.rejects(
+    openDeliverable(w.directory, "D9/a.md", async () => {}),
+    /No local deliverable D9/,
+  );
 });
 
 test("a folder with more entries than the preview lists says it stopped", async (t) => {
@@ -1323,12 +1657,13 @@ test("a Markdown deliverable previews with its links pointed at its own folder, 
   await w.run("deliverable", "add", "Report", "docs/report/README.md");
   await w.run("deliverable", "add", "Intro", "docs/intro.mdx");
   const folder = join(w.directory, "docs", "report");
-  const expected = report
-    .replace("shots/home page.png", `${folder}/shots/home%20page.png`)
-    .replace("../spec.md#L4", `${join(w.directory, "docs")}/spec.md#L4`);
+  const expected = report.replace("shots/home page.png", `${folder}/shots/home%20page.png`).replace("../spec.md#L4", `${join(w.directory, "docs")}/spec.md#L4`);
   for (const directory of [w.directory, workspace]) {
-    assert.deepEqual(await previewDeliverable(directory, "D1"), { kind: "markdown", markdown: expected, bytes: Buffer.byteLength(report) + 2, truncated: false },
-      "resolved from the file's folder in the worktree, whichever workspace asks");
+    assert.deepEqual(
+      await previewDeliverable(directory, "D1"),
+      { kind: "markdown", markdown: expected, bytes: Buffer.byteLength(report) + 2, truncated: false },
+      "resolved from the file's folder in the worktree, whichever workspace asks",
+    );
   }
   assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "text", text: "import X from './x'\n\n[a](b.md)\n", bytes: 31, truncated: false });
 });
@@ -1344,7 +1679,11 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await w.run("deliverable", "add", "Notes", "shots/notes.md");
   await w.run("deliverable", "add", "Huge", "shots/huge.jpg");
   await w.run("deliverable", "add", "Outside", join(tmpdir(), "elsewhere.png"));
-  assert.deepEqual(await previewDeliverable(w.directory, "D1"), { kind: "image", dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
+  assert.deepEqual(await previewDeliverable(w.directory, "D1"), {
+    kind: "image",
+    dataUri: `data:image/png;base64,${png.toString("base64")}`,
+    bytes: png.length,
+  });
   assert.deepEqual(await previewDeliverable(w.directory, "D2"), { kind: "markdown", markdown: "# Notes", bytes: 7, truncated: false });
   await writeFile(join(w.directory, "shots", "data.bin"), "x");
   await w.run("deliverable", "add", "Data", "shots/data.bin");
@@ -1356,7 +1695,12 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await writeFile(join(w.directory, "shots", "empty.txt"), "");
   await w.run("deliverable", "add", "Long", "shots/long.log");
   await w.run("deliverable", "add", "Empty", "shots/empty.txt");
-  assert.deepEqual(await previewDeliverable(w.directory, "D6"), { kind: "text", text: longLog.slice(0, MAX_PREVIEW_TEXT_BYTES), bytes: longLog.length, truncated: true });
+  assert.deepEqual(await previewDeliverable(w.directory, "D6"), {
+    kind: "text",
+    text: longLog.slice(0, MAX_PREVIEW_TEXT_BYTES),
+    bytes: longLog.length,
+    truncated: true,
+  });
   assert.deepEqual(await previewDeliverable(w.directory, "D7"), { kind: "text", text: "", bytes: 0, truncated: false });
   const line = "a log line ending in é\n";
   const lines = line.repeat(Math.ceil(MAX_PREVIEW_TEXT_BYTES / Buffer.byteLength(line)));
@@ -1367,7 +1711,11 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await w.run("deliverable", "add", "Exact", "shots/exact.txt");
   const cut = await previewDeliverable(w.directory, "D8");
   assert.ok(cut.kind === "text" && cut.truncated && cut.text.endsWith(line) && lines.startsWith(cut.text), "a cut log ends after its last whole line");
-  assert.deepEqual(await previewDeliverable(w.directory, "D9"), { kind: "text", text: exact, bytes: MAX_PREVIEW_TEXT_BYTES, truncated: false }, "a file exactly at the limit comes back whole");
+  assert.deepEqual(
+    await previewDeliverable(w.directory, "D9"),
+    { kind: "text", text: exact, bytes: MAX_PREVIEW_TEXT_BYTES, truncated: false },
+    "a file exactly at the limit comes back whole",
+  );
   assert.equal(imageMimeType("a/b.jpeg"), "image/jpeg");
   assert.equal(imageMimeType("report.html"), null);
 });
@@ -1400,21 +1748,25 @@ test("an HTML report previews with the files beside it written in, only from ins
   await writeFile(join(w.directory, "report", "index.html"), page);
   await w.run("deliverable", "add", "Report", "report/index.html");
   const preview = await previewDeliverable(w.directory, "D1");
-  assert.deepEqual(preview, {
-    kind: "html",
-    bytes: Buffer.byteLength(page),
-    html: [
-      `<script src="https://cdn.tailwindcss.com"></script>`,
-      `<style>h1 { color: red }</style>`,
-      `<img alt="Home" src="data:image/png;base64,${png.toString("base64")}">`,
-      `<img src="data:image/png;base64,${png.toString("base64")}">`,
-      `<img src="${escape}">`,
-      `<img src="https://example.com/a.png">`,
-      `<img src="missing.png">`,
-      `<script defer>document.body.append('<\\/script>');</script>`,
-      `<script src="leak.js"></script>`,
-    ].join("\n"),
-  }, "files in the worktree are written in; web addresses, missing files and anything outside the worktree stay as written");
+  assert.deepEqual(
+    preview,
+    {
+      kind: "html",
+      bytes: Buffer.byteLength(page),
+      html: [
+        `<script src="https://cdn.tailwindcss.com"></script>`,
+        `<style>h1 { color: red }</style>`,
+        `<img alt="Home" src="data:image/png;base64,${png.toString("base64")}">`,
+        `<img src="data:image/png;base64,${png.toString("base64")}">`,
+        `<img src="${escape}">`,
+        `<img src="https://example.com/a.png">`,
+        `<img src="missing.png">`,
+        `<script defer>document.body.append('<\\/script>');</script>`,
+        `<script src="leak.js"></script>`,
+      ].join("\n"),
+    },
+    "files in the worktree are written in; web addresses, missing files and anything outside the worktree stay as written",
+  );
   const report = findAttachment((await readProgress(w.store)).dashboard, "D1")!;
   assert.equal(attachmentIcon(report), "FileCode");
   assert.equal(canPreview(report, { browser: true }), false, "a page is too wide for the preview dialog");
@@ -1444,8 +1796,16 @@ test("a page git tracks can't write in files git ignores; a page in an ignored f
     assert.ok(preview.kind === "html");
     return preview.html;
   };
-  assert.equal(await html("D1"), [`<script>run()</script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`].join("\n"), "tracked files go in; ignored ones and .git stay out");
-  assert.equal(await html("D2"), [`<script>notes()</script>`, `<script src="../.env"></script>`].join("\n"), "an ignored page gets ignored files beside it, not the repo's .env");
+  assert.equal(
+    await html("D1"),
+    [`<script>run()</script>`, `<script src="../.env"></script>`, `<script src="../.git/config"></script>`].join("\n"),
+    "tracked files go in; ignored ones and .git stay out",
+  );
+  assert.equal(
+    await html("D2"),
+    [`<script>notes()</script>`, `<script src="../.env"></script>`].join("\n"),
+    "an ignored page gets ignored files beside it, not the repo's .env",
+  );
 });
 
 test("a page gets a file only when git says it keeps it: not one in a nested .git, a submodule, or named like a git pattern", async (t) => {
@@ -1468,7 +1828,12 @@ test("a page gets a file only when git says it keeps it: not one in a nested .gi
   await git(sub, "add", "-A");
   await git(sub, "commit", "-qm", "sub");
   await writeFile(join(sub, ".env"), "SUB=1");
-  const refs = [`<script src="app.js"></script>`, `<script src="../:(glob)secrets/.env"></script>`, `<script src="../nested/.git/config"></script>`, `<script src="../sub/.env"></script>`];
+  const refs = [
+    `<script src="app.js"></script>`,
+    `<script src="../:(glob)secrets/.env"></script>`,
+    `<script src="../nested/.git/config"></script>`,
+    `<script src="../sub/.env"></script>`,
+  ];
   await writeFile(join(repo.directory, "report", "index.html"), refs.join("\n"));
   await git(repo.directory, "add", "-A");
   await git(repo.directory, "commit", "-qm", "a cloned repo with a submodule");
@@ -1554,22 +1919,51 @@ test("question attachments take paths or links, and open and preview like delive
   await mkdir(join(w.directory, "shots"), { recursive: true });
   const png = Buffer.from("89504e470d0a1a0a", "hex");
   await writeFile(join(w.directory, "shots", "before.png"), png);
-  await w.run("question", "ask", "Header", "Which header?", "--option", "A=Old", "--option", "B=New", "--recommend", "A",
-    "--file", "shots/before.png=Before", "--file", "https://example.com/preview?id=7&tab=2=Live preview", "--file", "https://example.com/?q=1");
+  await w.run(
+    "question",
+    "ask",
+    "Header",
+    "Which header?",
+    "--option",
+    "A=Old",
+    "--option",
+    "B=New",
+    "--recommend",
+    "A",
+    "--file",
+    "shots/before.png=Before",
+    "--file",
+    "https://example.com/preview?id=7&tab=2=Live preview",
+    "--file",
+    "https://example.com/?q=1",
+  );
   const { dashboard } = await readProgress(w.store);
-  assert.deepEqual(dashboard.questions.open[0].files, [
-    { path: "shots/before.png", label: "Before" },
-    { url: "https://example.com/preview?id=7&tab=2", label: "Live preview" },
-    { url: "https://example.com/?q=1" },
-  ], "an = after a query key stays in the URL");
+  assert.deepEqual(
+    dashboard.questions.open[0].files,
+    [
+      { path: "shots/before.png", label: "Before" },
+      { url: "https://example.com/preview?id=7&tab=2", label: "Live preview" },
+      { url: "https://example.com/?q=1" },
+    ],
+    "an = after a query key stays in the URL",
+  );
   assert.equal(findAttachment(dashboard, "Q1.1")?.path, "shots/before.png");
   assert.equal(findAttachment(dashboard, "Q1.2")?.path, undefined, "links are not opened on the host");
   assert.equal(findAttachment(dashboard, "Q1.4"), null);
-  assert.deepEqual(await previewDeliverable(w.directory, "Q1.1"), { kind: "image", dataUri: `data:image/png;base64,${png.toString("base64")}`, bytes: png.length });
+  assert.deepEqual(await previewDeliverable(w.directory, "Q1.1"), {
+    kind: "image",
+    dataUri: `data:image/png;base64,${png.toString("base64")}`,
+    bytes: png.length,
+  });
   const opened: string[] = [];
-  await openDeliverable(w.directory, "Q1.1", async (path) => { opened.push(path); });
+  await openDeliverable(w.directory, "Q1.1", async (path) => {
+    opened.push(path);
+  });
   assert.deepEqual(opened, [join(await realpath(w.directory), "shots", "before.png")]);
-  await assert.rejects(openDeliverable(w.directory, "Q1.9", async () => {}), /No local attachment Q1\.9/);
+  await assert.rejects(
+    openDeliverable(w.directory, "Q1.9", async () => {}),
+    /No local attachment Q1\.9/,
+  );
   const ftp = await w.run("question", "update", "Q1", "--file", "ftp://example.com/x");
   assert.equal(ftp.code, 1);
   assert.match(ftp.text, /Only http\(s\) URLs/);
@@ -1587,17 +1981,28 @@ test("the skill is linked for every agent only on request, follows the copy Pase
   const home = await mkdtemp(join(tmpdir(), "progress-skill-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const paths = defaultSkillPaths(home);
-  assert.deepEqual(paths.map((path) => path.slice(home.length)), ["/.agents/skills/paseo-progress", "/.claude/skills/paseo-progress", "/.codex/skills/paseo-progress"]);
+  assert.deepEqual(
+    paths.map((path) => path.slice(home.length)),
+    ["/.agents/skills/paseo-progress", "/.claude/skills/paseo-progress", "/.codex/skills/paseo-progress"],
+  );
   const plugin = join(home, "plugin");
   assert.equal((await skillStatus(paths, plugin)).state, "missing");
   await mkdir(paths[2], { recursive: true });
   assert.equal(await installSkill(paths, plugin), true);
   assert.equal(await readlink(paths[0]), skillSource(plugin));
   assert.equal(await readlink(paths[1]), skillSource(plugin));
-  assert.deepEqual(await skillStatus(paths, plugin), {
-    state: "current",
-    targets: [{ path: paths[0], state: "current" }, { path: paths[1], state: "current" }, { path: paths[2], state: "foreign" }],
-  }, "someone else's skill folder is left alone");
+  assert.deepEqual(
+    await skillStatus(paths, plugin),
+    {
+      state: "current",
+      targets: [
+        { path: paths[0], state: "current" },
+        { path: paths[1], state: "current" },
+        { path: paths[2], state: "foreign" },
+      ],
+    },
+    "someone else's skill folder is left alone",
+  );
   assert.equal(await installSkill(paths, plugin), false, "current links are left as is");
   const moved = join(home, "other-checkout");
   assert.equal((await skillStatus(paths, moved)).state, "outdated", "Paseo now runs another copy");
@@ -1617,9 +2022,15 @@ test("after an update, links the user made follow the new copy without touching 
   assert.equal((await skillStatus(paths, updated)).state, "outdated");
   assert.equal(await relinkSkill(paths, updated), true);
   assert.equal(await readlink(linked), skillSource(updated));
-  assert.deepEqual((await skillStatus(paths, updated)).targets, [
-    { path: linked, state: "current" }, { path: other, state: "foreign" }, { path: missing, state: "missing" },
-  ], "someone else's folder stays, and no new link is made without Install skill");
+  assert.deepEqual(
+    (await skillStatus(paths, updated)).targets,
+    [
+      { path: linked, state: "current" },
+      { path: other, state: "foreign" },
+      { path: missing, state: "missing" },
+    ],
+    "someone else's folder stays, and no new link is made without Install skill",
+  );
   assert.equal(await relinkSkill(paths, updated), false, "a second run finds nothing to do");
   assert.equal(await readlink(linked), skillSource(updated));
 });
@@ -1628,11 +2039,9 @@ test("Settings shows the skill as agents read it, without its frontmatter", asyn
   const shipped = skillDocument(await readFile(join(skillSource(fileURLToPath(new URL("..", import.meta.url))), "SKILL.md"), "utf8"));
   assert.match(shipped.description, /^Keep the Paseo Progress dashboard live/);
   assert.match(shipped.markdown, /^# Paseo progress\n/);
-  assert.deepEqual(skillDocument("---\r\nname: x\r\ndescription: \"Quoted: yes\"\r\n---\r\n\nBody"), { markdown: "Body", description: "Quoted: yes" });
+  assert.deepEqual(skillDocument('---\r\nname: x\r\ndescription: "Quoted: yes"\r\n---\r\n\nBody'), { markdown: "Body", description: "Quoted: yes" });
   assert.deepEqual(skillDocument("# No frontmatter"), { markdown: "# No frontmatter", description: "" });
 });
-
-
 
 // A fresh repo, and the command run in any worktree of it.
 async function newRepo(t: TestContext) {
@@ -1642,14 +2051,19 @@ async function newRepo(t: TestContext) {
   await git(directory, "init", "-q");
   const output: string[] = [];
   return {
-    directory, linked,
+    directory,
+    linked,
     async run(cwd: string, ...argv: string[]) {
       output.length = 0;
       const code = await runCli(argv, { cwd, now: () => minutes(0), out: (line) => output.push(line) });
       return { code, text: output.join("\n") };
     },
     // What `git status` lists, one path per line.
-    visible: async (cwd = directory) => (await git(cwd, "status", "--porcelain", "-uall")).split("\n").filter(Boolean).map((line) => line.slice(3)),
+    visible: async (cwd = directory) =>
+      (await git(cwd, "status", "--porcelain", "-uall"))
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.slice(3)),
     async addWorktree() {
       await git(directory, "add", "-A");
       await git(directory, "commit", "-q", "--allow-empty", "-m", "init");
@@ -1659,7 +2073,8 @@ async function newRepo(t: TestContext) {
 }
 
 const context = { paseo: {} as PluginHandlerContext["paseo"] };
-const OLD_GITIGNORE = "# Added by the progress plugin for Paseo so its files stay out of git.\nprogress.jsonl\nprogress.jsonl.lock/\nprogress-panel-opened\n.gitignore\n";
+const OLD_GITIGNORE =
+  "# Added by the progress plugin for Paseo so its files stay out of git.\nprogress.jsonl\nprogress.jsonl.lock/\nprogress-panel-opened\n.gitignore\n";
 const startLine = (title: string) => `${JSON.stringify({ v: 1, ts: "2026-09-01T10:00:00.000Z", type: "run.start", title })}\n`;
 
 // What 0.1.x left in a worktree.
@@ -1687,7 +2102,7 @@ test("progress lives outside the repo: no setup, nothing for git to see", async 
 test("outside git it works the same", async (t) => {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "progress-nogit-")));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  assert.equal((await runCli(["start", "Run"], { cwd: directory, now: () => minutes(0), out: () => {} })), 0);
+  assert.equal(await runCli(["start", "Run"], { cwd: directory, now: () => minutes(0), out: () => {} }), 0);
   assert.equal((await findStore(directory)).directory, outsideDirectory(directory));
   assert.deepEqual(await readdir(directory), []);
   const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: directory }, context);
@@ -1696,85 +2111,106 @@ test("outside git it works the same", async (t) => {
 });
 
 test("a repo's .scratch, committed or not, is left alone and never read", async (t) => {
-  for (const commit of [true, false]) await t.test(commit ? "committed" : "not committed", async (t) => {
-    const repo = await newRepo(t);
-    await oldScratch(repo.directory, { "notes.md": "mine" });
-    const planted = startLine("Planted run") +
-      `${JSON.stringify({ v: 1, ts: "2026-09-01T10:01:00.000Z", type: "deliverable.add", id: "D1", title: "Planted report", path: "report.html" })}\n`;
-    await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), planted);
-    if (commit) {
-      await git(repo.directory, "add", "-f", ".scratch");
-      await git(repo.directory, "commit", "-qm", "progress committed in the repo");
-    }
-    const before = await snapshot(join(repo.directory, ".scratch"));
+  for (const commit of [true, false])
+    await t.test(commit ? "committed" : "not committed", async (sub) => {
+      const repo = await newRepo(sub);
+      await oldScratch(repo.directory, { "notes.md": "mine" });
+      const planted =
+        startLine("Planted run") +
+        `${JSON.stringify({ v: 1, ts: "2026-09-01T10:01:00.000Z", type: "deliverable.add", id: "D1", title: "Planted report", path: "report.html" })}\n`;
+      await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), planted);
+      if (commit) {
+        await git(repo.directory, "add", "-f", ".scratch");
+        await git(repo.directory, "commit", "-qm", "progress committed in the repo");
+      }
+      const before = await snapshot(join(repo.directory, ".scratch"));
 
-    assert.equal((await repo.run(repo.directory, "start", "Mine")).code, 0);
-    assert.equal((await repo.run(repo.directory, "activity", "add", "My step")).code, 0);
-    await handleMarkPanelOpened({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
-    const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
-    assert.ok("dashboard" in result);
-    assert.match(result.file, /^~\/\.local\/state\/paseo-progress\//, "from the store outside the repo");
-    assert.deepEqual([result.dashboard.run?.title, result.panelOpened], ["Mine", true]);
-    assert.deepEqual(result.dashboard.deliverables, [], "nothing the .scratch file lists shows");
-    assert.doesNotMatch(await readFile(join(outsideDirectory(repo.directory), "progress.jsonl"), "utf8"), /Planted/, "and none of it is copied out");
-    assert.deepEqual(await snapshot(join(repo.directory, ".scratch")), before, "every file in .scratch is as it was");
-  });
+      assert.equal((await repo.run(repo.directory, "start", "Mine")).code, 0);
+      assert.equal((await repo.run(repo.directory, "activity", "add", "My step")).code, 0);
+      await handleMarkPanelOpened({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+      const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+      assert.ok("dashboard" in result);
+      assert.match(result.file, /^~\/\.local\/state\/paseo-progress\//, "from the store outside the repo");
+      assert.deepEqual([result.dashboard.run?.title, result.panelOpened], ["Mine", true]);
+      assert.deepEqual(result.dashboard.deliverables, [], "nothing the .scratch file lists shows");
+      assert.doesNotMatch(await readFile(join(outsideDirectory(repo.directory), "progress.jsonl"), "utf8"), /Planted/, "and none of it is copied out");
+      assert.deepEqual(await snapshot(join(repo.directory, ".scratch")), before, "every file in .scratch is as it was");
+    });
 });
 
 // Every file and folder under a folder, with each file's text.
 async function snapshot(directory: string): Promise<Record<string, string>> {
   const entries = await readdir(directory, { recursive: true, withFileTypes: true });
-  return Object.fromEntries(await Promise.all(entries.map(async (entry) => {
-    const path = join(entry.parentPath, entry.name);
-    return [path.slice(directory.length), entry.isFile() ? await readFile(path, "utf8") : entry.isDirectory() ? "folder" : "other"];
-  })));
+  return Object.fromEntries(
+    await Promise.all(
+      entries.map(async (entry) => {
+        const path = join(entry.parentPath, entry.name);
+        return [path.slice(directory.length), entry.isFile() ? await readFile(path, "utf8") : entry.isDirectory() ? "folder" : "other"];
+      }),
+    ),
+  );
+}
+
+function scratch(directory: string, name = "") {
+  return join(directory, ".scratch", name);
+}
+
+async function withRun(directory: string) {
+  await mkdir(scratch(directory));
+  await writeFile(scratch(directory, "progress.jsonl"), startLine("Committed run"));
 }
 
 test("a repo's .scratch can't lead Progress to write, truncate or delete anything outside it", async (t) => {
-  const scratch = (directory: string, name = "") => join(directory, ".scratch", name);
-  const withRun = async (directory: string) => {
-    await mkdir(scratch(directory));
-    await writeFile(scratch(directory, "progress.jsonl"), startLine("Committed run"));
-  };
   // What a cloned repo can commit: links where 0.1.x kept its files.
   const cases: Array<{ name: string; plant: (directory: string, outsideDir: string) => Promise<void> }> = [
-    { name: "the progress file links outside", plant: async (directory, outsideDir) => {
-      await mkdir(scratch(directory));
-      await symlink(join(outsideDir, "victim.txt"), scratch(directory, "progress.jsonl"));
-    } },
-    { name: "the panel marker links outside", plant: async (directory, outsideDir) => {
-      await withRun(directory);
-      await symlink(join(outsideDir, "victim.txt"), scratch(directory, "progress-panel-opened"));
-    } },
+    {
+      name: "the progress file links outside",
+      plant: async (directory, outsideDir) => {
+        await mkdir(scratch(directory));
+        await symlink(join(outsideDir, "victim.txt"), scratch(directory, "progress.jsonl"));
+      },
+    },
+    {
+      name: "the panel marker links outside",
+      plant: async (directory, outsideDir) => {
+        await withRun(directory);
+        await symlink(join(outsideDir, "victim.txt"), scratch(directory, "progress-panel-opened"));
+      },
+    },
     { name: ".scratch links to a folder 0.1.x left outside", plant: (directory, outsideDir) => symlink(scratch(outsideDir), scratch(directory)) },
-    { name: "the lock links to a folder outside", plant: async (directory, outsideDir) => {
-      await withRun(directory);
-      await symlink(join(outsideDir, "busy"), scratch(directory, "progress.jsonl.lock"));
-    } },
+    {
+      name: "the lock links to a folder outside",
+      plant: async (directory, outsideDir) => {
+        await withRun(directory);
+        await symlink(join(outsideDir, "busy"), scratch(directory, "progress.jsonl.lock"));
+      },
+    },
   ];
   // Committed, as a clone has them, or not, as a download without git has them.
-  for (const { name, plant } of cases) for (const commit of [true, false]) await t.test(`${name}${commit ? "" : ", not committed"}`, async (t) => {
-    const outsideDir = await realpath(await mkdtemp(join(tmpdir(), "progress-outside-")));
-    t.after(() => rm(outsideDir, { recursive: true, force: true }));
-    await writeFile(join(outsideDir, "victim.txt"), "mine\n");
-    await oldScratch(outsideDir);
-    await mkdir(join(outsideDir, "busy"));
-    await writeFile(join(outsideDir, "busy", "keep.txt"), "mine\n");
-    const before = await snapshot(outsideDir);
-    const repo = await newRepo(t);
-    await plant(repo.directory, outsideDir);
-    if (commit) {
-      await git(repo.directory, "add", "-A");
-      await git(repo.directory, "commit", "-qm", "a cloned repo with links");
-    }
-    await handleMarkPanelOpened({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
-    assert.equal((await repo.run(repo.directory, "start", "hello")).code, 0, "commands still work");
-    const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
-    assert.ok("dashboard" in result);
-    assert.deepEqual(await snapshot(outsideDir), before, "nothing outside the repo changed");
-    assert.deepEqual([result.dashboard.run?.title, result.panelOpened], ["hello", true], "the panel still works");
-    assert.match(result.file, /^~\/\.local\/state\/paseo-progress\//, "from the store outside the repo");
-  });
+  for (const { name, plant } of cases)
+    for (const commit of [true, false])
+      await t.test(`${name}${commit ? "" : ", not committed"}`, async (sub) => {
+        const outsideDir = await realpath(await mkdtemp(join(tmpdir(), "progress-outside-")));
+        sub.after(() => rm(outsideDir, { recursive: true, force: true }));
+        await writeFile(join(outsideDir, "victim.txt"), "mine\n");
+        await oldScratch(outsideDir);
+        await mkdir(join(outsideDir, "busy"));
+        await writeFile(join(outsideDir, "busy", "keep.txt"), "mine\n");
+        const before = await snapshot(outsideDir);
+        const repo = await newRepo(sub);
+        await plant(repo.directory, outsideDir);
+        if (commit) {
+          await git(repo.directory, "add", "-A");
+          await git(repo.directory, "commit", "-qm", "a cloned repo with links");
+        }
+        await handleMarkPanelOpened({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+        assert.equal((await repo.run(repo.directory, "start", "hello")).code, 0, "commands still work");
+        const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context);
+        assert.ok("dashboard" in result);
+        assert.deepEqual(await snapshot(outsideDir), before, "nothing outside the repo changed");
+        assert.deepEqual([result.dashboard.run?.title, result.panelOpened], ["hello", true], "the panel still works");
+        assert.match(result.file, /^~\/\.local\/state\/paseo-progress\//, "from the store outside the repo");
+      });
 });
 
 test("saving run history is opt-in: one file per run in the chosen folder, in every worktree", async (t) => {
@@ -1788,13 +2224,26 @@ test("saving run history is opt-in: one file per run in the chosen folder, in ev
   const first = runFileName(minutes(0).toISOString(), "First run");
   assert.equal(first, "20260927-195900-first-run.jsonl");
   const saved = await readFile(join(repo.directory, "history", first), "utf8");
-  assert.deepEqual(saved.trim().split("\n").map((line) => JSON.parse(line).type), ["run.start", "activity.add"]);
+  assert.deepEqual(
+    saved
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line).type),
+    ["run.start", "activity.add"],
+  );
   assert.deepEqual(await repo.visible(), [`history/${first}`], "only the run file; no lock or marker");
   assert.deepEqual(await repo.visible(repo.linked), [`history/${runFileName(minutes(0).toISOString(), "Linked run")}`], "the setting covers every worktree");
 
   await repo.run(repo.directory, "start", "Second run");
-  assert.deepEqual((await readdir(join(repo.directory, "history"))).sort(), [first, runFileName(minutes(0).toISOString(), "Second run")].sort(), "a new run gets its own file");
-  assert.deepEqual(JSON.parse((await readFile(join(repo.directory, "history", runFileName(minutes(0).toISOString(), "Second run")), "utf8")).trim()).title, "Second run");
+  assert.deepEqual(
+    (await readdir(join(repo.directory, "history"))).toSorted(),
+    [first, runFileName(minutes(0).toISOString(), "Second run")].toSorted(),
+    "a new run gets its own file",
+  );
+  assert.deepEqual(
+    JSON.parse((await readFile(join(repo.directory, "history", runFileName(minutes(0).toISOString(), "Second run")), "utf8")).trim()).title,
+    "Second run",
+  );
 
   assert.deepEqual(await set(null), { savedTo: null });
   assert.deepEqual(await set(null), { savedTo: null }, "stopping twice is fine");
@@ -1805,7 +2254,21 @@ test("saving run history is opt-in: one file per run in the chosen folder, in ev
 
 test("run history only goes to folders inside the repo", async (t) => {
   const repo = await newRepo(t);
-  for (const folder of ["", " ", "../elsewhere", "/tmp/x", ".", ".git", ".git/x", ".git\\x", ".GIT/x", ".Git", "nested/.git", "nested/.git/runs", "nested\\.GIT\\runs"]) {
+  for (const folder of [
+    "",
+    " ",
+    "../elsewhere",
+    "/tmp/x",
+    ".",
+    ".git",
+    ".git/x",
+    ".git\\x",
+    ".GIT/x",
+    ".Git",
+    "nested/.git",
+    "nested/.git/runs",
+    "nested\\.GIT\\runs",
+  ]) {
     await assert.rejects(handleSetHistoryFolder({ workspaceId: "ws-1", workspaceDirectory: repo.directory, folder }, context), `rejects "${folder}"`);
   }
 });
@@ -1845,12 +2308,26 @@ test("a saved-runs folder set outside Paseo is checked before each save", async 
     await git(repo.directory, "config", "--local", "paseo-progress.saveRuns", folder);
     assert.equal((await repo.run(repo.directory, "start", "Run")).code, 0);
     assert.deepEqual(await readdir(outsideDir), [], `nothing saved for "${folder}"`);
-    assert.equal(await readdir(join(repo.directory, ".git", "runs")).then(() => true, () => false), false, `nothing saved in .git for "${folder}"`);
+    assert.equal(
+      await readdir(join(repo.directory, ".git", "runs")).then(
+        () => true,
+        () => false,
+      ),
+      false,
+      `nothing saved in .git for "${folder}"`,
+    );
   }
   const repo = await newRepo(t);
   await git(repo.directory, "config", "--local", "paseo-progress.saveRuns", "nested/.git/runs");
   assert.equal((await repo.run(repo.directory, "start", "Run")).code, 0);
-  assert.equal(await readdir(join(repo.directory, "nested")).then(() => true, () => false), false, "nothing saved in a nested .git");
+  assert.equal(
+    await readdir(join(repo.directory, "nested")).then(
+      () => true,
+      () => false,
+    ),
+    false,
+    "nothing saved in a nested .git",
+  );
 });
 
 test("saving a run never writes through a link, to the run's file or a folder above it", async (t) => {
@@ -1861,14 +2338,22 @@ test("saving a run never writes through a link, to the run's file or a folder ab
   const file = runFileName("2026-11-04T00:00:00.000Z", "Owned");
   // What a cloned repo can commit: links where its runs go, and a run of its own.
   const links: Array<{ folder: string; plant: (directory: string) => Promise<void>; name: string }> = [
-    { name: "the run's file links to a file outside", folder: "history", plant: async (directory) => {
-      await mkdir(join(directory, "history"));
-      await symlink(victim, join(directory, "history", file));
-    } },
-    { name: "the run's file links to a missing file outside", folder: "history", plant: async (directory) => {
-      await mkdir(join(directory, "history"));
-      await symlink(join(outsideDir, "made.txt"), join(directory, "history", file));
-    } },
+    {
+      name: "the run's file links to a file outside",
+      folder: "history",
+      plant: async (directory) => {
+        await mkdir(join(directory, "history"));
+        await symlink(victim, join(directory, "history", file));
+      },
+    },
+    {
+      name: "the run's file links to a missing file outside",
+      folder: "history",
+      plant: async (directory) => {
+        await mkdir(join(directory, "history"));
+        await symlink(join(outsideDir, "made.txt"), join(directory, "history", file));
+      },
+    },
     { name: "the folder links outside", folder: "history", plant: (directory) => symlink(outsideDir, join(directory, "history")) },
     { name: "a folder above it links outside", folder: "docs/runs", plant: (directory) => symlink(outsideDir, join(directory, "docs")) },
   ];
@@ -1876,10 +2361,13 @@ test("saving a run never writes through a link, to the run's file or a folder ab
     const repo = await newRepo(t);
     await plant(repo.directory);
     await mkdir(join(repo.directory, ".scratch"));
-    await writeFile(join(repo.directory, ".scratch", "progress.jsonl"), [
-      JSON.stringify({ v: 1, type: "run.start", ts: "2026-11-04T00:00:00.000Z", title: "Owned" }),
-      JSON.stringify({ v: 1, type: "activity.add", ts: "2026-11-04T00:00:01.000Z", id: "A1", text: "attacker's line" }),
-    ].join("\n") + "\n");
+    await writeFile(
+      join(repo.directory, ".scratch", "progress.jsonl"),
+      [
+        JSON.stringify({ v: 1, type: "run.start", ts: "2026-11-04T00:00:00.000Z", title: "Owned" }),
+        JSON.stringify({ v: 1, type: "activity.add", ts: "2026-11-04T00:00:01.000Z", id: "A1", text: "attacker's line" }),
+      ].join("\n") + "\n",
+    );
     await git(repo.directory, "add", "-A");
     await git(repo.directory, "commit", "-qm", "a cloned repo with links");
     await git(repo.directory, "config", "--local", "paseo-progress.saveRuns", folder);
@@ -1920,7 +2408,7 @@ test("git never runs from the repo, so a program the repo commits named git neve
   // Windows looks for a program in the folder it starts in before PATH. A "."
   // first on PATH does the same here.
   const result = await withPathFirst(".", () => handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: repo.directory }, context));
-  assert.deepEqual((await readdir(repo.directory)).sort(), [".git", "git"], "the repo's git never ran");
+  assert.deepEqual((await readdir(repo.directory)).toSorted(), [".git", "git"], "the repo's git never ran");
   assert.ok("dashboard" in result);
   assert.equal(result.inRepo, true, "the real git answered for the repo");
 });
@@ -1951,8 +2439,11 @@ test("a page git reports as ignored gets ignored files only from its own folder 
   await repo.run(repo.directory, "deliverable", "add", "Report", ".scratch/run/report.html");
   const preview = await previewDeliverable(repo.directory, "D1");
   assert.ok(preview.kind === "html");
-  assert.equal(preview.html, [`<style>h1 {}</style>`, `<script>home()</script>`, `<script>run()</script>`, ...refs.slice(3)].join("\n"),
-    "its folder's files and tracked files go in; ignored files elsewhere and .git stay out");
+  assert.equal(
+    preview.html,
+    [`<style>h1 {}</style>`, `<script>home()</script>`, `<script>run()</script>`, ...refs.slice(3)].join("\n"),
+    "its folder's files and tracked files go in; ignored files elsewhere and .git stay out",
+  );
 });
 
 test("when git fails in a repo, a page gets no file git didn't vouch for, and git is asked again next time", async (t) => {

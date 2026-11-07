@@ -1,15 +1,24 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import nodePath, { delimiter, dirname, join, relative, resolve } from "node:path";
-import { promisify } from "node:util";
-import { findAttachment, type FolderEntry, imageMimeType, isPieced, type PiecedKind, previewKind, splitRef, textFormat, videoMimeType } from "../shared/attachments.ts";
+import {
+  findAttachment,
+  type FolderEntry,
+  imageMimeType,
+  isPieced,
+  type PiecedKind,
+  previewKind,
+  splitRef,
+  textFormat,
+  videoMimeType,
+} from "../shared/attachments.ts";
 import { prepareMarkdown, previewText } from "../shared/markdown.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, hasGitEntry, inGitFolder, outside } from "./paths.ts";
 import { findStore, git } from "./store.ts";
+import { openToRead, runProgram } from "./system.ts";
 
 export type Opener = (path: string) => Promise<void>;
 
@@ -28,7 +37,7 @@ export function openCommand(path: string, platform: NodeJS.Platform, browser: st
 async function defaultBrowser(): Promise<string | null> {
   try {
     const plist = join(homedir(), "Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist");
-    const { stdout } = await promisify(execFile)("plutil", ["-convert", "json", "-o", "-", plist]);
+    const { stdout } = await runProgram("plutil", ["-convert", "json", "-o", "-", plist]);
     const handlers = (JSON.parse(stdout).LSHandlers ?? []) as Array<{ LSHandlerURLScheme?: string; LSHandlerRoleAll?: string }>;
     return handlers.find((handler) => handler.LSHandlerURLScheme === "https")?.LSHandlerRoleAll ?? null;
   } catch {
@@ -47,14 +56,18 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
     if (!canOpenFiles(platform, env)) throw new Error(`Can't open files on ${hostname()}`);
     const browser = platform === "darwin" ? await defaultBrowser() : null;
     const [command, args] = openCommand(path, platform, browser);
-    await promisify(execFile)(command, args);
+    await runProgram(command, args);
   };
 }
 
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
-async function resolveAttachment(directory: string, ref: string, verb: string): Promise<{ path: string; realTarget: string; realRoot: string; worktree: string }> {
+async function resolveAttachment(
+  directory: string,
+  ref: string,
+  verb: string,
+): Promise<{ path: string; realTarget: string; realRoot: string; worktree: string }> {
   const { base, inner } = splitRef(ref);
   const worktree = findRoot(directory);
   const { dashboard } = await readProgress((await findStore(worktree)).directory);
@@ -114,7 +127,7 @@ export async function previewDeliverable(directory: string, id: string): Promise
   }
   if (kind === "text") {
     // Read only what's shown, so a huge log doesn't load whole.
-    const file = await open(realTarget);
+    const file = await openToRead(realTarget);
     try {
       const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(Math.min(size, MAX_PREVIEW_TEXT_BYTES)), position: 0 });
       const bytes = buffer.subarray(0, bytesRead);
@@ -141,6 +154,15 @@ async function listFolder(target: string): Promise<{ entries: FolderEntry[]; tru
   }
   entries.sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
   return { entries: entries.slice(0, MAX_FOLDER_ENTRIES), truncated: entries.length > MAX_FOLDER_ENTRIES };
+}
+
+function dataUri(data: Buffer, file: string): string {
+  return `data:${imageMimeType(file) ?? videoMimeType(file) ?? "application/octet-stream"};base64,${data.toString("base64")}`;
+}
+
+// Its own end tag would close the element early.
+function body(tag: string) {
+  return (data: Buffer) => data.toString("utf8").replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
 }
 
 // The preview gets only the page, so the files beside it that it loads (its
@@ -185,14 +207,12 @@ async function inlineLocalFiles(html: string, page: string, root: string): Promi
       return null;
     }
   };
-  const dataUri = (data: Buffer, file: string) => `data:${imageMimeType(file) ?? videoMimeType(file) ?? "application/octet-stream"};base64,${data.toString("base64")}`;
-  // Its own end tag would close the element early.
-  const body = (tag: string) => (data: Buffer) => data.toString("utf8").replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
   html = await replaceEach(html, /<(?:img|source|video)\b[^>]*>/gi, (tag) =>
     replaceEach(tag[0], /(?<=\s)(src|poster)(\s*=\s*)(["'])([^"']*)\3/gi, async ([, name, equals, quote, url]) => {
       const uri = await inline(url, dataUri);
       return uri && `${name}${equals}${quote}${uri}${quote}`;
-    }));
+    }),
+  );
   html = await replaceEach(html, /<link\b[^>]*>/gi, async ([tag]) => {
     const href = tag.match(/\bhref\s*=\s*(["'])([^"']*)\1/i)?.[2];
     if (!href || !/\brel\s*=\s*(["'])\s*stylesheet\s*\1/i.test(tag)) return null;
@@ -224,7 +244,7 @@ export async function readDeliverablePiece(directory: string, id: string, offset
   const { path, realTarget } = await resolveAttachment(directory, id, "previewed");
   const kind = previewKind(realTarget);
   if (!isPieced(kind)) throw new Error(`${path} isn't a video or PDF.`);
-  const file = await open(realTarget);
+  const file = await openToRead(realTarget);
   try {
     const { size } = await file.stat();
     if (size > PIECED_LIMIT_BYTES[kind]) throw new Error(tooLarge(path, size));
@@ -237,10 +257,7 @@ export async function readDeliverablePiece(directory: string, id: string, offset
   }
 }
 
-export async function handlePreviewDeliverable(
-  input: { workspaceId: string; workspaceDirectory: string; ref: string },
-  _context: PluginHandlerContext,
-) {
+export async function handlePreviewDeliverable(input: { workspaceId: string; workspaceDirectory: string; ref: string }, _context: PluginHandlerContext) {
   return previewDeliverable(input.workspaceDirectory, input.ref);
 }
 
@@ -251,10 +268,7 @@ export async function handleReadDeliverablePiece(
   return readDeliverablePiece(input.workspaceDirectory, input.ref, input.offset);
 }
 
-export async function handleOpenDeliverable(
-  input: { workspaceId: string; workspaceDirectory: string; ref: string },
-  _context: PluginHandlerContext,
-) {
+export async function handleOpenDeliverable(input: { workspaceId: string; workspaceDirectory: string; ref: string }, _context: PluginHandlerContext) {
   return openDeliverable(input.workspaceDirectory, input.ref, hostOpener(process.platform, process.env));
 }
 

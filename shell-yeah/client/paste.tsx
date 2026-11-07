@@ -24,7 +24,15 @@ export function PasteButton({ colors, onPaste }: { colors: ThemeColors; onPaste(
 
   return (
     <>
-      <Button icon="ClipboardPaste" label="Paste" tone="quiet" onPress={() => void paste()} compact colors={colors} accessibilityLabel="Paste into the command" />
+      <Button
+        icon="ClipboardPaste"
+        label="Paste"
+        tone="quiet"
+        onPress={() => void paste()}
+        compact
+        colors={colors}
+        accessibilityLabel="Paste into the command"
+      />
       {open ? <PasteBox colors={colors} onClose={() => setOpen(false)} onPaste={onPaste} /> : null}
     </>
   );
@@ -40,10 +48,27 @@ function PasteBox({ colors, onClose, onPaste }: { colors: ThemeColors; onClose()
     onPaste(text);
   };
   return (
-    <Modal title="Paste into the command" icon={<Icon name="ClipboardPaste" size={16} color={colors.foregroundMuted} />} open onOpenChange={(next) => { if (!next) onClose(); }}>
+    <Modal
+      title="Paste into the command"
+      icon={<Icon name="ClipboardPaste" size={16} color={colors.foregroundMuted} />}
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
       <Modal.Content>
         <View style={{ gap: 12 }}>
-          <View style={{ borderRadius: 6, backgroundColor: palette.well, borderWidth: 1, borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6), paddingHorizontal: 12, paddingVertical: 8 }} {...codeSurface()}>
+          <View
+            style={{
+              borderRadius: 6,
+              backgroundColor: palette.well,
+              borderWidth: 1,
+              borderColor: focused ? colors.accent : withAlpha(colors.border, 0.6),
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+            {...codeSurface()}
+          >
             <TextInput
               autoFocus
               value={text}
@@ -64,9 +89,20 @@ function PasteBox({ colors, onClose, onPaste }: { colors: ThemeColors; onClose()
               style={{ height: 24, padding: 0, fontFamily: mono(), fontSize: 16, lineHeight: 24, color: colors.foreground, outlineWidth: 0 }}
             />
           </View>
-          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>It goes in as if you typed it. Then press Return if the command asks for it.</Text>
+          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+            It goes in as if you typed it. Then press Return if the command asks for it.
+          </Text>
           <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-            <Button icon="ClipboardPaste" label="Paste" tone="primary" onPress={submit} disabled={!text} compact colors={colors} accessibilityLabel="Paste into the command" />
+            <Button
+              icon="ClipboardPaste"
+              label="Paste"
+              tone="primary"
+              onPress={submit}
+              disabled={!text}
+              compact
+              colors={colors}
+              accessibilityLabel="Paste into the command"
+            />
           </View>
         </View>
       </Modal.Content>

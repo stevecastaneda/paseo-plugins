@@ -10,7 +10,12 @@ export type FileBlob = { readonly size: number };
 
 export class FileChangedError extends Error {}
 
-export async function loadPieces({ bytes, mimeType, readPiece, onProgress }: {
+export async function loadPieces({
+  bytes,
+  mimeType,
+  readPiece,
+  onProgress,
+}: {
   bytes: number;
   mimeType: string;
   readPiece(offset: number): Promise<{ data: string; bytes: number }>;

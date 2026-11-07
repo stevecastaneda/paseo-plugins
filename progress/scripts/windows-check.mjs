@@ -27,11 +27,14 @@ writeFileSync(join(reported, "server", "cli.ts"), `console.log("${ECHO} " + JSON
 // fails on any other arguments, so quoting mistakes show up.
 function standInPaseo(dir) {
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "stand-in.mjs"), [
-    `const args = process.argv.slice(2);`,
-    `if (args.join(" ") !== "plugin ls progress --json") { console.error("stand-in paseo got: " + JSON.stringify(args)); process.exit(2); }`,
-    `console.log(JSON.stringify([{ id: "progress", path: ${JSON.stringify(reported)} }]));`,
-  ].join("\n"));
+  writeFileSync(
+    join(dir, "stand-in.mjs"),
+    [
+      `const args = process.argv.slice(2);`,
+      `if (args.join(" ") !== "plugin ls progress --json") { console.error("stand-in paseo got: " + JSON.stringify(args)); process.exit(2); }`,
+      `console.log(JSON.stringify([{ id: "progress", path: ${JSON.stringify(reported)} }]));`,
+    ].join("\n"),
+  );
   if (windows) {
     const path = join(dir, "paseo.cmd");
     writeFileSync(path, `@echo off\r\n"${process.execPath}" "%~dp0stand-in.mjs" %*\r\nexit /b %errorlevel%\r\n`);
@@ -64,10 +67,10 @@ function run(command, args, options) {
 }
 
 // Runs one of the plugin's server functions in a child with the given env.
-function serverCall(env, module, expression) {
+function serverCall(childEnv, module, expression) {
   const url = pathToFileURL(join(pluginDir, "server", module)).href;
   const script = `const m = await import(${JSON.stringify(url)}); console.log(JSON.stringify(await (${expression})(m)));`;
-  return run(process.execPath, ["--input-type=module", "-e", script], { env });
+  return run(process.execPath, ["--input-type=module", "-e", script], { env: childEnv });
 }
 
 const results = [];
@@ -80,8 +83,8 @@ const install = serverCall(env(), "launcher.ts", "(m) => m.handleInstallLauncher
 check("Install command writes the launcher", install.code === 0 && existsSync(join(binDir, "paseo-progress")), install.detail);
 
 const help = `${ECHO} ["--help"]`;
-function launcherFinds(name, env) {
-  const r = run(process.execPath, [join(binDir, "paseo-progress"), "--help"], { env });
+function launcherFinds(name, childEnv) {
+  const r = run(process.execPath, [join(binDir, "paseo-progress"), "--help"], { env: childEnv });
   check(`the command finds ${name}`, r.code === 0 && r.out === help, r.detail);
 }
 launcherFinds("paseo on PATH", env({}, [onPathDir]));
@@ -89,8 +92,8 @@ launcherFinds("PASEO_BIN", env({ PASEO_BIN: namedCli }));
 launcherFinds("PASEO_CLI, which Paseo gives agents", env({ PASEO_CLI: namedCli }));
 if (windows) launcherFinds("Paseo Desktop's default install", env());
 
-function skillFinds(name, env) {
-  const r = serverCall(env, "skill.ts", "(m) => m.findPluginDirectory()");
+function skillFinds(name, childEnv) {
+  const r = serverCall(childEnv, "skill.ts", "(m) => m.findPluginDirectory()");
   check(`Install skill finds ${name}`, r.code === 0 && r.out === JSON.stringify(reported), r.detail);
 }
 skillFinds("paseo on PATH", env({}, [onPathDir]));
@@ -105,17 +108,30 @@ if (windows) {
   const again = serverCall(env(), "launcher.ts", "(m) => m.installLauncher(m.defaultLauncherPath())");
   check("a second Install command writes nothing", again.code === 0 && again.out === "false" && existsSync(join(binDir, "paseo-progress.cmd")), again.detail);
   const shellEnv = env({ PASEO_CLI: namedCli }, [binDir]);
-  for (const [shell, args] of [["powershell", ["-NoProfile", "-Command", "paseo-progress --help"]], ["cmd", ["/d", "/c", "paseo-progress --help"]]]) {
+  for (const [shell, args] of [
+    ["powershell", ["-NoProfile", "-Command", "paseo-progress --help"]],
+    ["cmd", ["/d", "/c", "paseo-progress --help"]],
+  ]) {
     const r = run(shell, args, { env: shellEnv });
     check(`${shell} runs paseo-progress`, r.code === 0 && r.out === help, r.detail);
   }
-  const asked = run("powershell", ["-NoProfile", "-Command", `paseo-progress question ask "Row spacing" "Even it out?" --option "A=Yes | 50% wider & done"`], { env: shellEnv });
-  check("PowerShell passes quoted arguments intact", asked.out === `${ECHO} ["question","ask","Row spacing","Even it out?","--option","A=Yes | 50% wider & done"]`, asked.detail);
+  const asked = run("powershell", ["-NoProfile", "-Command", `paseo-progress question ask "Row spacing" "Even it out?" --option "A=Yes | 50% wider & done"`], {
+    env: shellEnv,
+  });
+  check(
+    "PowerShell passes quoted arguments intact",
+    asked.out === `${ECHO} ["question","ask","Row spacing","Even it out?","--option","A=Yes | 50% wider & done"]`,
+    asked.detail,
+  );
 }
 
 // Linking on its own, apart from finding Paseo, so each failure shows alone.
 const paths = `m.defaultSkillPaths(${JSON.stringify(home)})`;
-const linked = serverCall(env(), "skill.ts", `async (m) => { await m.installSkill(${paths}, ${JSON.stringify(reported)}); return (await m.skillStatus(${paths}, ${JSON.stringify(reported)})).state; }`);
+const linked = serverCall(
+  env(),
+  "skill.ts",
+  `async (m) => { await m.installSkill(${paths}, ${JSON.stringify(reported)}); return (await m.skillStatus(${paths}, ${JSON.stringify(reported)})).state; }`,
+);
 check("Install skill links all three folders", linked.out === `"current"`, linked.detail);
 if (windows) {
   // A junction needs no admin rights or Developer Mode; a directory symlink does.
@@ -124,7 +140,11 @@ if (windows) {
   check("the skill link is a junction", type.out === "Junction", type.detail);
   const moved = join(work, "moved plugin");
   mkdirSync(join(moved, "skills", "paseo-progress"), { recursive: true });
-  const relinked = serverCall(env(), "skill.ts", `async (m) => { const before = (await m.skillStatus(${paths}, ${JSON.stringify(moved)})).state; await m.installSkill(${paths}, ${JSON.stringify(moved)}); return [before, (await m.skillStatus(${paths}, ${JSON.stringify(moved)})).state]; }`);
+  const relinked = serverCall(
+    env(),
+    "skill.ts",
+    `async (m) => { const before = (await m.skillStatus(${paths}, ${JSON.stringify(moved)})).state; await m.installSkill(${paths}, ${JSON.stringify(moved)}); return [before, (await m.skillStatus(${paths}, ${JSON.stringify(moved)})).state]; }`,
+  );
   check("a link to an old copy of the plugin is replaced", relinked.out === `["outdated","current"]`, relinked.detail);
 }
 

@@ -25,10 +25,13 @@ test("carriage return overwrites in place, as a progress bar expects", () => {
   for (const [input, expected] of cases) assert.deepEqual(lines(input), expected, JSON.stringify(input));
 });
 
+function block(n: number): string {
+  return `layer a: ${n}%\nlayer b: ${n}%\nlayer c: ${n}%\n`;
+}
+
 test("erase-line and cursor-up redraws replace lines instead of piling up", () => {
   assert.deepEqual(lines(`frame 1${ESC}[2K\rframe 2${ESC}[2K\rframe 3\n`), ["frame 3"]);
   // docker-style: three layer lines, updated twice.
-  const block = (n: number) => `layer a: ${n}%\nlayer b: ${n}%\nlayer c: ${n}%\n`;
   const redraw = `${ESC}[3A${ESC}[0J`;
   assert.deepEqual(lines(block(10) + redraw + block(50) + redraw + block(100)), ["layer a: 100%", "layer b: 100%", "layer c: 100%"]);
   // Erase to the right keeps what was typed before the cursor.
@@ -42,7 +45,12 @@ test("clear screen plus home leaves only the latest frame", () => {
 });
 
 test("escape sequences and UTF-8 split across writes parse like one write", () => {
-  assert.deepEqual(lines([`${ESC}[1;3`, "1mred", `${ESC}[`, "0m plain"]), [[["red", "1;31"], [" plain", ""]]]);
+  assert.deepEqual(lines([`${ESC}[1;3`, "1mred", `${ESC}[`, "0m plain"]), [
+    [
+      ["red", "1;31"],
+      [" plain", ""],
+    ],
+  ]);
   const emoji = Buffer.from("héllo 🎉\n", "utf8");
   const decoder = new StringDecoder("utf8");
   const screen = createScreen();
@@ -53,11 +61,27 @@ test("escape sequences and UTF-8 split across writes parse like one write", () =
 });
 
 test("styles become canonical SGR strings; order of parameters does not matter", () => {
-  assert.deepEqual(lines(`${ESC}[1;31mfoo${ESC}[0mbar`), [[["foo", "1;31"], ["bar", ""]]]);
+  assert.deepEqual(lines(`${ESC}[1;31mfoo${ESC}[0mbar`), [
+    [
+      ["foo", "1;31"],
+      ["bar", ""],
+    ],
+  ]);
   assert.deepEqual(lines(`${ESC}[31;1mfoo`), [[["foo", "1;31"]]]);
-  assert.deepEqual(lines(`${ESC}[38;5;208mx${ESC}[48;2;10;20;30my`), [[["x", "38;5;208"], ["y", "38;5;208;48;2;10;20;30"]]]);
+  assert.deepEqual(lines(`${ESC}[38;5;208mx${ESC}[48;2;10;20;30my`), [
+    [
+      ["x", "38;5;208"],
+      ["y", "38;5;208;48;2;10;20;30"],
+    ],
+  ]);
   // Unknown parameters are ignored; attribute-off codes work.
-  assert.deepEqual(lines(`${ESC}[1;4;99mx${ESC}[22my${ESC}[24mz`), [[["x", "1;4"], ["y", "4"], ["z", ""]]]);
+  assert.deepEqual(lines(`${ESC}[1;4;99mx${ESC}[22my${ESC}[24mz`), [
+    [
+      ["x", "1;4"],
+      ["y", "4"],
+      ["z", ""],
+    ],
+  ]);
   // Bright and background colors, inverse.
   assert.deepEqual(lines(`${ESC}[92;7mok${ESC}[m`), [[["ok", "7;92"]]]);
 });
@@ -115,11 +139,18 @@ test("fitLines keeps the newest lines inside a byte budget measured as UTF-8 JSO
   const fitted = fitLines(input, jsonBytes(input) - 1);
   assert.deepEqual(fitted, input.slice(1));
   assert.ok(jsonBytes(fitted) <= jsonBytes(input) - 1);
-  const giant: Line = [["a".repeat(5_000), "1"], ["é".repeat(5_000), "31"]];
+  const giant: Line = [
+    ["a".repeat(5_000), "1"],
+    ["é".repeat(5_000), "31"],
+  ];
   const [cut] = fitLines([giant], 1_000);
   assert.ok(jsonBytes([cut]) <= 1_000);
   assert.ok(plainText([cut]).endsWith("é"), "the end of the line survives");
-  assert.deepEqual((cut as Array<[string, string]>).map(([, sgr]) => sgr), ["31"], "styles survive the cut");
+  assert.deepEqual(
+    (cut as Array<[string, string]>).map(([, sgr]) => sgr),
+    ["31"],
+    "styles survive the cut",
+  );
   assert.deepEqual(fitLines([], 100), []);
 });
 
@@ -137,8 +168,8 @@ test("tail says where the cursor is, counted from the last line", () => {
   screen.write("\n");
   assert.deepEqual(screen.tail(10).cursor, { up: -1, col: 0 });
   screen.write("\x1b[2A\x1b[2G");
-  const { lines, cursor } = screen.tail(10);
-  assert.equal(lines[lines.length - 1 - cursor!.up], "two");
+  const { lines: tailLines, cursor } = screen.tail(10);
+  assert.equal(tailLines[tailLines.length - 1 - cursor!.up], "two");
   assert.equal(cursor!.col, 1);
   assert.equal(screen.tail(1).cursor, null, "above the lines sent");
 });
