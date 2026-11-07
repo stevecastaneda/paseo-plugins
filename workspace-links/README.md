@@ -56,6 +56,11 @@ plugin.
 
 ## Changelog
 
+### 1.1.2
+
+- Links show the site they open. Before, a URL with a name and `@` in front of the site could show that name where the site goes.
+- Workspace Links reads `workspace-links.json` only when it's a regular file of 64 KB or less. For a symlink or a bigger file, the Links list says "Couldn't read links" instead.
+
 ### 1.1.1
 
 - On a phone, the Links sheet shows its title once. Paseo already titles it Workspace Links, so the plugin's own "Links 7" line is gone, and **Manage links** is a row under the list.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
@@ -34,6 +34,20 @@ test("malformed files and non-web URLs produce a useful error", async (t) => {
     await writeFile(join(directory, "workspace-links.json"), contents);
     await assert.rejects(readLinks(directory), /array of links/);
   }
+});
+
+test("refuses a symlinked or oversized file, even when its contents are valid links", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "workspace-links-"));
+  const outside = await mkdtemp(join(tmpdir(), "workspace-links-outside-"));
+  t.after(() => Promise.all([directory, outside].map((path) => rm(path, { recursive: true, force: true }))));
+  const links = JSON.stringify([{ label: "App", url: "http://localhost:4321" }]);
+  await writeFile(join(outside, "links.json"), links);
+  await symlink(join(outside, "links.json"), join(directory, "workspace-links.json"));
+  await assert.rejects(readLinks(directory), /regular file/);
+
+  await rm(join(directory, "workspace-links.json"));
+  await writeFile(join(directory, "workspace-links.json"), links + " ".repeat(64 * 1024));
+  await assert.rejects(readLinks(directory), /64 KB/);
 });
 
 test("loads links from workspace-links.json without calling paseo", async (t) => {

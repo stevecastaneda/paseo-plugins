@@ -9,6 +9,13 @@ test("URLs drop the scheme, www and a lone trailing slash", () => {
   assert.equal(displayUrl("http://localhost:3000/a?b=1"), "localhost:3000/a?b=1");
 });
 
+test("URLs show the real host, never the userinfo before an @", () => {
+  assert.equal(displayUrl("https://github.com@evil.example/login"), "evil.example/login");
+  assert.equal(displayUrl("https://user:pass@www.example.com/a#b"), "example.com/a#b");
+  assert.equal(displayUrl("https://a@github.com:1@evil.example/login"), "evil.example/login");
+  assert.equal(displayUrl("https://evil.example?x=@github.com"), "evil.example?x=@github.com");
+});
+
 test("icons follow the link's name", () => {
   const icon = (label: string, url = "https://example.com") => linkIcon({ label, url });
   assert.equal(icon("App"), "AppWindow");
