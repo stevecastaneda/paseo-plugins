@@ -10,7 +10,6 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { scriptSyntaxError } from "./page-scripts.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
@@ -1319,32 +1318,35 @@ const qaPage = (script: string) =>
     "</body></html>",
   ].join("\n");
 
-test("an HTML page whose script won't parse is refused, with the line to fix", async (t) => {
+test("an agent hears which line of a page won't parse, and the page is still recorded", async (t) => {
   const w = await screenshotRun(t);
-  await writeFile(join(w.directory, "broken.html"), qaPage('if (e.target.id \\!== "notes") return;'));
+  await mkdir(join(w.directory, "qa"), { recursive: true });
+  await writeFile(join(w.directory, "qa", "broken.html"), qaPage('if (e.target.id \\!== "notes") return;'));
   await writeFile(join(w.directory, "working.html"), qaPage('if (ok !== 1) console.log("off");'));
+  const warning = /^qa\/broken\.html has a script error on line 6 \(Invalid or unexpected token\)\. Paseo's preview skips a script that won't parse/m;
 
-  for (const argv of [
-    ["deliverable", "add", "Live QA", "broken.html"],
-    ["question", "ask", "Layout", "Does this read well?", "--recommend", "Yes", "--file", "broken.html"],
-  ]) {
-    const result = await w.run(...argv);
-    assert.equal(result.code, 1, argv.join(" "));
-    assert.match(result.text, /^broken\.html has a script error on line 6 \(Invalid or unexpected token\), so it opens blank in Paseo's preview\./);
-  }
-  assert.equal((await w.run("deliverable", "add", "Live QA", "working.html")).text, "Added D1: Live QA");
+  const nested = await runCliText(["deliverable", "add", "Live QA", "broken.html"], join(w.directory, "qa"));
+  assert.equal(nested.code, 0);
+  assert.match(nested.text, /^Added D1: Live QA\n/);
+  assert.match(nested.text, warning);
+  assert.match((await w.run("question", "ask", "Layout", "Does this read well?", "--recommend", "Yes", "--file", "qa/broken.html")).text, warning);
+  assert.match((await w.run("question", "update", "Q1", "--file", "qa/broken.html=Again")).text, warning);
+  assert.match((await w.run("ticket", "add", "Ticket 01: QA", "--estimate", "10", "--source", "qa/broken.html")).text, warning);
+  assert.equal((await w.run("deliverable", "add", "Working", "working.html")).text, "Added D2: Working");
   assert.deepEqual(
     (await w.dashboard()).dashboard.deliverables.map(({ id, path }) => ({ id, path })),
-    [{ id: "D1", path: "working.html" }],
+    [
+      { id: "D2", path: "working.html" },
+      { id: "D1", path: "qa/broken.html" },
+    ],
   );
-  assert.deepEqual(scriptSyntaxError(["<script>", "1;", "</script>", "<p>", "<script>", "", "const = 1;"].join("\n") + "</script>"), {
-    line: 7,
-    message: "Unexpected token '='",
-  });
-  assert.equal(scriptSyntaxError("<script>const = 1;"), undefined, "an unclosed script isn't checked");
-  assert.equal(scriptSyntaxError("<!-- <script>const = 1;</script> -->"), undefined, "a script in a comment isn't checked");
-  assert.equal(scriptSyntaxError('<script type="application/json">{ not json</script>'), undefined, "a data block isn't checked");
 });
+
+async function runCliText(argv: string[], cwd: string) {
+  const lines: string[] = [];
+  const code = await runCli(argv, { cwd, now: () => minutes(1), out: (line) => lines.push(line) });
+  return { code, text: lines.join("\n") };
+}
 
 test("activity notes list newest first and can be reworded or removed; the ticker sets and clears", async (t) => {
   const w = await screenshotRun(t);

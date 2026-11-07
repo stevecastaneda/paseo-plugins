@@ -178,9 +178,9 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
-### 1.14.4
+### 1.15.0
 
-- [Fixed] **Progress turns away a page whose script won't run.** One typo in a page's script, like a stray backslash, makes the browser skip the whole script, so the page opened blank in Paseo's preview. Now, when an agent adds an HTML deliverable or attaches an HTML page to a question, Progress checks its scripts and refuses a page that won't parse. The refusal names the line to fix.
+- [Improved] **Agents hear when a page's script won't run.** One typo in a page's script, like a stray backslash, makes the browser skip the whole script, so the page opens blank in Paseo's preview. Now, when an agent adds an HTML deliverable, attaches an HTML page to a question or names one as a ticket's write-up, Progress finds the page's scripts the way a browser does and checks that each one parses. If one doesn't, Progress still records the page and tells the agent the line to fix. Module scripts aren't checked.
 - [Improved] **Agents learn that the preview has no storage.** Paseo's preview gives a page no localStorage, sessionStorage, cookies or IndexedDB, so a page that saved its state there stopped with an error. The command help and the skill now tell agents to keep a page's state in variables.
 
 ### 1.14.3

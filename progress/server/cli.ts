@@ -103,7 +103,7 @@ function parseFile(raw: string, cwd: string, root: string) {
   const target = (index === -1 ? raw : raw.slice(0, index)).trim();
   const label = index === -1 ? undefined : raw.slice(index + 1).trim() || undefined;
   if (!target) throw new UsageError(`--file needs a path or URL, got "${raw}".`);
-  if (!isUrl) return { path: checkedPath(target, cwd, root), label };
+  if (!isUrl) return { path: rootRelative(target, cwd, root), label };
   if (!/^https?:\/\//i.test(target)) throw new UsageError("Only http(s) URLs are supported; give local files as a path.");
   return { url: target, label };
 }
@@ -416,7 +416,7 @@ const commands: Record<string, Command> = {
           type: "deliverable.add",
           id,
           title,
-          ...(isUrl ? { url: target } : { path: checkedPath(target, cwd, root) }),
+          ...(isUrl ? { url: target } : { path: rootRelative(target, cwd, root) }),
           ticket: ticket?.id,
           kind: (kind as (typeof DELIVERABLE_KINDS)[number] | undefined) ?? guessKind(target, isUrl, cwd),
         },
@@ -516,14 +516,23 @@ function rootRelative(target: string, cwd: string, root: string): string {
   return outside(inside) ? absolute + suffix : inside + suffix;
 }
 
-function checkedPath(target: string, cwd: string, root: string): string {
-  const error = pageScriptError(resolve(cwd, target));
-  if (error) {
-    throw new UsageError(
-      `${target} has a script error on line ${error.line} (${error.message}), so it opens blank in Paseo's preview. Fix the page and run this again.`,
-    );
-  }
-  return rootRelative(target, cwd, root);
+// A page whose script won't parse opens blank in Paseo's preview. The agent
+// hears about it, but the file is still recorded: Node's JavaScript engine can
+// be older than the browser's, so newer syntax can fail here and run there.
+function pageWarnings(event: EventDraft, root: string): string {
+  const links: Array<{ path?: string }> = [];
+  if ("path" in event) links.push(event);
+  if ("files" in event && event.files) links.push(...event.files);
+  if ("source" in event && typeof event.source === "object") links.push(event.source);
+  return links
+    .flatMap(({ path }) => {
+      const error = path ? pageScriptError(resolve(root, path)) : undefined;
+      if (!error) return [];
+      return [
+        `\n${path} has a script error on line ${error.line} (${error.message}). Paseo's preview skips a script that won't parse, so the page may open blank. Fix the file where it is. Progress points to that file, so you don't need to add it again. This check uses Node ${process.versions.node}, so JavaScript newer than that version can be flagged even when the browser runs it.`,
+      ];
+    })
+    .join("");
 }
 
 function guessKind(target: string, isUrl: boolean, cwd: string): (typeof DELIVERABLE_KINDS)[number] {
@@ -617,7 +626,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         }
         const { event, message: summary } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
         const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
-        return { event: { ...event, by: options.agentId }, result: `${summary}${added}` };
+        return { event: { ...event, by: options.agentId }, result: `${summary}${pageWarnings(event, root)}${added}` };
       },
       (text) => saveRunCopy(root, text),
     );

@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-progress",
-  "version": "1.14.4",
+  "version": "1.15.0",
   "description": "A live progress dashboard per worktree for Paseo, drawn from a file agents write with the Progress tools or the paseo-progress command.",
   "keywords": [
     "coding-agents",
@@ -46,6 +46,9 @@
     "prepack": "npm run build:cli",
     "postpack": "rm -rf dist",
     "security-review": "node ../scripts/security-review.mjs"
+  },
+  "dependencies": {
+    "parse5": "^8.1.0"
   },
   "devDependencies": {
     "@getpaseo/client": "0.14.0",
