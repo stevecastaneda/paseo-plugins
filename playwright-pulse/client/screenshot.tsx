@@ -72,17 +72,21 @@ function ScreenshotBody({ colors, shot, workspaceId, workspaceDirectory, onOpenO
           <Image accessibilityLabel={shot.title} source={{ uri }} resizeMode="contain"
             style={{ width: "100%", aspectRatio: ratio, maxHeight: 640, borderRadius: 6, ...imageOutline(colors), backgroundColor: colors.surface1 }} />
         ) : null}
+        {preview.data && !uri ? (
+          <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>Too large to show here. Open it in its default app.</Text>
+        ) : null}
         <Text selectable numberOfLines={1} ellipsizeMode="middle" style={{ marginTop: -4, color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
           {shot.path}
         </Text>
       </View>
-      <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+      {/* The server opens a screenshot only if it passes the preview's checks. */}
+      {preview.data ? <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
         <PressScale accessibilityRole="button" accessibilityLabel="Open in its default app" onPress={onOpenOnHost}
           style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingStart: 8, paddingEnd: 10, borderRadius: 6, ...raised(colors), backgroundColor: pressed ? colors.surface1 : colors.surface2 })}>
           <Icon name="ExternalLink" size={14} color={colors.foreground} />
           <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>Open</Text>
         </PressScale>
-      </View>
+      </View> : null}
     </View>
   );
 }

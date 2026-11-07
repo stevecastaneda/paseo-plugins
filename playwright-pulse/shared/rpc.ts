@@ -69,14 +69,16 @@ const attachmentRef = z.object({
 export const previewAttachment = defineRpc({
   name: "pulse.attachment.preview",
   input: attachmentRef,
-  output: z.object({ dataUri: z.string(), bytes: z.number() }),
+  // Null when the image is too large to send.
+  output: z.object({ dataUri: z.string().nullable(), bytes: z.number() }),
 });
 
-// Traces open in Playwright's trace viewer; anything else as a double-click would.
+// Videos and screenshots open in their default app. A trace is shown in its
+// folder, with a command to view it that the user can copy.
 export const openAttachment = defineRpc({
   name: "pulse.attachment.open",
   input: attachmentRef,
-  output: z.object({ opened: z.string() }),
+  output: z.object({ opened: z.string(), traceCommand: z.string().optional() }),
 });
 
 // Stops a live run as Ctrl+C would. Pressed again while the run winds down, it

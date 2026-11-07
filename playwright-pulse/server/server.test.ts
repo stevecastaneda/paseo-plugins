@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { test } from "node:test";
 import type { PulseTest, RunSnapshot } from "../shared/run.ts";
-import { openCommand, openFile, previewImage } from "./attachments.ts";
+import { type Host, type HostCommand, MAX_PREVIEW_BYTES, type Opener, openFile, previewImage, systemOpener } from "./attachments.ts";
 import { removeReporter, reporterState, writeReporter } from "./reporter-install.ts";
 import { locateRun, pruneRuns, readRun, runForPanel, type RunLocation } from "./run-file.ts";
 import { LATEST_FILE_NAME, runFile } from "./pulse-reporter.mjs";
@@ -142,24 +143,163 @@ test("opens only attachments of the latest run that sit inside the worktree", as
   // A retry put another file at that position: the old reference is refused.
   await assert.rejects(previewImage(location, { ...first, path: join(root, "test-results", "retry0.png") }), /A retry replaced/);
 
-  const opened: string[][] = [];
-  await openFile(location, first, async ({ command, args }) => { opened.push([command, ...args]); });
-  assert.equal(opened[0].at(-1), (await import("node:fs")).realpathSync(screenshot));
+  // Too large to preview, but still a screenshot the dialog can open.
+  const large = join(root, "test-results", "large.png");
+  writeFileSync(large, Buffer.alloc(MAX_PREVIEW_BYTES + 1));
+  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [{ name: "screenshot", contentType: "image/png", path: large }] })] }));
+  assert.deepEqual(await previewImage(location, { ...ref, index: 0, path: large }), { dataUri: null, bytes: MAX_PREVIEW_BYTES + 1 });
 });
 
-test("traces open in the worktree's own Playwright trace viewer", () => {
-  const trace = { name: "trace", contentType: "application/zip", path: "/repo/test-results/trace.zip" };
-  assert.deepEqual(openCommand(trace, trace.path, "/repo", "darwin"),
-    { command: "/repo/node_modules/.bin/playwright", args: ["show-trace", trace.path], detached: true, needs: "/repo/node_modules/.bin/playwright" });
-  // On Windows, no .cmd shim and no shell: node runs the viewer's script, and
-  // the path, even one with "&" in it, stays one argument.
-  const odd = "C:\\repo\\test-results\\a & b\\trace.zip";
-  const windows = openCommand({ ...trace, path: odd }, odd, "C:\\repo", "win32");
-  assert.equal(windows.command, "node");
-  assert.match(windows.args[0], /@playwright[\\/]test[\\/]cli\.js$/);
-  assert.deepEqual(windows.args.slice(1), ["show-trace", odd]);
-  const video = { name: "video", contentType: "video/webm", path: "/repo/test-results/video.webm" };
-  assert.deepEqual(openCommand(video, video.path, "/repo", "darwin"), { command: "open", args: [video.path], detached: false });
+function sh(file: string, body: string) {
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+}
+
+function recorder() {
+  const commands: HostCommand[] = [];
+  const opener: Opener = async (command) => { commands.push(command); };
+  return { commands, opener, ran: () => commands.map(({ command, args }) => [command, ...args]) };
+}
+
+function isInside(root: string, path: string): boolean {
+  const inside = relative(root, path);
+  return !inside.startsWith("..") && !isAbsolute(inside);
+}
+
+test("a branch checked out after the run can't make Trace or Open run its files", async (t) => {
+  if (process.platform === "win32") return t.skip("needs symlinks and sh");
+  const root = mkdtempSync(join(tmpdir(), "pulse-git-"));
+  const home = mkdtempSync(join(tmpdir(), "pulse-home-"));
+  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.symlinks=true", ...args], { cwd: root, stdio: "pipe" });
+  git("init", "-q", "-b", "main");
+  writeFileSync(join(root, ".gitignore"), "node_modules/\ntest-results/\n");
+  git("add", ".gitignore");
+  git("commit", "-q", "-m", "main");
+
+  // Someone else's branch: a fake Playwright and xdg-open, a script, and the
+  // run's video and screenshot as links to the script, all past .gitignore.
+  const ran = join(home, "attacker-ran");
+  git("checkout", "-q", "-b", "pr");
+  sh(join(root, "node_modules", ".bin", "playwright"), `echo playwright >> "${ran}"`);
+  sh(join(root, "node_modules", ".bin", "xdg-open"), `echo xdg-open >> "${ran}"`);
+  sh(join(root, "evil.command"), `echo evil >> "${ran}"`);
+  mkdirSync(join(root, "test-results", "t1"), { recursive: true });
+  symlinkSync("../../evil.command", join(root, "test-results", "t1", "video.webm"));
+  symlinkSync("../../evil.command", join(root, "test-results", "t1", "shot.png"));
+  git("add", "-f", "node_modules", "evil.command", "test-results");
+  git("commit", "-q", "-m", "pr");
+  git("checkout", "-q", "main");
+
+  // The user's own run on main recorded a trace, a video and a screenshot.
+  sh(join(root, "node_modules", ".bin", "playwright"), "exit 0");
+  const trace = join(root, "test-results", "t1", "trace.zip");
+  const video = join(root, "test-results", "t1", "video.webm");
+  const shot = join(root, "test-results", "t1", "shot.png");
+  mkdirSync(dirname(trace), { recursive: true });
+  writeFileSync(trace, "PK");
+  writeFileSync(video, "webm");
+  writeFileSync(shot, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const location = locateRun(root, home);
+  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [
+    { name: "trace", contentType: "application/zip", path: trace },
+    { name: "video", contentType: "video/webm", path: video },
+    { name: "screenshot", contentType: "image/png", path: shot },
+  ] })] }));
+  const at = (index: number, path: string) => ({ runId: "run1-4242", testId: "t1", index, path });
+
+  // xdg-open comes from PATH, skipping the worktree's folders and relative ones.
+  const bin = mkdtempSync(join(tmpdir(), "pulse-bin-"));
+  const log = join(bin, "log");
+  sh(join(bin, "xdg-open"), `echo "$@" >> "${log}"`);
+  const host: Host = { platform: "linux", env: { PATH: [join(root, "node_modules", ".bin"), "node_modules/.bin", bin].join(":") }, home };
+
+  const before = recorder();
+  await openFile(location, at(1, video), before.opener, host);
+  await openFile(location, at(2, shot), before.opener, host);
+  assert.deepEqual(before.ran(), [[join(bin, "xdg-open"), video], [join(bin, "xdg-open"), shot]]);
+  for (const { cwd } of before.commands) assert.ok(!isInside(root, cwd), `${cwd} is outside the worktree`);
+
+  git("checkout", "-q", "pr");
+  assert.ok(lstatSync(video).isSymbolicLink(), "checkout swapped the ignored video for the branch's link");
+  assert.match(readFileSync(join(root, "node_modules", ".bin", "playwright"), "utf8"), /attacker-ran/, "checkout swapped the ignored playwright");
+
+  // Trace shows its folder through the system's own opener and hands back a
+  // command for the user, which reads nothing from the worktree.
+  const shown = await openFile(location, at(0, trace), systemOpener, host);
+  assert.equal(readFileSync(log, "utf8"), `${dirname(trace)}\n`);
+  assert.equal(shown.traceCommand, `npx --prefix "${home}" playwright show-trace "${trace}"`);
+
+  const after = recorder();
+  await assert.rejects(openFile(location, at(1, video), after.opener, host), /video is a link/);
+  await assert.rejects(openFile(location, at(2, shot), after.opener, host), /screenshot is a link/);
+  await assert.rejects(previewImage(location, at(2, shot)), /screenshot is a link/);
+  assert.deepEqual(after.commands, []);
+  assert.ok(!existsSync(ran), "nothing the branch committed ran");
+});
+
+test("Open takes only a real file of the attachment's own type, never through a linked folder", async () => {
+  const { root, home, location } = worktree();
+  const script = join(root, "test-results", "t1", "video.command");
+  const mp4 = join(root, "test-results", "t1", "clip.MP4");
+  const real = join(root, "elsewhere", "video.webm");
+  mkdirSync(dirname(script), { recursive: true });
+  mkdirSync(dirname(real), { recursive: true });
+  writeFileSync(script, "#!/bin/sh\n");
+  writeFileSync(mp4, "mp4");
+  writeFileSync(real, "webm");
+  symlinkSync(dirname(real), join(root, "test-results", "linked"), "dir");
+  const linked = join(root, "test-results", "linked", "video.webm");
+  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [
+    { name: "video", contentType: "video/webm", path: script },
+    { name: "video", contentType: "video/webm", path: linked },
+    { name: "video", contentType: "video/mp4", path: mp4 },
+  ] })] }));
+  const at = (index: number, path: string) => ({ runId: "run1-4242", testId: "t1", index, path });
+  const { opener, ran } = recorder();
+  const host: Host = { platform: "darwin", env: {}, home };
+  await assert.rejects(openFile(location, at(0, script), opener, host), /video isn't a video/);
+  await assert.rejects(openFile(location, at(1, linked), opener, host), /video is a link/);
+  await openFile(location, at(2, mp4), opener, host);
+  assert.deepEqual(ran(), [["/usr/bin/open", realpathSync(mp4)]]);
+});
+
+test("each system's opener is called by absolute path, from a folder outside the worktree", async () => {
+  const { root, home, location } = worktree();
+  const trace = join(root, "test-results", "t1", "trace.zip");
+  const video = join(root, "test-results", "t1", "video.webm");
+  mkdirSync(dirname(trace), { recursive: true });
+  writeFileSync(trace, "PK");
+  writeFileSync(video, "webm");
+  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [
+    { name: "trace", contentType: "application/zip", path: trace },
+    { name: "video", contentType: "video/webm", path: video },
+  ] })] }));
+  const refs = [{ runId: "run1-4242", testId: "t1", index: 0, path: trace }, { runId: "run1-4242", testId: "t1", index: 1, path: video }];
+  const both = async (host: Host) => {
+    const { commands, opener, ran } = recorder();
+    for (const ref of refs) await openFile(location, ref, opener, host);
+    for (const { cwd } of commands) assert.ok(!isInside(root, cwd), `${cwd} is outside the worktree`);
+    return ran();
+  };
+  const [shownTrace, shownVideo] = [realpathSync(trace), realpathSync(video)];
+  assert.deepEqual(await both({ platform: "darwin", env: {}, home }), [["/usr/bin/open", "-R", shownTrace], ["/usr/bin/open", shownVideo]]);
+  assert.deepEqual(await both({ platform: "win32", env: { SystemRoot: "D:\\Windows" }, home }),
+    [["D:\\Windows\\explorer.exe", "/select,", shownTrace], ["D:\\Windows\\explorer.exe", shownVideo]]);
+  // A missing or relative SystemRoot falls back to the usual folder, never a bare name.
+  for (const env of [{}, { SystemRoot: "Windows" }]) {
+    assert.equal((await both({ platform: "win32", env, home }))[0][0], "C:\\Windows\\explorer.exe");
+  }
+  await assert.rejects(openFile(location, refs[1], recorder().opener, { platform: "linux", env: { PATH: "" }, home }), /xdg-open/);
+});
+
+test("no command is copied for a trace whose path a shell would read as code", async () => {
+  const { root, home, location } = worktree();
+  const trace = join(root, "test-results", "$(touch pwned)", "trace.zip");
+  mkdirSync(dirname(trace), { recursive: true });
+  writeFileSync(trace, "PK");
+  writeRun(location, snapshot({ tests: [pulseTest({ attachments: [{ name: "trace", contentType: "application/zip", path: trace }] })] }));
+  const shown = await openFile(location, { runId: "run1-4242", testId: "t1", index: 0, path: trace }, recorder().opener, { platform: "darwin", env: {}, home });
+  assert.equal(shown.traceCommand, undefined);
 });
 
 test("stops only a live run whose process is still Playwright and started with the run", async () => {
