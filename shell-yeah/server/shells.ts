@@ -75,14 +75,23 @@ export function commandFinder(env: NodeJS.ProcessEnv, cwd: string, platform: Nod
     }
     return false;
   };
+  // Looking at a network path makes Windows connect to that computer and hand it the user's
+  // login hash, so a reply's path may only be one inside the agent's own folder.
+  const elsewhereOnNetwork = (file: string) => {
+    if (!windows || !file.startsWith("\\\\")) return false;
+    const inside = win32.relative(cwd, file);
+    return win32.isAbsolute(inside) || inside === ".." || inside.startsWith("..\\");
+  };
   const seen = new Map<string, boolean>();
   return (word) => {
     let found = seen.get(word);
     if (found !== undefined) return found;
     if (windows) found = POWERSHELL_WORDS.has(word.toLowerCase()) || /^[A-Z][a-z]+-[A-Z][A-Za-z]+$/.test(word);
     else found = BUILTINS.has(word);
-    if (!found && /[\\/]/.test(word)) found = runnable(path.resolve(cwd, word));
-    else if (!found) found = dirs.some((dir) => runnable(path.join(dir, word)));
+    if (!found && /[\\/]/.test(word)) {
+      const file = path.resolve(cwd, word);
+      found = !elsewhereOnNetwork(file) && runnable(file);
+    } else if (!found) found = dirs.some((dir) => runnable(path.join(dir, word)));
     seen.set(word, found);
     return found;
   };

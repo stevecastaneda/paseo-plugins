@@ -76,7 +76,7 @@ Agents that started before the plugin was installed don't know the rule. Type `/
 
 ## The Run pill
 
-Agents still write a command into a sentence now and then: "sign in with `npm login`, then publish with `npm publish`". The **Run** pill above the message box handles those. It opens a small window that lists the commands in the agent's last reply, up to eight, from Run cards, shell code blocks and sentences. Press one to run it as a card in the chat. The pencil puts it in the box first so you can change it. Or paste any command into the box and press Enter. Shift+Enter adds a line.
+Agents still write a command into a sentence now and then: "sign in with `npm login`, then publish with `npm publish`". The **Run** pill above the message box handles those. It opens a small window that lists the commands in the agent's last reply, up to eight, from Run cards, shell code blocks and sentences. Press a short one-line command to run it as a card in the chat. A longer command, or one with more than one line, goes into the box first so you can read all of it before you press Run. The pencil puts any command in the box so you can change it. Or paste any command into the box and press Enter. Shift+Enter adds a line.
 
 <img src="images/8-run-window.png" alt="The Run pill's window lists the commands from the agent's reply, including ones written in a sentence, and takes any command you paste" width="380">
 
@@ -105,6 +105,12 @@ paseo plugin add npm:@stevecastaneda/paseo-shell-yeah
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
 ## Changelog
+
+### 1.4.1
+
+- [Fixed] **The Run window shows everything a row runs.** A row now runs on one press only when its command is one short line that the row shows in full. A longer command, or one with more than one line, goes into the box first so you can read all of it, and the row says how many more lines it has.
+- [Fixed] **Line breaks in agent commands.** Shell Yeah now reads every kind of line break in an agent's reply the same way, so a card's title never holds part of the command on Windows. It also skips commands that hold hidden control characters.
+- [Fixed] **Network paths on Windows.** Opening the Run window no longer looks up network paths that appear in the agent's reply.
 
 ### 1.4.0
 

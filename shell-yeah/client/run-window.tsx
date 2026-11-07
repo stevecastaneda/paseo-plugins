@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View, type TextInput as NativeTextInput } from "react-native";
 import { LIMITS } from "../shared/limits.ts";
 import { start, suggest } from "../shared/rpc.ts";
-import { basename, errorMessage, risksOf, shortCommand, splitTitle, wrappedLines } from "../shared/text.ts";
+import { basename, errorMessage, risksOf, runsOnOneTap, shortCommand, splitTitle, wrappedLines } from "../shared/text.ts";
 import { capitalize } from "../shared/view.ts";
 import { isLight, makePalette, withAlpha, type ThemeColors } from "./palette.ts";
 import { Button, Spinner, codeSurface, mono } from "./ui.tsx";
@@ -151,9 +151,12 @@ function Suggestions({ listing, colors, compact, running, onRun, onEdit }: { lis
 function Suggestion({ command, colors, compact, busy, disabled, onRun, onEdit }: { command: string; colors: ThemeColors; compact: boolean; busy: boolean; disabled: boolean; onRun(): void; onEdit(): void }) {
   const { title, script } = splitTitle(command);
   const risks = risksOf(script);
+  // A row that can't show its whole script puts it in the box instead, where all of it shows.
+  const oneTap = runsOnOneTap(command);
+  const [firstLine, ...moreLines] = script.split("\n");
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
-  // The outer Pressable only tracks hover for the whole row, buttons included; the inner one runs.
+  // The outer Pressable only tracks hover for the whole row, buttons included; the inner one runs or edits.
   return (
     <Pressable
       accessible={false}
@@ -163,22 +166,27 @@ function Suggestion({ command, colors, compact, busy, disabled, onRun, onEdit }:
       style={{ flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 6, paddingStart: 6, paddingEnd: 6, paddingVertical: 4, backgroundColor: pressed ? colors.border : hovered && !disabled ? colors.surface2 : "transparent" }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Run ${shortCommand(command)}`}
+        accessibilityLabel={oneTap ? `Run ${shortCommand(command)}` : `Edit ${shortCommand(command)} before running`}
         disabled={disabled}
-        onPress={onRun}
+        onPress={oneTap ? onRun : onEdit}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
-        style={{ flex: 1, minWidth: 0, gap: 2, paddingVertical: compact ? 4 : 0 }}>
+        style={{ flex: 1, minWidth: 0, gap: 4, paddingVertical: compact ? 4 : 0 }}>
         {title ? <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{title}</Text> : null}
-        <Text numberOfLines={title ? 1 : 2} style={{ color: title ? colors.foregroundMuted : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>{script}</Text>
-        {risks.length > 0 ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, paddingTop: 2 }}>
+        <Text numberOfLines={oneTap ? undefined : title ? 1 : 2} style={{ color: title ? colors.foregroundMuted : colors.foreground, fontFamily: mono(), fontSize: 12, lineHeight: 18 }}>{oneTap ? script : firstLine}</Text>
+        {moreLines.length > 0 || risks.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+            {moreLines.length > 0 ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 16 }}>{moreLines.length === 1 ? "1 more line" : `${moreLines.length} more lines`}</Text> : null}
             {risks.map((risk) => <RiskTag key={risk} risk={risk} colors={colors} />)}
           </View>
         ) : null}
       </Pressable>
       <Button icon="Pencil" label="Edit" tone="ghost" onPress={onEdit} disabled={disabled} compact={compact} iconOnly colors={colors} accessibilityLabel={`Edit ${shortCommand(command)} before running`} />
-      <Button icon="Play" label="Run" tone="ghost" onPress={onRun} busy={busy} disabled={disabled && !busy} compact={compact} iconOnly colors={colors} accessibilityLabel={`Run ${shortCommand(command)}`} />
+      {oneTap ? (
+        <Button icon="Play" label="Run" tone="ghost" onPress={onRun} busy={busy} disabled={disabled && !busy} compact={compact} iconOnly colors={colors} accessibilityLabel={`Run ${shortCommand(command)}`} />
+      ) : (
+        <View style={{ width: compact ? 36 : 28 }} />
+      )}
     </Pressable>
   );
 }

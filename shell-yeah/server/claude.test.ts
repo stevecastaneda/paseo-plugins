@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import fs, { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,6 +10,8 @@ import contribute from "../index.server.ts";
 import { createLogStore, defaultLogRoot } from "./logs.ts";
 import { commandFinder } from "./shells.ts";
 import { PLUGIN_ID, type RunRow } from "../shared/row.ts";
+import { runsOnOneTap } from "../shared/text.ts";
+import { describe } from "../shared/view.ts";
 import {
   HANDOFF_PROMPT, MAYBE_SENT, PERMISSION_PENDING, RUN_GONE, attachItems, commandsAlreadyShown, formatReport, latestAssistantText,
   proposeFromReply, scanProposals, selectTurn, sendToClaude, withHandoffPrompt, type AgentState, type SendDeps, type Timeline,
@@ -115,6 +118,68 @@ test("on Windows, cmdlets count, and programs are found through PATHEXT", () => 
   writeFileSync(join(dir, "scripts", "go.ps1"), "");
   const starts = commandFinder({ PATH: bin, PATHEXT: ".COM;.EXE;.BAT;.CMD" }, dir, "win32");
   assert.deepEqual(["fakecmd", "fakecmd.cmd", ".\\scripts\\go.ps1", "scripts/go.ps1", "missing"].map(starts), [true, true, true, true, false]);
+});
+
+test("on Windows, a network path in a reply is never looked up, so opening the Run window contacts no other computer", () => {
+  const checked: string[] = [];
+  const real = fs.accessSync;
+  fs.accessSync = ((file: fs.PathLike) => {
+    checked.push(String(file));
+    throw new Error("ENOENT");
+  }) as typeof fs.accessSync;
+  syncBuiltinESMExports();
+  try {
+    const starts = commandFinder({ PATH: "" }, "C:\\w\\proj", "win32");
+    const network = ["\\\\attacker.example\\share\\tool", "//attacker.example/s/x.exe", "\\/attacker.example/s/x", "/\\attacker.example\\s\\x", "\\\\?\\UNC\\attacker.example\\s\\x"];
+    assert.deepEqual(network.map(starts), [false, false, false, false, false]);
+    assert.deepEqual(checked, [] as string[], "no network path was checked");
+    starts(".\\scripts\\go.ps1");
+    assert.ok(checked.length > 0 && checked.every((file) => file.startsWith("C:\\w\\proj\\scripts\\go.ps1")), "a path in the agent's folder is still checked");
+    checked.length = 0;
+    const onShare = commandFinder({ PATH: "" }, "\\\\server\\share\\proj", "win32");
+    onShare(".\\build.ps1");
+    assert.ok(checked.length > 0 && checked.every((file) => file.startsWith("\\\\server\\share\\proj\\build.ps1")), "an agent folder on a network share is still checked");
+    checked.length = 0;
+    onShare("..\\..\\other\\x");
+    onShare("\\\\attacker.example\\s\\x");
+    assert.deepEqual(checked, [] as string[], "nothing outside that folder");
+  } finally {
+    fs.accessSync = real;
+    syncBuiltinESMExports();
+  }
+});
+
+test("a Run window row runs on one tap only when it shows every character that runs", () => {
+  const starts = (word: string) => ["git", "node", "npm"].includes(word);
+  const hidden = fence("bash", "# Check what's staged\ngit status --short\nnode -e \"require('fs').writeFileSync(process.env.HOME + '/pwned', 'x')\"");
+  const [threeLines] = scanProposals(`Check this:\n${hidden}`, "all", starts);
+  assert.match(threeLines, /pwned/);
+  assert.equal(runsOnOneTap(threeLines), false, "a hidden third line needs the box first");
+  const [padded] = scanProposals(fence("bash", `# Check what's staged\ngit status --short${" ".repeat(60)}; node -e 1`), "all", starts);
+  assert.equal(runsOnOneTap(padded), false, "a line too long to show whole needs the box first");
+  const [titled] = scanProposals(fence("bash", "# Check what's staged\ngit status --short"), "all", starts);
+  assert.equal(runsOnOneTap(titled), true, "a title over one short line runs on one tap");
+  const [inline] = scanProposals("Then run `npm test -- --watch=false`.", "all", starts);
+  assert.equal(runsOnOneTap(inline), true);
+});
+
+test("a carriage return ends a line wherever a reply has one, so a card's title never holds code", () => {
+  const card = (command: string) => describe({ runId: "r1", origin: "claude", command, cwd: "/w", terminal: false, rev: 0, phase: { kind: "proposed" }, output: { lines: [], total: 0 }, cursor: null, sentAt: null, lostAt: null, lastOutputAt: null, clockOffset: 0 }, T0);
+  const [lone] = scanProposals(fence("sh run", "# Log in to GitHub\rStart-Process calc.exe\ngh auth login --web"), "marked");
+  assert.deepEqual([card(lone).title, card(lone).script], ["Log in to GitHub", "Start-Process calc.exe\ngh auth login --web"]);
+  assert.ok(!lone.includes("\r"), "the command that runs has no carriage return either");
+  const [crlf] = scanProposals(["```sh run", "# Log in to GitHub", "gh auth login --web", "```"].join("\r\n"), "marked");
+  assert.equal(crlf, "# Log in to GitHub\ngh auth login --web");
+  const [oldMac] = scanProposals(["```sh run", "# Log in to GitHub", "gh auth login --web", "```"].join("\r"), "marked");
+  assert.equal(oldMac, "# Log in to GitHub\ngh auth login --web");
+  assert.deepEqual(scanProposals("Run `git status\rStart-Process calc.exe` now.", "all", () => true), [], "inline code can't span lines");
+});
+
+test("a command holding control characters or marks that reorder text is never offered", () => {
+  for (const mark of ["\x1b[8m", "\x00", "\x08", "\x0b", "\x0c", "\x7f", "\x85", "\u202e", "\u2066", "\u200f", "\u2028"]) {
+    assert.deepEqual(scanProposals(fence("sh run", `echo safe${mark}; rm -rf ~`), "marked"), [], JSON.stringify(mark));
+  }
+  assert.deepEqual(scanProposals(fence("sh run", "printf 'a\tb\\n'\necho done"), "marked"), ["printf 'a\tb\\n'\necho done"], "tabs, newlines and escapes written out still count");
 });
 
 test("the handoff block is added once, after what is already there, and teaches `sh run`", () => {
