@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type { ReporterStatus } from "../shared/rpc.ts";
+import { LAUNCH_FOLDER, findProgram } from "./programs.ts";
 
 export const PLUGIN_ID = "playwright-pulse";
 export const REPORTER_SOURCE = join("server", "pulse-reporter.mjs");
@@ -69,10 +70,10 @@ export async function writeReporter(path: string, source: string): Promise<Repor
 
 // The server bundle doesn't know its own folder, so ask Paseo.
 export async function findPluginDirectory(): Promise<string> {
-  const clis = [process.env.PASEO_BIN, "paseo", "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter((cli): cli is string => Boolean(cli));
+  const clis = [process.env.PASEO_BIN, await findProgram("paseo"), "/Applications/Paseo.app/Contents/Resources/bin/paseo"].filter((cli): cli is string => Boolean(cli));
   for (const cli of clis) {
     try {
-      const { stdout } = await promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"]);
+      const { stdout } = await promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"], { cwd: LAUNCH_FOLDER });
       const plugin = (JSON.parse(stdout) as Array<{ id: string; path?: string }>).find((entry) => entry.id === PLUGIN_ID);
       if (plugin?.path) return plugin.path;
     } catch {

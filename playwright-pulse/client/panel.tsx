@@ -1,5 +1,5 @@
 import { type PluginTab, type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
-import { Icon, useToast } from "@getpaseo/plugin/client/ui";
+import { Icon, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, ScrollView, Text, View } from "react-native";
 import { openAttachment } from "../shared/rpc";
@@ -141,8 +141,14 @@ function useAttachmentActions(run: RunSnapshot, workspaceId: string, workspaceDi
       setShot({ runId: run.id, testId: test.id, index, title: test.title, path: attachment.path });
     },
     open({ testId, index, path }, kind) {
-      if (kind === "trace") toast.show("Opening the trace viewer…", { durationMs: 2500 });
       open({ workspaceId, workspaceDirectory, runId: run.id, testId, index, path })
+        .then(({ traceCommand }) => {
+          if (kind !== "trace") return;
+          if (!traceCommand) return toast.show("Showed the trace in its folder", { durationMs: 2500 });
+          return copyText(traceCommand).then(
+            () => toast.show("Showed the trace in its folder and copied the command that views it", { variant: "success", durationMs: 4000 }),
+            () => toast.show(`Showed the trace in its folder. To view it, run: ${traceCommand}`, { durationMs: 8000 }));
+        })
         .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not open it."));
     },
   };

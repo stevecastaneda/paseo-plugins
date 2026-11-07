@@ -15,7 +15,7 @@ A live dashboard in Paseo for the Playwright test run in a worktree. You see the
 - **Stop:** ends a live run the way Ctrl+C in its terminal would: Playwright stops the running test, runs teardown and shuts its web servers. The first press asks to confirm; if the run hasn't ended 8 seconds later, the button offers to force it.
 - **Starting up:** while Playwright boots web servers and runs global setup, before the first test.
 - **Running now:** one row per worker, each a fixed size so the panel doesn't jump while you read: the test's title and file, its live step (`Click  getByTestId('save')`, inside its `test.step` or hook), the last few steps, and how much of its timeout it has used. The heading counts the busy workers, like `3 of 4 busy`, and gives each worker a dot that fills while it runs a test.
-- **Failures:** pinned above the running tests and the rest, with the error, the failing step, the code around it, and buttons to preview the screenshot, open the video, open the trace in Playwright's trace viewer, or copy the error.
+- **Failures:** pinned above the running tests and the rest, with the error, the failing step, the code around it, and buttons to preview the screenshot, open the video, show the trace in its folder and copy the command that views it, or copy the error.
 - **Time left:** an estimate from the run's pace so far, once a few tests have finished.
 - **Folders and Slowest tabs:** one card, two tabs (the same tabs as Progress's history card).
   - **Slowest:** the five longest so far, each against its timeout, amber past three quarters of it. Each test has a copy button for its file and line. **Copy a prompt to speed these up** puts a prompt on the clipboard that asks an agent where each test spends its time and what would make it faster.
@@ -68,7 +68,9 @@ The reporter writes a snapshot of the run to `~/.local/state/playwright-pulse/<w
 
 The reporter is plain JavaScript with no dependencies. It never fails a run: a write that fails is skipped. It writes at most four times a second, and right away when a test or the run ends. A run whose process dies without ending shows as interrupted.
 
-Screenshots preview inside Paseo. Videos open in their default app, and traces in the worktree's own `node_modules/.bin/playwright show-trace`. Only files that the latest run lists, and that sit inside the worktree, can be opened.
+Screenshots preview inside Paseo. Screenshots and videos open in their default app, but only when the latest run lists the file, the file sits inside the worktree, and it's a real image or video file, not a link to another file.
+
+Trace shows the trace file selected in its folder and copies a command that opens it in Playwright's trace viewer, like `npx --prefix "/Users/you" playwright show-trace "/path/to/trace.zip"`. Paste it into a terminal to view the trace. The `--prefix` makes npm use your home folder, not whatever Playwright the worktree has installed.
 
 Set `PLAYWRIGHT_PULSE=0` to turn the reporter off for one run.
 
@@ -77,6 +79,12 @@ Set `PLAYWRIGHT_PULSE=0` to turn the reporter off for one run.
 Paseo 0.13 or later and Node.js 22.18 or later on the daemon host. Built and tested with Playwright 1.63.
 
 ## Changelog
+
+### 1.5.1
+
+- **Trace** now shows the trace file in its folder and copies a command that opens it in Playwright's trace viewer. Paste the command into a terminal to view the trace. Before, Trace started the trace viewer itself.
+- **Video** and the screenshot's **Open** now open only real video and image files that the run saved. The screenshot dialog hides **Open** when it can't show the screenshot.
+- A screenshot too large to preview now says so and still offers **Open**. Before, it showed an error.
 
 ### 1.5.0
 

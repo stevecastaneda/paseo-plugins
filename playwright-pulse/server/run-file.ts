@@ -7,6 +7,7 @@ import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { isFailure } from "../shared/view.ts";
 import type { RunSnapshot } from "../shared/run.ts";
+import { LAUNCH_FOLDER, findPs } from "./programs.ts";
 import { LATEST_FILE_NAME, RUNS_FOLDER, RUN_ID, findRoot, pulseDirectory, runFile } from "./pulse-reporter.mjs";
 
 // `directory` holds the worktree's runs; `shown` names it for people.
@@ -38,7 +39,9 @@ export type StartTimeOf = (pid: number) => Promise<number | null>;
 
 export const processStartTime: StartTimeOf = async (pid) => {
   try {
-    const { stdout } = await promisify(execFile)("ps", ["-o", "lstart=", "-p", String(pid)]);
+    const ps = await findPs();
+    if (!ps) return null;
+    const { stdout } = await promisify(execFile)(ps, ["-o", "lstart=", "-p", String(pid)], { cwd: LAUNCH_FOLDER });
     const time = Date.parse(stdout.trim());
     return Number.isNaN(time) ? null : time;
   } catch {

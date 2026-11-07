@@ -4,6 +4,7 @@
 // Ctrl+C does.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { LAUNCH_FOLDER, findPs } from "./programs.ts";
 import { type RunLocation, type StartTimeOf, isOpen, processStartTime, readCurrentRun, runProcessAlive } from "./run-file.ts";
 
 // The command line of a process on this host, or null when it's gone.
@@ -11,7 +12,9 @@ export type CommandOf = (pid: number) => Promise<string | null>;
 
 export const commandOf: CommandOf = async (pid) => {
   try {
-    const { stdout } = await promisify(execFile)("ps", ["-o", "command=", "-p", String(pid)]);
+    const ps = await findPs();
+    if (!ps) return null;
+    const { stdout } = await promisify(execFile)(ps, ["-o", "command=", "-p", String(pid)], { cwd: LAUNCH_FOLDER });
     return stdout.trim() || null;
   } catch {
     return null;

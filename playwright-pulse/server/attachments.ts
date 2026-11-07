@@ -1,11 +1,15 @@
 // Screenshots, videos and traces a test left behind, found by reference in the
-// latest run, so the panel can never reach an arbitrary path. Only files
-// inside the worktree resolve.
+// latest run, so the panel can never reach an arbitrary path. Only real files
+// inside the worktree resolve. A branch checked out after the run can replace
+// ignored files, so no step of the path may be a link.
 import { execFile, spawn } from "node:child_process";
-import { readFile, realpath, stat } from "node:fs/promises";
-import { extname, isAbsolute, join, relative } from "node:path";
+import { lstat, readFile, realpath } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, extname, isAbsolute, join, relative, sep, win32 } from "node:path";
 import { promisify } from "node:util";
 import type { Attachment } from "../shared/run.ts";
+import { type AttachmentKind, attachmentKind } from "../shared/view.ts";
+import { LAUNCH_FOLDER, findProgram } from "./programs.ts";
 import { type RunLocation, readCurrentRun } from "./run-file.ts";
 
 export type AttachmentRef = { runId: string; testId: string; index: number; path: string };
@@ -18,69 +22,90 @@ const IMAGE_TYPES: Record<string, string> = {
   ".webp": "image/webp",
 };
 
+// The file itself must carry one of its kind's extensions to open: the
+// system's default app for anything else might run it.
+const OPENS_AS: Record<AttachmentKind, { noun: string; extensions: string[] }> = {
+  screenshot: { noun: "an image", extensions: Object.keys(IMAGE_TYPES) },
+  video: { noun: "a video", extensions: [".webm", ".mp4", ".mov"] },
+  trace: { noun: "a trace", extensions: [".zip"] },
+  other: { noun: "a file Pulse opens", extensions: [] },
+};
+
 // Large enough for full-page screenshots; the image travels over the socket.
 export const MAX_PREVIEW_BYTES = 10 * 1024 * 1024;
-
-export function isTrace(attachment: Pick<Attachment, "name" | "path">): boolean {
-  return attachment.name === "trace" || attachment.path.endsWith(".zip");
-}
 
 function outside(inside: string): boolean {
   return inside === ".." || inside.startsWith(`..${"/"}`) || inside.startsWith("..\\") || isAbsolute(inside);
 }
 
-export async function resolveAttachment(location: RunLocation, ref: AttachmentRef): Promise<{ attachment: Attachment; target: string }> {
+// The run may have recorded the worktree by the name it was given or by its
+// real path.
+function placeIn(location: RunLocation, root: string, path: string): string | null {
+  for (const base of [location.root, root]) {
+    const inside = relative(base, path);
+    if (inside && !outside(inside)) return inside;
+  }
+  return null;
+}
+
+export async function resolveAttachment(location: RunLocation, ref: AttachmentRef): Promise<{ attachment: Attachment; target: string; root: string }> {
   const run = await readCurrentRun(location, ref.runId);
   const attachment = run.tests.find((test) => test.id === ref.testId)?.attachments[ref.index];
   if (!attachment) throw new Error("No such attachment in the latest run.");
   if (attachment.path !== ref.path) throw new Error(`A retry replaced this ${attachment.name}. Open the new one from the failure.`);
   const root = await realpath(location.root);
-  const target = await realpath(attachment.path).catch(() => null);
-  if (!target) throw new Error(`${attachment.name} no longer exists. Playwright clears its results folder at the start of each run.`);
-  if (outside(relative(root, target))) throw new Error(`${attachment.name} is outside this worktree, so it was not opened.`);
-  return { attachment, target };
+  const inside = placeIn(location, root, attachment.path);
+  if (!inside) throw new Error(`${attachment.name} is outside this worktree, so it was not opened.`);
+  let target = root;
+  let isFile = false;
+  for (const step of inside.split(sep)) {
+    target = join(target, step);
+    const info = await lstat(target).catch(() => null);
+    if (!info) throw new Error(`${attachment.name} no longer exists. Playwright clears its results folder at the start of each run.`);
+    if (info.isSymbolicLink()) throw new Error(`${attachment.name} is a link, not the file the run saved, so it was not opened.`);
+    isFile = info.isFile();
+  }
+  if (!isFile) throw new Error(`${attachment.name} isn't a file, so it was not opened.`);
+  return { attachment, target, root };
 }
 
-export async function previewImage(location: RunLocation, ref: AttachmentRef): Promise<{ dataUri: string; bytes: number }> {
+// Null when the image is too large to send; the dialog can still open it.
+export async function previewImage(location: RunLocation, ref: AttachmentRef): Promise<{ dataUri: string | null; bytes: number }> {
   const { attachment, target } = await resolveAttachment(location, ref);
   const mime = IMAGE_TYPES[extname(target).toLowerCase()];
   if (!mime) throw new Error(`${attachment.name} isn't an image, so it can't be previewed.`);
-  const { size } = await stat(target);
-  if (size > MAX_PREVIEW_BYTES) throw new Error(`${attachment.name} is too large to preview.`);
+  const { size } = await lstat(target);
+  if (size > MAX_PREVIEW_BYTES) return { dataUri: null, bytes: size };
   return { dataUri: `data:${mime};base64,${(await readFile(target)).toString("base64")}`, bytes: size };
 }
 
-export type OpenCommand = { command: string; args: string[]; detached: boolean; needs?: string };
+export type Host = { platform: NodeJS.Platform; env: NodeJS.ProcessEnv; home: string };
 
-// How to open a file on this host. Traces go to the project's own Playwright
-// trace viewer, so it matches the version that recorded them. On Windows the
-// viewer's script runs under node directly: the .cmd shim in node_modules/.bin
-// would need a shell, which would also read the trace's path as commands.
-export function openCommand(attachment: Attachment, target: string, root: string, platform: NodeJS.Platform): OpenCommand {
-  if (isTrace(attachment)) {
-    if (platform === "win32") {
-      const cli = join(root, "node_modules", "@playwright", "test", "cli.js");
-      return { command: "node", args: [cli, "show-trace", target], detached: true, needs: cli };
-    }
-    const local = join(root, "node_modules", ".bin", "playwright");
-    return { command: local, args: ["show-trace", target], detached: true, needs: local };
-  }
-  if (platform === "win32") return { command: "explorer", args: [target], detached: false };
-  if (platform !== "darwin") return { command: "xdg-open", args: [target], detached: false };
-  return { command: "open", args: [target], detached: false };
+const thisHost = (): Host => ({ platform: process.platform, env: process.env, home: homedir() });
+
+export type HostCommand = { command: string; args: string[]; cwd: string; wait: boolean };
+
+function explorer(env: NodeJS.ProcessEnv): string {
+  const systemRoot = env.SystemRoot;
+  return win32.join(systemRoot && /^[A-Za-z]:\\/.test(systemRoot) ? systemRoot : "C:\\Windows", "explorer.exe");
 }
 
-export type Opener = (command: OpenCommand, cwd: string) => Promise<void>;
+// The system's own way to open a file in its default app, or to show it
+// selected in its folder.
+async function hostCommand(action: "open" | "reveal", target: string, avoid: string[], { platform, env }: Host): Promise<HostCommand> {
+  const reveal = action === "reveal";
+  if (platform === "darwin") return { command: "/usr/bin/open", args: reveal ? ["-R", target] : [target], cwd: LAUNCH_FOLDER, wait: true };
+  // Explorer exits with an error code even when it worked, so it isn't waited on.
+  if (platform === "win32") return { command: explorer(env), args: reveal ? ["/select,", target] : [target], cwd: LAUNCH_FOLDER, wait: false };
+  const xdgOpen = await findProgram("xdg-open", { path: env.PATH ?? "", platform, avoid });
+  if (!xdgOpen) throw new Error("xdg-open isn't installed, so Pulse can't open files on this computer.");
+  return { command: xdgOpen, args: [reveal ? dirname(target) : target], cwd: LAUNCH_FOLDER, wait: true };
+}
 
-// The trace viewer keeps running until its window closes, so it's left to
-// run on its own instead of being waited on.
-export const systemOpener: Opener = async ({ command, args, detached, needs }, cwd) => {
-  if (needs) {
-    await stat(needs).catch(() => {
-      throw new Error("Playwright isn't installed in this worktree (nothing in node_modules), so the trace can't open.");
-    });
-  }
-  if (!detached) {
+export type Opener = (command: HostCommand) => Promise<void>;
+
+export const systemOpener: Opener = async ({ command, args, cwd, wait }) => {
+  if (wait) {
     await promisify(execFile)(command, args, { cwd });
     return;
   }
@@ -94,8 +119,28 @@ export const systemOpener: Opener = async ({ command, args, detached, needs }, c
   });
 };
 
-export async function openFile(location: RunLocation, ref: AttachmentRef, opener: Opener = systemOpener): Promise<{ opened: string }> {
-  const { attachment, target } = await resolveAttachment(location, ref);
-  await opener(openCommand(attachment, target, location.root, process.platform), location.root);
-  return { opened: target };
+// A command for the user to run in their own terminal. Run in the worktree,
+// npx would take a playwright the branch supplies (in node_modules, its
+// package.json or its .npmrc), so --prefix points npm at the home folder.
+// None for a path a shell would read as code.
+function viewTraceCommand(trace: string, root: string, { platform, home }: Host): string | undefined {
+  const code = platform === "win32" ? /["$`%!\x00-\x1f\x7f]/ : /["$`\\!\x00-\x1f\x7f]/;
+  if (code.test(trace) || code.test(home) || !outside(relative(root, home))) return undefined;
+  return `npx --prefix "${home}" playwright show-trace "${trace}"`;
+}
+
+// Traces are shown in their folder, never opened: opening one would start a
+// trace viewer, and the worktree decides which one.
+export async function openFile(location: RunLocation, ref: AttachmentRef, opener: Opener = systemOpener, host: Host = thisHost()): Promise<{ opened: string; traceCommand?: string }> {
+  const { attachment, target, root } = await resolveAttachment(location, ref);
+  const kind = attachmentKind(attachment);
+  const { noun, extensions } = OPENS_AS[kind];
+  if (!extensions.includes(extname(target).toLowerCase())) throw new Error(`${attachment.name} isn't ${noun}, so it was not opened.`);
+  const avoid = [location.root, root];
+  if (kind !== "trace") {
+    await opener(await hostCommand("open", target, avoid, host));
+    return { opened: target };
+  }
+  await opener(await hostCommand("reveal", target, avoid, host));
+  return { opened: target, traceCommand: viewTraceCommand(target, root, host) };
 }
