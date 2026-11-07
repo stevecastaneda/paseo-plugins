@@ -2,7 +2,11 @@ import { readFileSync, statSync } from "node:fs";
 import { Script } from "node:vm";
 import { previewKind } from "../shared/attachments.ts";
 
-const SCRIPT = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+// The browser ends a script at the first closing tag, and an unclosed script
+// runs to the end of the page. Searching from each opening tag for its closing
+// tag, and stopping at the first unclosed one, keeps the scan linear.
+const OPEN = /<script\b([^>]{0,256})>/gi;
+const CLOSE = /<\/script\s*>/gi;
 const CLASSIC_TYPES = new Set(["", "text/javascript", "application/javascript"]);
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -15,13 +19,20 @@ export interface ScriptError {
 // blank in Paseo's preview. Compiling a vm.Script parses the code without
 // running it. Module scripts and scripts loaded by src aren't checked.
 export function scriptSyntaxError(html: string): ScriptError | undefined {
-  for (const match of html.matchAll(SCRIPT)) {
-    const [, attributes, code] = match;
+  OPEN.lastIndex = 0;
+  let counted = 0;
+  let lineOffset = 0;
+  for (let open = OPEN.exec(html); open; open = OPEN.exec(html)) {
+    CLOSE.lastIndex = OPEN.lastIndex;
+    const close = CLOSE.exec(html);
+    if (!close) break;
+    const attributes = open[1];
+    const code = html.slice(OPEN.lastIndex, close.index);
+    OPEN.lastIndex = CLOSE.lastIndex;
     if (/(?:^|\s)src\s*=/i.test(attributes)) continue;
     const type = /(?:^|\s)type\s*=\s*["']?([^"'\s>]*)/i.exec(attributes)?.[1].toLowerCase() ?? "";
     if (!CLASSIC_TYPES.has(type)) continue;
-    const codeStart = match.index + "<script".length + attributes.length + 1;
-    const lineOffset = html.slice(0, codeStart).split("\n").length - 1;
+    for (; counted < open.index + open[0].length; counted++) if (html.charCodeAt(counted) === 10) lineOffset++;
     const compiled = compile(code, lineOffset);
     if (compiled instanceof SyntaxError) {
       const line = /^page:(\d+)/.exec(compiled.stack ?? "")?.[1];

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
+import { scriptSyntaxError } from "./page-scripts.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
@@ -1336,6 +1337,11 @@ test("an HTML page whose script won't parse is refused, with the line to fix", a
     (await w.dashboard()).dashboard.deliverables.map(({ id, path }) => ({ id, path })),
     [{ id: "D1", path: "working.html" }],
   );
+  assert.deepEqual(scriptSyntaxError(["<script>", "1;", "</script>", "<p>", "<script>", "", "const = 1;"].join("\n") + "</script>"), {
+    line: 7,
+    message: "Unexpected token '='",
+  });
+  assert.equal(scriptSyntaxError("<script>const = 1;"), undefined, "an unclosed script isn't checked");
 });
 
 test("activity notes list newest first and can be reworded or removed; the ticker sets and clears", async (t) => {
