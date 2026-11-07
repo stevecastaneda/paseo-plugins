@@ -25,7 +25,13 @@ Done when `show` lists every ticket with an estimate.
 
 Move each ticket through `--status working --stage Build`, then the stages `Review`, `Fixes` and `Verify`, then `--status done`. Along the way, record what the user would want to see: `deliverable add` for anything reviewable, `activity add` for milestones, `ticker set` for what you are doing right now. Tag each with `--ticket` unless it covers the whole run.
 
-- An HTML deliverable must be self-contained, with its CSS in the page and images embedded as data URIs, and no scripts or styles from the web, because Paseo's preview blocks the network. The preview has no storage either. localStorage, sessionStorage, cookies and IndexedDB throw an error there, so keep a page's state in variables.
+- An HTML deliverable opens in Paseo's preview, a sandboxed frame. Write the page for it:
+  - Keep it self-contained, with its CSS in the page and images embedded as data URIs. The preview blocks every script, style and image from the web.
+  - Keep the page's state in variables. localStorage, sessionStorage, cookies and IndexedDB throw an error.
+  - Show messages in the page. `alert`, `confirm`, `prompt` and `window.open` do nothing. `confirm` returns false and `prompt` returns null.
+  - Handle form input in a script. A form never submits.
+  - To copy text, select a hidden textarea and call `document.execCommand("copy")`. `navigator.clipboard` throws an error.
+  - Check that each script parses before you add the page. One syntax error stops that whole script, and the page can open blank.
 - A ticket past its estimate with no update turns stuck. Keep its stage current, or raise its `--estimate`.
 - A ticket another session adds is part of the plan. Work it in order.
 - `--status blocked` and `stuck set` are for things outside the run, like a service that's down or missing access.

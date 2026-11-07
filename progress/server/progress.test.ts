@@ -2,7 +2,7 @@
 // dashboard the panel would get.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { appendFile, chmod, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import { basename, delimiter, dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -1305,64 +1305,6 @@ test("deliverables are listed newest first with root-relative paths, their ticke
     assert.match(result.text, message);
   }
 });
-
-const qaPage = (script: string) =>
-  [
-    "<!doctype html>",
-    "<html><body>",
-    '<script type="module">import x from "./x.js"; export {}</script>',
-    "<script>",
-    "const ok = 1;",
-    script,
-    "</script>",
-    "</body></html>",
-  ].join("\n");
-
-test("an agent hears which line of a page won't parse, and the page is still recorded", async (t) => {
-  const w = await screenshotRun(t);
-  await mkdir(join(w.directory, "qa"), { recursive: true });
-  await writeFile(join(w.directory, "qa", "broken.html"), qaPage('if (e.target.id \\!== "notes") return;'));
-  await writeFile(join(w.directory, "working.html"), qaPage('if (ok !== 1) console.log("off");'));
-  const warning =
-    /^qa\/broken\.html has a script that won't parse on line 6 \(Invalid or unexpected token\)\. Paseo's preview skips a script that won't parse/m;
-
-  const nested = await runCliText(["deliverable", "add", "Live QA", "broken.html"], join(w.directory, "qa"));
-  assert.equal(nested.code, 0);
-  assert.match(nested.text, /^Added D1: Live QA\n/);
-  assert.match(nested.text, warning);
-  assert.match((await w.run("question", "ask", "Layout", "Does this read well?", "--recommend", "Yes", "--file", "qa/broken.html")).text, warning);
-  assert.match((await w.run("question", "update", "Q1", "--file", "qa/broken.html=Again")).text, warning);
-  assert.match((await w.run("ticket", "add", "Ticket 01: QA", "--estimate", "10", "--source", "qa/broken.html")).text, warning);
-  assert.match((await w.run("ticket", "update", "T01", "--source", "qa/broken.html")).text, warning);
-  assert.equal((await w.run("deliverable", "add", "Working", "working.html")).text, "Added D2: Working");
-
-  await writeFile(join(w.directory, "two.html"), "<script>const = 1;</script>\n<script>let let = 2;</script>");
-  assert.match(
-    (await w.run("deliverable", "add", "Two", "two.html")).text,
-    /^two\.html has a script that won't parse on line 1 \(Unexpected token '='\), line 2 \(let is disallowed as a lexically bound name\)\./m,
-  );
-  await writeFile(join(w.directory, "deep.html"), `<script>${"[".repeat(200_000)}${"]".repeat(200_000)}</script>`);
-  assert.equal((await w.run("deliverable", "add", "Deep", "deep.html")).text, "Added D4: Deep", "code too deep for V8 to parse isn't checked");
-  await writeFile(join(w.directory, "locked.html"), "<script>const = 1;</script>");
-  await chmod(join(w.directory, "locked.html"), 0);
-  assert.equal((await w.run("deliverable", "add", "Locked", "locked.html")).text, "Added D5: Locked", "an unreadable page isn't checked");
-  assert.deepEqual(
-    (await w.dashboard()).dashboard.deliverables.map(({ id, path }) => ({ id, path })),
-    [
-      { id: "D5", path: "locked.html" },
-      { id: "D4", path: "deep.html" },
-      { id: "D3", path: "two.html" },
-      { id: "D2", path: "working.html" },
-      { id: "D1", path: "qa/broken.html" },
-    ],
-  );
-});
-
-async function runCliText(argv: string[], cwd: string) {
-  const lines: string[] = [];
-  const code = await runCli(argv, { cwd, now: () => minutes(1), out: (line) => lines.push(line) });
-  return { code, text: lines.join("\n") };
-}
 
 test("activity notes list newest first and can be reworded or removed; the ticker sets and clears", async (t) => {
   const w = await screenshotRun(t);

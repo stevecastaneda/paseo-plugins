@@ -16,7 +16,6 @@ import { dashboardText } from "../shared/show.ts";
 import { formatMinutes } from "../shared/format.ts";
 import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
-import { pageScriptErrors } from "./page-scripts.ts";
 
 export interface CliOptions {
   cwd: string;
@@ -398,7 +397,7 @@ const commands: Record<string, Command> = {
   },
   "deliverable add": {
     usage: `deliverable add "<title>" <path or http(s) URL> [--ticket <id>] [--kind ${DELIVERABLE_KINDS.join("|")}]`,
-    summary: `Add something the user can review. Paths are relative to where you run the command. Prints its id (D1, D2, ...). An HTML deliverable must be self-contained, with its CSS in the page and images embedded as data URIs, and no scripts or styles from the web, because Paseo's preview blocks the network. The preview has no storage either. localStorage, sessionStorage, cookies and IndexedDB throw an error there, so keep a page's state in variables.`,
+    summary: `Add something the user can review. Paths are relative to where you run the command. Prints its id (D1, D2, ...). An HTML deliverable opens in Paseo's sandboxed preview, which blocks everything from the web, so put its CSS in the page and embed images as data URIs. In the preview, storage APIs and navigator.clipboard throw an error. The alert, confirm, prompt and window.open calls and form submits do nothing. One syntax error stops a whole script.`,
     options: { ticket: { type: "string" }, kind: { type: "string" } },
     run({ positionals, values, state, cwd, root }) {
       const title = required(positionals[0], "deliverable title");
@@ -516,24 +515,6 @@ function rootRelative(target: string, cwd: string, root: string): string {
   return outside(inside) ? absolute + suffix : inside + suffix;
 }
 
-// A page whose script won't parse opens blank in Paseo's preview. The agent
-// hears about it, but the file is still recorded: Node's JavaScript engine can
-// be older than the browser's, so newer syntax can fail here and run there.
-function pageWarnings(event: EventDraft, root: string): string {
-  const links: Array<{ path?: string }> = [];
-  if ("path" in event) links.push(event);
-  if ("files" in event && event.files) links.push(...event.files);
-  if ("source" in event && typeof event.source === "object") links.push(event.source);
-  return links
-    .map(({ path }) => {
-      const errors = path ? pageScriptErrors(resolve(root, path)) : [];
-      if (errors.length === 0) return "";
-      const where = errors.map((error) => `line ${error.line} (${error.message})`).join(", ");
-      return `\n${path} has a script that won't parse on ${where}. Paseo's preview skips a script that won't parse, so the page may open blank. Fix the file where it is. Progress points to that file, so you don't need to add it again. This check uses Node ${process.versions.node}, so JavaScript newer than that version can be flagged even when the browser runs it.`;
-    })
-    .join("");
-}
-
 function guessKind(target: string, isUrl: boolean, cwd: string): (typeof DELIVERABLE_KINDS)[number] {
   if (isUrl) return "link";
   if (target.endsWith("/") || statSync(resolve(cwd, target), { throwIfNoEntry: false })?.isDirectory()) return "folder";
@@ -625,7 +606,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         }
         const { event, message: summary } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
         const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
-        return { event: { ...event, by: options.agentId }, result: `${summary}${pageWarnings(event, root)}${added}` };
+        return { event: { ...event, by: options.agentId }, result: `${summary}${added}` };
       },
       (text) => saveRunCopy(root, text),
     );
