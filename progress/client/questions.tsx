@@ -234,6 +234,7 @@ export function QuestionView({
   colors,
   question,
   now,
+  root,
   onCopy,
   onOpenAttachment,
   children,
@@ -241,6 +242,8 @@ export function QuestionView({
   colors: Colors;
   question: Question;
   now: number;
+  // The worktree root the attachments' paths are relative to.
+  root: string;
   onCopy(letter: string): void;
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   children?: React.ReactNode;
@@ -252,7 +255,7 @@ export function QuestionView({
         {!question.answer ? <QuestionState colors={colors} question={question} /> : null}
       </View>
       {question.answer ? <AnswerSummary colors={colors} question={question} now={now} /> : null}
-      <QuestionDetail colors={colors} question={question} now={now} onSurface1 onCopy={onCopy} onOpenAttachment={onOpenAttachment} />
+      <QuestionDetail colors={colors} question={question} now={now} root={root} onSurface1 onCopy={onCopy} onOpenAttachment={onOpenAttachment} />
       {children}
     </View>
   );
@@ -306,6 +309,7 @@ export function QuestionDetail({
   colors,
   question,
   now,
+  root,
   onCopy,
   onOpenAttachment,
   onSurface1 = false,
@@ -313,6 +317,7 @@ export function QuestionDetail({
   colors: Colors;
   question: Question;
   now: number;
+  root: string;
   onCopy(letter: string): void;
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   onSurface1?: boolean;
@@ -371,7 +376,7 @@ export function QuestionDetail({
         );
       })}
       {question.background ? <Markdown>{question.background}</Markdown> : null}
-      <AttachmentList colors={colors} attachments={questionAttachments(question)} onOpen={onOpenAttachment} />
+      <AttachmentList colors={colors} attachments={questionAttachments(question)} root={root} onOpen={onOpenAttachment} />
       <Text style={{ color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
         {m.asked}
         <When colors={colors} iso={question.askedAt} now={now} />

@@ -25,9 +25,7 @@ test("registers the Progress panel and a Command Center item that opens it as a 
     [{ id: "settings", title: "Settings" }],
     "the plugin has a Settings page in Paseo's Settings",
   );
-  const [page] = h.screens;
-  assert.equal(page.id, "page", "an HTML deliverable has a screen of its own");
-  assert.equal(page.title({ title: "How Mortly runs" }), "How Mortly runs", "the screen is titled after the deliverable");
+  assert.equal(h.screens.length, 0, "an HTML deliverable opens in Paseo's own preview, not a screen of Progress's");
   assert.deepEqual(
     plain(h.filePanels.map(({ id, files }) => ({ id, files }))),
     [{ id: "pdf", files: { extensions: ["pdf"] } }],
@@ -39,7 +37,6 @@ test("registers the Progress panel and a Command Center item that opens it as a 
     h.panels.every((panel) => panel.removed) &&
       h.commandItems.every((entry) => entry.removed) &&
       h.settingsScreens.every((entry) => entry.removed) &&
-      h.screens.every((entry) => entry.removed) &&
       h.filePanels.every((entry) => entry.removed),
   );
 });

@@ -129,6 +129,18 @@ export function previewKind(path: string): PreviewKind | null {
   return DOCUMENT_KINDS[extension(path) ?? ""] ?? (textFormat(path) ? "text" : null);
 }
 
+const AUDIO_EXTENSIONS = new Set([".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus"]);
+
+// Whether a file opens in the host's default app, the way a double-click
+// would. Only kinds whose default app shows them and never runs them: a
+// script, an app or an installer would run. SVG and HTML stay out too, since a
+// browser opens them and their scripts run with the user's files at hand.
+export function opensOnHost(path: string): boolean {
+  const kind = previewKind(path);
+  if (kind === "html" || extension(path) === ".svg") return false;
+  return kind !== null || AUDIO_EXTENSIONS.has(extension(path) ?? "");
+}
+
 export function isFolder(attachment: Attachment): boolean {
   return attachment.kind === "folder" || /[\\/]$/.test(attachment.path ?? "");
 }
@@ -190,10 +202,10 @@ export function attachmentIcon(attachment: Attachment): string {
   return kind ? PREVIEW_ICON[kind] : attachment.path.endsWith("/") ? "Folder" : "File";
 }
 
-// An HTML page is too wide for the dialog, so where the host can't open it the
-// desktop app gives it a screen of its own. The phone apps can't draw one.
-export function opensAsPage(attachment: Attachment, where: { browser: boolean }): boolean {
-  return where.browser && Boolean(attachment.path) && previewKind(attachment.path!) === "html";
+// An HTML page opens in a Paseo tab, in Paseo's own preview, which runs the
+// page's scripts and blocks everything it would load from the web.
+export function isPage(attachment: Attachment): boolean {
+  return !isFolder(attachment) && previewKind(attachment.path ?? "") === "html";
 }
 
 // Android's viewer has no PDF support.

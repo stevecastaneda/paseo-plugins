@@ -5,7 +5,17 @@ import { Platform, Text, View } from "react-native";
 import type { Deliverable } from "../shared/dashboard";
 import { opensInTab } from "../shared/attachments";
 import { localLinkTarget } from "../shared/markdown";
-import { type Attachment, absolutePath, attachmentIcon, deliverableAttachment, shortName, useAttachmentOpener } from "./attachments";
+import {
+  type Attachment,
+  absolutePath,
+  attachmentIcon,
+  deliverableAttachment,
+  followPageLink,
+  PageLink,
+  pageLinkRef,
+  shortName,
+  useAttachmentOpener,
+} from "./attachments";
 import { formatClientAgo } from "./i18n";
 import { PressScale } from "./motion";
 import { StackedDialog } from "./dialog-stack";
@@ -48,13 +58,17 @@ export function DeliverablesList({
       {paged.shown.map((deliverable, index) => {
         const attachment = deliverableAttachment(deliverable);
         const tab = opensInTab(attachment, { platform: Platform.OS });
+        const link = pageLinkRef(attachment);
         return (
           <PressableRow
             key={deliverable.id}
             colors={colors}
             accessibilityRole={deliverable.url ? "link" : "button"}
             accessibilityLabel={m.openItem(deliverable.title)}
-            onPress={() => void open(attachment)}
+            onPress={() => {
+              if (link && !followPageLink(link)) return;
+              void open(attachment);
+            }}
             style={{
               flexDirection: "row",
               gap: ROW_GAP,
@@ -80,6 +94,8 @@ export function DeliverablesList({
                   .join(" · ")}
               </Text>
             </View>
+            {/* Under Copy, so Copy still takes its own presses. */}
+            {link ? <PageLink link={link} path={absolutePath(deliverable.path!, workspaceDirectory)} /> : null}
             {tab ? (
               <TabButton colors={colors} label={m.openInTab(deliverable.title)} target={localLinkTarget(absolutePath(deliverable.path!, workspaceDirectory))} />
             ) : null}

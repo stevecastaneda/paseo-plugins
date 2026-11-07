@@ -183,7 +183,16 @@ const tools: Record<ProgressToolName, Tool> = {
       'Pass ["--help"] to list the commands, or add "--help" after any command for its options.',
     ].join(" "),
     input: z.object({ args: z.array(z.string()).min(1).describe("Arguments for paseo-progress, one per item") }),
-    execute: ({ args }, context) => run(args, context),
+    // install-launcher writes a program wherever it's told, such as a git hook,
+    // so only the user installs it. Every other command writes only in
+    // Progress's own folder and the run-history folder the user chose.
+    execute: async ({ args }, context) =>
+      args[0] === "install-launcher"
+        ? {
+            text: "Agents can't install the paseo-progress command. The user installs it with Install command in the Progress panel.",
+            isError: true,
+          }
+        : run(args, context),
   }),
 };
 

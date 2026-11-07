@@ -3,7 +3,7 @@ import { Icon, Markdown, ScrollView } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, type LayoutChangeEvent, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
-import { ATTACHMENT_ROW, type Attachment, AttachmentList, isPreviewable } from "./attachments";
+import { ATTACHMENT_ROW, type Attachment, AttachmentList, isHostOpenable, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
 import { folderAttachments, isFolder, isPieced, PDF_MIME_TYPE, previewKind } from "../shared/attachments";
 import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
@@ -73,7 +73,7 @@ export function PreviewContent({
       queryKey: ["progress", "can-open", workspaceId],
       queryFn: () => checkHost({ workspaceId, workspaceDirectory }),
       staleTime: Infinity,
-    }).data?.canOpen === true;
+    }).data?.canOpen === true && isHostOpenable(attachment);
   const loadingKey = (target: Attachment) => ["progress", "preview-loading", workspaceId, target.ref, target.path];
   const previewQuery = (target: Attachment) => ({
     queryKey: ["progress", "preview", workspaceId, target.ref, target.path],
@@ -234,6 +234,7 @@ export function PreviewContent({
           entries={folderAttachments(attachment, preview.data.entries)}
           truncated={preview.data.truncated}
           dimmed={stepping}
+          root={workspaceDirectory}
           onOpen={onOpenEntry}
         />
       ) : null}
@@ -496,7 +497,7 @@ const FOLDER_ROW_HEIGHT = ATTACHMENT_ROW.lineHeight + ATTACHMENT_ROW.paddingVert
 
 // Roughly how tall the preview draws, including wrapped lines.
 function estimatedHeight(
-  data: { kind: "image" | "video" | "pdf" | "html" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined,
+  data: { kind: "image" | "video" | "pdf" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined,
   aspectRatio: number,
   maxMediaHeight: number,
 ): number {
@@ -525,6 +526,7 @@ function FolderList({
   entries,
   truncated,
   dimmed,
+  root,
   onOpen,
 }: {
   colors: Colors;
@@ -532,6 +534,7 @@ function FolderList({
   entries: Attachment[];
   truncated: boolean;
   dimmed: boolean;
+  root: string;
   onOpen(attachment: Attachment, group: Attachment[]): void;
 }) {
   const { messages: m } = useProgressLanguage();
@@ -539,7 +542,7 @@ function FolderList({
   if (!entries.length) return <Text style={caption}>{m.emptyFolder(folder.title)}</Text>;
   return (
     <View style={{ gap: 8, opacity: dimmed ? 0.6 : 1 }}>
-      <AttachmentList colors={colors} attachments={entries} onOpen={onOpen} />
+      <AttachmentList colors={colors} attachments={entries} root={root} onOpen={onOpen} />
       {truncated ? <Text style={caption}>{m.firstEntries(entries.length)}</Text> : null}
     </View>
   );

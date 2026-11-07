@@ -80,6 +80,7 @@ export interface ProgressMessages {
   copyPathDone: string;
   copyPathFailure: string;
   openFailure: string;
+  openRefused: string;
   linkFailure: string;
   showLess: string;
   readMore: string;

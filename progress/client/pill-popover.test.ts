@@ -58,6 +58,7 @@ function popover(questions: string[]) {
       colors: { surface0: "#ffffff", surface1: "#f4f4f5" },
       dashboard,
       workspaceId: "w",
+      root: "/repo",
       compact: false,
       touch: false,
       onSurface1: true,
