@@ -1,10 +1,8 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import nodePath, { delimiter, dirname, join, relative, resolve } from "node:path";
-import { promisify } from "node:util";
 import {
   findAttachment,
   type FolderEntry,
@@ -20,6 +18,7 @@ import { prepareMarkdown, previewText } from "../shared/markdown.ts";
 import { readProgress } from "./progress-file.ts";
 import { findRoot, hasGitEntry, inGitFolder, outside } from "./paths.ts";
 import { findStore, git } from "./store.ts";
+import { openToRead, runProgram } from "./system.ts";
 
 export type Opener = (path: string) => Promise<void>;
 
@@ -38,7 +37,7 @@ export function openCommand(path: string, platform: NodeJS.Platform, browser: st
 async function defaultBrowser(): Promise<string | null> {
   try {
     const plist = join(homedir(), "Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist");
-    const { stdout } = await promisify(execFile)("plutil", ["-convert", "json", "-o", "-", plist]);
+    const { stdout } = await runProgram("plutil", ["-convert", "json", "-o", "-", plist]);
     const handlers = (JSON.parse(stdout).LSHandlers ?? []) as Array<{ LSHandlerURLScheme?: string; LSHandlerRoleAll?: string }>;
     return handlers.find((handler) => handler.LSHandlerURLScheme === "https")?.LSHandlerRoleAll ?? null;
   } catch {
@@ -57,7 +56,7 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
     if (!canOpenFiles(platform, env)) throw new Error(`Can't open files on ${hostname()}`);
     const browser = platform === "darwin" ? await defaultBrowser() : null;
     const [command, args] = openCommand(path, platform, browser);
-    await promisify(execFile)(command, args);
+    await runProgram(command, args);
   };
 }
 
@@ -128,7 +127,7 @@ export async function previewDeliverable(directory: string, id: string): Promise
   }
   if (kind === "text") {
     // Read only what's shown, so a huge log doesn't load whole.
-    const file = await open(realTarget);
+    const file = await openToRead(realTarget);
     try {
       const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(Math.min(size, MAX_PREVIEW_TEXT_BYTES)), position: 0 });
       const bytes = buffer.subarray(0, bytesRead);
@@ -245,7 +244,7 @@ export async function readDeliverablePiece(directory: string, id: string, offset
   const { path, realTarget } = await resolveAttachment(directory, id, "previewed");
   const kind = previewKind(realTarget);
   if (!isPieced(kind)) throw new Error(`${path} isn't a video or PDF.`);
-  const file = await open(realTarget);
+  const file = await openToRead(realTarget);
   try {
     const { size } = await file.stat();
     if (size > PIECED_LIMIT_BYTES[kind]) throw new Error(tooLarge(path, size));

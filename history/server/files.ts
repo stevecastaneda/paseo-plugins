@@ -1,6 +1,7 @@
-import { open, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { openToRead } from "./system.ts";
 
 export const PAGE_BYTES = 64 * 1024;
 const MAX_ENTRY_BYTES = 4 * 1024 * 1024;
@@ -39,7 +40,7 @@ export async function findLog(roots: string[], sessionId: string, provider: stri
 }
 
 export async function readPage(path: string, offset: number, expectedSource?: string) {
-  const file = await open(path, "r");
+  const file = await openToRead(path);
   try {
     const stat = await file.stat();
     if (!stat.isFile()) throw new Error("The session log is not a regular file.");

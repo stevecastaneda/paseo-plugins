@@ -9,15 +9,18 @@ import { z } from "zod";
 import { NOTE_KINDS, type NoteKind, type WhatsNew, type WhatsNewNote, type WhatsNewRelease } from "../shared/whats-new.ts";
 import { spans } from "../shared/blocks.ts";
 import { findPluginDirectory } from "./skill.ts";
-import { stateRoot, writeAtomic } from "./store.ts";
+import { stateRoot } from "./store.ts";
+import { writeFileIn } from "./system.ts";
 
 export type Release = { version: string; readme: string | null };
 
 const seenSchema = z.object({ seen: z.string().regex(/^\d+\.\d+\.\d+$/) });
 const packageSchema = z.object({ version: z.string() });
 
+const WHATS_NEW_NAME = "whats-new.json";
+
 export function whatsNewPath(home = homedir()): string {
-  return join(stateRoot(home), "whats-new.json");
+  return join(stateRoot(home), WHATS_NEW_NAME);
 }
 
 // Each `### x.y.z` under the README's `## Changelog` with its top-level
@@ -103,7 +106,7 @@ async function readSeen(home: string): Promise<string | null> {
 }
 
 export async function markWhatsNewSeen(version: string, home = homedir()): Promise<void> {
-  await writeAtomic(whatsNewPath(home), `${JSON.stringify({ seen: version })}\n`);
+  await writeFileIn(stateRoot(home), WHATS_NEW_NAME, `${JSON.stringify({ seen: version })}\n`, { atomic: true });
 }
 
 // A worktree's folder (see outsideDirectory) means the plugin was in use

@@ -1,4 +1,6 @@
-import { mkdir, rm, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
+import { join } from "node:path";
+import { createFolderIn, removeIn } from "./system.ts";
 
 const RETRY_MS = 25;
 const WAIT_MS = 10_000;
@@ -7,11 +9,12 @@ const STALE_MS = 30_000;
 
 // Serializes read-then-append so two commands never hand out the same id or
 // interleave a line. mkdir is atomic, so only one process creates the folder.
-export async function withLock<T>(lockPath: string, work: () => Promise<T>): Promise<T> {
+export async function withLock<T>(folder: string, name: string, work: () => Promise<T>): Promise<T> {
+  const lockPath = join(folder, name);
   const started = Date.now();
   while (true) {
     try {
-      await mkdir(lockPath);
+      await createFolderIn(folder, name);
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
@@ -20,7 +23,7 @@ export async function withLock<T>(lockPath: string, work: () => Promise<T>): Pro
         () => 0,
       );
       if (since > STALE_MS) {
-        await rm(lockPath, { recursive: true, force: true });
+        await removeIn(folder, name, { recursive: true });
         continue;
       }
       if (Date.now() - started > WAIT_MS)
@@ -31,6 +34,6 @@ export async function withLock<T>(lockPath: string, work: () => Promise<T>): Pro
   try {
     return await work();
   } finally {
-    await rm(lockPath, { recursive: true, force: true });
+    await removeIn(folder, name, { recursive: true });
   }
 }

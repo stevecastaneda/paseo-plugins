@@ -1,9 +1,8 @@
-import { exec, execFile } from "node:child_process";
-import { lstat, mkdir, readFile, readlink, symlink, unlink } from "node:fs/promises";
+import { lstat, readFile, readlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { promisify } from "node:util";
 import { paseoCommands, PLUGIN_ID } from "./launcher.ts";
+import { linkFolderIn, removeLinkIn, runCommandLine, runProgram } from "./system.ts";
 
 export const SKILL_NAME = "paseo-progress";
 
@@ -38,7 +37,7 @@ export async function relinkSkill(paths: string[], pluginDirectory: string): Pro
   let wrote = false;
   for (const path of paths) {
     if ((await skillState(path, pluginDirectory)) !== "outdated") continue;
-    await unlink(path);
+    await removeLinkIn(dirname(path), basename(path));
     await link(path, pluginDirectory);
     wrote = true;
   }
@@ -60,10 +59,7 @@ export async function installSkill(paths: string[], pluginDirectory: string): Pr
 }
 
 async function link(path: string, pluginDirectory: string) {
-  await mkdir(dirname(path), { recursive: true });
-  // A junction on Windows, where a directory symlink needs admin rights or
-  // Developer Mode. Other systems ignore the type and make a symlink.
-  await symlink(skillSource(pluginDirectory), path, "junction");
+  await linkFolderIn(dirname(path), basename(path), skillSource(pluginDirectory));
 }
 
 // "current" once every folder that can take the link has it.
@@ -100,8 +96,8 @@ export async function findPluginDirectory(): Promise<string> {
 function askPaseo(cli: string) {
   const options = { timeout: 10_000 };
   return process.platform === "win32"
-    ? promisify(exec)(`"${cli}" plugin ls ${PLUGIN_ID} --json`, options)
-    : promisify(execFile)(cli, ["plugin", "ls", PLUGIN_ID, "--json"], options);
+    ? runCommandLine(`"${cli}" plugin ls ${PLUGIN_ID} --json`, options)
+    : runProgram(cli, ["plugin", "ls", PLUGIN_ID, "--json"], options);
 }
 
 // Runs once per load, when the server starts: an update reloads the bundle.

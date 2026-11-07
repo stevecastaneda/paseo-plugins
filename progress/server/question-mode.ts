@@ -1,19 +1,22 @@
 // The question mode lives in Paseo's settings, which only the plugin's server
 // process can read. It mirrors the mode into a file the paseo-progress command
 // can read on its own.
-import { readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import type { PluginSettings } from "@getpaseo/plugin/server";
 import { DEFAULT_QUESTION_MODE, QUESTION_MODES, type QuestionMode } from "../shared/question-modes.ts";
 import type { questionSettings } from "../shared/settings.ts";
-import { stateRoot, writeAtomic } from "./store.ts";
+import { stateRoot } from "./store.ts";
+import { removeIn, writeFileIn } from "./system.ts";
 
 const mirrorSchema = z.object({ questionMode: z.enum(QUESTION_MODES) });
 
+const SETTINGS_NAME = "settings.json";
+
 export function questionModePath(home = homedir()): string {
-  return join(stateRoot(home), "settings.json");
+  return join(stateRoot(home), SETTINGS_NAME);
 }
 
 // The default unless the mirror says otherwise, so a missing or damaged file
@@ -27,7 +30,7 @@ export async function readQuestionMode(home = homedir()): Promise<QuestionMode> 
 }
 
 export async function writeQuestionMode(mode: QuestionMode, home = homedir()): Promise<void> {
-  await writeAtomic(questionModePath(home), `${JSON.stringify({ questionMode: mode })}\n`);
+  await writeFileIn(stateRoot(home), SETTINGS_NAME, `${JSON.stringify({ questionMode: mode })}\n`, { atomic: true });
 }
 
 type Settings = Pick<PluginSettings<(typeof questionSettings)["schema"]>, "read" | "subscribe">;
@@ -58,7 +61,7 @@ export function mirrorQuestionMode(settings: Settings, home = homedir()): { stop
       await unsubscribe();
       await settled;
       await writes;
-      await rm(questionModePath(home), { force: true });
+      await removeIn(stateRoot(home), SETTINGS_NAME);
     },
   };
 }

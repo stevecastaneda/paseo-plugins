@@ -1,6 +1,7 @@
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, posix, win32 } from "node:path";
+import { writeFileIn } from "./system.ts";
 
 export const PLUGIN_ID = "progress";
 
@@ -122,9 +123,7 @@ export async function installLauncher(path: string, platform: NodeJS.Platform = 
   let wrote = false;
   for (const file of files) {
     if (file.state === "current") continue;
-    await mkdir(dirname(file.path), { recursive: true });
-    await writeFile(file.path, file.content);
-    await chmod(file.path, 0o755);
+    await writeFileIn(dirname(file.path), basename(file.path), file.content, { executable: true });
     wrote = true;
   }
   return wrote;
