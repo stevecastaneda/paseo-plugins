@@ -181,7 +181,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 ### 1.14.6
 
 - [Fixed] **The Progress pill spins only while work is happening.** It used to show a spinner until you first opened the panel, even after every ticket was done or the agent had stopped. Now it spins while an agent in the worktree is running and tickets are left, and shows the checklist icon otherwise. On phones, the pill that stays above the message box follows the same rule.
-- [Fixed] **The panel moves only while work is happening.** The line under the title, the ticket in progress and its part of the progress bar kept moving for up to 15 minutes after the agent stopped, and forever once every ticket was done if the agent never closed the run. Now they move only while an agent in the worktree is running and hold still when it stops. After 15 minutes with no update, the amber warning appears as before. Once every ticket is done, the line under the title shows a check.
+- [Fixed] **The panel moves only while work is happening.** After the agent stopped, the line under the title, the ticket in progress and its part of the progress bar kept moving for up to 15 minutes. Now they move only while an agent in the worktree is running and hold still when it stops. After 15 minutes with no update, the amber warning appears as before. If the agent finished every ticket but never closed the run, the line under the title kept spinning for good. It now shows a check.
 
 ### 1.14.5
 

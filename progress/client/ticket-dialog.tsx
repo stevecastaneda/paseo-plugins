@@ -354,7 +354,7 @@ function Marker({ colors, step }: { colors: Colors; step: TimelineStep & { waiti
 }
 
 // One line per step: its status icon, what it was, when it began and how long
-// it took. The step still going shows the working icon.
+// it took.
 function TimelineRow({
   colors,
   step,

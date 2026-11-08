@@ -564,8 +564,6 @@ function Segment({ colors, segment, liveness }: { colors: Colors; segment: Progr
   );
 }
 
-// A soft pulse on the working segment, only while an agent is running, so a
-// stopped run never looks busy.
 function Shimmer() {
   const value = useRef(new Animated.Value(0)).current;
   useEffect(() => {
