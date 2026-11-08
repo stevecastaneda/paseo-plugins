@@ -70,6 +70,7 @@ export const messages: ProgressMessages = {
   workDoneLong: "的预计工作已完成",
   stuck: "卡住",
   possiblyStalled: "可能已停滞",
+  paused: "已暂停",
   waiting: "等待中",
   workingSince: "开始工作于 ",
   startedWorking: "开始工作于 ",

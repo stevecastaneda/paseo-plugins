@@ -203,6 +203,25 @@ export function isSettled(ticket: Ticket): boolean {
   return ticket.status === "done" || ticket.status === "skipped";
 }
 
+export function hasTicketsAndAllSettled(tickets: Ticket[]): boolean {
+  return tickets.length > 0 && tickets.every(isSettled);
+}
+
+export type Liveness = "running" | "paused" | "stalled";
+
+export function livenessOf(dashboard: Pick<Dashboard, "stale">, agentRunning: boolean): Liveness {
+  if (agentRunning) return "running";
+  return dashboard.stale ? "stalled" : "paused";
+}
+
+export type StatusLineState = "finished" | "settled" | Liveness;
+
+export function statusLineState(dashboard: Pick<Dashboard, "run" | "tickets">, liveness: Liveness): StatusLineState {
+  if (dashboard.run?.finished) return "finished";
+  if (hasTicketsAndAllSettled(dashboard.tickets)) return "settled";
+  return liveness;
+}
+
 // The events from the last `run.start` on; earlier runs are ignored.
 export function latestRun(events: ParsedLine[]): ParsedLine[] {
   const start = events.findLastIndex(({ event }) => event.type === "run.start");
@@ -371,7 +390,7 @@ export function reduceProgress(
   const allQuestions = [...questions.values()];
   const open = allQuestions.filter((question) => !question.answer);
   // A finished run has nothing left to stall, so it never goes stale.
-  const finished = Boolean(run?.finished) || (list.length > 0 && list.every(isSettled));
+  const finished = Boolean(run?.finished) || hasTicketsAndAllSettled(list);
   const answered = allQuestions.filter((question) => question.answer).sort((a, b) => Date.parse(b.answer!.at) - Date.parse(a.answer!.at));
   const dashboard: Dashboard = {
     run,

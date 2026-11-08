@@ -2,7 +2,7 @@ import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
 import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import React, { useEffect, useRef, useState } from "react";
 import { isPage } from "../shared/attachments";
-import type { Dashboard, Question } from "../shared/dashboard";
+import type { Dashboard, Liveness, Question } from "../shared/dashboard";
 import { type Attachment, attachmentIcon, useAttachmentOpener } from "./attachments";
 import { NarrowProvider } from "./narrow";
 import { BackButton, galleryFiles, PreviewContent } from "./preview";
@@ -31,7 +31,7 @@ export function StackedDialog({
   questions = [],
   dashboard,
   now,
-  live = true,
+  liveness = "running",
   compact = false,
   context,
 }: {
@@ -42,7 +42,7 @@ export function StackedDialog({
   // Needed only when it opens on a ticket.
   dashboard?: Dashboard;
   now: number;
-  live?: boolean;
+  liveness?: Liveness;
   // Paseo's phone-sized layout; the ticket's tabs scroll sideways there.
   compact?: boolean;
   context: AttachmentContext;
@@ -155,7 +155,7 @@ export function StackedDialog({
                     dashboard={dashboard}
                     ticket={ticket}
                     now={now}
-                    live={live}
+                    liveness={liveness}
                     compact={compact}
                     context={context}
                     onOpenAgent={openAgent}

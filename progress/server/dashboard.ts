@@ -1,9 +1,9 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import type { Dashboard } from "../shared/dashboard.ts";
+import { hasTicketsAndAllSettled, type Dashboard } from "../shared/dashboard.ts";
 import { PROGRESS_FILE_NAME } from "../shared/events.ts";
-import type { AttentionResult, DashboardResult } from "../shared/rpc.ts";
+import type { AttentionResult, DashboardResult, RunState } from "../shared/rpc.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { findRoot } from "./paths.ts";
 import { findStore, historyFolder, inGitRepo, listFolders, setHistoryFolder } from "./store.ts";
@@ -49,9 +49,14 @@ export async function handleGetAttention(input: { workspaceId: string; workspace
     configured,
     questions: dashboard.questions.open.length,
     stuck: dashboard.stuck.length,
-    runOpen: Boolean(dashboard.run && !dashboard.run.finished),
+    run: runState(dashboard),
     panelOpened,
   };
+}
+
+function runState(dashboard: Dashboard): RunState {
+  if (!dashboard.run || dashboard.run.finished) return "closed";
+  return hasTicketsAndAllSettled(dashboard.tickets) ? "ticketsSettled" : "ticketsLeft";
 }
 
 export async function handleListFolders(input: { workspaceId: string; workspaceDirectory: string; folder: string }, _context: PluginHandlerContext) {

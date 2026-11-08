@@ -32,9 +32,8 @@ export const getDashboard = defineRpc({
   output: z.custom<DashboardResult | { unchanged: true; version: string }>(),
 });
 
-// What a message-box pill shows: counts that need the user, and whether a run
-// is open in a worktree whose panel has never been opened.
-export type AttentionResult = { configured: boolean; questions: number; stuck: number; runOpen: boolean; panelOpened: boolean };
+export type RunState = "closed" | "ticketsLeft" | "ticketsSettled";
+export type AttentionResult = { configured: boolean; questions: number; stuck: number; run: RunState; panelOpened: boolean };
 
 export const getAttention = defineRpc({
   name: "progress.attention",

@@ -213,7 +213,13 @@ test("pending and failed settings reads leave content usable, and a saved overri
 test("pill icons update same-mode titles and labels without extra polls and ignore late effects after cleanup", async () => {
   for (const attention of [true, false]) {
     const { h, effects, cleanups, setLanguage } = languageHarness();
-    h.responses["progress.attention"] = { configured: true, questions: attention ? 2 : 0, stuck: attention ? 1 : 0, runOpen: true, panelOpened: attention };
+    h.responses["progress.attention"] = {
+      configured: true,
+      questions: attention ? 2 : 0,
+      stuck: attention ? 1 : 0,
+      run: "ticketsLeft",
+      panelOpened: attention,
+    };
     const stop = h.load("client/pills.tsx").contributePills(h.client);
     h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
     h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);

@@ -8,12 +8,15 @@ import type { AttentionResult } from "../shared/rpc";
 // - "open": on a phone, a one-tap way into the panel while a run is open.
 export type Pill =
   | { mode: "attention"; label: string; icon: "stuck" | "questions" }
-  | { mode: "started"; label: "Progress"; icon: "started" }
-  | { mode: "open"; label: "Progress"; icon: "open" };
+  | { mode: "started" | "open"; label: "Progress"; icon: "working" | "checklist" };
 
 // What needs the user first, else the nudge, else (on a phone) the way in.
 // Null when there's no pill.
-export function pillFor(report: AttentionResult | undefined, where: { phone: boolean }, m: ProgressMessages = messagesFor("en")): Pill | null {
+export function pillFor(
+  report: AttentionResult | undefined,
+  workspace: { phone: boolean; running: boolean },
+  m: ProgressMessages = messagesFor("en"),
+): Pill | null {
   if (!report?.configured) return null;
   const { questions, stuck } = report;
   if (questions || stuck) {
@@ -24,13 +27,15 @@ export function pillFor(report: AttentionResult | undefined, where: { phone: boo
     if (stuck) parts.push(m.stuckCount(stuck));
     return { mode: "attention", label: parts.join(" · "), icon: stuck ? "stuck" : "questions" };
   }
-  if (report.runOpen && !report.panelOpened) return { mode: "started", label: "Progress", icon: "started" };
-  if (report.runOpen && where.phone) return { mode: "open", label: "Progress", icon: "open" };
+  if (report.run === "closed") return null;
+  const icon = report.run === "ticketsLeft" && workspace.running ? "working" : "checklist";
+  if (!report.panelOpened) return { mode: "started", label: "Progress", icon };
+  if (workspace.phone) return { mode: "open", label: "Progress", icon };
   return null;
 }
 
 // A worktree with nothing going on (no file, or a closed run with nothing
 // waiting), which the pill checks less often.
 export function isIdle(report: AttentionResult): boolean {
-  return !report.runOpen && !report.questions && !report.stuck;
+  return report.run === "closed" && !report.questions && !report.stuck;
 }

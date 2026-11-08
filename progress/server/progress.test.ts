@@ -13,7 +13,7 @@ import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
-import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
+import { finishedToFold, headlineText, livenessOf, statusLineState, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
 import {
@@ -349,6 +349,25 @@ test("the panel folds every finished ticket, and only two or more", () => {
   assert.deepEqual(folded(), []);
 });
 
+test("working items move only while an agent is running, hold still when it stops, and warn once the run goes stale", () => {
+  assert.equal(livenessOf({ stale: true }, true), "running", "a running agent beats a stale dashboard");
+  assert.equal(livenessOf({ stale: false }, true), "running");
+  assert.equal(livenessOf({ stale: false }, false), "paused", "idle with a fresh update holds still");
+  assert.equal(livenessOf({ stale: true }, false), "stalled");
+});
+
+test("the status line shows the liveness until every ticket is done, and a check after", () => {
+  const finished = { title: "Run", itemLabel: "ticket", startedAt: "", finished: { at: "", outcome: "Shipped" } };
+  const open = { title: "Run", itemLabel: "ticket", startedAt: "" };
+  for (const state of ["running", "paused", "stalled"] as const) {
+    assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "working") }, state), "finished", `finished beats ${state}`);
+    assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "skipped") }, state), "finished", `finished beats settled and ${state}`);
+    assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "skipped") }, state), "settled", `settled beats ${state}`);
+    assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "working") }, state), state);
+  }
+  assert.equal(statusLineState({ run: open, tickets: [] }, "paused"), "paused", "no tickets yet is not settled");
+});
+
 test("removed tickets leave the dashboard and their ids are never reused", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");
@@ -453,10 +472,27 @@ test("the pill check returns only counts and run state", async (t) => {
   const w = await worktree(t);
   const context = { paseo: {} as PluginHandlerContext["paseo"] };
   const input = { workspaceId: "ws-1", workspaceDirectory: w.directory };
-  assert.deepEqual(await handleGetAttention(input, context), { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false });
+  assert.deepEqual(await handleGetAttention(input, context), { configured: false, questions: 0, stuck: 0, run: "closed", panelOpened: false });
   await w.run("start", "Run");
   await w.run("question", "ask", "Spacing", "Tighter?", "--option", "A=Yes | tighter", "--option", "B=No | as is", "--recommend", "A");
-  assert.deepEqual(await handleGetAttention(input, context), { configured: true, questions: 1, stuck: 0, runOpen: true, panelOpened: false });
+  assert.deepEqual(
+    await handleGetAttention(input, context),
+    { configured: true, questions: 1, stuck: 0, run: "ticketsLeft", panelOpened: false },
+    "no tickets yet",
+  );
+  await w.run("ticket", "add", "Ticket 01", "--estimate", "10");
+  await w.run("ticket", "add", "Ticket 02", "--estimate", "10");
+  await w.run("ticket", "update", "T01", "--status", "done");
+  assert.equal((await handleGetAttention(input, context)).run, "ticketsLeft", "a ticket still to do");
+  await w.run("ticket", "update", "T02", "--status", "skipped");
+  assert.deepEqual(
+    await handleGetAttention(input, context),
+    { configured: true, questions: 1, stuck: 0, run: "ticketsSettled", panelOpened: false },
+    "every ticket done or skipped, finish not called",
+  );
+  await w.run("question", "answer", "Q1", "A");
+  await w.run("finish", "Done");
+  assert.equal((await handleGetAttention(input, context)).run, "closed", "finished");
 });
 
 test("unchanged dashboards are reused until exact stale and overdue boundaries, including clock rollback", async (t) => {

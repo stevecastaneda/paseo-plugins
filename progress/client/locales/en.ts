@@ -71,6 +71,7 @@ export const messages: ProgressMessages = {
   workDoneLong: "of estimated work done",
   stuck: "Stuck",
   possiblyStalled: "Possibly stalled",
+  paused: "Paused",
   waiting: "Waiting",
   workingSince: "Working since ",
   startedWorking: "Started working ",
