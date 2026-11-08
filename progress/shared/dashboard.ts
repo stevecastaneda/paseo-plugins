@@ -209,9 +209,10 @@ export function hasTicketsAndAllSettled(tickets: Ticket[]): boolean {
 
 export type StatusLineState = "finished" | "settled" | "live" | "stale";
 
-// The icon beside the ticker: a check once the run is over, a spinner only while work can still happen.
+// A run whose tickets are all settled shows the check even before `finish`, so the spinner never outlasts the work.
 export function statusLineState(dashboard: Pick<Dashboard, "run" | "tickets">, live: boolean): StatusLineState {
   if (dashboard.run?.finished) return "finished";
+  if (hasTicketsAndAllSettled(dashboard.tickets)) return "settled";
   return live ? "live" : "stale";
 }
 

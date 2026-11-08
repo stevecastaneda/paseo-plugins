@@ -181,6 +181,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 ### 1.14.6
 
 - [Fixed] **The Progress pill spins only while work is happening.** It used to show a spinner until you first opened the panel, even after every ticket was done or the agent had stopped. Now it spins while an agent in the worktree is running and tickets are left, and shows the checklist icon otherwise. On phones, the pill that stays above the message box follows the same rule.
+- [Fixed] **The panel stops spinning once every ticket is done.** When an agent finished every ticket but never closed the run, the line under the title kept a spinner going. It now shows a check.
 
 ### 1.14.5
 
