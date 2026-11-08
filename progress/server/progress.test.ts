@@ -13,7 +13,7 @@ import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
-import { finishedToFold, headlineText, liveness, statusLineState, type Ticket } from "../shared/dashboard.ts";
+import { finishedToFold, headlineText, livenessOf, statusLineState, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
 import {
@@ -350,10 +350,10 @@ test("the panel folds every finished ticket, and only two or more", () => {
 });
 
 test("working items move only while an agent is running, hold still when it stops, and warn once the run goes stale", () => {
-  assert.equal(liveness({ stale: true }, true), "running", "a running agent beats a stale dashboard");
-  assert.equal(liveness({ stale: false }, true), "running");
-  assert.equal(liveness({ stale: false }, false), "paused", "idle with a fresh update holds still");
-  assert.equal(liveness({ stale: true }, false), "stalled");
+  assert.equal(livenessOf({ stale: true }, true), "running", "a running agent beats a stale dashboard");
+  assert.equal(livenessOf({ stale: false }, true), "running");
+  assert.equal(livenessOf({ stale: false }, false), "paused", "idle with a fresh update holds still");
+  assert.equal(livenessOf({ stale: true }, false), "stalled");
 });
 
 test("the status line shows the liveness until every ticket is done, and a check after", () => {

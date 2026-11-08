@@ -209,17 +209,17 @@ export function hasTicketsAndAllSettled(tickets: Ticket[]): boolean {
 
 export type Liveness = "running" | "paused" | "stalled";
 
-export function liveness(dashboard: Pick<Dashboard, "stale">, agentRunning: boolean): Liveness {
+export function livenessOf(dashboard: Pick<Dashboard, "stale">, agentRunning: boolean): Liveness {
   if (agentRunning) return "running";
   return dashboard.stale ? "stalled" : "paused";
 }
 
 export type StatusLineState = "finished" | "settled" | Liveness;
 
-export function statusLineState(dashboard: Pick<Dashboard, "run" | "tickets">, working: Liveness): StatusLineState {
+export function statusLineState(dashboard: Pick<Dashboard, "run" | "tickets">, liveness: Liveness): StatusLineState {
   if (dashboard.run?.finished) return "finished";
   if (hasTicketsAndAllSettled(dashboard.tickets)) return "settled";
-  return working;
+  return liveness;
 }
 
 // The events from the last `run.start` on; earlier runs are ignored.

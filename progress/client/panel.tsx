@@ -16,7 +16,7 @@ import {
   finishedToFold,
   isFinished,
   shortTitle,
-  liveness as livenessOf,
+  livenessOf,
   statusLineState,
   type Activity,
   type Dashboard,
