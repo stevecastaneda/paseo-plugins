@@ -1,6 +1,6 @@
 {
   "name": "@stevecastaneda/paseo-progress",
-  "version": "1.14.4",
+  "version": "1.14.5",
   "description": "A live progress dashboard per worktree for Paseo, drawn from a file agents write with the Progress tools or the paseo-progress command.",
   "keywords": [
     "coding-agents",

@@ -2,15 +2,17 @@
 // command, so it records and answers exactly what the command would.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { promisify } from "node:util";
 import type { AgentToolContext, PluginServerContext, PluginSessionOpenRequest } from "@getpaseo/plugin/server";
+import type { z } from "zod";
+import { PROGRESS_TOOL_NAMES } from "../shared/tools.ts";
 import { readProgress } from "./progress-file.ts";
 import { outsideDirectory } from "./store.ts";
-import { agentToolsSupported, attachProgressTools, progressTools, toolsState } from "./tool.ts";
+import { ANSWER_NOTE, agentToolsSupported, attachProgressTools, progressTools, toolsState } from "./tool.ts";
 
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -94,6 +96,7 @@ test("each Progress tool records what its command would, under the calling agent
     join(w.directory, "shots"),
   );
   assert.match(asked.text!, /^Asked Q1 \(Button color\)\. You recommend A\. Mode: Work around\./);
+  assert.ok(asked.text!.endsWith(`\n${ANSWER_NOTE}`), "the reply says how to record the answer");
   assert.match(
     (await w.call("progress_question_answer", { id: "q1", choice: "b", words: "green please" })).text!,
     /^Answered Q1: B \(not your recommendation, A\)/,
@@ -234,6 +237,22 @@ test("on Paseo 0.14 every agent gets the Progress tools; on 0.13, which has no t
   );
   assert.equal(added.env && Object.keys(added.env).length, 0, "nothing else changes");
   assert.equal(sessionOpen({}, { tools: undefined }), undefined);
+});
+
+test("the note after a question names the answer tool's fields", () => {
+  const answer = progressTools.find((tool) => tool.name === "progress_question_answer")!;
+  const fields = Object.keys((answer.input as z.ZodObject).shape);
+  for (const field of fields) assert.match(ANSWER_NOTE, new RegExp(`\\b${field} is `));
+});
+
+test("the skill loads every tool in one search", async () => {
+  const skill = await readFile(new URL("../skills/paseo-progress/SKILL.md", import.meta.url), "utf8");
+  const query = /^select:(.+)$/m.exec(skill)?.[1].split(",");
+  assert.deepEqual(
+    query,
+    PROGRESS_TOOL_NAMES.map((name) => `mcp__paseo__${name}`),
+  );
+  assert.match(skill, new RegExp(`\`max_results\` ${PROGRESS_TOOL_NAMES.length} `));
 });
 
 test("tools describe themselves with the command's help text", () => {

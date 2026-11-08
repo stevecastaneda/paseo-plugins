@@ -7,9 +7,15 @@ description: Keep the Paseo Progress dashboard live with the Progress tools or t
 
 The user watches a live dashboard in Paseo for this worktree. Keep it live: record each change the moment it happens, so the dashboard is a side effect of the work. Write every line for a product manager, in plain words.
 
-Use the Progress tools when you have them: `progress_show`, `progress_start`, `progress_ticket_add`, `progress_ticket_update`, `progress_question_ask`, `progress_question_answer`, `progress_deliverable_add`, `progress_activity_add`, `progress_ticker`, `progress_finish`, and `paseo_progress` for any other command. Paseo hands them to agents when the user turns on Paseo tools. Claude Code names them like `mcp__paseo__progress_show` and keeps them hidden until you search, so search your tools for `progress_` before your first update. Otherwise, run the `paseo-progress` command from inside the worktree. When a tool call says the tool isn't found, use the command for the rest of that reply.
+Use the Progress tools when you have them. Paseo hands them to agents when the user turns on Paseo tools. Claude Code hides their inputs until you load them, and a compacted conversation loses what you loaded. So before your first update, and again after each compaction, load them all in one `ToolSearch` call with `max_results` 11 and this query:
 
-The tools and the command take the same values and print the same answers. The steps below use the command's words: `--estimate` is `estimateMinutes` in the tools, `--waits-for` is `waitsFor`. `paseo-progress --help` is the reference for every command and flag.
+```text
+select:mcp__paseo__progress_show,mcp__paseo__progress_start,mcp__paseo__progress_ticket_add,mcp__paseo__progress_ticket_update,mcp__paseo__progress_question_ask,mcp__paseo__progress_question_answer,mcp__paseo__progress_deliverable_add,mcp__paseo__progress_activity_add,mcp__paseo__progress_ticker,mcp__paseo__progress_finish,mcp__paseo__paseo_progress
+```
+
+Without the tools, run the `paseo-progress` command from inside the worktree. When a tool call says the tool isn't found, use the command for the rest of that reply.
+
+The tools and the command take the same values and print the same answers. The steps below use the command's words: `--estimate` is `estimateMinutes` in the tools, `--waits-for` is `waitsFor`, and `question answer Q7 A` is `id` and `choice`. `paseo-progress --help` is the reference for every command and flag.
 
 ## 1. Set up
 
