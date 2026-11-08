@@ -178,6 +178,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.14.5
+
+- [Fixed] **Agents record your answer on the first try.** In Claude Code, an agent that hadn't loaded the answer tool guessed its field names, and the call failed once before the agent retried. The skill now has agents load every Progress tool at once, and again after Claude Code compacts a long chat. Asking a question also tells the agent which fields the answer takes.
+
 ### 1.14.4
 
 - [Improved] **Agents learn what Paseo's preview blocks.** Paseo opens an HTML deliverable in a sandboxed preview, where some common page code fails without a visible error. Saving to localStorage, sessionStorage, cookies or IndexedDB throws, so a page that loads its saved state first stops before it draws anything. `alert`, `confirm`, `prompt`, `window.open` and form submits do nothing, `navigator.clipboard` throws, and one syntax error stops a whole script. The skill and the command help now list these, with what to do instead.

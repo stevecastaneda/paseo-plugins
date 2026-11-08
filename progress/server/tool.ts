@@ -56,6 +56,21 @@ function commandTool<Input extends z.ZodType>(title: string, command: string, in
   });
 }
 
+// Claude Code hides a tool's inputs until the agent loads it, so an agent
+// that skipped loading the answer tool guesses its field names.
+export const ANSWER_NOTE =
+  "When the user replies, record it with progress_question_answer: id is this question's reference, choice is the option letter or their own short answer, and words is what they said.";
+
+function withNote(tool: Tool, note: string): Tool {
+  return {
+    ...tool,
+    async execute(input, context) {
+      const result = await tool.execute(input, context);
+      return result.isError ? result : { ...result, text: `${result.text}\n${note}` };
+    },
+  };
+}
+
 const ticketId = (what: string) => z.string().describe(`${what}, like T03`);
 const estimate = z.number().int().describe("Whole minutes, like 90");
 const ticketSource = z.string().describe("Spec file path or http(s) link where the ticket is written up");
@@ -102,41 +117,44 @@ const tools: Record<ProgressToolName, Tool> = {
     ({ id, status, stage, title, estimateMinutes, note, waitsFor, source }) =>
       commandArgs("ticket update", [id], { status, stage, title, estimate: estimateMinutes, note, "waits-for": waitsFor, source }),
   ),
-  progress_question_ask: commandTool(
-    "Ask question",
-    "question ask",
-    z.object({
-      title: z.string().describe("A short title"),
-      question: z.string(),
-      options: z.array(
-        z.object({
-          letter: z.string().describe("A, B, C, ..."),
-          label: z.string(),
-          consequence: z.string().describe("What picking it means for the user"),
-        }),
-      ),
-      recommend: z.string().describe("The option letter you would pick"),
-      big: z.string().optional().describe("Only for a big question: which test it meets, in a few plain words"),
-      background: z.string().optional(),
-      files: z
-        .array(
+  progress_question_ask: withNote(
+    commandTool(
+      "Ask question",
+      "question ask",
+      z.object({
+        title: z.string().describe("A short title"),
+        question: z.string(),
+        options: z.array(
           z.object({
-            target: z.string().describe("A file path or http(s) link, like a screenshot"),
-            label: z.string().optional(),
+            letter: z.string().describe("A, B, C, ..."),
+            label: z.string(),
+            consequence: z.string().describe("What picking it means for the user"),
           }),
-        )
-        .optional(),
-      ticket: ticketId("The ticket it's about").optional(),
-    }),
-    ({ title, question, options, recommend, big, background, files, ticket }) =>
-      commandArgs("question ask", [title, question], {
-        option: options.map(({ letter, label, consequence }) => `${letter}=${label} | ${consequence}`),
-        recommend,
-        big,
-        background,
-        file: files?.map(({ target, label }) => (label ? `${target}=${label}` : target)),
-        ticket,
+        ),
+        recommend: z.string().describe("The option letter you would pick"),
+        big: z.string().optional().describe("Only for a big question: which test it meets, in a few plain words"),
+        background: z.string().optional(),
+        files: z
+          .array(
+            z.object({
+              target: z.string().describe("A file path or http(s) link, like a screenshot"),
+              label: z.string().optional(),
+            }),
+          )
+          .optional(),
+        ticket: ticketId("The ticket it's about").optional(),
       }),
+      ({ title, question, options, recommend, big, background, files, ticket }) =>
+        commandArgs("question ask", [title, question], {
+          option: options.map(({ letter, label, consequence }) => `${letter}=${label} | ${consequence}`),
+          recommend,
+          big,
+          background,
+          file: files?.map(({ target, label }) => (label ? `${target}=${label}` : target)),
+          ticket,
+        }),
+    ),
+    ANSWER_NOTE,
   ),
   progress_question_answer: commandTool(
     "Record answer",
