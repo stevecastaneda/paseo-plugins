@@ -43,6 +43,7 @@ export interface ProgressMessages {
   stuck: string;
   waiting: string;
   possiblyStalled: string;
+  paused: string;
   workingSince: string;
   startedWorking: string;
   flagged: string;

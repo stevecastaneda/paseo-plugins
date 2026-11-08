@@ -207,12 +207,19 @@ export function hasTicketsAndAllSettled(tickets: Ticket[]): boolean {
   return tickets.length > 0 && tickets.every(isSettled);
 }
 
-export type StatusLineState = "finished" | "settled" | "live" | "stale";
+export type Liveness = "running" | "paused" | "stalled";
 
-export function statusLineState(dashboard: Pick<Dashboard, "run" | "tickets">, live: boolean): StatusLineState {
+export function liveness(dashboard: Pick<Dashboard, "stale">, agentRunning: boolean): Liveness {
+  if (agentRunning) return "running";
+  return dashboard.stale ? "stalled" : "paused";
+}
+
+export type StatusLineState = "finished" | "settled" | Liveness;
+
+export function statusLineState(dashboard: Pick<Dashboard, "run" | "tickets">, working: Liveness): StatusLineState {
   if (dashboard.run?.finished) return "finished";
   if (hasTicketsAndAllSettled(dashboard.tickets)) return "settled";
-  return live ? "live" : "stale";
+  return working;
 }
 
 // The events from the last `run.start` on; earlier runs are ignored.

@@ -5,7 +5,7 @@ import { LauncherBanner, SkillBanner, useToolsState } from "./launcher";
 import { WhatsNewBanner } from "./whats-new";
 import { HistoryRow } from "./history";
 import { AnsweredQuestionsList, QuestionsSection } from "./questions";
-import { Spinner, StalledPulse, WaitingDot } from "./spinner";
+import { StillDot, WorkingIcon } from "./spinner";
 import { IconSwap, PressScale, Presence, StaggerRoot, nativeDriver } from "./motion";
 import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
@@ -16,10 +16,12 @@ import {
   finishedToFold,
   isFinished,
   shortTitle,
+  liveness as livenessOf,
   statusLineState,
   type Activity,
   type Dashboard,
   type FileIssue,
+  type Liveness,
   type ProgressSegment,
   type StuckItem,
   type Ticket,
@@ -230,11 +232,9 @@ function DashboardView({
   const { messages: m, locale } = useProgressLanguage();
   const headline = clientHeadline(locale, dashboard);
   const now = useNow(15_000);
-  // Quiet isn't stale while an agent in the workspace is still running.
-  const stale = dashboard.stale && !agentRunning;
   const hasHistory = dashboard.activity.length + dashboard.questions.answered.length + dashboard.deliverables.length > 0;
-  const live = !stale;
-  const statusLine = statusLineState(dashboard, live);
+  const liveness = livenessOf(dashboard, agentRunning);
+  const statusLine = statusLineState(dashboard, liveness);
   // Two columns when opened as a wide tab; one in the narrow Explorer pane.
   const [wide, setWide] = useState(false);
   const attachmentContext = { workspaceId, workspaceDirectory, navigation };
@@ -266,10 +266,8 @@ function DashboardView({
                 <IconSwap swapKey={statusLine} size={12}>
                   {statusLine === "finished" || statusLine === "settled" ? (
                     <Icon name="CircleCheck" size={12} color={colors.statusSuccess} />
-                  ) : statusLine === "live" ? (
-                    <Spinner color={colors.accent} />
                   ) : (
-                    <StalledPulse color={colors.statusWarning} />
+                    <WorkingIcon liveness={statusLine} accent={colors.accent} warning={colors.statusWarning} />
                   )}
                 </IconSwap>
               }
@@ -300,8 +298,8 @@ function DashboardView({
           ) : null}
         </View>
       </Presence>
-      <Presence show={Boolean(stale && dashboard.updatedAt)} order={1}>
-        {stale && dashboard.updatedAt ? (
+      <Presence show={Boolean(liveness === "stalled" && dashboard.updatedAt)} order={1}>
+        {liveness === "stalled" && dashboard.updatedAt ? (
           <View
             accessibilityRole="alert"
             style={{
@@ -329,7 +327,7 @@ function DashboardView({
         {dashboard.issues.length ? <IssuesNotice colors={colors} issues={dashboard.issues} file={file} /> : null}
       </Presence>
       <Presence show={Boolean(dashboard.progress.totalMin > 0)} order={2}>
-        {dashboard.progress.totalMin > 0 ? <ProgressBar colors={colors} progress={dashboard.progress} live={live} /> : null}
+        {dashboard.progress.totalMin > 0 ? <ProgressBar colors={colors} progress={dashboard.progress} liveness={liveness} /> : null}
       </Presence>
       <View
         onLayout={(event) => setWide(event.nativeEvent.layout.width >= WIDE_MIN)}
@@ -367,7 +365,7 @@ function DashboardView({
                   {m.noItems(dashboard.run?.itemLabel ?? "Ticket")}
                 </Text>
               ) : (
-                <TicketList colors={colors} dashboard={dashboard} live={live} now={now} workspaceId={workspaceId} onOpen={setOpenTicket} />
+                <TicketList colors={colors} dashboard={dashboard} liveness={liveness} now={now} workspaceId={workspaceId} onOpen={setOpenTicket} />
               )}
               <TicketDialogs
                 colors={colors}
@@ -375,7 +373,7 @@ function DashboardView({
                 openId={openTicket}
                 setOpenId={setOpenTicket}
                 now={now}
-                live={live}
+                liveness={liveness}
                 compact={compact}
                 context={attachmentContext}
               />
@@ -523,7 +521,7 @@ function Card({ colors, icon, title, children }: { colors: Colors; icon: string;
   );
 }
 
-function ProgressBar({ colors, progress, live }: { colors: Colors; progress: Dashboard["progress"]; live: boolean }) {
+function ProgressBar({ colors, progress, liveness }: { colors: Colors; progress: Dashboard["progress"]; liveness: Liveness }) {
   const { messages: m, locale } = useProgressLanguage();
   const narrow = useNarrow();
   return (
@@ -542,14 +540,14 @@ function ProgressBar({ colors, progress, live }: { colors: Colors; progress: Das
         style={{ flexDirection: "row", gap: 2, height: 8, borderRadius: 4, overflow: "hidden" }}
       >
         {progress.segments.map((segment) => (
-          <Segment key={segment.id} colors={colors} segment={segment} live={live} />
+          <Segment key={segment.id} colors={colors} segment={segment} liveness={liveness} />
         ))}
       </View>
     </View>
   );
 }
 
-function Segment({ colors, segment, live }: { colors: Colors; segment: ProgressSegment; live: boolean }) {
+function Segment({ colors, segment, liveness }: { colors: Colors; segment: ProgressSegment; liveness: Liveness }) {
   const working = segment.status === "working";
   const color =
     segment.status === "done"
@@ -561,13 +559,13 @@ function Segment({ colors, segment, live }: { colors: Colors; segment: ProgressS
           : colors.surface2;
   return (
     <View style={{ flex: segment.estimateMin, backgroundColor: color, opacity: working ? 0.45 : 1, overflow: "hidden" }}>
-      {working && live ? <Shimmer /> : null}
+      {working && liveness === "running" ? <Shimmer /> : null}
     </View>
   );
 }
 
-// A soft pulse on the working segment. Stops when the dashboard is stale so a
-// stalled run never looks live.
+// A soft pulse on the working segment, only while an agent is running, so a
+// stopped run never looks busy.
 function Shimmer() {
   const value = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -630,14 +628,14 @@ const finishedShown = new Map<string, boolean>();
 function TicketList({
   colors,
   dashboard,
-  live,
+  liveness,
   now,
   workspaceId,
   onOpen,
 }: {
   colors: Colors;
   dashboard: Dashboard;
-  live: boolean;
+  liveness: Liveness;
   now: number;
   workspaceId: string;
   onOpen(id: string): void;
@@ -653,7 +651,7 @@ function TicketList({
       key={ticket.id}
       colors={colors}
       ticket={ticket}
-      live={live}
+      liveness={liveness}
       now={now}
       onOpen={() => onOpen(ticket.id)}
       deliverables={dashboard.deliverables.filter((deliverable) => deliverable.ticketId === ticket.id).length}
@@ -734,14 +732,14 @@ function FinishedRow({ colors, tickets, shown, onPress }: { colors: Colors; tick
 function TicketRow({
   colors,
   ticket,
-  live,
+  liveness,
   now,
   onOpen,
   deliverables,
 }: {
   colors: Colors;
   ticket: Ticket;
-  live: boolean;
+  liveness: Liveness;
   now: number;
   onOpen(): void;
   deliverables: number;
@@ -776,10 +774,10 @@ function TicketRow({
         style={{ width: 16, paddingTop: 2, alignItems: "center", marginRight: narrow ? 2 : 0 }}
       >
         <IconSwap
-          swapKey={ticket.waitingFor || ticket.status === "not_started" ? "waiting" : ticket.status === "working" ? `working-${live}` : ticket.status}
+          swapKey={ticket.waitingFor || ticket.status === "not_started" ? "waiting" : ticket.status === "working" ? `working-${liveness}` : ticket.status}
           size={14}
         >
-          <StatusIcon colors={colors} status={ticket.status} live={live} waiting={Boolean(ticket.waitingFor)} />
+          <StatusIcon colors={colors} status={ticket.status} liveness={liveness} waiting={Boolean(ticket.waitingFor)} />
         </IconSwap>
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -828,19 +826,20 @@ function TicketRow({
   );
 }
 
-function StatusIcon({ colors, status, live, waiting }: { colors: Colors; status: TicketStatus; live: boolean; waiting: boolean }) {
-  if (waiting) return <WaitingDot color={colors.foregroundMuted} size={14} />;
+function StatusIcon({ colors, status, liveness, waiting }: { colors: Colors; status: TicketStatus; liveness: Liveness; waiting: boolean }) {
+  const { messages: m } = useProgressLanguage();
+  if (waiting) return <StillDot color={colors.foregroundMuted} label={m.waiting} size={14} />;
   switch (status) {
     case "done":
       return <Icon name="Check" size={14} color={colors.statusSuccess} />;
     case "working":
-      return live ? <Spinner color={colors.accent} size={14} /> : <StalledPulse color={colors.statusWarning} size={14} />;
+      return <WorkingIcon liveness={liveness} accent={colors.accent} warning={colors.statusWarning} size={14} />;
     case "blocked":
       return <Icon name="Ban" size={14} color={colors.statusDanger} />;
     case "skipped":
       return <Icon name="CircleSlash" size={14} color={colors.foregroundMuted} />;
     default:
       // Every step still ahead gets the same dot; "Waits for" says which ones are held up.
-      return <WaitingDot color={colors.foregroundMuted} size={14} />;
+      return <StillDot color={colors.foregroundMuted} label={m.waiting} size={14} />;
   }
 }

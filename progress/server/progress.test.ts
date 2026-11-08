@@ -13,7 +13,7 @@ import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
-import { finishedToFold, headlineText, statusLineState, type Ticket } from "../shared/dashboard.ts";
+import { finishedToFold, headlineText, liveness, statusLineState, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
 import {
@@ -349,15 +349,23 @@ test("the panel folds every finished ticket, and only two or more", () => {
   assert.deepEqual(folded(), []);
 });
 
-test("the status line spins only while work can still happen, and shows a check once every ticket is done", () => {
+test("working items move only while an agent is running, hold still when it stops, and warn once the run goes stale", () => {
+  assert.equal(liveness({ stale: true }, true), "running", "a running agent beats a stale dashboard");
+  assert.equal(liveness({ stale: false }, true), "running");
+  assert.equal(liveness({ stale: false }, false), "paused", "idle with a fresh update holds still");
+  assert.equal(liveness({ stale: true }, false), "stalled");
+});
+
+test("the status line shows the liveness until every ticket is done, and a check after", () => {
   const finished = { title: "Run", itemLabel: "ticket", startedAt: "", finished: { at: "", outcome: "Shipped" } };
   const open = { title: "Run", itemLabel: "ticket", startedAt: "" };
-  assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "skipped") }, true), "finished");
-  assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "working") }, false), "finished");
-  assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "skipped") }, true), "settled", "every ticket settled, not finished");
-  assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "working") }, true), "live");
-  assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "working") }, false), "stale");
-  assert.equal(statusLineState({ run: open, tickets: [] }, true), "live", "no tickets yet is not settled");
+  for (const state of ["running", "paused", "stalled"] as const) {
+    assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "working") }, state), "finished", `finished beats ${state}`);
+    assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "skipped") }, state), "finished", `finished beats settled and ${state}`);
+    assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "skipped") }, state), "settled", `settled beats ${state}`);
+    assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "working") }, state), state);
+  }
+  assert.equal(statusLineState({ run: open, tickets: [] }, "paused"), "paused", "no tickets yet is not settled");
 });
 
 test("removed tickets leave the dashboard and their ids are never reused", async (t) => {

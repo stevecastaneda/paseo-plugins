@@ -9,7 +9,7 @@ A plugin for Paseo 0.13 and later that gives each worktree a live progress dashb
 The dashboard shows:
 
 - the run's title, a headline ("2 of 4 tickets done, 5 questions waiting for you, 1 stuck"), a one-line "now" ticker, and when it was last updated
-- a "possibly stale" warning after 15 minutes with no update while tickets remain, unless Paseo shows an agent in the workspace still running, and never once every ticket is done or skipped or the run is finished; working items swap their spinner for a pulsing amber warning
+- a "possibly stale" warning after 15 minutes with no update while tickets remain, unless Paseo shows an agent in the workspace still running, and never once every ticket is done or skipped or the run is finished. Working items spin while an agent in the worktree is running, hold still with a dot when it stops, and switch to a pulsing amber warning after 15 minutes with no update
 - percent of estimated work done, time done of time estimated (like "1h 30m of 2h"; once everything is done, how long it really took), and a bar with one segment per ticket
 - **Stuck:** blocked tickets, working tickets with no update for longer than their estimate, and blockers the agent flags
 - **Tickets:** estimate, status, and the working ticket's stage. A ticket that waits for another (`--waits-for T03`) shows "Waits for Ticket 03" under its title until that one is done; waiting is the order of work, so it never counts as stuck, even if the agent also marked it blocked. Press a ticket for its story in a dialog. A summary on top shows its status and stage, time worked against the estimate as a bar that turns red past it, the agent's latest status line while it's working, and the agent on it. Tabs below hold the rest, each only when it has something: the ticket's write-up when it has a `--source` file (the start of it, with the rest a press away), a timeline of its stages and statuses with how long each took, and the activity, questions and deliverables that belong to it. The agent on a ticket shows by its chat title; pressing it opens that chat. Items tagged with `--ticket` belong exactly; older, untagged ones are matched by when they happened and marked "by time"
@@ -181,7 +181,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 ### 1.14.6
 
 - [Fixed] **The Progress pill spins only while work is happening.** It used to show a spinner until you first opened the panel, even after every ticket was done or the agent had stopped. Now it spins while an agent in the worktree is running and tickets are left, and shows the checklist icon otherwise. On phones, the pill that stays above the message box follows the same rule.
-- [Fixed] **The panel stops spinning once every ticket is done.** When an agent finished every ticket but never closed the run, the line under the title kept a spinner going. It now shows a check.
+- [Fixed] **The panel moves only while work is happening.** The line under the title, the ticket in progress and its part of the progress bar kept moving for up to 15 minutes after the agent stopped, and forever once every ticket was done if the agent never closed the run. Now they move only while an agent in the worktree is running and hold still when it stops. After 15 minutes with no update, the amber warning appears as before. Once every ticket is done, the line under the title shows a check.
 
 ### 1.14.5
 

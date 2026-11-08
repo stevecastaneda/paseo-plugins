@@ -2,7 +2,7 @@ import { type PluginWorkspacePanelProps, useAgent } from "@getpaseo/plugin/clien
 import { Icon } from "@getpaseo/plugin/client/ui";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
-import type { Dashboard, Ticket } from "../shared/dashboard";
+import type { Dashboard, Liveness, Ticket } from "../shared/dashboard";
 import { formatClientMinutes, formatClientTimeOfDay, formatClientWorkDone, timelineLabel } from "./i18n";
 import { type Link, ticketStory, type TimelineStep } from "../shared/ticket-story";
 import { type Attachment, AttachmentList, deliverableAttachment, ticketSourceAttachment } from "./attachments";
@@ -10,7 +10,7 @@ import { StackedDialog } from "./dialog-stack";
 import { IconSwap } from "./motion";
 import { QuestionState } from "./questions";
 import { PressableRow } from "./row";
-import { Spinner, StalledPulse, WaitingDot } from "./spinner";
+import { StillDot, WorkingIcon } from "./spinner";
 import { StatusBadge } from "./status-badge";
 import { type TabEntry, TabStrip } from "./tabs";
 import { TimeBar } from "./time-bar";
@@ -28,7 +28,7 @@ export function TicketDialogs({
   openId,
   setOpenId,
   now,
-  live,
+  liveness,
   compact,
   context,
 }: {
@@ -37,7 +37,7 @@ export function TicketDialogs({
   openId: string | null;
   setOpenId(id: string | null): void;
   now: number;
-  live: boolean;
+  liveness: Liveness;
   compact: boolean;
   context: AttachmentContext;
 }) {
@@ -49,7 +49,7 @@ export function TicketDialogs({
       questions={[...dashboard.questions.open, ...dashboard.questions.answered]}
       dashboard={dashboard}
       now={now}
-      live={live}
+      liveness={liveness}
       compact={compact}
       context={context}
     />
@@ -61,7 +61,7 @@ export function TicketStoryView({
   dashboard,
   ticket,
   now,
-  live,
+  liveness,
   compact,
   context,
   onOpenAttachment,
@@ -72,7 +72,7 @@ export function TicketStoryView({
   dashboard: Dashboard;
   ticket: Ticket;
   now: number;
-  live: boolean;
+  liveness: Liveness;
   // Paseo's phone-sized layout.
   compact: boolean;
   context: AttachmentContext;
@@ -109,7 +109,7 @@ export function TicketStoryView({
     // A current "Blocked" that's only waiting on another ticket reads as waiting, in the calm color.
     const shown =
       last && ticket.waitingFor && step.status === "blocked" ? { ...step, label: { kind: "waiting" as const, id: ticket.waitingFor.id }, waiting: true } : step;
-    return <TimelineRow key={`${step.at}-${index}`} colors={colors} step={shown} last={last} now={now} live={live} />;
+    return <TimelineRow key={`${step.at}-${index}`} colors={colors} step={shown} last={last} now={now} liveness={liveness} />;
   });
   // Only tabs with something in them; the write-up leads when there is one.
   const tabs: Array<TabEntry<StoryTab> & { content: React.ReactNode }> = [
@@ -338,7 +338,8 @@ function LinkNote({ colors, link }: { colors: Colors; link: Link }) {
 // The same icons as the ticket rows, so a step reads like the status it was.
 // Past stage steps get an accent ringed dot: work that happened, now over.
 function Marker({ colors, step }: { colors: Colors; step: TimelineStep & { waiting?: boolean } }) {
-  if (step.waiting || (step.status === "not_started" && step.label.kind !== "added")) return <WaitingDot color={colors.foregroundMuted} />;
+  const { messages: m } = useProgressLanguage();
+  if (step.waiting || (step.status === "not_started" && step.label.kind !== "added")) return <StillDot color={colors.foregroundMuted} label={m.waiting} />;
   const icon =
     step.label.kind === "added"
       ? { name: "CirclePlus", color: colors.foregroundMuted }
@@ -353,19 +354,19 @@ function Marker({ colors, step }: { colors: Colors; step: TimelineStep & { waiti
 }
 
 // One line per step: its status icon, what it was, when it began and how long
-// it took. The step still going shows the live spinner.
+// it took. The step still going shows the working icon.
 function TimelineRow({
   colors,
   step,
   last,
   now,
-  live,
+  liveness,
 }: {
   colors: Colors;
   step: TimelineStep & { waiting?: boolean };
   last: boolean;
   now: number;
-  live: boolean;
+  liveness: Liveness;
 }) {
   const { messages: m, locale } = useProgressLanguage();
   const current = last && step.minutes !== null;
@@ -375,8 +376,8 @@ function TimelineRow({
       {/* Same 14px slot and gap as attachment rows, so text lines up across sections. */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <View style={{ width: 14, alignItems: "center" }}>
-          <IconSwap swapKey={working ? (live ? "live" : "stale") : step.waiting ? "waiting" : step.status} size={12}>
-            {working ? live ? <Spinner color={colors.accent} /> : <StalledPulse color={colors.statusWarning} /> : <Marker colors={colors} step={step} />}
+          <IconSwap swapKey={working ? `working-${liveness}` : step.waiting ? "waiting" : step.status} size={12}>
+            {working ? <WorkingIcon liveness={liveness} accent={colors.accent} warning={colors.statusWarning} /> : <Marker colors={colors} step={step} />}
           </IconSwap>
         </View>
         <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.foreground, fontSize: 13, lineHeight: 18 }}>
