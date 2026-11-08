@@ -13,7 +13,7 @@ import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
-import { finishedToFold, headlineText, type Ticket } from "../shared/dashboard.ts";
+import { finishedToFold, headlineText, statusLineState, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
 import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
 import {
@@ -347,6 +347,17 @@ test("the panel folds every finished ticket, and only two or more", () => {
   assert.deepEqual(folded("done", "working", "not_started"), [], "one finished ticket isn't worth a fold row");
   assert.deepEqual(folded("done", "skipped", "done"), [], "once everything is finished, the whole list shows");
   assert.deepEqual(folded(), []);
+});
+
+test("the status line spins only while work can still happen, and shows a check once every ticket is done", () => {
+  const finished = { title: "Run", itemLabel: "ticket", startedAt: "", finished: { at: "", outcome: "Shipped" } };
+  const open = { title: "Run", itemLabel: "ticket", startedAt: "" };
+  assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "skipped") }, true), "finished");
+  assert.equal(statusLineState({ run: finished, tickets: ticketsWith("done", "working") }, false), "finished");
+  assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "skipped") }, true), "settled", "every ticket settled, not finished");
+  assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "working") }, true), "live");
+  assert.equal(statusLineState({ run: open, tickets: ticketsWith("done", "working") }, false), "stale");
+  assert.equal(statusLineState({ run: open, tickets: [] }, true), "live", "no tickets yet is not settled");
 });
 
 test("removed tickets leave the dashboard and their ids are never reused", async (t) => {

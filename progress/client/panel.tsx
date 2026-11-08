@@ -16,6 +16,7 @@ import {
   finishedToFold,
   isFinished,
   shortTitle,
+  statusLineState,
   type Activity,
   type Dashboard,
   type FileIssue,
@@ -233,6 +234,7 @@ function DashboardView({
   const stale = dashboard.stale && !agentRunning;
   const hasHistory = dashboard.activity.length + dashboard.questions.answered.length + dashboard.deliverables.length > 0;
   const live = !stale;
+  const statusLine = statusLineState(dashboard, live);
   // Two columns when opened as a wide tab; one in the narrow Explorer pane.
   const [wide, setWide] = useState(false);
   const attachmentContext = { workspaceId, workspaceDirectory, navigation };
@@ -262,10 +264,10 @@ function DashboardView({
           {dashboard.run?.finished || dashboard.ticker ? (
             <StatusLine
               icon={
-                <IconSwap swapKey={dashboard.run?.finished ? "finished" : live ? "live" : "stale"} size={12}>
-                  {dashboard.run?.finished ? (
+                <IconSwap swapKey={statusLine} size={12}>
+                  {statusLine === "finished" || statusLine === "settled" ? (
                     <Icon name="CircleCheck" size={12} color={colors.statusSuccess} />
-                  ) : live ? (
+                  ) : statusLine === "live" ? (
                     <Spinner color={colors.accent} />
                   ) : (
                     <StalledPulse color={colors.statusWarning} />

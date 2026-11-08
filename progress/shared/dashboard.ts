@@ -207,6 +207,14 @@ export function hasTicketsAndAllSettled(tickets: Ticket[]): boolean {
   return tickets.length > 0 && tickets.every(isSettled);
 }
 
+export type StatusLineState = "finished" | "settled" | "live" | "stale";
+
+// The icon beside the ticker: a check once the run is over, a spinner only while work can still happen.
+export function statusLineState(dashboard: Pick<Dashboard, "run" | "tickets">, live: boolean): StatusLineState {
+  if (dashboard.run?.finished) return "finished";
+  return live ? "live" : "stale";
+}
+
 // The events from the last `run.start` on; earlier runs are ignored.
 export function latestRun(events: ParsedLine[]): ParsedLine[] {
   const start = events.findLastIndex(({ event }) => event.type === "run.start");
