@@ -260,7 +260,6 @@ function DashboardView({
               ))}
             </Text>
           ) : null}
-          {/* One status slot: the icon morphs from spinner (or stalled pulse) to the check once the work is done. */}
           {dashboard.run?.finished || dashboard.ticker ? (
             <StatusLine
               icon={
