@@ -102,11 +102,11 @@ test("tapping a question reference copies it in the reply format", () => {
 });
 
 function attentionWith(questions: number, stuck: number, run: { open?: boolean; panelOpened?: boolean } = {}) {
-  return { configured: true, questions, stuck, runOpen: run.open ?? false, panelOpened: run.panelOpened ?? false };
+  return { configured: true, questions, stuck, run: run.open ? "open" : "closed", panelOpened: run.panelOpened ?? false };
 }
 
-function report(questions: number, stuck: number, runOpen: boolean, panelOpened: boolean) {
-  return { configured: true, questions, stuck, runOpen, panelOpened };
+function report(questions: number, stuck: number, run: "closed" | "open" | "settled", panelOpened: boolean) {
+  return { configured: true, questions, stuck, run, panelOpened };
 }
 
 function openRun(panelOpened: boolean, questions = 0) {
@@ -115,25 +115,33 @@ function openRun(panelOpened: boolean, questions = 0) {
 
 test("one rule decides what the pill shows, its icon, and whether pressing it opens the popover", () => {
   const { pillFor, isIdle } = clientHarness(directory).load("client/pill-state.ts");
-  const desktop = { phone: false };
-  const phone = { phone: true };
-  const cases: Array<[string, unknown, { phone: boolean }, unknown]> = [
-    ["no progress file", { ...report(2, 1, true, false), configured: false }, desktop, null],
-    ["questions and stuck", report(2, 1, true, true), desktop, { mode: "attention", label: "2Q · 1 stuck", icon: "stuck" }],
-    ["questions only keep the full word", report(12, 0, true, true), desktop, { mode: "attention", label: "12 questions", icon: "questions" }],
-    ["stuck only", report(0, 2, true, true), desktop, { mode: "attention", label: "2 stuck", icon: "stuck" }],
-    ["one question, even after the run closed", report(1, 0, false, true), desktop, { mode: "attention", label: "1 question", icon: "questions" }],
-    ["a new run's panel never opened", report(0, 0, true, false), desktop, { mode: "started", label: "Progress", icon: "started" }],
-    ["panel opened, desktop has Explorer", report(0, 0, true, true), desktop, null],
-    ["panel opened, a phone needs the way in", report(0, 0, true, true), phone, { mode: "open", label: "Progress", icon: "open" }],
-    ["a phone after the run finished", report(0, 0, false, true), phone, null],
+  const desktop = { phone: false, running: true };
+  const desktopQuiet = { phone: false, running: false };
+  const phone = { phone: true, running: true };
+  const phoneQuiet = { phone: true, running: false };
+  const cases: Array<[string, unknown, { phone: boolean; running: boolean }, unknown]> = [
+    ["no progress file", { ...report(2, 1, "open", false), configured: false }, desktop, null],
+    ["questions and stuck", report(2, 1, "open", true), desktop, { mode: "attention", label: "2Q · 1 stuck", icon: "stuck" }],
+    ["questions only keep the full word", report(12, 0, "open", true), desktop, { mode: "attention", label: "12 questions", icon: "questions" }],
+    ["stuck only", report(0, 2, "open", true), desktop, { mode: "attention", label: "2 stuck", icon: "stuck" }],
+    ["one question, even after the run closed", report(1, 0, "closed", true), desktop, { mode: "attention", label: "1 question", icon: "questions" }],
+    ["a new run's panel never opened, agent working", report(0, 0, "open", false), desktop, { mode: "started", label: "Progress", icon: "working" }],
+    ["a new run's panel never opened, agent stopped", report(0, 0, "open", false), desktopQuiet, { mode: "started", label: "Progress", icon: "checklist" }],
+    ["every ticket settled, agent still running", report(0, 0, "settled", false), desktop, { mode: "started", label: "Progress", icon: "checklist" }],
+    ["a finished run never nudges", report(0, 0, "closed", false), desktop, null],
+    ["panel opened, desktop has Explorer", report(0, 0, "open", true), desktop, null],
+    ["panel opened, a phone needs the way in", report(0, 0, "open", true), phone, { mode: "open", label: "Progress", icon: "working" }],
+    ["a phone while the agent is stopped", report(0, 0, "open", true), phoneQuiet, { mode: "open", label: "Progress", icon: "checklist" }],
+    ["a phone once every ticket is settled", report(0, 0, "settled", true), phone, { mode: "open", label: "Progress", icon: "checklist" }],
+    ["a phone after the run finished", report(0, 0, "closed", true), phone, null],
   ];
-  for (const [name, input, where, expected] of cases) {
-    assert.deepEqual(JSON.parse(JSON.stringify(pillFor(input, where))), expected, name);
+  for (const [name, input, workspace, expected] of cases) {
+    assert.deepEqual(JSON.parse(JSON.stringify(pillFor(input, workspace))), expected, name);
   }
   assert.equal(pillFor(undefined, desktop), null, "not read yet");
-  assert.equal(isIdle(report(0, 0, false, true)), true);
-  assert.equal(isIdle(report(1, 0, false, true)), false, "a question left on a closed run still counts");
+  assert.equal(isIdle(report(0, 0, "closed", true)), true);
+  assert.equal(isIdle(report(0, 0, "settled", true)), false, "a settled run isn't finished yet");
+  assert.equal(isIdle(report(1, 0, "closed", true)), false, "a question left on a closed run still counts");
 });
 
 test("an agent's composer shows a pill while its workspace has questions waiting or something stuck", async () => {
@@ -178,7 +186,7 @@ test("an agent's composer shows a pill while its workspace has questions waiting
 
 test("a workspace without a progress file never shows a pill", async () => {
   const h = clientHarness(directory);
-  h.responses["progress.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
+  h.responses["progress.attention"] = { configured: false, questions: 0, stuck: 0, run: "closed", panelOpened: false };
   const stop = h.load("client/pills.tsx").contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);
@@ -190,7 +198,7 @@ test("a workspace without a progress file never shows a pill", async () => {
 test("a worktree with nothing going on is checked every 30 seconds instead of every 5", async () => {
   const h = clientHarness(directory);
   const { contributePills, PILL_POLL_MS, IDLE_POLL_EVERY } = h.load("client/pills.tsx");
-  h.responses["progress.attention"] = { configured: false, questions: 0, stuck: 0, runOpen: false, panelOpened: false };
+  h.responses["progress.attention"] = { configured: false, questions: 0, stuck: 0, run: "closed", panelOpened: false };
   const stop = contributePills(h.client);
   h.agents.bootstrap([{ agent: { id: "a", workspaceId: "w" } }]);
   h.workspaces.bootstrap([{ id: "w", workspaceDirectory: "/w", projectRootPath: "/w" }]);

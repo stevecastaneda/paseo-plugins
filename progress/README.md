@@ -26,7 +26,7 @@ The panel lives in Explorer, beside the agent chat, so you can watch both. Open 
 
 On phones, Progress opens in Explorer too. On any phone, the pill stays above the message box while a run is open, so there's always a way in. SVG files, videos and PDFs preview on desktop and in Paseo's web app. On phones, videos and PDFs open on the daemon host, and an SVG file copies its path. A PDF in the Deliverables tab also has a button beside Copy that opens it in a Paseo tab, which is where it shows on an iPhone or iPad.
 
-The first time a run starts in a worktree whose Progress panel has never been opened, the pill shows a spinner and reads **Progress** instead; pressing it opens the panel. Once the panel has been opened there, the plugin writes an empty `progress-panel-opened` file next to the progress file and the nudge never comes back, even for later runs. It doesn't open the panel by itself because Paseo switches to a workspace to open its panel, which would pull you away from whatever you're looking at.
+The first time a run starts in a worktree whose Progress panel has never been opened, the pill reads **Progress** instead; pressing it opens the panel. Its icon spins while an agent in the worktree is running and tickets are left, and shows a checklist otherwise. The pill above the message box on phones uses the same icon. Once the panel has been opened there, the plugin writes an empty `progress-panel-opened` file next to the progress file and the nudge never comes back, even for later runs. It doesn't open the panel by itself because Paseo switches to a workspace to open its panel, which would pull you away from whatever you're looking at.
 
 ## Install
 
@@ -177,6 +177,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.14.6
+
+- [Fixed] **The Progress pill spins only while work is happening.** It used to show a spinner until you first opened the panel, even after every ticket was done or the agent had stopped. Now it spins while an agent in the worktree is running and tickets are left, and shows the checklist icon otherwise. On phones, the pill that stays above the message box follows the same rule.
 
 ### 1.14.5
 

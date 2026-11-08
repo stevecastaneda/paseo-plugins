@@ -22,7 +22,7 @@ export function progressPanel(): { id: "progress"; location: "explorer" } {
   return { id: "progress", location: "explorer" };
 }
 
-type Workspace = { id: string; workspaceDirectory?: string; projectRootPath: string };
+type Workspace = { id: string; workspaceDirectory?: string; projectRootPath: string; status?: string };
 
 function directoryOf(workspace: Workspace): string {
   return workspace.workspaceDirectory ?? workspace.projectRootPath;
@@ -38,9 +38,11 @@ export function contributePills(client: PluginClientContext) {
   const workspaces = new Map<string, string>();
   // The last report per workspace; pillFor turns it into what the pill shows.
   const reports = new Map<string, AttentionResult>();
+  // Workspaces where Paseo shows an agent running; only the pill's icon reads this.
+  const running = new Set<string>();
   let locale = resolveLocale("system");
-  const where = { phone: Platform.OS !== "web" };
-  const pillOf = (workspaceId: string) => pillFor(reports.get(workspaceId), where, messagesFor(locale));
+  const phone = Platform.OS !== "web";
+  const pillOf = (workspaceId: string) => pillFor(reports.get(workspaceId), { phone, running: running.has(workspaceId) }, messagesFor(locale));
   // Bumped on each report so a poll that was already in flight can't bring the pill back.
   let openedReports = 0;
   const listeners = new Set<() => void>();
@@ -77,7 +79,7 @@ export function contributePills(client: PluginClientContext) {
           listeners.delete(listener);
         };
       },
-      () => pillOf(props.workspaceId)?.icon ?? "open",
+      () => pillOf(props.workspaceId)?.icon ?? "checklist",
     );
     return (
       <IconSwap swapKey={icon} size={props.size}>
@@ -85,7 +87,7 @@ export function contributePills(client: PluginClientContext) {
           <Icon name="OctagonAlert" size={props.size} color={props.theme.colors.statusDanger} />
         ) : icon === "questions" ? (
           <Icon name="MessageCircleQuestion" size={props.size} color={props.color} />
-        ) : icon === "started" ? (
+        ) : icon === "working" ? (
           <Spinner color={props.color} size={props.size} />
         ) : (
           <Icon name="ListChecks" size={props.size} color={props.color} />
@@ -148,11 +150,22 @@ export function contributePills(client: PluginClientContext) {
     }
   };
 
-  // Every change goes through here, so the icons redraw whenever a pill could change.
+  // Every report and running change goes through these, so the icons redraw
+  // whenever a pill could change. publish() only updates the label and mode.
+  const redrawIcons = () => {
+    for (const listener of listeners) listener();
+  };
   const setReport = (workspaceId: string, next: AttentionResult | undefined) => {
     if (next) reports.set(workspaceId, next);
     else reports.delete(workspaceId);
-    for (const listener of listeners) listener();
+    redrawIcons();
+  };
+  const setRunning = (workspace: Workspace) => {
+    const isRunning = workspace.status === "running";
+    if (running.has(workspace.id) === isRunning) return;
+    if (isRunning) running.add(workspace.id);
+    else running.delete(workspace.id);
+    redrawIcons();
   };
 
   // Only workspaces with an agent can show a pill, so only those are read.
@@ -197,6 +210,7 @@ export function contributePills(client: PluginClientContext) {
     workspaces.delete(workspaceId);
     idleWait.delete(workspaceId);
     checkedAt.delete(workspaceId);
+    running.delete(workspaceId);
     setReport(workspaceId, undefined);
   };
 
@@ -206,6 +220,7 @@ export function contributePills(client: PluginClientContext) {
     snapshot: (entries) => {
       const next = new Map((entries as Workspace[]).map((workspace) => [workspace.id, directoryOf(workspace)]));
       for (const id of Array.from(workspaces.keys())) if (!next.has(id)) forget(id);
+      for (const workspace of entries as Workspace[]) setRunning(workspace);
       const hasAgent = new Set(agents.map((agent) => agent.workspaceId));
       for (const [id, directory] of next) {
         if (workspaces.get(id) !== directory) {
@@ -218,6 +233,7 @@ export function contributePills(client: PluginClientContext) {
     update: (update: PaseoWorkspaceUpdate) => {
       if (update.kind === "remove") forget(update.id);
       else {
+        setRunning(update.workspace as Workspace);
         const directory = directoryOf(update.workspace as Workspace);
         if (workspaces.get(update.workspace.id) !== directory) {
           workspaces.set(update.workspace.id, directory);
