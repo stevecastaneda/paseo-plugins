@@ -32,12 +32,7 @@ export const getDashboard = defineRpc({
   output: z.custom<DashboardResult | { unchanged: true; version: string }>(),
 });
 
-// What a message-box pill shows: counts that need the user, the run's state and
-// whether the worktree's panel has ever been opened.
-// - "closed": no run, or the agent called finish.
-// - "open": tickets still to do, or none added yet.
-// - "settled": every ticket done or skipped, but finish not called.
-export type RunState = "closed" | "open" | "settled";
+export type RunState = "closed" | "ticketsLeft" | "ticketsSettled";
 export type AttentionResult = { configured: boolean; questions: number; stuck: number; run: RunState; panelOpened: boolean };
 
 export const getAttention = defineRpc({

@@ -6,8 +6,6 @@ import type { AttentionResult } from "../shared/rpc";
 // - "attention": questions waiting or something stuck; opens a popover.
 // - "started": a run whose panel has never been opened; a one-time nudge.
 // - "open": on a phone, a one-tap way into the panel while a run is open.
-// The last two spin only while tickets are left and an agent in the workspace
-// is running, the same signal the panel uses for a live run.
 export type Pill =
   | { mode: "attention"; label: string; icon: "stuck" | "questions" }
   | { mode: "started" | "open"; label: "Progress"; icon: "working" | "checklist" };
@@ -30,7 +28,7 @@ export function pillFor(
     return { mode: "attention", label: parts.join(" · "), icon: stuck ? "stuck" : "questions" };
   }
   if (report.run === "closed") return null;
-  const icon = report.run === "open" && workspace.running ? "working" : "checklist";
+  const icon = report.run === "ticketsLeft" && workspace.running ? "working" : "checklist";
   if (!report.panelOpened) return { mode: "started", label: "Progress", icon };
   if (workspace.phone) return { mode: "open", label: "Progress", icon };
   return null;

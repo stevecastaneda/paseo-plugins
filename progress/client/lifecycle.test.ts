@@ -102,10 +102,10 @@ test("tapping a question reference copies it in the reply format", () => {
 });
 
 function attentionWith(questions: number, stuck: number, run: { open?: boolean; panelOpened?: boolean } = {}) {
-  return { configured: true, questions, stuck, run: run.open ? "open" : "closed", panelOpened: run.panelOpened ?? false };
+  return { configured: true, questions, stuck, run: run.open ? "ticketsLeft" : "closed", panelOpened: run.panelOpened ?? false };
 }
 
-function report(questions: number, stuck: number, run: "closed" | "open" | "settled", panelOpened: boolean) {
+function report(questions: number, stuck: number, run: "closed" | "ticketsLeft" | "ticketsSettled", panelOpened: boolean) {
   return { configured: true, questions, stuck, run, panelOpened };
 }
 
@@ -120,19 +120,24 @@ test("one rule decides what the pill shows, its icon, and whether pressing it op
   const phone = { phone: true, running: true };
   const phoneQuiet = { phone: true, running: false };
   const cases: Array<[string, unknown, { phone: boolean; running: boolean }, unknown]> = [
-    ["no progress file", { ...report(2, 1, "open", false), configured: false }, desktop, null],
-    ["questions and stuck", report(2, 1, "open", true), desktop, { mode: "attention", label: "2Q · 1 stuck", icon: "stuck" }],
-    ["questions only keep the full word", report(12, 0, "open", true), desktop, { mode: "attention", label: "12 questions", icon: "questions" }],
-    ["stuck only", report(0, 2, "open", true), desktop, { mode: "attention", label: "2 stuck", icon: "stuck" }],
+    ["no progress file", { ...report(2, 1, "ticketsLeft", false), configured: false }, desktop, null],
+    ["questions and stuck", report(2, 1, "ticketsLeft", true), desktop, { mode: "attention", label: "2Q · 1 stuck", icon: "stuck" }],
+    ["questions only keep the full word", report(12, 0, "ticketsLeft", true), desktop, { mode: "attention", label: "12 questions", icon: "questions" }],
+    ["stuck only", report(0, 2, "ticketsLeft", true), desktop, { mode: "attention", label: "2 stuck", icon: "stuck" }],
     ["one question, even after the run closed", report(1, 0, "closed", true), desktop, { mode: "attention", label: "1 question", icon: "questions" }],
-    ["a new run's panel never opened, agent working", report(0, 0, "open", false), desktop, { mode: "started", label: "Progress", icon: "working" }],
-    ["a new run's panel never opened, agent stopped", report(0, 0, "open", false), desktopQuiet, { mode: "started", label: "Progress", icon: "checklist" }],
-    ["every ticket settled, agent still running", report(0, 0, "settled", false), desktop, { mode: "started", label: "Progress", icon: "checklist" }],
+    ["a new run's panel never opened, agent working", report(0, 0, "ticketsLeft", false), desktop, { mode: "started", label: "Progress", icon: "working" }],
+    [
+      "a new run's panel never opened, agent stopped",
+      report(0, 0, "ticketsLeft", false),
+      desktopQuiet,
+      { mode: "started", label: "Progress", icon: "checklist" },
+    ],
+    ["every ticket settled, agent still running", report(0, 0, "ticketsSettled", false), desktop, { mode: "started", label: "Progress", icon: "checklist" }],
     ["a finished run never nudges", report(0, 0, "closed", false), desktop, null],
-    ["panel opened, desktop has Explorer", report(0, 0, "open", true), desktop, null],
-    ["panel opened, a phone needs the way in", report(0, 0, "open", true), phone, { mode: "open", label: "Progress", icon: "working" }],
-    ["a phone while the agent is stopped", report(0, 0, "open", true), phoneQuiet, { mode: "open", label: "Progress", icon: "checklist" }],
-    ["a phone once every ticket is settled", report(0, 0, "settled", true), phone, { mode: "open", label: "Progress", icon: "checklist" }],
+    ["panel opened, desktop has Explorer", report(0, 0, "ticketsLeft", true), desktop, null],
+    ["panel opened, a phone needs the way in", report(0, 0, "ticketsLeft", true), phone, { mode: "open", label: "Progress", icon: "working" }],
+    ["a phone while the agent is stopped", report(0, 0, "ticketsLeft", true), phoneQuiet, { mode: "open", label: "Progress", icon: "checklist" }],
+    ["a phone once every ticket is settled", report(0, 0, "ticketsSettled", true), phone, { mode: "open", label: "Progress", icon: "checklist" }],
     ["a phone after the run finished", report(0, 0, "closed", true), phone, null],
   ];
   for (const [name, input, workspace, expected] of cases) {
@@ -140,7 +145,7 @@ test("one rule decides what the pill shows, its icon, and whether pressing it op
   }
   assert.equal(pillFor(undefined, desktop), null, "not read yet");
   assert.equal(isIdle(report(0, 0, "closed", true)), true);
-  assert.equal(isIdle(report(0, 0, "settled", true)), false, "a settled run isn't finished yet");
+  assert.equal(isIdle(report(0, 0, "ticketsSettled", true)), false, "a settled run isn't finished yet");
   assert.equal(isIdle(report(1, 0, "closed", true)), false, "a question left on a closed run still counts");
 });
 

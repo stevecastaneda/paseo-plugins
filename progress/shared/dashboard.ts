@@ -203,8 +203,7 @@ export function isSettled(ticket: Ticket): boolean {
   return ticket.status === "done" || ticket.status === "skipped";
 }
 
-// Every ticket done or skipped. A run with no tickets yet still has work ahead.
-export function allSettled(tickets: Ticket[]): boolean {
+export function hasTicketsAndAllSettled(tickets: Ticket[]): boolean {
   return tickets.length > 0 && tickets.every(isSettled);
 }
 
@@ -376,7 +375,7 @@ export function reduceProgress(
   const allQuestions = [...questions.values()];
   const open = allQuestions.filter((question) => !question.answer);
   // A finished run has nothing left to stall, so it never goes stale.
-  const finished = Boolean(run?.finished) || allSettled(list);
+  const finished = Boolean(run?.finished) || hasTicketsAndAllSettled(list);
   const answered = allQuestions.filter((question) => question.answer).sort((a, b) => Date.parse(b.answer!.at) - Date.parse(a.answer!.at));
   const dashboard: Dashboard = {
     run,

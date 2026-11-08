@@ -456,15 +456,19 @@ test("the pill check returns only counts and run state", async (t) => {
   assert.deepEqual(await handleGetAttention(input, context), { configured: false, questions: 0, stuck: 0, run: "closed", panelOpened: false });
   await w.run("start", "Run");
   await w.run("question", "ask", "Spacing", "Tighter?", "--option", "A=Yes | tighter", "--option", "B=No | as is", "--recommend", "A");
-  assert.deepEqual(await handleGetAttention(input, context), { configured: true, questions: 1, stuck: 0, run: "open", panelOpened: false }, "no tickets yet");
+  assert.deepEqual(
+    await handleGetAttention(input, context),
+    { configured: true, questions: 1, stuck: 0, run: "ticketsLeft", panelOpened: false },
+    "no tickets yet",
+  );
   await w.run("ticket", "add", "Ticket 01", "--estimate", "10");
   await w.run("ticket", "add", "Ticket 02", "--estimate", "10");
   await w.run("ticket", "update", "T01", "--status", "done");
-  assert.equal((await handleGetAttention(input, context)).run, "open", "a ticket still to do");
+  assert.equal((await handleGetAttention(input, context)).run, "ticketsLeft", "a ticket still to do");
   await w.run("ticket", "update", "T02", "--status", "skipped");
   assert.deepEqual(
     await handleGetAttention(input, context),
-    { configured: true, questions: 1, stuck: 0, run: "settled", panelOpened: false },
+    { configured: true, questions: 1, stuck: 0, run: "ticketsSettled", panelOpened: false },
     "every ticket done or skipped, finish not called",
   );
   await w.run("question", "answer", "Q1", "A");

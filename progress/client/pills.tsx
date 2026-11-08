@@ -38,7 +38,6 @@ export function contributePills(client: PluginClientContext) {
   const workspaces = new Map<string, string>();
   // The last report per workspace; pillFor turns it into what the pill shows.
   const reports = new Map<string, AttentionResult>();
-  // Workspaces where Paseo shows an agent running; only the pill's icon reads this.
   const running = new Set<string>();
   let locale = resolveLocale("system");
   const phone = Platform.OS !== "web";
@@ -150,8 +149,6 @@ export function contributePills(client: PluginClientContext) {
     }
   };
 
-  // Every report and running change goes through these, so the icons redraw
-  // whenever a pill could change. publish() only updates the label and mode.
   const redrawIcons = () => {
     for (const listener of listeners) listener();
   };
