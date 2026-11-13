@@ -245,6 +245,14 @@ test("the note after a question names the answer tool's fields", () => {
   for (const field of fields) assert.match(ANSWER_NOTE, new RegExp(`\\b${field} is `));
 });
 
+test("a ticket added through the tool can start in a stage", async (t) => {
+  const w = await worktree(t);
+  await w.call("progress_start", { title: "Bug" });
+  const added = await w.call("progress_ticket_add", { title: "Step 01: Reproduce it", estimateMinutes: 20, status: "working", stage: "Verify" });
+  assert.equal(added.text, "Added T01: Step 01: Reproduce it (20m), stage Verify");
+  assert.equal((await w.dashboard()).tickets[0].stage, "Verify");
+});
+
 test("the skill loads every tool in one search", async () => {
   const skill = await readFile(new URL("../skills/paseo-progress/SKILL.md", import.meta.url), "utf8");
   const query = /^select:(.+)$/m.exec(skill)?.[1].split(",");

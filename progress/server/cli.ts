@@ -8,7 +8,7 @@ import { isSettled, type Dashboard, type NextIds, type Ticket } from "../shared/
 import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent } from "../shared/events.ts";
 import { QUESTION_MODE_RULES, type QuestionMode } from "../shared/question-modes.ts";
 import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
-import { findRoot, outside } from "./paths.ts";
+import { outside, progressRoot } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
 import { findStore, saveRunCopy } from "./store.ts";
 import { readQuestionMode } from "./question-mode.ts";
@@ -23,6 +23,7 @@ export interface CliOptions {
   out?: (line: string) => void;
   // The Paseo agent running the command, recorded on each event it writes.
   agentId?: string;
+  agentCwd?: string;
 }
 
 class UsageError extends Error {}
@@ -188,6 +189,10 @@ function shown(value: unknown) {
   return typeof value === "object" ? ((value as FileLink).path ?? (value as FileLink).url) : value;
 }
 
+function clearTicker() {
+  return { event: { type: "ticker.clear" as const }, message: "Ticker cleared" };
+}
+
 const commands: Record<string, Command> = {
   start: {
     usage: `start "<title>" [--subtitle <text>] [--item-label <word>]`,
@@ -214,20 +219,27 @@ const commands: Record<string, Command> = {
     },
   },
   "ticket add": {
-    usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
+    usage: `ticket add "<title>" --estimate <minutes> [--status <status>] [--stage <name>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
     summary:
-      "Add a ticket. Prints its id (T01, T02, ...). --waits-for names a ticket it can't start before; that is the order of work, not a blocker. --source is where the ticket is written up, like its spec file or issue link.",
-    options: { estimate: { type: "string" }, status: { type: "string" }, "waits-for": { type: "string" }, source: { type: "string" } },
+      "Add a ticket. Prints its id (T01, T02, ...). --stage names the step in progress when it starts as working, like Build. --waits-for names a ticket it can't start before; that is the order of work, not a blocker. --source is where the ticket is written up, like its spec file or issue link.",
+    options: {
+      estimate: { type: "string" },
+      status: { type: "string" },
+      stage: { type: "string" },
+      "waits-for": { type: "string" },
+      source: { type: "string" },
+    },
     run({ positionals, values, state, cwd, root }) {
       const waitsFor = values["waits-for"] === undefined ? undefined : existingTicket(state, stringOption(values["waits-for"])).id;
       const title = required(positionals[0], "ticket title");
       const estimateMin = minutesOption(values.estimate, "estimate");
       if (estimateMin === undefined) throw new UsageError("Missing --estimate <minutes>.");
       const source = values.source === undefined ? undefined : parseFile(String(values.source), cwd, root);
+      const stage = stringOption(values.stage)?.trim() || undefined;
       const id = state.nextIds.ticket;
       return {
-        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), waitsFor, source },
-        message: `Added ${id}: ${title} (${formatMinutes(estimateMin)})${waitsFor ? `, waits for ${waitsFor}` : ""}${source ? `, source ${source.path ?? source.url}` : ""}`,
+        event: { type: "ticket.add", id, title, estimateMin, status: statusOption(values.status), stage, waitsFor, source },
+        message: `Added ${id}: ${title} (${formatMinutes(estimateMin)})${stage ? `, stage ${stage}` : ""}${waitsFor ? `, waits for ${waitsFor}` : ""}${source ? `, source ${source.path ?? source.url}` : ""}`,
       };
     },
   },
@@ -466,8 +478,9 @@ const commands: Record<string, Command> = {
   },
   "ticker set": {
     usage: `ticker set "<text>"`,
-    summary: "Show one line at the top saying what you are doing right now.",
+    summary: 'Show one line at the top saying what you are doing right now. Pass "" to hide it.',
     run({ positionals }) {
+      if (positionals[0]?.trim() === "") return clearTicker();
       const text = required(positionals[0], "ticker text");
       return { event: { type: "ticker.set", text }, message: `Ticker: ${text}` };
     },
@@ -475,9 +488,7 @@ const commands: Record<string, Command> = {
   "ticker clear": {
     usage: `ticker clear`,
     summary: "Hide the ticker line.",
-    run() {
-      return { event: { type: "ticker.clear" }, message: "Ticker cleared" };
-    },
+    run: clearTicker,
   },
   "stuck set": {
     usage: `stuck set "<reason>" [--ticket <id>]`,
@@ -564,7 +575,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
       return 0;
     }
     if (first === "show") {
-      const root = findRoot(options.cwd);
+      const root = progressRoot(options.cwd, options.agentCwd);
       const store = await findStore(root);
       const { dashboard } = await readProgress(store.directory, now());
       const added = addedByOthersText(addedByOthers(await readLatestRun(store.directory), dashboard, options.agentId), dashboard);
@@ -593,7 +604,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
     } catch (error) {
       throw new UsageError((error as Error).message);
     }
-    const root = findRoot(options.cwd);
+    const root = progressRoot(options.cwd, options.agentCwd);
     const store = await findStore(root);
     const mode = await readQuestionMode();
     const message = await appendProgress(
@@ -631,7 +642,11 @@ function isMain(): boolean {
 }
 
 if (isMain()) {
-  runCli(process.argv.slice(2), { cwd: process.cwd(), agentId: process.env.PASEO_AGENT_ID || undefined }).then(
+  runCli(process.argv.slice(2), {
+    cwd: process.cwd(),
+    agentId: process.env.PASEO_AGENT_ID || undefined,
+    agentCwd: process.env.PASEO_AGENT_CWD || undefined,
+  }).then(
     (code) => {
       process.exitCode = code;
     },

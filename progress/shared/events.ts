@@ -52,6 +52,7 @@ export const eventSchema = z.discriminatedUnion("type", [
     title: text,
     estimateMin: minutes,
     status: ticketStatusSchema.optional(),
+    stage: text.optional(),
     // Another ticket in the run this one can't start until it's done.
     waitsFor: text.optional(),
     // Where the ticket is written up: a spec file or an issue link.

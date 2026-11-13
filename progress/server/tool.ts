@@ -47,10 +47,10 @@ function toolSummary(command: string): string {
   );
 }
 
-function commandTool<Input extends z.ZodType>(title: string, command: string, input: Input, args: (input: z.output<Input>) => string[], extra = "") {
+function commandTool<Input extends z.ZodType>(title: string, command: string, input: Input, args: (input: z.output<Input>) => string[]) {
   return agentTool({
     title: `Progress: ${title}`,
-    description: `Progress dashboard for this worktree in Paseo. ${toolSummary(command)}${extra}`,
+    description: `Progress dashboard for this worktree in Paseo. ${toolSummary(command)}`,
     input,
     execute: (value, context) => run(args(value), context),
   });
@@ -95,11 +95,12 @@ const tools: Record<ProgressToolName, Tool> = {
       title: z.string().describe('Like "Ticket 01: Export button"'),
       estimateMinutes: estimate,
       status: ticketStatusSchema.optional(),
+      stage: z.string().optional().describe("The step in progress when it starts as working, like Build"),
       waitsFor: ticketId("A ticket this one can't start before").optional(),
       source: ticketSource.optional(),
     }),
-    ({ title, estimateMinutes, status, waitsFor, source }) =>
-      commandArgs("ticket add", [title], { estimate: estimateMinutes, status, "waits-for": waitsFor, source }),
+    ({ title, estimateMinutes, status, stage, waitsFor, source }) =>
+      commandArgs("ticket add", [title], { estimate: estimateMinutes, status, stage, "waits-for": waitsFor, source }),
   ),
   progress_ticket_update: commandTool(
     "Update ticket",
@@ -183,13 +184,7 @@ const tools: Record<ProgressToolName, Tool> = {
     z.object({ text: z.string(), ticket: ticketId("The ticket it's about").optional() }),
     ({ text, ticket }) => commandArgs("activity add", [text], { ticket }),
   ),
-  progress_ticker: commandTool(
-    "Set ticker",
-    "ticker set",
-    z.object({ text: z.string() }),
-    ({ text }) => (text.trim() ? commandArgs("ticker set", [text]) : commandArgs("ticker clear", [])),
-    ' Pass "" to hide it.',
-  ),
+  progress_ticker: commandTool("Set ticker", "ticker set", z.object({ text: z.string() }), ({ text }) => commandArgs("ticker set", [text])),
   progress_finish: commandTool("Finish run", "finish", z.object({ outcome: z.string().describe("One line") }), ({ outcome }) =>
     commandArgs("finish", [outcome]),
   ),
