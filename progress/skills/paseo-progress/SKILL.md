@@ -41,16 +41,16 @@ Move each ticket through `--status working --stage Build`, then the stages `Revi
 - A ticket past its estimate with no update turns stuck. Keep its stage current, or raise its `--estimate`.
 - A ticket another session adds is part of the plan. Work it in order.
 - `--status blocked` and `stuck set` are for things outside the run, like a service that's down or missing access.
-- Put this in a subagent's prompt, with the worktree path and ticket id filled in. While you wait on it, its updates are the dashboard's only sign the work is moving:
+- Put this in a subagent's prompt, with the ticket id filled in. While you wait on it, its updates are the dashboard's only sign the work is moving:
 
   ```text
   Record progress on the Paseo dashboard as you work. Use the Progress tools if you
   have them (search your tools for progress_), otherwise the paseo-progress command.
   If a tool call says the tool isn't found, use the command for the rest of that reply.
   - at each new stage: progress_ticket_update with id T03 and stage <stage>,
-    or: cd <worktree> && paseo-progress ticket update T03 --stage <stage>
+    or: paseo-progress ticket update T03 --stage <stage>
   - between stages:    progress_ticker with "<what you are doing now>",
-    or: cd <worktree> && paseo-progress ticker set "<what you are doing now>"
+    or: paseo-progress ticker set "<what you are doing now>"
   ```
 
 Done when every ticket is done or skipped, or waits on a question.

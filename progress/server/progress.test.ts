@@ -415,6 +415,66 @@ test("commands find the worktree root from a subdirectory", async (t) => {
   assert.equal((await w.dashboard()).dashboard.run?.title, "From below");
 });
 
+async function checkout(parent: string, ...folders: string[]) {
+  const directory = join(parent, ...folders);
+  await mkdir(join(directory, "shots"), { recursive: true });
+  await git(directory, "init", "-q");
+  await writeFile(join(directory, "shots", "after.png"), "");
+  return directory;
+}
+
+// Claude Code refuses an isolated subagent's command that changes to the
+// agent's workspace and then runs git, so the subagent records from where it is.
+test("a subagent in its own checkout records on its agent's dashboard", async (t) => {
+  const w = await worktree(t);
+  const main = await worktree(t);
+  const output: string[] = [];
+  const runIn = (cwd: string, agentCwd: string | undefined, ...argv: string[]) =>
+    runCli(argv, { cwd, agentCwd, now: () => minutes(0), out: (line) => output.push(line) });
+  const inWorkspace = await checkout(w.directory, ".claude", "worktrees", "agent-1");
+  const inMainCheckout = await checkout(main.directory, ".claude", "worktrees", "agent-2");
+  const vendored = await checkout(w.directory, "vendor", "library");
+  await w.run("start", "Run");
+  await w.run("ticket", "add", "Ticket 01: Button", "--estimate", "30");
+
+  assert.equal(await runIn(inWorkspace, w.directory, "ticket", "update", "T01", "--stage", "Build"), 0, output.join("\n"));
+  assert.equal(await runIn(inWorkspace, w.directory, "deliverable", "add", "After", "shots/after.png"), 0, output.join("\n"));
+  assert.equal(await runIn(inMainCheckout, w.directory, "ticker", "set", "Reviewing"), 0, output.join("\n"));
+  const { dashboard } = await w.dashboard();
+  assert.equal(dashboard.tickets[0].stage, "Build");
+  assert.equal(
+    dashboard.deliverables[0].path,
+    join(".claude", "worktrees", "agent-1", "shots", "after.png"),
+    "a path from the checkout opens from the workspace",
+  );
+  assert.equal(dashboard.ticker?.text, "Reviewing");
+  output.length = 0;
+  await runIn(inMainCheckout, w.directory, "show");
+  assert.equal(output.join("\n").split("\n")[0], `Worktree: ${w.directory}`);
+
+  assert.equal(await runIn(vendored, w.directory, "start", "Another repo"), 0, "a checkout that isn't a subagent's keeps its own dashboard");
+  assert.equal(await runIn(inMainCheckout, undefined, "start", "Outside Paseo"), 0, "so does a subagent's checkout outside Paseo");
+  assert.equal((await readProgress(outsideDirectory(vendored), minutes(0))).dashboard.run?.title, "Another repo");
+  assert.equal((await readProgress(outsideDirectory(inMainCheckout), minutes(0))).dashboard.run?.title, "Outside Paseo");
+  assert.equal((await w.dashboard()).dashboard.run?.title, "Run");
+});
+
+test("a ticket can start in a stage, and an empty ticker hides it", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const added = await w.run("ticket", "add", "Step 01: Reproduce it", "--estimate", "20", "--status", "working", "--stage", "Verify");
+  assert.equal(added.text, "Added T01: Step 01: Reproduce it (20m), stage Verify");
+  const [ticket] = (await w.dashboard()).dashboard.tickets;
+  assert.deepEqual(
+    { stage: ticket.stage, stageSince: ticket.stageSince, history: ticket.history },
+    { stage: "Verify", stageSince: minutes(0).toISOString(), history: [{ at: minutes(0).toISOString(), status: "working", stage: "Verify" }] },
+  );
+  await w.run("ticker", "set", "Reproducing");
+  assert.equal((await w.run("ticker", "set", "")).text, "Ticker cleared");
+  assert.equal((await w.dashboard()).dashboard.ticker, null);
+  assert.match((await w.run("ticker", "set")).text, /^Missing ticker text\./);
+});
+
 // A Paseo project registered at a subfolder of the repo: the workspace
 // directory is <worktree>/apps/client, but the agent writes at the root.
 test("a workspace below the worktree root reads the root's progress and attachments", async (t) => {

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 
 // Whether a path from relative(root, target) leaves the root. "..notes" is a
 // name inside it, not a step out.
@@ -31,4 +31,16 @@ export function findRoot(cwd: string): string {
     if (parent === directory) return resolve(cwd);
     directory = parent;
   }
+}
+
+// The worktree a command records progress for. Claude Code gives an isolated
+// subagent its own checkout at .claude/worktrees/<name>, in the repo's main
+// checkout unless a WorktreeCreate hook moves it. The user watches the
+// dashboard of the Paseo agent's workspace, which Paseo names in
+// PASEO_AGENT_CWD, so progress from a subagent's checkout goes there.
+export function progressRoot(cwd: string, agentCwd: string | undefined): string {
+  const root = findRoot(cwd);
+  const folder = dirname(root);
+  const subagentCheckout = basename(folder) === "worktrees" && basename(dirname(folder)) === ".claude";
+  return agentCwd && subagentCheckout ? findRoot(agentCwd) : root;
 }

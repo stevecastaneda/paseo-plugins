@@ -96,7 +96,7 @@ On Paseo 0.14 and later, Progress hands agents a tool for each common command, s
 | `progress_question_answer` | `question answer`                                                         |
 | `progress_deliverable_add` | `deliverable add`                                                         |
 | `progress_activity_add`    | `activity add`                                                            |
-| `progress_ticker`          | `ticker set`, or `ticker clear` when the text is empty                    |
+| `progress_ticker`          | `ticker set`                                                              |
 | `progress_finish`          | `finish`                                                                  |
 | `paseo_progress`           | Any command, given as the list of words you'd type after `paseo-progress` |
 
@@ -125,7 +125,7 @@ for dir in ~/.agents/skills ~/.claude/skills ~/.codex/skills; do mkdir -p "$dir"
 
 ## Recording progress
 
-Run `paseo-progress --help` for every command, and `paseo-progress <command> --help` for one. Commands find the worktree root from the current directory.
+Run `paseo-progress --help` for every command, and `paseo-progress <command> --help` for one. Commands find the worktree root from the current directory. A Claude Code subagent that works in its own checkout under `.claude/worktrees/` records on the dashboard of the worktree its Paseo agent runs in.
 
 ```sh
 paseo-progress start "Loan Options snapshots" --subtitle "4 tickets"
@@ -154,7 +154,7 @@ paseo-progress finish "Snapshots ship for all four tables"
 - Paseo keeps the question mode in its own settings, which only the plugin's server can read, so the server copies it to `~/.local/state/paseo-progress/settings.json` for the command. Without that file, for example while the plugin is off, the command uses Work around.
 - Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image (PNG, JPEG, GIF, WebP, up to 10 MB) or text deliverable (Markdown, text, logs, JSON, YAML, CSV; the first 256 KB) previews it in a dialog inside Paseo, which also works from a phone. Markdown shows formatted, with links and images relative to the file's own folder; **Open** there opens the file in its default app. **Open** shows only when the computer running Paseo can open files. A Linux server with no desktop can't, so there a file Paseo can't preview copies its path and says why. A video (MP4, MOV, WebM, up to 200 MB) plays in the same dialog in the desktop app, and a PDF (up to 100 MB) shows there too. When there are several files, **Previous** and **Next** step through them, and so do the left and right arrow keys. Pressing a folder lists its files in the same dialog. Press a file to preview it, or a folder inside to list that one, and **Back** returns to the list. Pressing an audio file opens it with its default app on the machine running the Paseo daemon. Pressing an HTML page opens it in a Paseo tab with Paseo's own preview, on desktop and on phones, never in your browser. The preview runs the page's own scripts but loads nothing from the web, so a report needs its CSS and images inside the file. Progress hands no other file or folder to a default app, because a script or an app would run, so pressing one copies its path. On macOS, **Open** sends text files to your default browser. Previews and **Open** work only for recorded deliverables inside the worktree; for any other file the path is copied. An HTML page or PDF opens in a Paseo tab from the path the agent recorded. The copy icon on each row copies the path.
 - Several agents can share one run. When another session adds a ticket, each agent sees it at the end of its next command's output (and in `show`), and the skill has it work that ticket in order after its current one. An agent only hears about tickets added since its own last update in the run, and only once.
-- Subagents record their own progress. A Claude Code subagent can call the Progress tools too, and its updates carry its parent chat's agent id. Since Paseo 0.11, an agent waiting on background subagents shows as idle, so only the subagents' updates show the work is still going. The skill has the agent give each subagent the worktree path and ticket id, and the subagent records its stages and a ticker line on that worktree's dashboard.
+- Subagents record their own progress. A Claude Code subagent can call the Progress tools too, and its updates carry its parent chat's agent id. Since Paseo 0.11, an agent waiting on background subagents shows as idle, so only the subagents' updates show the work is still going. The skill has the agent give each subagent its ticket id, and the subagent records its stages and a ticker line on the agent's dashboard.
 - `start` begins a fresh dashboard. Earlier runs stay in the file. Question references stay unique across runs.
 - `finish "<outcome>"` closes the run once every ticket is done or skipped, no question is open, and nothing is flagged stuck; otherwise it says what is left. The run stays on the dashboard, marked Finished with its outcome, and takes no more updates, so the next agent in the worktree starts a new run instead of adding to it.
 
@@ -177,6 +177,12 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.14.7
+
+- [Fixed] **Subagents record progress from their own folder.** Claude Code can give a subagent its own copy of the repo. To record progress from there, the subagent had to switch to its agent's worktree first, and Claude Code refused the command whenever it also ran git. The `paseo-progress` command now sends a subagent's progress to its agent's dashboard from the subagent's own folder, and the skill no longer tells subagents to switch folders.
+- [Fixed] **A step can start in a stage.** Agents often add a step that is already under way and name its stage in the same call. Progress refused the stage, the step was never added, and every later step that waited for it failed too. `paseo-progress ticket add` and the Add ticket tool now take a stage.
+- [Fixed] **An empty ticker hides it from the command too.** `paseo-progress ticker set ""` asked for text, though the ticker tool hides the line when it gets `""`. Both now hide it.
 
 ### 1.14.6
 
