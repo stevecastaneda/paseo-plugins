@@ -51,7 +51,7 @@ You can also attach a command's output to your next message: open the attach men
 
 ## Commands from the agent
 
-Agents created after you install the plugin learn one rule: when they want you to run something, they put it alone in a fenced block marked `sh run`, under a one-line comment that says in plain words what it does. The rule also says never to leave a command for you only in a sentence.
+Agents created after you install the plugin learn one rule: when they need you to run something, they put it alone in a fenced block marked `sh run`, under a one-line comment that says in plain words what it does. The rule also says never to leave a command for you only in a sentence. Agents hand you a command only when it needs your login, password or 2FA code, when their sandbox or permissions block it, or when you ask for one. Everything else they run themselves, as they would without the plugin.
 
 ````markdown
 ```sh run
@@ -105,6 +105,10 @@ paseo plugin add npm:@stevecastaneda/paseo-shell-yeah
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
 ## Changelog
+
+### 1.4.2
+
+- [Fixed] **Agents run the commands they're allowed to run.** Before, new agents handed you deploys, publishes and deletes as Run cards even when they could run those commands themselves. Now they hand you a command only when it needs your login, password or 2FA code, when their sandbox or permissions block it, or when you ask for one. Chats that started before you update keep the old rule.
 
 ### 1.4.1
 

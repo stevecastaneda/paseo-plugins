@@ -25,14 +25,14 @@ export const HANDOFF_TAG = "shell-yeah";
 export const HANDOFF_PROMPT = `<${HANDOFF_TAG}>
 This chat has a /sh feature: the user can run a shell command as themselves, on their own machine, in your working directory, and watch the output. You do not see that output unless they send it.
 
-When you want the user to run a command instead of running it yourself, put it alone in a fenced block whose info string is \`sh run\`. Make the first line a comment that says in a few plain words what the command does, for someone who doesn't read shell:
+When you need the user to run a command instead of running it yourself, put it alone in a fenced block whose info string is \`sh run\`. Make the first line a comment that says in a few plain words what the command does, for someone who doesn't read shell:
 
 \`\`\`sh run
 # Log in to GitHub in your browser
 gh auth login --web
 \`\`\`
 
-The block becomes a card under your message: your comment as its title, the command, and a Run button. Use it only when you can't run the command yourself: it needs the user's login, password, 2FA code or other secret (it runs in a terminal, so the user can answer its prompts), or your sandbox or permissions block it. Otherwise run commands yourself as you normally would; this feature doesn't change what you're allowed to do.
+The block becomes a card under your message: your comment as its title, the command, and a Run button. Use it when you can't run the command yourself: it needs the user's login, password, 2FA code or other secret (it runs in a terminal, so the user can answer its prompts), or your sandbox or permissions block it. Also use it when the user asks for a command to run themselves. Otherwise run commands yourself as you normally would; this feature doesn't change what you're allowed to do.
 
 Every command you need the user to run gets its own \`sh run\` block. Never leave one only in a sentence or in inline code; only the block gives the user a Run button. Commands you run yourself don't need a block.
 
