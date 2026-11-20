@@ -25,8 +25,8 @@ async function daemonEnv(t: { after(fn: () => Promise<void>): void }, name: "CLA
   return dir;
 }
 
-function context(provider: string, providers: Record<string, unknown> = {}) {
-  const agent = { provider, persistence: { sessionId: "session-123" } };
+function context(provider: string, providers: Record<string, unknown> = {}, persistence: Record<string, unknown> = { sessionId: "session-123" }) {
+  const agent = { provider, persistence };
   const paseo = {
     agents: { ref: () => ({ refresh: async () => {}, current: () => agent }) },
     config: { get: async () => ({ requestId: "test", config: { providers } }) },
@@ -93,6 +93,20 @@ test("the built-in Claude provider honours a config dir set on its own entry", a
     }),
   );
   assert.equal(result.path, path);
+});
+
+test("reads an OMP chat, and one from a provider extending OMP, from the session file Paseo recorded", async (t) => {
+  const dir = await fixture(t);
+  const path = join(dir, "2026-11-20T09-22-04-304Z_session-123.jsonl");
+  const text = JSON.stringify({ type: "session", version: 3, id: "session-123", timestamp: "2026-11-20T09:22:04.304Z", cwd: dir }) + "\n";
+  await writeFile(path, text);
+  for (const [provider, providers] of [
+    ["omp", {}],
+    ["omp-work", { "omp-work": { extends: "omp", label: "OMP Work" } }],
+  ] as const) {
+    const result = await handleReadHistory({ agentId: "agent", offset: 0 }, context(provider, providers, { sessionId: "session-123", nativeHandle: path }));
+    assert.deepEqual([result.path, result.provider, result.text], [path, "omp", text]);
+  }
 });
 
 test("still rejects providers that extend an unsupported harness", async () => {

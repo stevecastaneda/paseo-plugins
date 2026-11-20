@@ -42,7 +42,9 @@ function contentText(value: unknown): string {
     .join("\n\n");
 }
 
-export function parseEntries(text: string): HistoryEntry[] {
+// `provider` names the harness that wrote the log. OMP records share field names
+// with Claude Code's, so they are read as OMP's only when the log is OMP's.
+export function parseEntries(text: string, provider?: string): HistoryEntry[] {
   return text
     .split("\n")
     .filter((line) => line.trim())
@@ -50,6 +52,7 @@ export function parseEntries(text: string): HistoryEntry[] {
       try {
         const parsed: unknown = JSON.parse(raw);
         const data = record(parsed);
+        if (provider === "omp") return parseOmpEntry(data, raw);
         if (string(record(data.info).id).startsWith("ses_") || (data.info && Array.isArray(data.parts))) {
           return parseOpenCodeEntry(data, raw);
         }
@@ -191,6 +194,122 @@ function parseOpenCodeEntry(data: RecordValue, raw: string): HistoryEntry {
     hasTools,
     hasReasoning,
     notification,
+  };
+}
+
+function words(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]/g, " ")
+    .toLowerCase();
+}
+
+// OMP content is a string or a list of text and image blocks.
+function ompContent(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((item) => {
+      const block = record(item);
+      return block.type === "text" ? string(block.text) : block.type === "image" ? "[Image]" : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+// A skill the user ran with /skill:<name>. OMP saves the skill's expanded body as
+// the message and what the user typed in its details. Sessions from before OMP
+// kept the typed text have only the skill's name and arguments, so this rebuilds
+// it the way Paseo's chat does.
+function ompSkillCommand(message: RecordValue): string {
+  if (message.customType !== "skill-prompt" || message.attribution !== "user") return "";
+  const details = record(message.details);
+  const name = string(details.name);
+  const args = string(details.args).trim();
+  return string(details.prompt) || (name ? `/skill:${name}${args ? ` ${args}` : ""}` : "");
+}
+
+// An OMP log is a title line, a session header, then one entry per line. A
+// `message` entry wraps one message of the model's context. Only what the user
+// typed reads as You: OMP marks what it adds itself, such as subagent
+// assignments, messages from other agents and notices, with attribution "agent".
+function parseOmpEntry(data: RecordValue, raw: string): HistoryEntry {
+  const type = string(data.type) || "object";
+  const message = type === "message" ? record(data.message) : data;
+  const role = type === "message" ? string(message.role) : "";
+  const customType = string(message.customType);
+  const blocks = Array.isArray(message.content) ? message.content.map(record) : [];
+  const hasTools = ["toolResult", "bashExecution", "pythonExecution"].includes(role) || blocks.some((block) => block.type === "toolCall");
+  const hasReasoning = role === "assistant" && blocks.some((block) => block.type === "thinking" || block.type === "redactedThinking");
+  let category: HistoryEntry["category"] = "events";
+  let speaker = role;
+  let preview = "";
+  if (role === "user") {
+    category = message.attribution === "agent" ? "context" : "message";
+    preview = ompContent(message.content);
+  } else if (role === "assistant") {
+    const text = blocks
+      .filter((block) => block.type === "text")
+      .map((block) => string(block.text))
+      .filter(Boolean)
+      .join("\n\n");
+    category = text ? "message" : hasTools ? "tools" : hasReasoning ? "reasoning" : "events";
+    preview =
+      text ||
+      blocks
+        .map((block) => {
+          if (block.type === "thinking") return string(block.thinking);
+          if (block.type === "redactedThinking") return "[Redacted thinking]";
+          if (block.type === "toolCall") return `${string(block.name)}\n${JSON.stringify(block.arguments ?? {}, null, 2)}`;
+          return block.type === "image" ? "[Image]" : "";
+        })
+        .filter(Boolean)
+        .join("\n\n") ||
+      string(message.errorMessage);
+  } else if (role === "toolResult") {
+    category = "tools";
+    preview = [string(message.toolName), ompContent(message.content)].filter(Boolean).join("\n");
+  } else if (role === "bashExecution" || role === "pythonExecution") {
+    category = "tools";
+    preview = [string(message.command) || string(message.code), string(message.output)].filter(Boolean).join("\n");
+  } else if (role === "custom" || role === "hookMessage" || type === "custom_message") {
+    preview = ompSkillCommand(message);
+    if (preview) {
+      category = "message";
+      speaker = "user";
+    } else {
+      category = message.excludeFromContext === true ? "events" : "context";
+      preview = ompContent(message.content);
+    }
+  } else if (role === "developer") {
+    category = "context";
+    preview = ompContent(message.content);
+  } else if (role === "branchSummary" || role === "compactionSummary") {
+    category = "context";
+    preview = string(message.summary);
+  } else if (role === "fileMention") {
+    category = "context";
+    preview = (Array.isArray(message.files) ? message.files : []).map((file) => `[File: ${string(record(file).path) || "attachment"}]`).join("\n");
+  } else if (["session", "session_init", "compaction", "branch_summary"].includes(type)) {
+    category = "context";
+  }
+  const subtype = customType || role;
+  const label = words(customType || role || type);
+  return {
+    raw,
+    title: role && !customType ? `${label[0]!.toUpperCase()}${label.slice(1)}` : label,
+    kind: subtype ? `${type} · ${subtype}` : type,
+    timestamp: string(data.timestamp),
+    preview:
+      preview ||
+      [data.summary, data.task, data.title, data.model, data.thinkingLevel, data.mode, data.label, data.cwd].map(string).find(Boolean) ||
+      JSON.stringify(data),
+    valid: true,
+    category,
+    role: speaker,
+    startsTurn: category === "message" && speaker === "user",
+    hasTools,
+    hasReasoning,
   };
 }
 

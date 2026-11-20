@@ -16,9 +16,11 @@ Recognized task notifications show their status, summary, and Markdown result im
 
 The dialog automatically reads past introductory context to show conversation messages. Use **More** to continue through the history. Related records merge into their turn as they load. **Refresh** rereads from the beginning. The last loaded turn may have more records until the file is fully loaded. Files are never rewritten.
 
-Supports **Codex**, **Claude Code**, and **OpenCode**. Custom providers in `~/.paseo/config.json` that extend one of them, such as `"extends": "claude"`, work too. History is read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). When a provider sets either variable in its `env`, History reads that folder instead of the daemon's setting, so each Claude Code profile shows its own sessions. Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected externally.
+Supports **Codex**, **Claude Code**, **OMP** (Oh My Pi), and **OpenCode**. Custom providers in `~/.paseo/config.json` that extend one of them, such as `"extends": "claude"`, work too. History is read on the Paseo daemon host using the chat's native session ID. Codex uses `CODEX_HOME` (default `~/.codex`), including archived sessions. Claude uses `CLAUDE_CONFIG_DIR` (default `~/.claude`). When a provider sets either variable in its `env`, History reads that folder instead of the daemon's setting, so each Claude Code profile shows its own sessions. Unsupported providers and missing or ambiguous files show an explanation. A single entry larger than 4 MiB must be inspected externally.
 
 OpenCode uses its [session export command](https://opencode.ai/docs/cli/#export), with external plugins disabled (`--pure`). It requires an OpenCode version supporting that flag on the daemon's `PATH` (verified with 1.18.18). The export runs with the daemon's environment plus the provider's `env`, so OpenCode and XDG overrides in either one apply. **Source** shows the export command and JSONL-formatted session metadata and complete message records, preserving their parts and metadata. Export requests are limited to 64 MiB and 30 seconds. Each page checks the exported content; if the session changes while paging, use **Refresh** to reread it. Text, file labels, tool inputs/results/errors, and reasoning are recognized; unknown parts remain in Raw.
+
+OMP history is read from the session file Paseo resumes the chat from, so OMP profiles and session folder settings need no setup. History shows the file only when its session header names the chat's session. Only what you typed, including `/skill:` commands, shows as You. OMP marks the text it adds itself, such as a subagent's assignment, a message from another agent or a notice, and History puts that under Context. OMP keeps the turns a rewind or `/clear` replaced, so History can show turns that Paseo's chat no longer does.
 
 The viewer shows what the harness saved, which can differ from Paseo's displayed chat. Tool results and mirrored transport events stay behind tags rather than appearing as additional conversation messages.
 
@@ -33,6 +35,10 @@ paseo plugin add npm:@stevecastaneda/paseo-history
 Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/history`.
 
 ## Changelog
+
+### 1.3.0
+
+- [New] **History opens OMP chats.** History now reads the session log OMP saved for the chat, from the file Paseo resumes it from. Your messages, OMP's replies, tool calls, reasoning, context and events show the same way they do for the other harnesses. Custom providers that extend OMP work too.
 
 ### 1.2.1
 

@@ -2,6 +2,7 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { findLog, readPage } from "./files.ts";
+import { readOmpHistory } from "./omp.ts";
 import { readOpenCodeHistory } from "./opencode.ts";
 
 type ProviderEntry = { extends?: string; env?: Record<string, string> };
@@ -17,9 +18,11 @@ export async function handleReadHistory(input: { agentId: string; offset: number
   const { config } = await paseo.config.get();
   const entry = config.providers[agent.provider] as ProviderEntry | undefined;
   const provider = entry?.extends ?? agent.provider;
-  if (provider !== "codex" && provider !== "claude" && provider !== "opencode") {
-    throw new Error(`Raw history is not supported for ${agent.provider} yet. Codex, Claude, and OpenCode are supported.`);
+  if (provider !== "codex" && provider !== "claude" && provider !== "omp" && provider !== "opencode") {
+    throw new Error(`Raw history is not supported for ${agent.provider} yet. Codex, Claude, OMP, and OpenCode are supported.`);
   }
+  // OMP records the absolute path of the session file Paseo resumes it from.
+  if (provider === "omp") return { ...(await readOmpHistory(agent.persistence, input.offset, input.source)), provider };
   const env = { ...process.env, ...entry?.env };
   const sessionId = agent.persistence?.nativeHandle ?? agent.persistence?.sessionId ?? agent.runtimeInfo?.sessionId;
   if (!sessionId) throw new Error("This chat has no saved session yet. Send a message, then refresh.");

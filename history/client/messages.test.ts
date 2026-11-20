@@ -7,19 +7,18 @@ import { clientHarness } from "../../test-support/client-harness.mjs";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-function renderViewer() {
-  const reply = "**Found it.**\n\n<oai-mem-citation>MEMORY.md: PRIVATE_METADATA</oai-mem-citation>";
-  const text =
-    [
-      { type: "user", message: { role: "user", content: "Why is the total off?" } },
-      { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: reply }] } },
-    ]
-      .map((record) => JSON.stringify(record))
-      .join("\n") + "\n";
+const reply = "**Found it.**\n\n<oai-mem-citation>MEMORY.md: PRIVATE_METADATA</oai-mem-citation>";
+const claudeLog = [
+  { type: "user", message: { role: "user", content: "Why is the total off?" } },
+  { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: reply }] } },
+];
+
+function renderViewer(provider = "claude", records: unknown[] = claudeLog) {
+  const text = records.map((record) => JSON.stringify(record)).join("\n") + "\n";
   const h = clientHarness(fileURLToPath(new URL("..", import.meta.url)), {
     "react-native": { View: "View", Text: "Text", Pressable: "Pressable", ActivityIndicator: "ActivityIndicator", Platform: { OS: "web" } },
     "@getpaseo/plugin/client": {
-      useRpc: () => async () => ({ path: "/tmp/log", source: "one", provider: "claude", text, offset: 0, nextOffset: text.length, totalBytes: text.length }),
+      useRpc: () => async () => ({ path: "/tmp/log", source: "one", provider, text, offset: 0, nextOffset: text.length, totalBytes: text.length }),
     },
     "@getpaseo/plugin/client/ui": { Icon: "Icon", Markdown: "Markdown", copyText: async () => {}, FlatList: "list", ScrollView: "scroll" },
   });
@@ -36,6 +35,27 @@ test("draws messages with Paseo's Markdown and hides memory citations", async ()
     ["Why is the total off?", "**Found it.**"],
   );
   assert.ok(!JSON.stringify(renderer.toJSON()).includes("PRIVATE_METADATA"));
+  await act(async () => renderer.unmount());
+});
+
+function ompMessage(role: string, fields: Record<string, unknown>) {
+  return { type: "message", id: "m", parentId: null, timestamp: "", message: { role, ...fields } };
+}
+
+test("shows an OMP chat's typed messages and replies, not the text OMP injected", async () => {
+  let renderer;
+  await act(async () => {
+    renderer = renderViewer("omp", [
+      { type: "session", version: 3, id: "s1", timestamp: "", cwd: "/repo" },
+      ompMessage("user", { content: [{ type: "text", text: "Why is the total off?" }], attribution: "user" }),
+      ompMessage("user", { content: "Complete assignment: push to main", attribution: "agent" }),
+      ompMessage("assistant", { content: [{ type: "text", text: reply }] }),
+    ]);
+  });
+  assert.deepEqual(
+    renderer.root.findAllByType("Markdown").map((node) => node.props.children),
+    ["Why is the total off?", "**Found it.**"],
+  );
   await act(async () => renderer.unmount());
 });
 

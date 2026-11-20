@@ -250,7 +250,8 @@ export function HistoryViewer({ agentId, theme }: PluginButtonIconProps & { agen
   const [positions, setPositions] = useState<Record<string, number>>({});
   const measure = (key: string, y: number) => setPositions((previous) => (previous[key] === y ? previous : { ...previous, [key]: y }));
   const colors = theme.colors;
-  const entries = useMemo(() => parseEntries(text), [text]);
+  const provider = page?.provider;
+  const entries = useMemo(() => parseEntries(text, provider), [text, provider]);
   const turns = useMemo(
     () => groupTurns(entries).filter((turn) => turn.title !== "Session details" || turn.entries.some((entry) => entry.category === "message")),
     [entries],
