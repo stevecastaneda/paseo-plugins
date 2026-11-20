@@ -242,3 +242,129 @@ test("an assistant reply shaped like a task notification stays a plain assistant
   const [opencode] = parseEntries(lines({ info: { id: "msg_1", role: "assistant" }, parts: [{ type: "text", text: reply }] }));
   assert.equal(opencode!.notification, undefined);
 });
+
+function omp(type: string, fields: Record<string, unknown>) {
+  return { type, id: "e1", parentId: null, timestamp: "2026-11-20T09:22:05.000Z", ...fields };
+}
+function ompMessage(role: string, fields: Record<string, unknown>) {
+  return omp("message", { message: { role, timestamp: 1, ...fields } });
+}
+
+test("OMP logs start turns only at what the user typed, with tools, reasoning, context and events behind tags", () => {
+  const text = lines(
+    { type: "title", v: 1, title: "", updatedAt: "2026-11-20T09:22:04.304Z", pad: "    " },
+    { type: "session", version: 3, id: "s1", timestamp: "2026-11-20T09:22:04.304Z", cwd: "/repo" },
+    omp("model_change", { model: "anthropic/claude-opus-5-5" }),
+    ompMessage("user", { content: [{ type: "text", text: "Fix the build" }], attribution: "user" }),
+    ompMessage("assistant", {
+      content: [
+        { type: "thinking", thinking: "Check the logs." },
+        { type: "toolCall", id: "t1", name: "bash", arguments: { command: "npm test" } },
+      ],
+    }),
+    ompMessage("toolResult", { toolCallId: "t1", toolName: "bash", content: [{ type: "text", text: "1 failing" }], isError: false }),
+    // Another agent's message, delivered while OMP waited.
+    ompMessage("user", { content: [{ type: "text", text: "[Wait interrupted by message]\n<irc>Push now</irc>" }], attribution: "agent", steering: true }),
+    omp("custom_message", { customType: "async-result", content: "<system-notice>Job done</system-notice>", display: true, attribution: "agent" }),
+    omp("custom_message", { customType: "bash-row", content: "!! ls", display: true, excludeFromContext: true }),
+    ompMessage("assistant", { content: [{ type: "text", text: "**Fixed it.**" }] }),
+    ompMessage("assistant", { content: [], stopReason: "error", errorMessage: "Codex is at capacity" }),
+    omp("custom_message", {
+      customType: "skill-prompt",
+      content: "# Review\n\nReview the diff.",
+      display: false,
+      attribution: "user",
+      details: { name: "review", path: "/skills/review/SKILL.md", args: "check the diff", prompt: "/skill:review check the diff", lineCount: 3 },
+    }),
+    ompMessage("assistant", { content: [{ type: "text", text: "Reviewed." }] }),
+    // Sessions from before OMP kept the typed text.
+    omp("custom_message", {
+      customType: "skill-prompt",
+      content: "# Review",
+      display: false,
+      attribution: "user",
+      details: { name: "review", args: " again " },
+    }),
+    omp("custom_message", {
+      customType: "skill-prompt",
+      content: "# Autoloaded",
+      display: false,
+      attribution: "agent",
+      details: { name: "lint", prompt: "/skill:lint" },
+    }),
+    // OMP 16 saved a /btw question without attribution.
+    ompMessage("user", { content: [{ type: "text", text: "Quick question" }] }),
+    ompMessage("developer", { content: [{ type: "text", text: "<system-reminder>Todo left</system-reminder>" }], attribution: "agent" }),
+    ompMessage("bashExecution", { command: "ls", output: "a.txt", cancelled: false, truncated: false }),
+    ompMessage("fileMention", { files: [{ path: "/repo/a.ts", content: "export {}" }] }),
+    omp("compaction", { summary: "Earlier: fixed the build.", firstKeptEntryId: "e1", tokensBefore: 1 }),
+    omp("custom", { customType: "tool_execution_start", data: { toolName: "bash" } }),
+    ompMessage("user", {
+      content: [
+        { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" },
+        { type: "text", text: "What is this?" },
+      ],
+      attribution: "user",
+    }),
+  );
+  const entries = parseEntries(text, "omp");
+  assert.deepEqual(
+    entries.map((entry) => entry.category),
+    [
+      "events",
+      "context",
+      "events",
+      "message",
+      "tools",
+      "tools",
+      "context",
+      "context",
+      "events",
+      "message",
+      "events",
+      "message",
+      "message",
+      "message",
+      "context",
+      "message",
+      "context",
+      "tools",
+      "context",
+      "context",
+      "events",
+      "message",
+    ],
+  );
+  assert.equal(entries[4]!.raw, text.split("\n")[4]);
+  assert.ok(entries[4]!.hasTools && entries[4]!.hasReasoning);
+  assert.match(entries[4]!.preview, /Check the logs\.[\s\S]*bash[\s\S]*npm test/);
+  assert.deepEqual([entries[5]!.title, entries[5]!.kind, entries[5]!.preview], ["Tool result", "message · toolResult", "bash\n1 failing"]);
+  assert.equal(entries[10]!.preview, "Codex is at capacity");
+  assert.deepEqual([entries[11]!.title, entries[11]!.kind], ["skill prompt", "custom_message · skill-prompt"]);
+  assert.equal(entries[17]!.preview, "ls\na.txt");
+  assert.equal(entries[18]!.preview, "[File: /repo/a.ts]");
+  const turns = groupTurns(entries);
+  assert.deepEqual(
+    turns.map((turn) => [turn.title, turn.entries.filter((entry) => entry.category === "message").map((entry) => [entry.role, entry.preview])]),
+    [
+      ["Session details", []],
+      [
+        "Turn 1",
+        [
+          ["user", "Fix the build"],
+          ["assistant", "**Fixed it.**"],
+        ],
+      ],
+      [
+        "Turn 2",
+        [
+          ["user", "/skill:review check the diff"],
+          ["assistant", "Reviewed."],
+        ],
+      ],
+      ["Turn 3", [["user", "/skill:review again"]]],
+      ["Turn 4", [["user", "Quick question"]]],
+      ["Turn 5", [["user", "[Image]\n\nWhat is this?"]]],
+    ],
+  );
+});

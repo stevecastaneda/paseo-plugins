@@ -16,7 +16,7 @@ export async function loadConversationBatch(
     page = await rpc(nextInput);
     if (cancelled()) return null;
     text += page.text;
-    const messages = parseEntries(text).filter((entry) => entry.category === "message").length;
+    const messages = parseEntries(text, page.provider).filter((entry) => entry.category === "message").length;
     if (messages >= 6 || page.nextOffset >= page.totalBytes || page.nextOffset <= page.offset) break;
     // Bound a batch even for logs containing only context or tool output.
     if (page.nextOffset - (input.offset ?? 0) >= 4 * 1024 * 1024) break;

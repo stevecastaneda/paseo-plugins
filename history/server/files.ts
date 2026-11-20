@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readdir, type FileHandle } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { openToRead } from "./system.ts";
@@ -39,11 +39,14 @@ export async function findLog(roots: string[], sessionId: string, provider: stri
   return matches[0];
 }
 
-export async function readPage(path: string, offset: number, expectedSource?: string) {
+// `check` inspects the open file before the page is read, so a provider can
+// confirm the file is the session it expects.
+export async function readPage(path: string, offset: number, expectedSource?: string, check?: (file: FileHandle) => Promise<void>) {
   const file = await openToRead(path);
   try {
     const stat = await file.stat();
     if (!stat.isFile()) throw new Error("The session log is not a regular file.");
+    await check?.(file);
     const source = createHash("sha256").update(`${path}:${stat.dev}:${stat.ino}:${stat.birthtimeMs}`).digest("hex");
     if (expectedSource && source !== expectedSource) throw new Error("The log source changed. Refresh to start again.");
     if (offset > stat.size) throw new Error("The log was shortened. Refresh to start again.");

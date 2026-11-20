@@ -55,3 +55,35 @@ test("stops fetching immediately when the dialog closes", async () => {
   assert.equal(calls, 1);
   assert.equal(result, null);
 });
+
+test("counts an OMP log's messages, so a batch stops once it has enough", async () => {
+  let calls = 0;
+  const line =
+    JSON.stringify({
+      type: "message",
+      id: "m",
+      parentId: null,
+      timestamp: "",
+      message: { role: "user", content: "Hello", attribution: "user", timestamp: 1 },
+    }) + "\n";
+  const result = await loadConversationBatch(
+    async (input) => {
+      calls++;
+      const offset = input.offset ?? 0;
+      return {
+        path: "/tmp/session.jsonl",
+        provider: "omp",
+        source: "one",
+        text: line,
+        offset,
+        nextOffset: offset + line.length,
+        totalBytes: 100 * line.length,
+        modifiedAt: "",
+      };
+    },
+    { agentId: "a" },
+    () => false,
+  );
+  assert.equal(calls, 6);
+  assert.equal(result!.page.nextOffset, 6 * line.length);
+});
