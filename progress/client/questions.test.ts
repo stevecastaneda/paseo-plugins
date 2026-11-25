@@ -169,38 +169,3 @@ test("an answered question has no Send or Copy", () => {
   const answer = { choice: "A", at: "2026-11-06T11:30:00Z" };
   assert.deepEqual(buttons(renderQuestion({ ...question, agentId: "a1", answer }, "web", { workspaceId: "w" })), []);
 });
-
-test("each question has an answer field of its own, so half-written words can't go out for another", () => {
-  const h = clientHarness(directory, {
-    react: { ...React, useContext: () => ({ locale: "en", messages: new Proxy({}, { get: () => () => "" }) }) },
-    "react-native": { Platform: { OS: "web" }, View: "View", Text: "Text" },
-    "@getpaseo/plugin/client/ui": { Icon: () => null, Markdown: "Markdown" },
-  });
-  const { QuestionDetail } = h.load("client/questions.tsx");
-  const { OwnAnswer } = h.load("client/own-answer.tsx");
-  const key = (changes: Record<string, unknown>) => {
-    const find = (node: any): any =>
-      Array.isArray(node)
-        ? node.map(find).find(Boolean)
-        : node && typeof node === "object"
-          ? node.type === OwnAnswer
-            ? node
-            : find(node.props?.children)
-          : undefined;
-    return find(
-      QuestionDetail({
-        colors: {},
-        question: { ...question, agentId: "a1", ...changes },
-        now: 0,
-        root: "/repo",
-        workspaceId: "w",
-        onCopy() {},
-        onSent() {},
-        onOpenAttachment() {},
-      }),
-    ).key;
-  };
-  const keys = [key({}), key({ id: "Q2" }), key({ askedAt: "2026-11-07T11:00:00Z" }), key({ agentId: "a2" })];
-  assert.equal(new Set(keys).size, keys.length);
-  assert.equal(key({}), keys[0]);
-});

@@ -2,7 +2,7 @@ import { type PluginWorkspacePanelProps, useAgent } from "@getpaseo/plugin/clien
 import { TextInput } from "@getpaseo/plugin/client/ui";
 import React, { useState } from "react";
 import { type NativeSyntheticEvent, Platform, type TextInputKeyPressEventData, View } from "react-native";
-import { answerMessage } from "../shared/answers";
+import { MAX_WORDS_LENGTH, plainQuestionId } from "../shared/answers";
 import type { Question } from "../shared/dashboard";
 import { applyEdit, type Edit, enterEdit, indentEdit, typedBreak } from "../shared/list-edit";
 import { AnswerButton, type ButtonFill } from "./answer-button";
@@ -25,9 +25,15 @@ interface OwnAnswerProps {
 // Half-written answers outlive the popover and the dialog, which Paseo unmounts on close.
 const drafts = new Map<string, string>();
 
+// A field of its own per question: one half-written for another question must not go out for this one.
+export function draftKey(workspaceId: string, question: Question): string {
+  return `${workspaceId}:${question.askedAt}:${question.id}:${question.agentId ?? ""}`;
+}
+
 // A text field under the choices, for an answer none of them fits.
 export function OwnAnswer(props: OwnAnswerProps) {
-  return props.question.agentId ? <OwnAnswerFor {...props} agentId={props.question.agentId} /> : <OwnAnswerField {...props} />;
+  const { agentId, id } = props.question;
+  return agentId && plainQuestionId(id) ? <OwnAnswerFor {...props} agentId={agentId} /> : <OwnAnswerField {...props} />;
 }
 
 // Send when the agent that asked can be reached from this workspace; see SendOrCopy.
@@ -40,7 +46,6 @@ function OwnAnswerFor({ agentId, ...props }: OwnAnswerProps & { agentId: string 
     <OwnAnswerField
       {...props}
       onSend={(words, clear) => {
-        if (!answerMessage(question, { words })) return;
         // Kept until it's out, so a failed send loses nothing.
         void send(question, { words }).then((out) => {
           if (out) clear();
@@ -60,14 +65,14 @@ function OwnAnswerField({
   onSend,
 }: Omit<OwnAnswerProps, "onSent" | "root"> & { onSend?(words: string, clear: () => void): void }) {
   const { messages: m } = useProgressLanguage();
-  const draftKey = `${workspaceId}:${question.askedAt}:${question.id}:${question.agentId ?? ""}`;
-  const [words, setWords] = useState(() => drafts.get(draftKey) ?? "");
+  const key = draftKey(workspaceId, question);
+  const [words, setWords] = useState(() => drafts.get(key) ?? "");
   // Set only to move the cursor after an edit on a phone; the keyboard owns it otherwise.
   const [cursor, setCursor] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
   const keep = (next: string) => {
-    if (next) drafts.set(draftKey, next);
-    else drafts.delete(draftKey);
+    if (next) drafts.set(key, next);
+    else drafts.delete(key);
     setWords(next);
   };
   const written = Boolean(words.trim());
@@ -76,7 +81,7 @@ function OwnAnswerField({
     if (!onSend) return onCopy(words.trim());
     onSend(words, () => {
       // Not when the user has typed on since.
-      if (drafts.get(draftKey) === words) keep("");
+      if (drafts.get(key) === words) keep("");
     });
   };
   return (
@@ -84,7 +89,9 @@ function OwnAnswerField({
       <TextInput
         multiline
         value={words}
-        onChangeText={(next) => {
+        maxLength={MAX_WORDS_LENGTH}
+        onChangeText={(typed) => {
+          const next = typed.replace(/\r\n?/g, "\n");
           const at = Platform.OS === "web" ? null : typedBreak(words, next);
           const edit = at === null ? null : enterEdit(words, at, at);
           if (!edit) return keep(next);
@@ -153,13 +160,14 @@ interface TextArea {
 }
 
 type DesktopKeyEvent = NativeSyntheticEvent<
-  TextInputKeyPressEventData & { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; isComposing?: boolean }
+  TextInputKeyPressEventData & { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; isComposing?: boolean; keyCode?: number }
 >;
 
 function onDesktopKey(event: DesktopKeyEvent, submit: () => void): void {
-  const { key, shiftKey, metaKey, ctrlKey, altKey, isComposing } = event.nativeEvent;
-  // Enter picks a word while an input method is open.
-  if (isComposing || altKey) return;
+  const { key, shiftKey, metaKey, ctrlKey, altKey, isComposing, keyCode } = event.nativeEvent;
+  // Enter picks a word while an input method is open. Some browsers report
+  // that only as key code 229, which react-native-web checks too.
+  if (isComposing || keyCode === 229 || altKey) return;
   if (key === "Enter" && (metaKey || ctrlKey)) {
     event.preventDefault();
     return submit();

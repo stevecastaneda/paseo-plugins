@@ -11,7 +11,7 @@ import { PressScale } from "./motion";
 import { useSendAnswer } from "./send-answer";
 import { AnswerButton, type ButtonFill } from "./answer-button";
 import { GivenAnswerRow } from "./given-answer";
-import { OwnAnswer } from "./own-answer";
+import { draftKey, OwnAnswer } from "./own-answer";
 import { StackedDialog } from "./dialog-stack";
 import { raised } from "./surfaces";
 import { When } from "./when";
@@ -391,9 +391,8 @@ export function QuestionDetail({
         );
       })}
       {!question.answer ? (
-        // A field of its own per question: one half-written for another question must not go out for this one.
         <OwnAnswer
-          key={`${workspaceId}:${question.askedAt}:${question.id}:${question.agentId ?? ""}`}
+          key={draftKey(workspaceId, question)}
           colors={colors}
           button={button}
           question={question}

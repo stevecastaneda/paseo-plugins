@@ -30,6 +30,7 @@ function field({
   result = "sent",
   asked = question as Record<string, unknown>,
 } = {}) {
+  let workspaceId = "w";
   let messages: unknown;
   let slots: unknown[] = [];
   let cursor = 0;
@@ -100,7 +101,7 @@ function field({
         colors: new Proxy({}, { get: () => "#112233" }), // every theme color, one hex
         button: { rest: "", pressed: "" },
         question: asked,
-        workspaceId: "w",
+        workspaceId,
         root: "/repo",
         onCopy: (answer: string) => copied.push(answer),
         onSent: () => closed++,
@@ -112,8 +113,8 @@ function field({
       input: tree.find((element) => element.type === "TextInput")!.props,
       buttons: [...new Set(buttons)],
       press,
-      send: press("Send your own answer to Q2 to your agent"),
-      copy: press("Copy your own answer to Q2 for your agent"),
+      send: press(`Send your own answer to ${asked.id} to your agent`),
+      copy: press(`Copy your own answer to ${asked.id} for your agent`),
       texts: tree.filter((element) => element.type === "Text").map((element) => [element.props.children].flat().join("")),
     };
   }
@@ -136,6 +137,12 @@ function field({
       return prevented;
     },
     reopen() {
+      slots = [];
+      return render();
+    },
+    open(changes: Record<string, unknown>, workspace = "w") {
+      asked = { ...question, ...changes };
+      workspaceId = workspace;
       slots = [];
       return render();
     },
@@ -186,7 +193,12 @@ test("a draft survives closing the dialog, and a send that failed", async () => 
 });
 
 test("without an agent here, the answer can only be copied", () => {
-  for (const f of [field({ agent: null }), field({ agent: { workspaceId: "elsewhere" } }), field({ asked: { ...question, agentId: undefined } })]) {
+  for (const f of [
+    field({ agent: null }),
+    field({ agent: { workspaceId: "elsewhere" } }),
+    field({ asked: { ...question, agentId: undefined } }),
+    field({ asked: { ...question, id: "Q2 B" } }),
+  ]) {
     f.type(" Bigger ");
     const view = f.render();
     assert.equal(view.send, undefined);
@@ -211,6 +223,7 @@ test("on desktop, other keys are left to the browser", () => {
   f.type("- one");
   assert.equal(f.key({ key: "Enter", shiftKey: true }), false);
   assert.equal(f.key({ key: "Enter", isComposing: true }), false);
+  assert.equal(f.key({ key: "Enter", keyCode: 229 }), false, "an input method that only sets the key code");
   assert.equal(f.key({ key: "a" }), false);
   f.type("text");
   assert.equal(f.key({ key: "Enter" }), false);
@@ -220,12 +233,42 @@ test("on desktop, other keys are left to the browser", () => {
 
 test("Tab moves a list item in, and Cmd or Ctrl+Enter sends", async () => {
   const f = field();
-  f.type("- one");
+  f.type("- one\n- two");
   assert.equal(f.key({ key: "Tab" }), true);
-  assert.equal(f.render().input.value, "  - one");
+  assert.equal(f.render().input.value, "- one\n  - two");
   assert.equal(f.key({ key: "Enter", ctrlKey: true }), true);
   await settled();
-  assert.deepEqual(f.sends, ["  - one"]);
+  assert.deepEqual(f.sends, ["- one\n  - two"]);
+});
+
+test("Tab and Shift+Tab leave the field when the item can't move, so the keyboard reaches Send", () => {
+  const f = field();
+  f.type("- one\n- two");
+  assert.equal(f.key({ key: "Tab" }), true);
+  assert.equal(f.key({ key: "Tab" }), false, "one level under the item above at most");
+  assert.equal(f.key({ key: "Tab", shiftKey: true }), true);
+  assert.equal(f.key({ key: "Tab", shiftKey: true }), false, "already at the top level");
+  assert.equal(f.render().input.value, "- one\n- two");
+});
+
+test("the field takes no more than the server accepts", () => {
+  assert.equal(field().render().input.maxLength, 20_000);
+});
+
+test("each question keeps a draft of its own", () => {
+  const f = field();
+  f.type("For Q2");
+  assert.equal(f.open({ id: "Q3" }).input.value, "");
+  assert.equal(f.open({ askedAt: "2026-11-26T12:00:00Z" }).input.value, "", "asked again");
+  assert.equal(f.open({ agentId: "a2" }).input.value, "", "asked by another agent");
+  assert.equal(f.open({}, "w2").input.value, "", "in another workspace");
+  assert.equal(f.open({}).input.value, "For Q2");
+});
+
+test("a pasted Windows line ending becomes a plain line break", () => {
+  const f = field();
+  f.type("- one\r\n- two");
+  assert.equal(f.render().input.value, "- one\n- two");
 });
 
 test("on a phone, a typed line break continues the list and moves the cursor", () => {
