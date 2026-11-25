@@ -25,7 +25,7 @@ const FILE_NAME = "answers.json";
 // Catches a turn that ended while the plugin wasn't listening.
 export const RETRY_MS = 10_000;
 
-const entrySchema = z.object({
+const savedSchema = z.strictObject({
   root: z.string(),
   workspaceId: z.string(),
   questionId: z.string(),
@@ -33,7 +33,12 @@ const entrySchema = z.object({
   answer: answerSchema,
   state: z.enum(ANSWER_STATES),
 });
-type Entry = z.infer<typeof entrySchema> & { agentId?: string };
+type Saved = z.infer<typeof savedSchema>;
+type Entry = Saved & { agentId?: string };
+
+function toSaved({ root, workspaceId, questionId, askedAt, answer, state }: Entry): Saved {
+  return { root, workspaceId, questionId, askedAt, answer, state };
+}
 
 export type AnswerTarget = { workspaceId: string; workspaceDirectory: string; questionId: string; askedAt: string };
 
@@ -181,7 +186,7 @@ export class AnswerQueue {
   // where any program of the user's can write, so the user sees each answer first.
   private async load(): Promise<void> {
     try {
-      const saved = z.array(entrySchema).parse(JSON.parse(await readFile(join(stateRoot(this.home), FILE_NAME), "utf8")));
+      const saved = z.array(savedSchema).parse(JSON.parse(await readFile(join(stateRoot(this.home), FILE_NAME), "utf8")));
       this.entries = saved.map((entry) => (entry.state === "queued" ? { ...entry, state: "held" } : entry));
     } catch {
       this.entries = [];
@@ -193,9 +198,7 @@ export class AnswerQueue {
     // An answer is done with once the agent has recorded it or a new run left its question behind.
     this.entries = this.entries.filter((_, index) => open[index]);
     // Only for this user to read. The answer still goes out when it can't be saved.
-    await writeFileIn(stateRoot(this.home), FILE_NAME, `${JSON.stringify(z.array(entrySchema).parse(this.entries))}\n`, { atomic: true, mode: 0o600 }).catch(
-      () => {},
-    );
+    await writeFileIn(stateRoot(this.home), FILE_NAME, `${JSON.stringify(this.entries.map(toSaved))}\n`, { atomic: true, mode: 0o600 }).catch(() => {});
   }
 }
 
