@@ -10,8 +10,7 @@ export const LIMITS = {
   linesKept: 10_000,
   lineChars: 4_000,
   captureBytes: 128 * 1024 * 1024,
-  // Half of Paseo's 64 KiB row cap: every later agent.turn_ended hook gets a
-  // structured clone of the whole timeline, so fat rows are paid for on every turn.
+  // Half of Paseo's 64 KiB row cap.
   rowOutputBytes: 32 * 1024,
   rowTotalBytes: 60 * 1024,
   pastRuns: 10,
