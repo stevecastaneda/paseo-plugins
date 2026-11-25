@@ -336,7 +336,7 @@ const runtimeWatcher = createSetupWatcher(runtimePort, recordSetupProgress);
 const runtimeFetch = createSetupStatusFetcher(runtimePort);
 const runtimeRun = createSetupRunner(runtimePort);
 
-export function handleWorkspaceCreated(event: { workspace: { id: string } }): void {
+export async function handleWorkspaceCreated(event: { workspace: { id: string } }): Promise<void> {
   void runtimeWatcher.watch(event.workspace.id);
 }
 

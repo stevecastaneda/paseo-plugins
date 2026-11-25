@@ -47,23 +47,23 @@ test("an unreadable ledger starts over instead of blocking new turns", async () 
 test("turn ends and archives from the daemon update the ledger the client reads", async () => {
   await withTempRoot(async (root) => {
     const store = createLastReplyStore(root);
-    const handlers = new Map<string, (event: { agent: { id: string } }) => void>();
+    const handlers = new Map<string, (payload: { agent: { id: string } }) => Promise<void>>();
     const stopped: string[] = [];
     const server = {
-      on(name: string, handler: (event: { agent: { id: string } }) => void) {
+      addHook(name: string, handler: (payload: { agent: { id: string } }) => Promise<void>) {
         handlers.set(name, handler);
         return () => stopped.push(name);
       },
     };
     const stop = recordLastReplies(server as never, store);
     const before = Date.now();
-    handlers.get("agent.turn_ended")!({ agent: { id: "a" } });
-    handlers.get("agent.turn_ended")!({ agent: { id: "b" } });
-    handlers.get("agent.archived")!({ agent: { id: "b" } });
+    handlers.get("agent.turn.after")!({ agent: { id: "a" } });
+    handlers.get("agent.turn.after")!({ agent: { id: "b" } });
+    handlers.get("agent.archive.after")!({ agent: { id: "b" } });
     const { lastReplyAt } = await listLastRepliesHandler(store)({}, {} as never);
     assert.deepEqual(Object.keys(lastReplyAt), ["a"]);
     assert.ok(Date.parse(lastReplyAt.a) >= before);
     stop();
-    assert.deepEqual(stopped.toSorted(), ["agent.archived", "agent.turn_ended"]);
+    assert.deepEqual(stopped.toSorted(), ["agent.archive.after", "agent.turn.after"]);
   });
 });

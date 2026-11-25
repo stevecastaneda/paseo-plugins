@@ -588,8 +588,7 @@ function fakeServer() {
   const appended: Array<{ agentId: string; id: string; data: RunRow }> = [];
   const fetches: Array<{ direction: string; limit: number | undefined }> = [];
   const handlers = new Map<string, (input: unknown, ctx: unknown) => unknown>();
-  const hooks = new Map<string, (event: unknown, ctx: unknown) => unknown>();
-  const befores = new Map<string, (input: unknown, ctx: unknown) => unknown>();
+  const hooks = new Map<string, (payload: unknown, ctx: unknown) => unknown>();
   let history: Entry[] = [];
   let epoch = "e1";
   let afterFetch: ((count: number) => void) | undefined;
@@ -638,12 +637,8 @@ function fakeServer() {
     handle: (contract: { name: string }, handler: (input: unknown, ctx: unknown) => unknown) => {
       handlers.set(contract.name, handler);
     },
-    on: (name: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+    addHook: (name: string, handler: (payload: unknown, ctx: unknown) => unknown) => {
       hooks.set(name, handler);
-      return () => undefined;
-    },
-    before: (name: string, handler: (input: unknown, ctx: unknown) => unknown) => {
-      befores.set(name, handler);
       return () => undefined;
     },
     registerSettings: () => {
@@ -661,11 +656,9 @@ function fakeServer() {
     cleanup,
     handlers,
     hooks,
-    befores,
     loadProviderHistory: (items: unknown[]) => {
       history = items.map((item) => ({ item: item as Entry["item"] }));
     },
-    history: () => history.map((e) => e.item),
     record: (turnId: string, ...items: unknown[]) => {
       history.push(...items.map((item) => ({ item: item as Entry["item"], turnId })));
     },
@@ -683,11 +676,8 @@ function fakeServer() {
   };
 }
 
-const turnEnded = (s: ReturnType<typeof fakeServer>, turnId: string | null, paseo: "0.12" | "0.13" = "0.13") =>
-  s.hooks.get("agent.turn_ended")!(
-    { agent: { id: "agent-9", cwd: "/w/proj" }, turnId, outcome: { kind: "completed" }, timeline: paseo === "0.12" ? s.history() : [] },
-    s.ctx,
-  );
+const turnEnded = (s: ReturnType<typeof fakeServer>, turnId: string | null) =>
+  s.hooks.get("agent.turn.after")!({ agent: { id: "agent-9", cwd: "/w/proj" }, turnId, outcome: { kind: "completed" } }, s.ctx);
 
 test("a completed turn with a `sh run` block appends one proposed card with the agent's folder, read from the fetched timeline; failed turns and repeats append nothing", async () => {
   const s = fakeServer();
@@ -700,8 +690,8 @@ test("a completed turn with a `sh run` block appends one proposed card with the 
   );
   assert.equal(s.appended[0].id, s.appended[0].data.runId);
   const agent = { id: "agent-9", cwd: "/w/proj" };
-  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "failed", error: { message: "x" } }, timeline: [] }, s.ctx);
-  await s.hooks.get("agent.turn_ended")!({ agent, turnId: "t1", outcome: { kind: "canceled", reason: "user" }, timeline: [] }, s.ctx);
+  await s.hooks.get("agent.turn.after")!({ agent, turnId: "t1", outcome: { kind: "failed", error: { message: "x" } } }, s.ctx);
+  await s.hooks.get("agent.turn.after")!({ agent, turnId: "t1", outcome: { kind: "canceled", reason: "user" } }, s.ctx);
   await turnEnded(s, "t1");
   assert.equal(s.appended.length, 1, "the card is already after the reply");
   await s.cleanup();
@@ -714,7 +704,7 @@ test("a turn started by another agent's message offers nothing from the reply be
     { type: "user_message", text: "deploy it" },
     { type: "assistant_message", text: "Needs your login.\n" + fence("sh run", "# Deploy\nfly deploy") },
   );
-  await turnEnded(s, "t1", "0.12");
+  await turnEnded(s, "t1");
   assert.equal(s.appended.length, 1);
   s.record(
     "t2",
@@ -728,7 +718,7 @@ test("a turn started by another agent's message offers nothing from the reply be
     },
     { type: "assistant_message", text: "The subagent finished; nothing else to do." },
   );
-  await turnEnded(s, "t2", "0.12");
+  await turnEnded(s, "t2");
   assert.equal(s.appended.length, 1);
   await assert.rejects(s.handlers.get("shell-yeah.scan")!({ agentId: "agent-9" }, s.ctx) as Promise<unknown>, /has no commands/);
   assert.deepEqual(await s.handlers.get("shell-yeah.suggest")!({ agentId: "agent-9" }, s.ctx), { commands: [] });
@@ -802,7 +792,7 @@ test("a timeline with no turn ids falls back to the reply since the last user me
 
 test("new agents get the handoff block merged into their system prompt", async () => {
   const s = fakeServer();
-  const result = (await s.befores.get("agent.create")!(
+  const result = (await s.hooks.get("agent.create.before")!(
     { request: { config: { provider: "claude", systemPrompt: "Keep it short." }, env: { A: "1" } } },
     s.ctx,
   )) as { config: { systemPrompt: string; provider: string }; env: Record<string, string> };
@@ -862,7 +852,7 @@ test("archiving a chat deletes the logs saved for it", async () => {
   const store = createLogStore({ root: defaultLogRoot() });
   const kept = await store.save({ agentId: "agent-2", runId: "r2", command: "ls", text: "x\n" });
   const gone = await store.save({ agentId: "agent-1", runId: "r1", command: "ls", text: "x\n" });
-  await s.hooks.get("agent.archived")!({ agent: { id: "agent-1" }, archivedAt: new Date(T0).toISOString() }, s.ctx);
+  await s.hooks.get("agent.archive.after")!({ agent: { id: "agent-1" }, archivedAt: new Date(T0).toISOString() }, s.ctx);
   assert.equal(existsSync(gone), false);
   assert.equal(existsSync(kept), true);
   assert.deepEqual(readdirSync(defaultLogRoot()), ["agent-2"]);

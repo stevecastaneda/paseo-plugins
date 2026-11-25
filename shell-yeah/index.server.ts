@@ -69,16 +69,15 @@ export default function contribute(server: PluginServerContext) {
   });
 
   // New agents only: one tagged block in the system prompt, merged after whatever is there.
-  server.before("agent.create", ({ request }) => ({
+  server.addHook("agent.create.before", async ({ request }) => ({
     ...request,
     config: { ...request.config, systemPrompt: withHandoffPrompt(request.config.systemPrompt) },
   }));
 
   // Every agent: a finished turn that handed the user a command gets one proposal card per command.
-  server.on("agent.turn_ended", async (event, ctx) => {
+  server.addHook("agent.turn.after", async (event, ctx) => {
     bind(ctx);
     if (event.outcome.kind !== "completed") return;
-    // Paseo 0.13 sends the event with an empty timeline.
     const ref = ctx.paseo.agents.ref(event.agent.id);
     const turn = await fetchTurn((options) => ref.timeline.refetch(options), event.turnId).catch(() => null);
     if (!turn) return;
@@ -86,7 +85,7 @@ export default function contribute(server: PluginServerContext) {
   });
 
   // An archived chat is done with: its saved logs go with it. Archiving a workspace archives its chats.
-  server.on("agent.archived", ({ agent }) => logs.forget(agent.id));
+  server.addHook("agent.archive.after", ({ agent }) => logs.forget(agent.id));
 
   return () => runs.shutdown();
 }

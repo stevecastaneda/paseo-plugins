@@ -3,6 +3,6 @@
   "icon": "icon.png",
   "media": ["images/composer-pill.png", "images/popover.png", "images/options.png"],
   "requirements": {
-    "paseo": ">=0.13.0"
+    "paseo": ">=0.15.0"
   }
 }

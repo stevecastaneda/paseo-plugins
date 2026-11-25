@@ -10,13 +10,9 @@ function report(error: unknown): void {
 
 // Turn ends arrive from the daemon without opening the agent, so the clock
 // can seed every pill at launch from this ledger instead of timeline reads.
-export function recordLastReplies(server: Pick<PluginServerContext, "on">, store: LastReplyStore = lastReplyStore): () => void {
-  const stopTurns = server.on("agent.turn_ended", ({ agent }) => {
-    void store.record(agent.id, new Date().toISOString()).catch(report);
-  });
-  const stopArchive = server.on("agent.archived", ({ agent }) => {
-    void store.forget(agent.id).catch(report);
-  });
+export function recordLastReplies(server: Pick<PluginServerContext, "addHook">, store: LastReplyStore = lastReplyStore): () => void {
+  const stopTurns = server.addHook("agent.turn.after", ({ agent }) => store.record(agent.id, new Date().toISOString()).catch(report));
+  const stopArchive = server.addHook("agent.archive.after", ({ agent }) => store.forget(agent.id).catch(report));
   return () => {
     stopTurns();
     stopArchive();

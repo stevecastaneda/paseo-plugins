@@ -194,7 +194,7 @@ export function proposalRow(input: { agentId: string; cwd: string; turnKey: stri
 }
 
 // Commands that already have a run row (any phase) after the latest reply, so a
-// repeated turn_ended, a rescan, or a plugin reload never shows a card twice.
+// repeated agent.turn.after, a rescan, or a plugin reload never shows a card twice.
 export function commandsAlreadyShown(timeline: Timeline): Set<string> {
   let lastReply = -1;
   timeline.forEach((item, index) => {
