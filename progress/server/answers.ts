@@ -17,6 +17,9 @@ import { findStore, stateRoot } from "./store.ts";
 import { writeFileIn } from "./system.ts";
 
 type Paseo = PluginHandlerContext["paseo"];
+type AgentHandle = ReturnType<Paseo["agents"]["ref"]>;
+
+type Trigger = "press" | "press-now" | "turn-ended" | "turn-canceled";
 
 const FILE_NAME = "answers.json";
 // Catches a turn that ended while the plugin wasn't listening.
@@ -72,7 +75,7 @@ export class AnswerQueue {
         agentId: question.agentId,
       };
       this.entries = [...this.entries.filter((other) => other !== before), entry];
-      const result = await this.deliver([entry], now || (await this.whenWorking()) === "now");
+      const result = await this.deliver([entry], now || (await this.whenWorking()) === "now" ? "press-now" : "press");
       await this.save();
       return result;
     });
@@ -87,13 +90,11 @@ export class AnswerQueue {
     });
   }
 
-  // A turn the user stopped isn't started again by an answer that was waiting for it.
   turnEnded(agentId: string, outcome: PluginTurnOutcome["kind"]): Promise<void> {
     return this.run(async () => {
       const waiting = this.waitingFor(agentId);
       if (!waiting.length) return;
-      if (outcome === "canceled") for (const entry of waiting) entry.state = "held";
-      else await this.deliver(waiting, false);
+      await this.deliver(waiting, outcome === "canceled" ? "turn-canceled" : "turn-ended");
       await this.save();
     });
   }
@@ -110,7 +111,7 @@ export class AnswerQueue {
     if (!this.paseo || !this.entries.some((entry) => entry.state === "queued")) return Promise.resolve();
     return this.run(async () => {
       const agents = new Set(this.entries.flatMap((entry) => (entry.state === "queued" && entry.agentId ? [entry.agentId] : [])));
-      for (const agentId of agents) await this.deliver(this.waitingFor(agentId), false);
+      for (const agentId of agents) await this.deliver(this.waitingFor(agentId), "turn-ended");
       await this.save();
     });
   }
@@ -139,7 +140,7 @@ export class AnswerQueue {
   }
 
   // Sends one agent's answers as one message, or leaves them queued while it works.
-  private async deliver(entries: Entry[], now: boolean): Promise<SendResult> {
+  private async deliver(entries: Entry[], trigger: Trigger): Promise<SendResult> {
     const messages: string[] = [];
     const going: Entry[] = [];
     for (const entry of entries) {
@@ -166,9 +167,8 @@ export class AnswerQueue {
         for (const entry of going) this.drop(entry);
         return "gone";
       }
-      const working = agent.status === "running" || agent.status === "initializing";
-      // A message would drop the permission request the agent is waiting on.
-      if ((working && !now) || agent.pendingPermissions?.length) return set("queued");
+      const next = nextStep(agent, trigger);
+      if (next !== "send") return set(next);
       // Joins a running turn instead of interrupting it, where the provider can.
       await agent.send(messages.join("\n\n"), { activeTurnBehavior: "steer" });
       return set("sent");
@@ -197,6 +197,17 @@ export class AnswerQueue {
       () => {},
     );
   }
+}
+
+function nextStep({ status, pendingPermissions }: Pick<AgentHandle, "status" | "pendingPermissions">, trigger: Trigger): "send" | "queued" | "held" {
+  // A message would drop the permission request the agent is waiting on.
+  if (pendingPermissions?.length) return "queued";
+  if (status === "running" || status === "initializing") return trigger === "press-now" ? "send" : "queued";
+  if (trigger === "press" || trigger === "press-now") return "send";
+  // Paseo cancels a turn with the same reason for Stop and for a replacing
+  // message, but a replaced turn still reads as running. Sending to a closed
+  // agent reopens it.
+  return trigger === "turn-canceled" || status === "closed" ? "held" : "send";
 }
 
 async function openQuestion(root: string, { questionId, askedAt }: Pick<AnswerTarget, "questionId" | "askedAt">): Promise<Question | undefined> {
