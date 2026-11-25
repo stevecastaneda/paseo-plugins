@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -214,11 +214,21 @@ test("a planted or damaged answers file sends nothing", async (t) => {
   }
 });
 
-test("the file keeps no more than it needs to show", async (t) => {
+test("the file keeps no more than it needs to show, for this user only, until the question is closed", async (t) => {
   const s = await setup(t);
-  await s.start().send(await s.target(), { choice: "B" });
-  const saved = JSON.parse(await readFile(join(s.home, ".local", "state", "paseo-progress", "answers.json"), "utf8"));
-  assert.deepEqual(Object.keys(saved[0]).toSorted(), ["answer", "askedAt", "questionId", "root", "state", "workspaceId"]);
+  const queue = s.start();
+  const path = join(s.home, ".local", "state", "paseo-progress", "answers.json");
+  const saved = async () => JSON.parse(await readFile(path, "utf8"));
+  await queue.send(await s.target(), { choice: "B" });
+  assert.deepEqual(Object.keys((await saved())[0]).toSorted(), ["answer", "askedAt", "questionId", "root", "state", "workspaceId"]);
+  if (process.platform !== "win32") assert.equal((await stat(path)).mode & 0o777, 0o600);
+  await s.ask();
+  await s.run("question", "answer", "Q1", "B");
+  await queue.send(await s.target(), { choice: "A" });
+  assert.deepEqual(
+    (await saved()).map((entry: { questionId: string }) => entry.questionId),
+    ["Q2"],
+  );
 });
 
 test("the panel hears about an answer, and only then", async (t) => {

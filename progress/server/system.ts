@@ -52,15 +52,20 @@ async function placeIn(folder: string, name: string): Promise<string> {
 // `atomic` writes beside the file, then renames over it: readers see the old
 // file or the new one, never half of one, and a link at the file is replaced
 // instead of written through.
-export async function writeFileIn(folder: string, name: string, text: string, { atomic = false, executable = false } = {}): Promise<void> {
+export async function writeFileIn(
+  folder: string,
+  name: string,
+  text: string,
+  { atomic = false, executable = false, mode }: { atomic?: boolean; executable?: boolean; mode?: number } = {},
+): Promise<void> {
   const path = await placeIn(folder, name);
   await mkdir(dirname(path), { recursive: true });
   if (!atomic) {
-    await writeFile(path, text);
+    await writeFile(path, text, { mode });
   } else {
     const temporary = `${path}.${randomUUID()}.tmp`;
     try {
-      await writeFile(temporary, text);
+      await writeFile(temporary, text, { mode });
       await rename(temporary, path);
     } finally {
       await rm(temporary, { force: true });

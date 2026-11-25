@@ -19,8 +19,6 @@ import { writeFileIn } from "./system.ts";
 type Paseo = PluginHandlerContext["paseo"];
 
 const FILE_NAME = "answers.json";
-// Settled answers only label the buttons, so a few are enough.
-const KEEP = 200;
 // Catches a turn that ended while the plugin wasn't listening.
 export const RETRY_MS = 10_000;
 
@@ -191,11 +189,13 @@ export class AnswerQueue {
   }
 
   private async save(): Promise<void> {
-    const settled = this.entries.filter((entry) => entry.state === "sent");
-    const dropped = new Set(settled.slice(0, Math.max(0, settled.length - KEEP)));
-    this.entries = this.entries.filter((entry) => !dropped.has(entry));
-    // The answer still goes out when it can't be saved.
-    await writeFileIn(stateRoot(this.home), FILE_NAME, `${JSON.stringify(z.array(entrySchema).parse(this.entries))}\n`, { atomic: true }).catch(() => {});
+    const open = await Promise.all(this.entries.map((entry) => openQuestion(entry.root, entry).catch(() => undefined)));
+    // An answer is done with once the agent has recorded it or a new run left its question behind.
+    this.entries = this.entries.filter((_, index) => open[index]);
+    // Only for this user to read. The answer still goes out when it can't be saved.
+    await writeFileIn(stateRoot(this.home), FILE_NAME, `${JSON.stringify(z.array(entrySchema).parse(this.entries))}\n`, { atomic: true, mode: 0o600 }).catch(
+      () => {},
+    );
   }
 }
 
