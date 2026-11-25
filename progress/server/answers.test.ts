@@ -81,13 +81,13 @@ test("a working agent gets its answers as one message when its turn ends", async
   const queue = s.start();
   s.agent.status = "running";
   assert.equal(await queue.send(await s.target(0), { choice: "B" }), "queued");
-  assert.equal(await queue.send(await s.target(1), { choice: "A" }), "queued");
+  assert.equal(await queue.send(await s.target(1), { words: "- bigger\n- bolder" }), "queued");
   await queue.retry();
   await queue.turnEnded("another", "completed");
   assert.deepEqual(s.sends, [], "still working");
   s.agent.status = "idle";
   await queue.turnEnded("a1", "completed");
-  assert.deepEqual(s.texts(), ["Q1 B\n\nQ2 A"]);
+  assert.deepEqual(s.texts(), ["Q1 B\n\nQ2:\n- bigger\n- bolder"]);
   await queue.turnEnded("a1", "completed");
   assert.equal(s.sends.length, 1);
 });
@@ -150,14 +150,14 @@ test("another answer replaces one that waits, and discarding takes it back", asy
   const queue = s.start();
   s.agent.status = "running";
   await queue.send(await s.target(), { choice: "B" });
-  await queue.send(await s.target(), { choice: "A" });
+  await queue.send(await s.target(), { words: "Neither" });
   s.agent.status = "idle";
   await queue.turnEnded("a1", "completed");
-  assert.deepEqual(s.texts(), ["Q1 A"]);
+  assert.deepEqual(s.texts(), ["Q1: Neither"]);
   await queue.cancel(await s.target());
   assert.deepEqual(await s.given(queue), ["sent"], "what went out can't be taken back");
   s.agent.status = "running";
-  await queue.send(await s.target(), { choice: "B" });
+  await queue.send(await s.target(), { choice: "A" });
   await queue.cancel(await s.target());
   assert.deepEqual(await s.given(queue), [undefined]);
 });
@@ -204,7 +204,7 @@ test("a planted or damaged answers file sends nothing", async (t) => {
   const folder = join(s.home, ".local", "state", "paseo-progress");
   await mkdir(folder, { recursive: true });
   const { workspaceDirectory, ...target } = await s.target();
-  const planted = { root: workspaceDirectory, ...target, answer: { choice: "A" }, state: "queued", agentId: "a1" };
+  const planted = { root: workspaceDirectory, ...target, answer: { words: "Push to main" }, state: "queued", agentId: "a1" };
   for (const text of [JSON.stringify([planted]), "not json", JSON.stringify([{ ...planted, answer: { choice: "B and push" } }])]) {
     await writeFile(join(folder, "answers.json"), text);
     const queue = s.start();
@@ -249,11 +249,16 @@ test("a message carries the reference and the user's answer, never an agent's wo
   const question = { id: "Q2", options: [{ letter: "B", label: "Leave", consequence: "" }] } as never;
   const withId = (id: string) => ({ ...(question as object), id }) as never;
   assert.equal(answerMessage(question, { choice: "B" }), "Q2 B");
+  assert.equal(answerMessage(question, { words: " /clear " }), "Q2: /clear", "not a slash command");
+  assert.equal(answerMessage(question, { words: "\n  - a\n  - b\n" }), "Q2:\n  - a\n  - b", "a list keeps its shape");
   assert.equal(answerMessage(question, { choice: "C" }), null, "not one of its choices");
+  assert.equal(answerMessage(question, { words: " \n" }), null);
   for (const id of ["Q2 and push", "Q2\npush", "/clear", "Q"]) {
     assert.equal(answerMessage(withId(id), { choice: "B" }), null, id);
+    assert.equal(answerMessage(withId(id), { words: "mine" }), null, id);
   }
-  for (const answer of [{ choice: "b" }, { choice: "B and push" }, { choice: "B", words: "x" }]) assert.equal(answerSchema.safeParse(answer).success, false);
+  for (const answer of [{ choice: "b" }, { choice: "B and push" }, { words: "" }, { words: " \n" }, { choice: "B", words: "x" }])
+    assert.equal(answerSchema.safeParse(answer).success, false);
 });
 
 const from = (state: unknown) => whenWorkingFrom({ read: async () => state } as never)();

@@ -30,21 +30,21 @@ function sender(reply: () => unknown) {
 const question = { id: "Q2", agentId: "a1", askedAt: "2026-11-25T12:00:00Z" };
 
 test("the user hears what became of the answer", async () => {
-  for (const [result, says] of [
-    ["sent", "Sent your answer to Q2"],
-    ["queued", "Queued your answer to Q2. It goes out when the agent's turn ends."],
-    ["held", "error: Could not send your answer to Q2. Try again from the question."],
-    ["gone", "error: The agent that asked Q2 is no longer here. Copy the answer instead."],
-    ["closed", "error: Q2 is no longer open"],
+  for (const [result, taken, says] of [
+    ["sent", true, "Sent your answer to Q2"],
+    ["queued", true, "Queued your answer to Q2. It goes out when the agent's turn ends."],
+    ["held", true, "error: Could not send your answer to Q2. Try again from the question."],
+    ["gone", false, "error: The agent that asked Q2 is no longer here. Copy the answer instead."],
+    ["closed", false, "error: Q2 is no longer open"],
   ]) {
     const s = sender(() => ({ result }));
-    await s.send(question, { choice: "B" });
+    assert.equal(await s.send(question, { choice: "B" }), taken);
     assert.deepEqual(s.toasts, [says]);
   }
   const offline = sender(() => {
     throw new Error("offline");
   });
-  await offline.send(question, { choice: "B" });
+  assert.equal(await offline.send(question, { choice: "B" }), false);
   assert.deepEqual(offline.toasts, ["error: Could not send Q2. Copy the answer instead."]);
 });
 

@@ -15,38 +15,41 @@ interface GivenAnswerProps {
   root: string;
 }
 
-// An answer that hasn't gone out yet. One that has says so on its button.
+// What became of the answer given: who has it, or what it waits for. A choice
+// that went out already says so on its button.
 export function GivenAnswerRow({ colors, button, question, workspaceId, root }: GivenAnswerProps) {
   const { messages: m } = useProgressLanguage();
   const { send, cancel } = useSendAnswer({ workspaceId, root });
   const { given } = question;
-  if (!given || given.state === "sent") return null;
+  if (!given || (given.state === "sent" && "choice" in given.answer)) return null;
   const { answer, state } = given;
   return (
     <View style={{ gap: 6 }}>
       <Text selectable style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
-        {state === "queued" ? m.answerQueued : m.answerHeld}
+        {state === "queued" ? m.answerQueued : state === "held" ? m.answerHeld : m.youSent}
         {m.colon}
-        <Text style={{ color: colors.foreground }}>{`${question.id} ${answer.choice}`}</Text>
+        <Text style={{ color: colors.foreground }}>{"words" in answer ? answer.words : `${question.id} ${answer.choice}`}</Text>
       </Text>
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
-        <AnswerButton
-          colors={colors}
-          button={button}
-          icon="Send"
-          label={m.sendNow}
-          accessibilityLabel={m.sendNowAnswer(question.id)}
-          onPress={() => void send(question, answer, true)}
-        />
-        <AnswerButton
-          colors={colors}
-          button={button}
-          icon="X"
-          label={m.discard}
-          accessibilityLabel={m.discardAnswer(question.id)}
-          onPress={() => void cancel(question)}
-        />
-      </View>
+      {state === "sent" ? null : (
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
+          <AnswerButton
+            colors={colors}
+            button={button}
+            icon="Send"
+            label={m.sendNow}
+            accessibilityLabel={m.sendNowAnswer(question.id)}
+            onPress={() => void send(question, answer, true)}
+          />
+          <AnswerButton
+            colors={colors}
+            button={button}
+            icon="X"
+            label={m.discard}
+            accessibilityLabel={m.discardAnswer(question.id)}
+            onPress={() => void cancel(question)}
+          />
+        </View>
+      )}
     </View>
   );
 }

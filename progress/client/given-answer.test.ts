@@ -95,3 +95,9 @@ test("an answer that waits shows what it is, and can go out now or be discarded"
 test("a choice that went out shows on its own button only", () => {
   assert.deepEqual([row("sent").says, row("sent").buttons], ["", []]);
 });
+
+test("the user's own words show until the agent records them", () => {
+  assert.equal(row("queued", { words: "Bigger" }).says, "Waits for the agent's turn to end: Bigger");
+  const sent = row("sent", { words: "Bigger" });
+  assert.deepEqual([sent.says, sent.buttons], ["You sent: Bigger", []]);
+});

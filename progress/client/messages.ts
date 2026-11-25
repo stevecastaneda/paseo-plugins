@@ -51,6 +51,8 @@ export interface ProgressMessages {
   questions: string;
   copyFailure: string;
   choiceSent: string;
+  ownAnswerHint: string;
+  youSent: string;
   choiceQueued: string;
   answerQueued: string;
   answerHeld: string;
@@ -59,6 +61,8 @@ export interface ProgressMessages {
   answers: string;
   whenWorking: string;
   whenWorkingChoices: Record<WhenWorking, { label: string; hint: string }>;
+  send: string;
+  copy: string;
   changedCourse: string;
   answerRecorded: string;
   buildingWith: string;
@@ -196,6 +200,9 @@ export interface ProgressMessages {
   discardAnswer: (id: string) => string;
   cancelFailure: (id: string) => string;
   sendClosed: (id: string) => string;
+  ownAnswer: (id: string) => string;
+  sendOwnAnswer: (id: string) => string;
+  copyOwnAnswer: (id: string) => string;
   sendFailure: (id: string) => string;
   sendAgentGone: (id: string) => string;
   blockedAside: (note: string | undefined) => string;
