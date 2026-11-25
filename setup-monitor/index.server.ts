@@ -5,7 +5,7 @@ import { getSetupStatus, runSetup } from "./shared/setup";
 export default function contribute(server: PluginServerContext) {
   server.handle(getSetupStatus, handleGetSetupStatus);
   server.handle(runSetup, handleRunSetup);
-  server.on("workspace.created", handleWorkspaceCreated);
+  server.addHook("workspace.create.after", handleWorkspaceCreated);
   return () => {
     stopSetupProgressWatch();
   };
