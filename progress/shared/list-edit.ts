@@ -23,13 +23,21 @@ interface Item {
   length: number;
 }
 
-const ITEM = /^([ \t]*)(?:([-*+•])|(\d{1,6})([.)]))([ \t]+)(\[[ xX]\][ \t]+)?/;
+const ITEM = /^([ \t]*)(?:([-*+•])|(\d{1,6})([.)]))([ \t]+)(?:(\[[ xX]\][ \t]+)|(?=(\[[ xX]\])$)|)/;
 
 function itemOf(line: string): Item | null {
   const match = ITEM.exec(line);
   if (!match) return null;
-  const [all, indent, bullet, number, close, gap, task] = match;
-  return { indent, bullet, number: number === undefined ? undefined : Number(number), close, gap, task: task !== undefined, length: all.length };
+  const [all, indent, bullet, number, close, gap, task, bareTask] = match;
+  return {
+    indent,
+    bullet,
+    number: number === undefined ? undefined : Number(number),
+    close,
+    gap,
+    task: task !== undefined || bareTask !== undefined,
+    length: all.length,
+  };
 }
 
 function marker({ indent, bullet, number, close, gap, task }: Omit<Item, "length">, nth = number): string {
@@ -51,7 +59,8 @@ export function applyEdit(text: string, edit: Edit): string {
 }
 
 // The numbers after a new item each go up by one. Deeper lines belong to the
-// items above them; anything else ends the list.
+// items above them, and blank lines keep the list going, as in CommonMark;
+// anything else ends the list.
 function renumbered(text: string, from: number, item: Item): { to: number; insert: string } {
   let to = from;
   let insert = "";
@@ -66,7 +75,7 @@ function renumbered(text: string, from: number, item: Item): { to: number; inser
       pending = "";
       to = end;
       next++;
-    } else if (line.startsWith(`${item.indent} `) || line.startsWith(`${item.indent}\t`)) {
+    } else if (!line.trim() || line.startsWith(`${item.indent} `) || line.startsWith(`${item.indent}\t`)) {
       pending += `\n${line}`;
     } else break;
     at = end;
@@ -82,43 +91,68 @@ export function enterEdit(text: string, start: number, end: number): Edit | null
   if (!item) return null;
   const until = lineEnd(text, end);
   if (start === end && !text.slice(from + item.length, until).trim()) {
-    const insert = outdented(text, from, item);
-    return { from, to: until, insert, cursor: from + insert.length };
+    const parent = parentOf(text, from, item);
+    if (!parent) {
+      const insert = item.indent ? marker({ ...item, indent: "" }) : "";
+      return { from, to: until, insert, cursor: from + insert.length };
+    }
+    return withNext(text, from, until, until, parent, marker(parent, nextNumber(parent)));
   }
-  const insert = `\n${marker(item, item.number === undefined ? undefined : item.number + 1)}`;
-  const cursor = start + insert.length;
-  if (item.number === undefined) return { from: start, to: end, insert, cursor };
-  const rest = renumbered(text, until, item);
-  // Only as far as the last number that changes.
-  return rest.to === until
-    ? { from: start, to: end, insert, cursor }
-    : { from: start, to: rest.to, insert: insert + text.slice(end, until) + rest.insert, cursor };
+  return withNext(text, start, end, until, item, `\n${marker(item, nextNumber(item))}`);
 }
 
-// An empty item one level up, as the next item of the list it lands in; at the
-// top level, no item at all.
-function outdented(text: string, from: number, item: Item): string {
-  if (!item.indent) return "";
+function nextNumber(item: Item): number | undefined {
+  return item.number === undefined ? undefined : item.number + 1;
+}
+
+function withNext(text: string, from: number, to: number, until: number, item: Item, insert: string): Edit {
+  const cursor = from + insert.length;
+  if (item.number === undefined) return { from, to, insert, cursor };
+  const rest = renumbered(text, until, item);
+  // Only as far as the last number that changes.
+  return rest.to === until ? { from, to, insert, cursor } : { from, to: rest.to, insert: insert + text.slice(to, until) + rest.insert, cursor };
+}
+
+function parentOf(text: string, from: number, item: Item): Item | null {
   for (let at = from; at > 0;) {
     const previous = lineStart(text, at - 1);
     const parent = itemOf(text.slice(previous, at - 1));
-    if (parent && parent.indent.length < item.indent.length) return marker(parent, parent.number === undefined ? undefined : parent.number + 1);
+    if (parent && parent.indent.length < item.indent.length) return parent;
     at = previous;
   }
-  return marker({ ...item, indent: "" });
+  return null;
 }
 
-// Tab and Shift+Tab: the selected list items one level deeper or back. Null
-// outside a list, where Tab moves on to the next control as usual.
+function itemAbove(text: string, from: number): Item | null {
+  for (let at = from; at > 0;) {
+    const previous = lineStart(text, at - 1);
+    const line = text.slice(previous, at - 1);
+    const found = itemOf(line);
+    if (found) return found;
+    if (line.trim() && !/^[ \t]/.test(line)) return null;
+    at = previous;
+  }
+  return null;
+}
+
+// Tab and Shift+Tab: the selected list items one level deeper or back, and
+// never deeper than one level under the item above. Null when nothing would
+// move, so the key moves focus on as usual.
 export function indentEdit(text: string, start: number, end: number, back: boolean): Edit | null {
   const from = lineStart(text, start);
   const to = lineEnd(text, end);
   const lines = text.slice(from, to).split("\n");
-  if (!lines.some((line) => itemOf(line))) return null;
+  const first = lines.map(itemOf).find(Boolean);
+  if (!first) return null;
+  if (!back) {
+    const above = itemAbove(text, from);
+    if (!above || first.indent.length > above.indent.length) return null;
+  }
   const moved = lines.map((line) => (!line.trim() ? line : back ? line.replace(/^(?:\t| {1,2})/, "") : `  ${line}`));
+  if (moved.every((line, index) => line === lines[index])) return null;
   const insert = moved.join("\n");
-  const first = moved[0].length - lines[0].length;
-  const cursor = Math.max(from, start + first);
+  const shift = moved[0].length - lines[0].length;
+  const cursor = Math.max(from, start + shift);
   return { from, to, insert, cursor, cursorEnd: Math.max(cursor, end + insert.length - (to - from)) };
 }
 

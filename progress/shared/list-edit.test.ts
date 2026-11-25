@@ -34,6 +34,7 @@ test("Enter continues a list", () => {
   assert.equal(enter("1. one|"), "1. one\n2. |");
   assert.equal(enter("9) one|"), "9) one\n10) |");
   assert.equal(enter("- [x] one|"), "- [x] one\n- [ ] |");
+  assert.equal(enter("- [ ]|"), "- [ ]\n- [ ] |", "a box with no space after it yet");
   assert.equal(enter("intro\n  - one|"), "intro\n  - one\n  - |");
   assert.equal(enter("- one|\n- two"), "- one\n- |\n- two");
   assert.equal(enter("- one |two"), "- one \n- |two");
@@ -51,23 +52,33 @@ test("Enter on an empty item leaves the list, one level at a time", () => {
   assert.equal(enter("1. one\n2. |\nafter"), "1. one\n|\nafter");
   assert.equal(enter("- [ ] |"), "|");
   assert.equal(enter("1. one\n  - sub\n  - |"), "1. one\n  - sub\n2. |");
+  assert.equal(enter("1. a\n  - x\n  - |\n2. b\n3. c"), "1. a\n  - x\n2. |\n3. b\n4. c", "and renumbers the items after it");
   assert.equal(enter("- one\n    - |"), "- one\n- |");
 });
 
 test("a new item in a numbered list renumbers the ones after it", () => {
   assert.equal(enter("1. a|\n2. b\n3. c"), "1. a\n2. |\n3. b\n4. c");
-  assert.equal(enter("1. a|\n  - x\n2. b\n\n3. c"), "1. a\n2. |\n  - x\n3. b\n\n3. c");
+  assert.equal(enter("1. a|\n  - x\n2. b\n\n3. c"), "1. a\n2. |\n  - x\n3. b\n\n4. c", "a blank line doesn't end the list");
+  assert.equal(enter("1. a|\n2. b\ntext\n3. c"), "1. a\n2. |\n3. b\ntext\n3. c", "text does");
   assert.equal(enter("1. a|\n7. b"), "1. a\n2. |\n7. b", "a list that isn't counted stays as written");
   assert.equal(enter("1. a|b\n2. c\ntext"), "1. a\n2. |b\n3. c\ntext");
 });
 
 test("Tab moves list items in and out, and is left alone elsewhere", () => {
-  assert.equal(tab("- one|"), "  - one|");
-  assert.equal(tab("  - one|", true), "- one|");
-  assert.equal(tab("- |one", true), "- |one");
-  assert.equal(tab("- o|ne\n- tw|o"), "  - o|ne\n  - tw|o");
+  assert.equal(tab("- a\n- one|"), "- a\n  - one|");
+  assert.equal(tab("- a\n  - one|", true), "- a\n- one|");
+  assert.equal(tab("- a\n- o|ne\n- tw|o"), "- a\n  - o|ne\n  - tw|o");
+  assert.equal(tab("- a\n  - b\n- one|"), "- a\n  - b\n  - one|");
+  assert.equal(tab("- a\n  more\n\n- one|"), "- a\n  more\n\n  - one|");
   assert.equal(tab("text|"), null);
   assert.equal(tab("text|", true), null);
+});
+
+test("Tab and Shift+Tab move on when the item can't go further, so focus can leave the field", () => {
+  assert.equal(tab("- |one", true), null, "already at the top level");
+  assert.equal(tab("- one|"), null, "no item above to go under");
+  assert.equal(tab("text\n- one|"), null, "text above isn't an item");
+  assert.equal(tab("- a\n  - one|"), null, "already one level under the item above");
 });
 
 test("a line break typed on a phone is found, and nothing else is taken for one", () => {
