@@ -1,5 +1,6 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
+import { answerSchema, type SendResult } from "./answers.ts";
 import type { Dashboard } from "./dashboard.ts";
 import type { WhatsNew } from "./whats-new.ts";
 
@@ -42,6 +43,29 @@ export const getAttention = defineRpc({
     workspaceDirectory: z.string().min(1),
   }),
   output: z.custom<AttentionResult>(),
+});
+
+const answerTarget = z.object({
+  workspaceId: z.string().min(1),
+  workspaceDirectory: z.string().min(1),
+  questionId: z.string().min(1),
+  // Tells the question from one an earlier run asked.
+  askedAt: z.string().min(1),
+});
+
+// Answers an open question: the agent that asked gets it, now or when its turn ends.
+export const sendAnswer = defineRpc({
+  name: "progress.answer.send",
+  // `now` skips the wait for the agent's turn to end.
+  input: answerTarget.extend({ answer: answerSchema, now: z.boolean().optional() }),
+  output: z.object({ result: z.custom<SendResult>() }),
+});
+
+// Takes back an answer that hasn't gone out.
+export const cancelAnswer = defineRpc({
+  name: "progress.answer.cancel",
+  input: answerTarget,
+  output: z.object({}),
 });
 
 // Records that the Progress panel was opened, so the "Progress" pill goes away for good.

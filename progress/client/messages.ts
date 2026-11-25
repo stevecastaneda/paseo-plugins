@@ -1,6 +1,7 @@
 import type { PiecedKind } from "../shared/attachments";
 import type { TicketStatus } from "../shared/events";
 import type { QuestionMode } from "../shared/question-modes";
+import type { WhenWorking } from "../shared/settings";
 import type { NoteKind } from "../shared/whats-new";
 import type { ProgressToolName } from "../shared/tools";
 
@@ -49,6 +50,15 @@ export interface ProgressMessages {
   flagged: string;
   questions: string;
   copyFailure: string;
+  choiceSent: string;
+  choiceQueued: string;
+  answerQueued: string;
+  answerHeld: string;
+  sendNow: string;
+  discard: string;
+  answers: string;
+  whenWorking: string;
+  whenWorkingChoices: Record<WhenWorking, { label: string; hint: string }>;
   changedCourse: string;
   answerRecorded: string;
   buildingWith: string;
@@ -177,6 +187,17 @@ export interface ProgressMessages {
   raisedBy: (name: string) => string;
   copyChoice: (id: string, letter: string) => string;
   copyChoiceForAgent: (id: string, letter: string) => string;
+  sendChoice: (id: string, letter: string) => string;
+  sendChoiceToAgent: (id: string, letter: string) => string;
+  sentAnswer: (id: string) => string;
+  queuedAnswer: (id: string) => string;
+  heldAnswer: (id: string) => string;
+  sendNowAnswer: (id: string) => string;
+  discardAnswer: (id: string) => string;
+  cancelFailure: (id: string) => string;
+  sendClosed: (id: string) => string;
+  sendFailure: (id: string) => string;
+  sendAgentGone: (id: string) => string;
   blockedAside: (note: string | undefined) => string;
   waitingDetail: (id: string, title: string) => string;
   waitingForTicket: (id: string) => string;

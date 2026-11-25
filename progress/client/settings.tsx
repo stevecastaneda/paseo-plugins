@@ -6,7 +6,7 @@ import React, { type ReactNode, useState } from "react";
 import { Text, View } from "react-native";
 import { DEFAULT_QUESTION_MODE, QUESTION_MODES } from "../shared/question-modes";
 import { readSkill } from "../shared/rpc";
-import { questionSettings, LANGUAGE_PREFERENCES } from "../shared/settings";
+import { answerSettings, questionSettings, LANGUAGE_PREFERENCES, WHEN_WORKING } from "../shared/settings";
 import { parseBlocks, withoutTitle } from "../shared/blocks";
 import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
@@ -17,6 +17,7 @@ export function QuestionSettings({ theme, host }: PluginSurfaceProps) {
   return (
     <>
       <QuestionModeSettings theme={theme} />
+      <AnswerSettings theme={theme} />
       <DisplaySettings theme={theme} />
       <SkillSettings colors={theme.colors} hostId={host.id} />
       <ToolsSettings colors={theme.colors} hostId={host.id} />
@@ -36,6 +37,33 @@ function Section({ colors, icon, title, children }: { colors: Colors; icon: stri
       </View>
       <View style={{ gap: 12 }}>{children}</View>
     </View>
+  );
+}
+
+function AnswerSettings({ theme }: Pick<PluginSurfaceProps, "theme">) {
+  const { messages: m } = useProgressLanguage();
+  const settings = useSettings(answerSettings);
+  const muted = { color: theme.colors.foregroundMuted, fontSize: 13, lineHeight: 19 };
+  return (
+    <Section colors={theme.colors} icon="Send" title={m.answers}>
+      {settings.status === "loading" ? (
+        <Text style={muted}>{m.loadingSettings}</Text>
+      ) : settings.status !== "ready" ? (
+        <SettingsRecovery colors={theme.colors} settings={settings} />
+      ) : (
+        <SettingsCard>
+          <SettingsSelect
+            label={m.whenWorking}
+            hint={m.whenWorkingChoices[settings.values.whenWorking].hint}
+            error={settings.saveError}
+            value={settings.values.whenWorking}
+            options={WHEN_WORKING.map((value) => ({ value, label: m.whenWorkingChoices[value].label }))}
+            disabled={settings.saving}
+            onValueChange={(whenWorking) => void settings.save({ ...settings.values, whenWorking }, settings.revision)}
+          />
+        </SettingsCard>
+      )}
+    </Section>
   );
 }
 

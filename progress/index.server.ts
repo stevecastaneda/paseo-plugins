@@ -1,4 +1,5 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { AnswerQueue, RETRY_MS, whenWorkingFrom } from "./server/answers";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./server/dashboard";
 import { handleInstallLauncher, handleLauncherStatus } from "./server/launcher";
 import { handleCanOpenOnHost, handleOpenDeliverable, handlePreviewDeliverable, handleReadDeliverablePiece } from "./server/open";
@@ -7,6 +8,7 @@ import { handleInstallSkill, handleReadSkill, handleSkillStatus, repairSkill } f
 import { attachProgressTools, handleToolsStatus } from "./server/tool";
 import { handleDismissWhatsNew, handleGetWhatsNew } from "./server/whats-new";
 import {
+  cancelAnswer,
   canOpenOnHost,
   dismissWhatsNew,
   getAttention,
@@ -23,12 +25,28 @@ import {
   openDeliverable,
   previewDeliverable,
   readDeliverablePiece,
+  sendAnswer,
   setHistoryFolder,
 } from "./shared/rpc";
-import { displaySettings, questionSettings } from "./shared/settings";
+import { answerSettings, displaySettings, questionSettings } from "./shared/settings";
 
 export default function contribute(server: PluginServerContext) {
-  server.handle(getDashboard, handleGetDashboard);
+  const answers = new AnswerQueue(whenWorkingFrom(server.registerSettings(answerSettings)));
+  server.handle(getDashboard, (input, context) => handleGetDashboard(input, context, answers));
+  server.handle(sendAnswer, async ({ answer, now, ...target }, { paseo }) => {
+    answers.capture(paseo);
+    return { result: await answers.send(target, answer, now) };
+  });
+  server.handle(cancelAnswer, async (target) => {
+    await answers.cancel(target);
+    return {};
+  });
+  server.on("agent.turn_ended", ({ agent, outcome }, { paseo }) => {
+    answers.capture(paseo);
+    return answers.turnEnded(agent.id, outcome.kind);
+  });
+  server.on("agent.archived", ({ agent }) => answers.agentGone(agent.id));
+  const retry = setInterval(() => void answers.retry().catch(() => {}), RETRY_MS);
   server.handle(getAttention, handleGetAttention);
   server.handle(markPanelOpened, handleMarkPanelOpened);
   server.handle(getLauncherStatus, handleLauncherStatus);
@@ -52,5 +70,8 @@ export default function contribute(server: PluginServerContext) {
   attachProgressTools(server);
   server.registerSettings(displaySettings);
   const mirror = mirrorQuestionMode(server.registerSettings(questionSettings));
-  return mirror.stop;
+  return () => {
+    clearInterval(retry);
+    return mirror.stop();
+  };
 }

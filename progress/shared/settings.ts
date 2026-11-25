@@ -9,6 +9,18 @@ export const questionSettings = defineSettings({
   schema: z.object({ mode: z.enum(QUESTION_MODES).default(DEFAULT_QUESTION_MODE) }),
 });
 
+// What an answer sent to an agent in the middle of a turn does: wait for the
+// turn to end, or go out right away.
+export const WHEN_WORKING = ["queue", "now"] as const;
+export type WhenWorking = (typeof WHEN_WORKING)[number];
+
+export const answerSettings = defineSettings({
+  id: "answers",
+  scope: "host",
+  version: 1,
+  schema: z.object({ whenWorking: z.enum(WHEN_WORKING).default("queue") }),
+});
+
 export const LANGUAGE_PREFERENCES = ["system", "en", "zh-CN"] as const;
 export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number];
 
