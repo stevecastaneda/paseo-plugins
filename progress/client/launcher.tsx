@@ -51,12 +51,12 @@ export function setupNotice(status: LauncherStatus, tools: ToolsState, m: Progre
   return notice?.action ? { text: m.toolsOn, action: notice.action } : null;
 }
 
-// Whether agents get the Progress tools, or null until known. A Paseo that
-// can't say reads as 0.13: the command is how agents record progress.
+// Whether agents get the Progress tools, or null until known. A host that
+// can't say reads as off: the command is how agents record progress.
 export function useToolsState(hostId: string): ToolsState | null {
   const fetchStatus = useRpc(getToolsStatus);
   const status = useQuery({ queryKey: ["progress", "tools", hostId], queryFn: () => fetchStatus({}), staleTime: 60_000, retry: false });
-  return status.data?.state ?? (status.isError ? "unsupported" : null);
+  return status.data?.state ?? (status.isError ? "off" : null);
 }
 
 // What the skill banner says, or null when every agent folder has the skill.

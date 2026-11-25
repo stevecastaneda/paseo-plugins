@@ -41,11 +41,11 @@ export default function contribute(server: PluginServerContext) {
     await answers.cancel(target);
     return {};
   });
-  server.on("agent.turn_ended", ({ agent, outcome }, { paseo }) => {
+  server.addHook("agent.turn.after", async ({ agent, outcome }, { paseo }) => {
     answers.capture(paseo);
-    return answers.turnEnded(agent.id, outcome.kind);
+    await answers.turnEnded(agent.id, outcome.kind);
   });
-  server.on("agent.archived", ({ agent }) => answers.agentGone(agent.id));
+  server.addHook("agent.archive.after", ({ agent }) => answers.agentGone(agent.id));
   const retry = setInterval(() => void answers.retry().catch(() => {}), RETRY_MS);
   server.handle(getAttention, handleGetAttention);
   server.handle(markPanelOpened, handleMarkPanelOpened);

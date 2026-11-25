@@ -326,13 +326,12 @@ test("the install banner shows until the command is installed and reachable", ()
   assert.match(launcherNotice({ path, state: "current", onPath: false }).text, /need the full path/);
 });
 
-test("with Paseo tools on, the command banner only offers an optional install; on 0.13 or with tools off it reads as before", () => {
+test("with Paseo tools on, the command banner only offers an optional install; with tools off it reads as before", () => {
   const h = clientHarness(directory, { "@getpaseo/plugin/client/ui": {} });
   const { launcherNotice, setupNotice } = h.load("client/launcher.tsx");
   const path = "/Users/s/.local/bin/paseo-progress";
   const states = ["missing", "outdated", "foreign", "current"].flatMap((state) => [true, false].map((onPath) => ({ path, state, onPath })));
   for (const status of states) {
-    assert.deepEqual(setupNotice(status, "unsupported"), launcherNotice(status), `0.13, ${status.state}`);
     assert.deepEqual(setupNotice(status, "off"), launcherNotice(status), `tools off, ${status.state}`);
   }
   const toolsOn = "Agents record progress with Paseo tools. The paseo-progress command is a fallback for agents without them.";
