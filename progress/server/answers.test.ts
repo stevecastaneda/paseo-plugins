@@ -136,6 +136,32 @@ test("stopping the agent holds the answer, so it doesn't start it again", async 
   assert.equal(await queue.send(await s.target(), { choice: "B" }), "sent");
 });
 
+test("a new message that interrupts the turn doesn't strand the answer: it goes out when that message's turn ends", async (t) => {
+  const s = await setup(t);
+  const queue = s.start();
+  s.agent.status = "running";
+  await queue.send(await s.target(), { choice: "B" });
+  await queue.turnEnded("a1", "canceled");
+  assert.deepEqual(s.sends, [], "the interrupting message's turn is running");
+  assert.deepEqual(await s.given(queue), ["queued"]);
+  s.agent.status = "idle";
+  await queue.turnEnded("a1", "completed");
+  assert.deepEqual(s.texts(), ["Q1 B"]);
+});
+
+test("an agent closed while its answer waits isn't reopened by it, but a press still sends", async (t) => {
+  const s = await setup(t);
+  const queue = s.start();
+  s.agent.status = "running";
+  await queue.send(await s.target(), { choice: "B" });
+  s.agent.status = "closed";
+  await queue.retry();
+  await queue.turnEnded("a1", "completed");
+  assert.deepEqual(s.sends, []);
+  assert.deepEqual(await s.given(queue), ["held"]);
+  assert.equal(await queue.send(await s.target(), { choice: "B" }), "sent");
+});
+
 test("a failed send is held and can be tried again", async (t) => {
   const s = await setup(t);
   const queue = s.start();

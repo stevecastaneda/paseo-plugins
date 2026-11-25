@@ -1,17 +1,12 @@
 import type { AgentToolContext, AgentToolDefinition, AgentToolResult, PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
-import * as sdk from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { DELIVERABLE_KINDS, ticketStatusSchema } from "../shared/events.ts";
 import type { ToolsState } from "../shared/rpc.ts";
 import { PROGRESS_TOOL_NAMES, type ProgressToolName } from "../shared/tools.ts";
 import { commandSummary, runCli } from "./cli.ts";
 
-// Paseo supplies this SDK at runtime. Paseo 0.13's has no defineAgentTool and
-// can't give agents plugin tools; reading the name calls nothing, so it's safe there.
-export const agentToolsSupported = "defineAgentTool" in sdk;
-
-// Importing defineAgentTool would stop Progress loading on Paseo 0.13. This
-// mirrors its typing; Paseo validates the input before execute.
+// defineAgentTool's typing for a tool named by its key in `tools`. Paseo
+// validates the input before execute.
 type Tool = Omit<AgentToolDefinition, "name">;
 
 function agentTool<Input extends z.ZodType>(
@@ -212,21 +207,16 @@ const tools: Record<ProgressToolName, Tool> = {
 export const progressTools: AgentToolDefinition[] = PROGRESS_TOOL_NAMES.map((name) => ({ name, ...tools[name] }));
 
 export function attachProgressTools(server: PluginServerContext): void {
-  server.before("agent.session_open", ({ request }) => {
-    // Paseo 0.13 has no tools list and fails the session open if a plugin adds one.
-    if (!Array.isArray(request.tools)) return;
-    return { ...request, tools: [...request.tools, ...progressTools] };
-  });
+  server.addHook("agent.open.before", async ({ request }) => ({ ...request, tools: [...request.tools, ...progressTools] }));
 }
 
 // Tools reach agents only while the host's "Enable Paseo tools" setting is on,
 // which needs Paseo's tools (mcp.enabled) on as well.
-export async function toolsState(supported: boolean, paseo: PluginHandlerContext["paseo"]): Promise<ToolsState> {
-  if (!supported) return "unsupported";
+export async function toolsState(paseo: PluginHandlerContext["paseo"]): Promise<ToolsState> {
   const { config } = await paseo.config.get();
   return config.mcp.enabled !== false && config.mcp.injectIntoAgents ? "on" : "off";
 }
 
 export async function handleToolsStatus(_input: unknown, { paseo }: PluginHandlerContext): Promise<{ state: ToolsState }> {
-  return { state: await toolsState(agentToolsSupported, paseo) };
+  return { state: await toolsState(paseo) };
 }

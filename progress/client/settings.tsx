@@ -136,11 +136,11 @@ function SkillSettings({ colors, hostId }: { colors: Colors; hostId: string }) {
   );
 }
 
-// Paseo 0.14 and later only: whether agents get the Progress tools, and how to turn them on.
+// Whether agents get the Progress tools, and how to turn them on.
 function ToolsSettings({ colors, hostId }: { colors: Colors; hostId: string }) {
   const { messages: m } = useProgressLanguage();
   const tools = useToolsState(hostId);
-  if (tools !== "on" && tools !== "off") return null;
+  if (!tools) return null;
   return (
     <Section colors={colors} icon="Wrench" title={m.agentTools}>
       <SettingsCard>

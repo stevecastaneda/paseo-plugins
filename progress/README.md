@@ -2,7 +2,7 @@
 
 # Progress
 
-A plugin for Paseo 0.13 and later that gives each worktree a live progress dashboard. Agents record progress with the Progress tools Paseo 0.14 hands them, or with the `paseo-progress` command. Each change adds one line to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.
+A plugin for Paseo 0.15 and later that gives each worktree a live progress dashboard. Agents record progress with the Progress tools Paseo hands them, or with the `paseo-progress` command. Each change adds one line to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.
 
 <img src="images/1-panel.png" alt="The Progress panel in Explorer" width="440">
 
@@ -38,7 +38,7 @@ Or from Paseo's plugin registry: `paseo plugin add stevecastaneda/progress`.
 
 Enable plugins under **Settings → Plugins** on the Paseo host. You need Node.js 22.18 or later on the daemon host.
 
-On Paseo 0.14 and later you can skip the command: turn on Paseo tools and agents get the Progress tools instead. See [Agent tools](#agent-tools). The command is still worth installing as a fallback, because agents in a chat that started before you turned the setting on, or in a reply that was running while the plugin reloaded, don't have the tools.
+You can skip the command: turn on Paseo tools and agents get the Progress tools instead. See [Agent tools](#agent-tools). The command is still worth installing as a fallback, because agents in a chat that started before you turned the setting on, or in a reply that was running while the plugin reloaded, don't have the tools.
 
 To install the `paseo-progress` command agents run, open **Progress** from Command Center and press **Install command** in the banner. It adds one file, `~/.local/bin/paseo-progress`, on the machine running the Paseo daemon, and the banner disappears once agents can run it. On Windows it also adds `paseo-progress.cmd` next to it, because PowerShell and cmd only run files with an extension like `.cmd`. The plugin writes nothing until you press it, and it never replaces a file something else put at that path.
 
@@ -84,7 +84,7 @@ Versions before 0.2.0 kept progress in `.scratch/` in each worktree. From 1.14.1
 
 ## Agent tools
 
-On Paseo 0.14 and later, Progress hands agents a tool for each common command, so recording progress needs nothing installed and every update names the agent that sent it. Paseo only gives plugin tools to agents while **Settings → your host → Agents → Enable Paseo tools** is on. It's off by default, and turning it on also gives agents Paseo's own tools for starting, messaging and stopping other agents. Progress never changes the setting. Once it's on, start a new chat or reload one to give it the tools.
+Progress hands agents a tool for each common command, so recording progress needs nothing installed and every update names the agent that sent it. Paseo only gives plugin tools to agents while **Settings → your host → Agents → Enable Paseo tools** is on. It's off by default, and turning it on also gives agents Paseo's own tools for starting, messaging and stopping other agents. Progress never changes the setting. Once it's on, start a new chat or reload one to give it the tools.
 
 | Tool                       | Does what this command does                                               |
 | -------------------------- | ------------------------------------------------------------------------- |
@@ -110,7 +110,7 @@ In the chat, a Progress tool call shows as one line of what it recorded, like "A
 
 <img src="images/7-empty-tools-note.png" alt="An empty Progress panel with the paseo-progress command example and a note on turning on Paseo tools" width="440">
 
-While it's on, the banner stops asking you to install the command and only offers it as a fallback. On Paseo 0.13 the panel never mentions tools. Reloading the plugin takes the tools away from a reply that's already running. Paseo gives them back before the chat's next message, and until then the skill has agents use the command.
+While it's on, the banner stops asking you to install the command and only offers it as a fallback. Reloading the plugin takes the tools away from a reply that's already running. Paseo gives them back before the chat's next message, and until then the skill has agents use the command.
 
 ## Agent skill
 
@@ -154,7 +154,7 @@ paseo-progress finish "Snapshots ship for all four tables"
 - Paseo keeps the question mode in its own settings, which only the plugin's server can read, so the server copies it to `~/.local/state/paseo-progress/settings.json` for the command. Without that file, for example while the plugin is off, the command uses Work around.
 - Deliverable paths are stored relative to the worktree root. Web links open in Paseo's browser. Pressing an image (PNG, JPEG, GIF, WebP, up to 10 MB) or text deliverable (Markdown, text, logs, JSON, YAML, CSV; the first 256 KB) previews it in a dialog inside Paseo, which also works from a phone. Markdown shows formatted, with links and images relative to the file's own folder; **Open** there opens the file in its default app. **Open** shows only when the computer running Paseo can open files. A Linux server with no desktop can't, so there a file Paseo can't preview copies its path and says why. A video (MP4, MOV, WebM, up to 200 MB) plays in the same dialog in the desktop app, and a PDF (up to 100 MB) shows there too. When there are several files, **Previous** and **Next** step through them, and so do the left and right arrow keys. Pressing a folder lists its files in the same dialog. Press a file to preview it, or a folder inside to list that one, and **Back** returns to the list. Pressing an audio file opens it with its default app on the machine running the Paseo daemon. Pressing an HTML page opens it in a Paseo tab with Paseo's own preview, on desktop and on phones, never in your browser. The preview runs the page's own scripts but loads nothing from the web, so a report needs its CSS and images inside the file. Progress hands no other file or folder to a default app, because a script or an app would run, so pressing one copies its path. On macOS, **Open** sends text files to your default browser. Previews and **Open** work only for recorded deliverables inside the worktree; for any other file the path is copied. An HTML page or PDF opens in a Paseo tab from the path the agent recorded. The copy icon on each row copies the path.
 - Several agents can share one run. When another session adds a ticket, each agent sees it at the end of its next command's output (and in `show`), and the skill has it work that ticket in order after its current one. An agent only hears about tickets added since its own last update in the run, and only once.
-- Subagents record their own progress. A Claude Code subagent can call the Progress tools too, and its updates carry its parent chat's agent id. Since Paseo 0.11, an agent waiting on background subagents shows as idle, so only the subagents' updates show the work is still going. The skill has the agent give each subagent its ticket id, and the subagent records its stages and a ticker line on the agent's dashboard.
+- Subagents record their own progress. A Claude Code subagent can call the Progress tools too, and its updates carry its parent chat's agent id. An agent waiting on background subagents shows as idle, so only the subagents' updates show the work is still going. The skill has the agent give each subagent its ticket id, and the subagent records its stages and a ticker line on the agent's dashboard.
 - `start` begins a fresh dashboard. Earlier runs stay in the file. Question references stay unique across runs.
 - `finish "<outcome>"` closes the run once every ticket is done or skipped, no question is open, and nothing is flagged stuck; otherwise it says what is left. The run stays on the dashboard, marked Finished with its outcome, and takes no more updates, so the next agent in the worktree starts a new run instead of adding to it.
 
@@ -166,8 +166,8 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 - An agent hears about tickets other sessions added only when it next runs `paseo-progress`. One in the middle of a long step finds out when that step ends.
 - Nothing updates unless the agent records it, with a Progress tool or `paseo-progress`. Agents need the skill, and an agent that skips it leaves the dashboard behind.
-- Agents get the Progress tools only on Paseo 0.14 and later, with Paseo tools turned on for the host. The setting also lets agents start, message and stop other agents, so Progress leaves it to you.
-- On Paseo 0.11 and later, an agent waiting on background subagents counts as idle. If those subagents record nothing, the dashboard shows "possibly stale" after 15 minutes while they're still working.
+- Agents get the Progress tools only with Paseo tools turned on for the host. The setting also lets agents start, message and stop other agents, so Progress leaves it to you.
+- An agent waiting on background subagents counts as idle. If those subagents record nothing, the dashboard shows "possibly stale" after 15 minutes while they're still working.
 - The command runs on the machine that hosts the Paseo daemon, and it needs Node.js 22.18 or later there.
 - Each worktree keeps its own dashboard. There's no view across worktrees.
 - Progress folders outside the repo stay behind when a worktree is deleted. They're small, and you can delete them from `~/.local/state/paseo-progress/`.
@@ -188,6 +188,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.15.0
 
+- [Improved] **Needs Paseo 0.15 or later.** Progress now uses the hook names Paseo 0.15 introduced, so it keeps working once Paseo drops the old names.
 - [New] **Send an answer to the agent.** Press **Send Q2 B** on a choice, and the agent that asked gets `Q2 B`, without a trip to the message box. Copy stays beside it. For an agent that isn't in this workspace, only Copy shows.
 - [New] **Answers wait for a working agent.** An answer to an agent in the middle of a turn goes out when the turn ends, together with any others. Until then you can send it now or discard it. To always send right away, change **When you answer a working agent** in Settings. If you stop the agent, or Progress restarts, waiting answers stay with you until you send them.
 

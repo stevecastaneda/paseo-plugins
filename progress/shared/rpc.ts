@@ -99,9 +99,8 @@ export const installLauncher = defineRpc({
   output: launcherStatus,
 });
 
-// Whether agents get the Progress tools: "unsupported" before Paseo 0.14, then
-// whether the host's "Enable Paseo tools" setting is "on" or "off".
-export const TOOLS_STATES = ["unsupported", "off", "on"] as const;
+// Whether the host's "Enable Paseo tools" setting gives agents the Progress tools.
+export const TOOLS_STATES = ["off", "on"] as const;
 export type ToolsState = (typeof TOOLS_STATES)[number];
 
 export const getToolsStatus = defineRpc({

@@ -1,4 +1,4 @@
-// The Progress tools Paseo 0.14 hands to agents: each runs the paseo-progress
+// The Progress tools Paseo hands to agents: each runs the paseo-progress
 // command, so it records and answers exactly what the command would.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -12,7 +12,7 @@ import type { z } from "zod";
 import { PROGRESS_TOOL_NAMES } from "../shared/tools.ts";
 import { readProgress } from "./progress-file.ts";
 import { outsideDirectory } from "./store.ts";
-import { ANSWER_NOTE, agentToolsSupported, attachProgressTools, progressTools, toolsState } from "./tool.ts";
+import { ANSWER_NOTE, attachProgressTools, progressTools, toolsState } from "./tool.ts";
 
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -22,7 +22,7 @@ test.after(() => rm(HOME, { recursive: true, force: true }));
 
 function context(cwd: string) {
   return {
-    agent: { id: "agent-7", workspaceId: "w", parentAgentId: null, provider: "claude", cwd, title: null },
+    agent: { id: "agent-7", workspaceId: "w", parentAgentId: null, provider: "claude", cwd, title: null, background: false, metadata: {} },
     paseo: {} as AgentToolContext["paseo"],
     signal: new AbortController().signal,
   };
@@ -189,14 +189,16 @@ test("an agent can't install the launcher through the tools, anywhere, so it can
   await assert.rejects(access(join(HOME, ".local", "bin", "paseo-progress")), { code: "ENOENT" });
 });
 
-function sessionOpen(server: { hook?: (input: { request: PluginSessionOpenRequest }) => unknown }, request: Partial<PluginSessionOpenRequest>) {
+function sessionOpen(request: Partial<PluginSessionOpenRequest>) {
+  let hook: ((input: { request: PluginSessionOpenRequest }) => Promise<unknown>) | undefined;
   attachProgressTools({
-    before: (_name: string, hook: typeof server.hook) => {
-      server.hook = hook;
+    addHook: (name: string, handler: typeof hook) => {
+      assert.equal(name, "agent.open.before");
+      hook = handler;
       return () => {};
     },
   } as unknown as PluginServerContext);
-  return server.hook!({
+  return hook!({
     request: {
       agentId: "a",
       workspaceId: "w",
@@ -213,11 +215,10 @@ function sessionOpen(server: { hook?: (input: { request: PluginSessionOpenReques
   });
 }
 
-test("on Paseo 0.14 every agent gets the Progress tools; on 0.13, which has no tools list, the session opens unchanged", () => {
-  const added = sessionOpen(
-    {},
-    { tools: [{ name: "other", description: "", input: progressTools[0].input, execute: () => ({}) }] },
-  ) as PluginSessionOpenRequest;
+test("every agent gets the Progress tools, after the ones already in the request", async () => {
+  const added = (await sessionOpen({
+    tools: [{ name: "other", description: "", input: progressTools[0].input, execute: () => ({}) }],
+  })) as PluginSessionOpenRequest;
   assert.deepEqual(
     added.tools.map((tool) => tool.name),
     [
@@ -236,7 +237,6 @@ test("on Paseo 0.14 every agent gets the Progress tools; on 0.13, which has no t
     ],
   );
   assert.equal(added.env && Object.keys(added.env).length, 0, "nothing else changes");
-  assert.equal(sessionOpen({}, { tools: undefined }), undefined);
 });
 
 test("the note after a question names the answer tool's fields", () => {
@@ -273,10 +273,8 @@ function paseo(mcp: { enabled?: boolean; injectIntoAgents: boolean }) {
   return { config: { get: async () => ({ requestId: "r", config: { mcp } }) } } as never;
 }
 
-test("the panel learns whether agents get the tools: Paseo 0.13, or the host's Enable Paseo tools setting", async () => {
-  assert.equal(agentToolsSupported, true, "this SDK is Paseo 0.14's");
-  assert.equal(await toolsState(false, { config: { get: () => assert.fail("0.13 has no setting to read") } } as never), "unsupported");
-  assert.equal(await toolsState(true, paseo({ injectIntoAgents: true })), "on");
-  assert.equal(await toolsState(true, paseo({ enabled: true, injectIntoAgents: false })), "off");
-  assert.equal(await toolsState(true, paseo({ enabled: false, injectIntoAgents: true })), "off", "Paseo's tools themselves are off");
+test("the panel learns whether agents get the tools from the host's Enable Paseo tools setting", async () => {
+  assert.equal(await toolsState(paseo({ injectIntoAgents: true })), "on");
+  assert.equal(await toolsState(paseo({ enabled: true, injectIntoAgents: false })), "off");
+  assert.equal(await toolsState(paseo({ enabled: false, injectIntoAgents: true })), "off", "Paseo's tools themselves are off");
 });

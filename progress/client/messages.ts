@@ -18,7 +18,7 @@ export interface ProgressMessages {
   openSettings: string;
   noProgress: string;
   emptyIntro: Around;
-  // Paseo 0.14 can hand agents the Progress tools. The note offers it while the host's setting is off.
+  // The note offers the Progress tools while the host's setting is off.
   toolsOn: string;
   emptyIntroTools: string;
   toolsNote: readonly [lead: string, body: string];

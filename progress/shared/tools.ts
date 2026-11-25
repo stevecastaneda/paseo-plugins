@@ -1,4 +1,4 @@
-// The tools Progress hands agents on Paseo 0.14 and later. The server defines
+// The tools Progress hands agents. The server defines
 // one tool per name, and the chat draws Progress's own row for a call to any of them.
 export const PROGRESS_TOOL_NAMES = [
   "progress_show",
