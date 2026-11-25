@@ -18,7 +18,7 @@ Run **Time Since Options** in Command Center. It opens the **Time Since** tab, w
 
 ## Install
 
-Paseo 0.13 or later. Enable plugins in **Settings → Plugins**, then:
+Paseo 0.15 or later. Enable plugins in **Settings → Plugins**, then:
 
 ```bash
 paseo plugin add npm:@stevecastaneda/paseo-time-since
@@ -39,6 +39,10 @@ Saved options apply immediately in the current client. Other connected clients
 pick them up when they next load the options or reload the plugin.
 
 ## Changelog
+
+### 1.2.0
+
+- Needs Paseo 0.15 or later. Time Since now uses the plugin hook names from Paseo 0.15, so it keeps working after Paseo drops the old names in April 2027. On an older Paseo, the version you already have keeps working. Nothing else changes.
 
 ### 1.1.1
 
