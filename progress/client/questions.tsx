@@ -11,6 +11,7 @@ import { PressScale } from "./motion";
 import { useSendAnswer } from "./send-answer";
 import { AnswerButton, type ButtonFill } from "./answer-button";
 import { GivenAnswerRow } from "./given-answer";
+import { draftKey, OwnAnswer } from "./own-answer";
 import { StackedDialog } from "./dialog-stack";
 import { raised } from "./surfaces";
 import { When } from "./when";
@@ -22,18 +23,19 @@ export function replyPrefix(question: Pick<Question, "id" | "title">): string {
   return `${question.id} (${question.title}): `;
 }
 
-// What the Copy button on an option puts on the clipboard, ready to paste.
-export function replyWithChoice(question: Pick<Question, "id" | "title">, letter: string): string {
-  return `${replyPrefix(question)}${letter}`;
+// What Copy puts on the clipboard, ready to paste: a choice, or the user's own words.
+export function replyWithChoice(question: Pick<Question, "id" | "title">, answer: string): string {
+  return `${replyPrefix(question)}${answer}`;
 }
 
 export function useCopy() {
   const { messages: m } = useProgressLanguage();
   const toast = useToast();
-  return async function copy(question: Question, letter?: string) {
+  return async function copy(question: Question, answer?: string) {
+    const choice = question.options.some((option) => option.letter === answer);
     try {
-      await copyText(letter ? replyWithChoice(question, letter) : replyPrefix(question));
-      toast.show(letter ? m.copiedChoice(question.id, letter) : m.copiedQuestion(question.id), { variant: "success" });
+      await copyText(answer ? replyWithChoice(question, answer) : replyPrefix(question));
+      toast.show(answer && choice ? m.copiedChoice(question.id, answer) : m.copiedQuestion(question.id), { variant: "success" });
     } catch {
       toast.error(m.copyFailure);
     }
@@ -251,7 +253,7 @@ export function QuestionView({
   // The worktree root the attachments' paths are relative to.
   root: string;
   workspaceId: string;
-  onCopy(letter: string): void;
+  onCopy(answer: string): void;
   onSent(): void;
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
   children?: React.ReactNode;
@@ -339,7 +341,7 @@ export function QuestionDetail({
   now: number;
   root: string;
   workspaceId: string;
-  onCopy(letter: string): void;
+  onCopy(answer: string): void;
   // A choice went out to the agent that asked.
   onSent(): void;
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
@@ -388,6 +390,18 @@ export function QuestionDetail({
           </View>
         );
       })}
+      {!question.answer ? (
+        <OwnAnswer
+          key={draftKey(workspaceId, question)}
+          colors={colors}
+          button={button}
+          question={question}
+          workspaceId={workspaceId}
+          root={root}
+          onCopy={onCopy}
+          onSent={onSent}
+        />
+      ) : null}
       {!question.answer && question.given ? <GivenAnswerRow colors={colors} button={button} question={question} workspaceId={workspaceId} root={root} /> : null}
       {question.background ? <Markdown>{question.background}</Markdown> : null}
       <AttachmentList colors={colors} attachments={questionAttachments(question)} root={root} onOpen={onOpenAttachment} />

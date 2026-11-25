@@ -20,9 +20,10 @@ export function useSendAnswer({ workspaceId, root }: { workspaceId: string; root
   const target = (question: Question) => ({ workspaceId, workspaceDirectory: root, questionId: question.id, askedAt: question.askedAt });
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["progress", "dashboard"] });
   return {
-    async send(question: Question, answer: Answer, now = false): Promise<void> {
+    // Whether the server has the answer: sent, waiting, or held for another try.
+    async send(question: Question, answer: Answer, now = false): Promise<boolean> {
       const key = `${workspaceId}:${question.askedAt}:${question.id}`;
-      if (sending.has(key)) return;
+      if (sending.has(key)) return false;
       sending.add(key);
       try {
         const { result } = await requestSend({ ...target(question), answer, now });
@@ -32,8 +33,10 @@ export function useSendAnswer({ workspaceId, root }: { workspaceId: string; root
         else if (result === "gone") toast.error(m.sendAgentGone(question.id));
         else if (result === "closed") toast.error(m.sendClosed(question.id));
         else toast.error(m.heldAnswer(question.id));
+        return result !== "gone" && result !== "closed";
       } catch {
         toast.error(m.sendFailure(question.id));
+        return false;
       } finally {
         sending.delete(key);
       }
