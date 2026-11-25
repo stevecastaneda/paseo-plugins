@@ -25,7 +25,7 @@ const TOUCH_TARGET = 44;
 // Paseo unmounts the popover when it closes, so reopening comes back to where the user was.
 const shownQuestions = new Map<string, string>();
 
-// What the pill opens: the open questions with their Copy buttons, and anything
+// What the pill opens: the open questions with their Send and Copy buttons, and anything
 // stuck, so the user can answer without leaving the chat.
 export function AttentionPopover({ theme, host, layout, workspaceId, close, openPanel }: PluginButtonContentProps & { openPanel(): void }) {
   const { messages: m } = useProgressLanguage();
@@ -64,6 +64,7 @@ export function AttentionPopover({ theme, host, layout, workspaceId, close, open
             await copy(question, letter);
             close();
           }}
+          onSent={close}
           onOpenAttachment={(attachment, from) => {
             group.current = from;
             if (!isPreviewable(attachment)) close();
@@ -162,6 +163,7 @@ export function AttentionList({
   touch,
   onSurface1,
   onCopy,
+  onSent,
   onOpenAttachment,
 }: {
   colors: Colors;
@@ -173,6 +175,7 @@ export function AttentionList({
   touch: boolean;
   onSurface1: boolean;
   onCopy(question: Question, letter: string): void;
+  onSent(): void;
   onOpenAttachment(attachment: Attachment, group: Attachment[]): void;
 }) {
   const { messages: m } = useProgressLanguage();
@@ -190,7 +193,7 @@ export function AttentionList({
     shownQuestions.set(workspaceId, target.id);
     setShownId(target.id);
   };
-  const advancePast = (copied: Question) => shownQuestions.set(workspaceId, (open[index + 1] ?? copied).id);
+  const advancePast = (handled: Question) => shownQuestions.set(workspaceId, (open[index + 1] ?? handled).id);
   const step = { colors, touch, onSurface1, onPress: show };
   const stepping = open.length > 1;
   const position = m.questionPosition(open.length);
@@ -229,8 +232,13 @@ export function AttentionList({
               question={question}
               now={now}
               root={root}
+              workspaceId={workspaceId}
               onSurface1={onSurface1}
               onOpenAttachment={onOpenAttachment}
+              onSent={() => {
+                advancePast(question);
+                onSent();
+              }}
               onCopy={(letter) => {
                 advancePast(question);
                 onCopy(question, letter);

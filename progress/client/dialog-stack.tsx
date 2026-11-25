@@ -169,10 +169,12 @@ export function StackedDialog({
                     question={question}
                     now={now}
                     root={context.workspaceDirectory}
+                    workspaceId={context.workspaceId}
                     onCopy={(letter) => {
                       void copy(question, letter);
                       onClose();
                     }}
+                    onSent={onClose}
                     onOpenAttachment={openAttachment}
                   >
                     {back ? <BackButton colors={colors} onPress={back} /> : null}

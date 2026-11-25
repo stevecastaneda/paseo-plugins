@@ -1043,6 +1043,19 @@ function eventLine(event: object) {
   return JSON.stringify({ v: 1, ts: minutes(0).toISOString(), ...event });
 }
 
+test("a question names the Paseo agent that asked it, so its answer can be sent there", async (t) => {
+  const w = await worktree(t);
+  await w.run("start", "Run");
+  const ask = ["question", "ask", "Spacing", "Even?", "--option", "A=Even | Balanced", "--option", "B=Leave | No change", "--recommend", "A"];
+  await w.runAs("agent-1", ...ask);
+  await w.runAs(undefined, ...ask);
+  const { dashboard } = await w.dashboard();
+  assert.deepEqual(
+    dashboard.questions.open.map((question) => question.agentId),
+    ["agent-1", undefined],
+  );
+});
+
 test("questions from before recommendations show their default as the pick, and keep a changed course", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Run");

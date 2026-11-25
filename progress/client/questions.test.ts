@@ -37,15 +37,20 @@ function text(node: unknown): string {
 
 function AnimatedValue() {}
 
-function renderQuestion(question: Record<string, unknown>, platform = "web") {
+function renderQuestion(question: Record<string, unknown>, platform = "web", agent: { workspaceId: string } | null = null) {
   let messages: unknown;
   const h = clientHarness(directory, {
     react: {
       ...React,
       useContext: () => ({ locale: "en", messages }),
-      useState: (initial: unknown) => [initial, () => {}],
+      useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => {}],
       useRef: (initial: unknown) => ({ current: initial }),
       useEffect() {},
+    },
+    "@tanstack/react-query": { useQueryClient: () => ({}) },
+    "@getpaseo/plugin/client": {
+      useRpc: () => async () => ({}),
+      useAgent: (_id: string, select: (snapshot: unknown) => unknown) => (agent ? select(agent) : null),
     },
     "react-native": {
       Platform: { OS: platform },
@@ -61,7 +66,18 @@ function renderQuestion(question: Record<string, unknown>, platform = "web") {
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { QuestionView } = h.load("client/questions.tsx");
   const colors = new Proxy({}, { get: () => "#112233" }); // every theme color, one hex
-  return expand(QuestionView({ colors, question, now: Date.parse("2026-11-06T12:00:00Z"), root: "/repo", onCopy() {}, onOpenAttachment() {} }));
+  return expand(
+    QuestionView({
+      colors,
+      question,
+      now: Date.parse("2026-11-06T12:00:00Z"),
+      root: "/repo",
+      workspaceId: "w",
+      onCopy() {},
+      onSent() {},
+      onOpenAttachment() {},
+    }),
+  );
 }
 
 const question = {
@@ -109,4 +125,47 @@ test("an HTML file on a question links to its full path, so pressing it opens Pa
       .filter(Boolean);
     assert.deepEqual(targets, ["/repo/report/index.html"], platform);
   }
+});
+
+function buttons(tree: unknown): string[] {
+  const labels: string[] = [];
+  const walk = (node: unknown) => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (!node || typeof node !== "object") return;
+    const { props } = node as Element;
+    if (props?.accessibilityRole === "button" && props.accessibilityLabel) labels.push(props.accessibilityLabel);
+    walk(props?.children);
+  };
+  walk(tree);
+  return [...new Set(labels)];
+}
+
+const COPY = "Copy Q1 A for your agent";
+const SEND = "Send Q1 A to your agent";
+
+test("a choice can be sent to the agent in this workspace that asked, and still copied", () => {
+  assert.deepEqual(buttons(renderQuestion({ ...question, agentId: "a1" }, "web", { workspaceId: "w" })), [SEND, COPY]);
+});
+
+test("without an agent to send to, a choice has only Copy", () => {
+  assert.deepEqual(buttons(renderQuestion(question, "web", { workspaceId: "w" })), [COPY], "asked outside Paseo");
+  assert.deepEqual(buttons(renderQuestion({ ...question, agentId: "a1" })), [COPY], "an agent Paseo doesn't know");
+  assert.deepEqual(buttons(renderQuestion({ ...question, agentId: "a1" }, "web", { workspaceId: "elsewhere" })), [COPY], "an agent in another workspace");
+  assert.deepEqual(buttons(renderQuestion({ ...question, id: "Q1 now push", agentId: "a1" }, "web", { workspaceId: "w" })), [
+    "Copy Q1 now push A for your agent",
+  ]);
+});
+
+const choiceState = (given: string) =>
+  buttons(renderQuestion({ ...question, agentId: "a1", given: { answer: { choice: "A" }, state: given } }, "web", { workspaceId: "w" }));
+
+test("a choice that went out or waits can't be pressed again, and one held back can", () => {
+  assert.deepEqual(choiceState("sent"), ["Q1 A: Sent", COPY]);
+  assert.deepEqual(choiceState("queued"), ["Q1 A: Queued", COPY, "Send your answer to Q1 now", "Discard your answer to Q1"]);
+  assert.deepEqual(choiceState("held"), [SEND, COPY, "Send your answer to Q1 now", "Discard your answer to Q1"]);
+});
+
+test("an answered question has no Send or Copy", () => {
+  const answer = { choice: "A", at: "2026-11-06T11:30:00Z" };
+  assert.deepEqual(buttons(renderQuestion({ ...question, agentId: "a1", answer }, "web", { workspaceId: "w" })), []);
 });

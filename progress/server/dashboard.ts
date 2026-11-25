@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { hasTicketsAndAllSettled, type Dashboard } from "../shared/dashboard.ts";
 import { PROGRESS_FILE_NAME } from "../shared/events.ts";
 import type { AttentionResult, DashboardResult, RunState } from "../shared/rpc.ts";
+import { type AnswerQueue, withAnswers } from "./answers.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
 import { findRoot } from "./paths.ts";
 import { findStore, historyFolder, inGitRepo, listFolders, setHistoryFolder } from "./store.ts";
@@ -19,15 +20,18 @@ export async function handleMarkPanelOpened(input: { workspaceId: string; worksp
 // changed, the reply is just "unchanged" instead of the whole dashboard again.
 export async function handleGetDashboard(
   input: { workspaceId: string; workspaceDirectory: string; since?: string },
-  _context: PluginHandlerContext,
+  context: PluginHandlerContext,
+  answers?: AnswerQueue,
 ): Promise<DashboardResult | { unchanged: true; version: string }> {
+  answers?.capture(context.paseo);
   const root = findRoot(input.workspaceDirectory);
   const store = await findStore(root);
   const result = await readProgress(store.directory);
   const file = join(store.shown, PROGRESS_FILE_NAME);
   const savedTo = await historyFolder(root);
   const inRepo = await inGitRepo(root);
-  const key = JSON.stringify([result.panelOpened, file, savedTo, inRepo]);
+  const answered = withAnswers(result.dashboard, root, answers);
+  const key = JSON.stringify([result.panelOpened, file, savedTo, inRepo, answered.key]);
   let cached = versions.get(result.dashboard);
   if (!cached || cached.key !== key) {
     cached = {
@@ -39,7 +43,7 @@ export async function handleGetDashboard(
     versions.set(result.dashboard, cached);
   }
   const { version } = cached;
-  return input.since === version ? { unchanged: true, version } : { ...result, file, savedTo, inRepo, root, version };
+  return input.since === version ? { unchanged: true, version } : { ...result, dashboard: answered.dashboard, file, savedTo, inRepo, root, version };
 }
 
 // Just what a message-box pill needs, so polling every workspace stays small.

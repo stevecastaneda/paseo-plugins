@@ -1,5 +1,6 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
+import { answerSchema, type SendResult } from "./answers.ts";
 import type { Dashboard } from "./dashboard.ts";
 import type { WhatsNew } from "./whats-new.ts";
 
@@ -44,6 +45,29 @@ export const getAttention = defineRpc({
   output: z.custom<AttentionResult>(),
 });
 
+const answerTarget = z.object({
+  workspaceId: z.string().min(1),
+  workspaceDirectory: z.string().min(1),
+  questionId: z.string().min(1),
+  // Tells the question from one an earlier run asked.
+  askedAt: z.string().min(1),
+});
+
+// Answers an open question: the agent that asked gets it, now or when its turn ends.
+export const sendAnswer = defineRpc({
+  name: "progress.answer.send",
+  // `now` skips the wait for the agent's turn to end.
+  input: answerTarget.extend({ answer: answerSchema, now: z.boolean().optional() }),
+  output: z.object({ result: z.custom<SendResult>() }),
+});
+
+// Takes back an answer that hasn't gone out.
+export const cancelAnswer = defineRpc({
+  name: "progress.answer.cancel",
+  input: answerTarget,
+  output: z.object({}),
+});
+
 // Records that the Progress panel was opened, so the "Progress" pill goes away for good.
 export const markPanelOpened = defineRpc({
   name: "progress.panel.opened",
@@ -75,9 +99,8 @@ export const installLauncher = defineRpc({
   output: launcherStatus,
 });
 
-// Whether agents get the Progress tools: "unsupported" before Paseo 0.14, then
-// whether the host's "Enable Paseo tools" setting is "on" or "off".
-export const TOOLS_STATES = ["unsupported", "off", "on"] as const;
+// Whether the host's "Enable Paseo tools" setting gives agents the Progress tools.
+export const TOOLS_STATES = ["off", "on"] as const;
 export type ToolsState = (typeof TOOLS_STATES)[number];
 
 export const getToolsStatus = defineRpc({

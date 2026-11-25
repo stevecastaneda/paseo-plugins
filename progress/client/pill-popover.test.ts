@@ -63,6 +63,7 @@ function popover(questions: string[]) {
       touch: false,
       onSurface1: true,
       onCopy: (question: { id: string }, letter: string) => copied.push(`${question.id} ${letter}`),
+      onSent: () => copied.push("sent"),
       onOpenAttachment() {},
     });
     const shown = find(tree, (props) => "question" in props && "onCopy" in props);
@@ -86,6 +87,7 @@ function popover(questions: string[]) {
       back: button("Previous question"),
       next: button("Next question"),
       copy: (letter: string) => shown!.props.onCopy(letter),
+      sent: () => shown!.props.onSent(),
     };
   };
   return {
@@ -126,6 +128,13 @@ test("reopening the popover returns to the shown question, and after a copy to t
   p.render().copy("A");
   assert.deepEqual(p.copied, ["Q2 A"]);
   assert.equal(p.open().shown, "Q3", "the copy closed the popover; the next open lands on the next question");
+});
+
+test("reopening the popover after a send shows the question after it", () => {
+  const p = popover(["Q1", "Q2"]);
+  p.open().sent();
+  assert.deepEqual(p.copied, ["sent"]);
+  assert.equal(p.open().shown, "Q2");
 });
 
 test("a single question has no stepping header", () => {
