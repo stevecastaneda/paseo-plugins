@@ -182,6 +182,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.16.1
+
+- [Fixed] **Send and Copy sit inside your own answer.** Once you type, they show inside the field at the bottom right, in line with the choices' buttons, instead of on a line under it. Nothing below the field moves when you start typing.
+
 ### 1.16.0
 
 - [New] **Write your own answer.** Under a question's choices is a text field for an answer none of them fits. It continues bulleted, numbered and checkbox lists, renumbers the items after a new one, and keeps a half-written answer when you close the question.
