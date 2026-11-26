@@ -442,13 +442,13 @@ function SendOrCopy({ agentId, ...props }: AnswerButtonsProps & { agentId: strin
   if (!here) return <CopyChoice {...props} />;
   const given = question.given && sameAnswer(question.given.answer, { choice: letter }) ? question.given.state : undefined;
   const done = given === "sent" || given === "queued";
-  const label = given === "sent" ? m.choiceSent : given === "queued" ? m.choiceQueued : m.sendChoice(question.id, letter);
+  const label = given === "sent" ? m.choiceSent : given === "queued" ? m.choiceQueued : undefined;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
       <AnswerButton
         colors={colors}
         button={button}
-        icon={given === "sent" ? "Check" : given === "queued" ? "Clock" : "Send"}
+        icon={given === "sent" ? "Check" : given === "queued" ? "Clock" : "ArrowUp"}
         label={label}
         accessibilityLabel={done ? `${question.id} ${letter}${m.colon}${label}` : m.sendChoiceToAgent(question.id, letter)}
         disabled={done}
@@ -457,21 +457,12 @@ function SendOrCopy({ agentId, ...props }: AnswerButtonsProps & { agentId: strin
           onSent();
         }}
       />
-      <CopyChoice {...props} iconOnly />
+      <CopyChoice {...props} />
     </View>
   );
 }
 
-function CopyChoice({ colors, button, question, letter, onCopy, iconOnly = false }: AnswerButtonsProps & { iconOnly?: boolean }) {
+function CopyChoice({ colors, button, question, letter, onCopy }: AnswerButtonsProps) {
   const { messages: m } = useProgressLanguage();
-  return (
-    <AnswerButton
-      colors={colors}
-      button={button}
-      icon="Copy"
-      label={iconOnly ? undefined : m.copyChoice(question.id, letter)}
-      accessibilityLabel={m.copyChoiceForAgent(question.id, letter)}
-      onPress={onCopy}
-    />
-  );
+  return <AnswerButton colors={colors} button={button} icon="Copy" accessibilityLabel={m.copyChoiceForAgent(question.id, letter)} onPress={onCopy} />;
 }

@@ -35,7 +35,7 @@ export function GivenAnswerRow({ colors, button, question, workspaceId, root }: 
           <AnswerButton
             colors={colors}
             button={button}
-            icon="Send"
+            icon="ArrowUp"
             label={m.sendNow}
             accessibilityLabel={m.sendNowAnswer(question.id)}
             onPress={() => void send(question, answer, true)}
