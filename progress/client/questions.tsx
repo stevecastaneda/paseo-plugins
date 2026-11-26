@@ -464,13 +464,5 @@ function SendOrCopy({ agentId, ...props }: AnswerButtonsProps & { agentId: strin
 
 function CopyChoice({ colors, button, question, letter, onCopy }: AnswerButtonsProps) {
   const { messages: m } = useProgressLanguage();
-  return (
-    <AnswerButton
-      colors={colors}
-      button={button}
-      icon="Copy"
-      accessibilityLabel={m.copyChoiceForAgent(question.id, letter)}
-      onPress={onCopy}
-    />
-  );
+  return <AnswerButton colors={colors} button={button} icon="Copy" accessibilityLabel={m.copyChoiceForAgent(question.id, letter)} onPress={onCopy} />;
 }
