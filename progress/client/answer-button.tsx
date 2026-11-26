@@ -22,7 +22,7 @@ export function AnswerButton({
 }: {
   colors: Colors;
   button: ButtonFill;
-  icon: "Check" | "Clock" | "Copy" | "Send" | "X";
+  icon: "ArrowUp" | "Check" | "Clock" | "Copy" | "X";
   label?: string;
   accessibilityLabel: string;
   disabled?: boolean;

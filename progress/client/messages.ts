@@ -61,8 +61,6 @@ export interface ProgressMessages {
   answers: string;
   whenWorking: string;
   whenWorkingChoices: Record<WhenWorking, { label: string; hint: string }>;
-  send: string;
-  copy: string;
   changedCourse: string;
   answerRecorded: string;
   buildingWith: string;
@@ -189,9 +187,7 @@ export interface ProgressMessages {
   copyQuestion: (id: string) => string;
   questionChoices: (id: string) => string;
   raisedBy: (name: string) => string;
-  copyChoice: (id: string, letter: string) => string;
   copyChoiceForAgent: (id: string, letter: string) => string;
-  sendChoice: (id: string, letter: string) => string;
   sendChoiceToAgent: (id: string, letter: string) => string;
   sentAnswer: (id: string) => string;
   queuedAnswer: (id: string) => string;

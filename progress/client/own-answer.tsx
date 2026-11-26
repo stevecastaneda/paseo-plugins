@@ -138,13 +138,12 @@ function OwnAnswerField({
           style={{ position: "absolute", right: 9, bottom: 8, flexDirection: "row", alignItems: "center", gap: 6 }}
         >
           {onSend ? (
-            <AnswerButton colors={colors} button={button} icon="Send" label={m.send} accessibilityLabel={m.sendOwnAnswer(question.id)} onPress={submit} />
+            <AnswerButton colors={colors} button={button} icon="ArrowUp" accessibilityLabel={m.sendOwnAnswer(question.id)} onPress={submit} />
           ) : null}
           <AnswerButton
             colors={colors}
             button={button}
             icon="Copy"
-            label={onSend ? undefined : m.copy}
             accessibilityLabel={m.copyOwnAnswer(question.id)}
             onPress={() => onCopy(words.trim())}
           />
