@@ -115,6 +115,11 @@ export interface ProgressMessages {
   fitToWidth: string;
   fitToScreen: string;
   fileChanged: string;
+  outsideTitle: string;
+  outsideWhy: string;
+  copyPromptLabel: string;
+  copiedPrompt: string;
+  movePrompt: (title: string, path: string) => string;
   openInTab: (title: string) => string;
   localHistory: string;
   historyStopped: string;

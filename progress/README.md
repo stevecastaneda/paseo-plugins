@@ -182,6 +182,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.16.3
+
+- [Improved] **A file outside the worktree says why it isn't shown, and how to fix it.** Progress previews only files inside the worktree, because agents choose the files listed and a repo an agent reads could steer one toward private files like SSH keys. The preview used to say only that the file was outside the worktree. Now it gives that reason and shows a ready-made prompt, with a copy button, that asks your agent to move the file into the worktree.
+
 ### 1.16.2
 
 - [Improved] **Icon-only send and copy buttons.** On each choice and on your own answer, Send is now an up arrow, the same icon as Paseo's message box, and Copy is its icon alone. Choice descriptions get the room the words used to take, so they wrap less. Screen readers still read each button's full name, such as "Send Q2 B to your agent". **Send now** on a waiting answer uses the up arrow too.

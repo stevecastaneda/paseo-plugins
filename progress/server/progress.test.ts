@@ -1798,7 +1798,7 @@ test("a file inside a folder deliverable can't step out of the folder or the wor
     /^Error: shots\/.+\/secret\.md no longer exists/,
     "an absolute path is read inside the folder",
   );
-  await assert.rejects(previewDeliverable(w.directory, "D1/link.md"), /shots\/link\.md is outside this worktree/);
+  assert.deepEqual(await previewDeliverable(w.directory, "D1/link.md"), { kind: "outside" }, "a link out of the worktree isn't followed");
   await assert.rejects(
     openDeliverable(w.directory, "D9/a.md", async () => {}),
     /No local deliverable D9/,
@@ -1886,7 +1886,10 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await w.run("deliverable", "add", "Home", "shots/home.PNG");
   await w.run("deliverable", "add", "Notes", "shots/notes.md");
   await w.run("deliverable", "add", "Huge", "shots/huge.jpg");
-  await w.run("deliverable", "add", "Outside", join(tmpdir(), "elsewhere.png"));
+  const away = await mkdtemp(join(tmpdir(), "progress-away-"));
+  t.after(() => rm(away, { recursive: true, force: true }));
+  await writeFile(join(away, "elsewhere.png"), png);
+  await w.run("deliverable", "add", "Outside", join(away, "elsewhere.png"));
   assert.deepEqual(await previewDeliverable(w.directory, "D1"), {
     kind: "image",
     dataUri: `data:image/png;base64,${png.toString("base64")}`,
@@ -1897,7 +1900,7 @@ test("image and text deliverables preview, only inside the worktree", async (t) 
   await w.run("deliverable", "add", "Data", "shots/data.bin");
   await assert.rejects(previewDeliverable(w.directory, "D5"), /isn't an image, video, PDF or text file/);
   await assert.rejects(previewDeliverable(w.directory, "D3"), /too large to preview/);
-  await assert.rejects(previewDeliverable(w.directory, "D4"), /no longer exists|outside this worktree/);
+  assert.deepEqual(await previewDeliverable(w.directory, "D4"), { kind: "outside" });
   const longLog = "x".repeat(MAX_PREVIEW_TEXT_BYTES + 10);
   await writeFile(join(w.directory, "shots", "long.log"), longLog);
   await writeFile(join(w.directory, "shots", "empty.txt"), "");

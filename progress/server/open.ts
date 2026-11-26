@@ -61,6 +61,9 @@ export function hostOpener(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): O
   };
 }
 
+// The panel explains this refusal instead of showing the message, so it's told apart.
+class OutsideWorktree extends Error {}
+
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
 // worktree resolve.
@@ -76,7 +79,7 @@ async function resolveAttachment(directory: string, ref: string, verb: string): 
   const realTarget = await realpath(resolve(realRoot, path)).catch(() => null);
   if (!realTarget) throw new Error(`${path} no longer exists.`);
   const inside = relative(realRoot, realTarget);
-  if (outside(inside)) throw new Error(`${path} is outside this worktree, so it was not ${verb}.`);
+  if (outside(inside)) throw new OutsideWorktree(`${path} is outside this worktree, so it was not ${verb}.`);
   return { path, realTarget, worktree };
 }
 
@@ -112,10 +115,16 @@ export type Preview =
   | { kind: "pdf"; bytes: number }
   | { kind: "text"; text: string; bytes: number; truncated: boolean }
   | { kind: "markdown"; markdown: string; bytes: number; truncated: boolean }
-  | { kind: "folder"; entries: FolderEntry[]; truncated: boolean };
+  | { kind: "folder"; entries: FolderEntry[]; truncated: boolean }
+  | { kind: "outside" };
 
 export async function previewDeliverable(directory: string, id: string): Promise<Preview> {
-  const { path, realTarget, worktree } = await resolveAttachment(directory, id, "previewed");
+  const resolved = await resolveAttachment(directory, id, "previewed").catch((error: unknown) => {
+    if (error instanceof OutsideWorktree) return null;
+    throw error;
+  });
+  if (!resolved) return { kind: "outside" };
+  const { path, realTarget, worktree } = resolved;
   const stats = await stat(realTarget);
   if (stats.isDirectory()) return { kind: "folder", ...(await listFolder(realTarget)) };
   // A page opens in Paseo's own preview, in a tab.
