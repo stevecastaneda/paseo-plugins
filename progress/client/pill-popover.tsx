@@ -180,6 +180,8 @@ export function AttentionList({
 }) {
   const { messages: m } = useProgressLanguage();
   const [shownId, setShownId] = useState(() => shownQuestions.get(workspaceId));
+  // Sent while the popover is open, before the dashboard shows the answer as given.
+  const sent = useRef(new Set<string>());
   const now = Date.now();
   const open = dashboard.questions.open;
   const found = open.findIndex((question) => question.id === shownId);
@@ -194,6 +196,8 @@ export function AttentionList({
     setShownId(target.id);
   };
   const advancePast = (handled: Question) => shownQuestions.set(workspaceId, (open[index + 1] ?? handled).id);
+  // The next question no answer has gone out for yet: after this one, then from the top.
+  const nextWaiting = () => [...open.slice(index + 1), ...open.slice(0, index)].find((other) => !other.given && !sent.current.has(other.id));
   const step = { colors, touch, onSurface1, onPress: show };
   const stepping = open.length > 1;
   const position = m.questionPosition(open.length);
@@ -235,7 +239,12 @@ export function AttentionList({
               workspaceId={workspaceId}
               onSurface1={onSurface1}
               onOpenAttachment={onOpenAttachment}
+              // With another question waiting, a send steps to it and the popover stays open.
+              // A copy closes it, because the answer goes into the message box next.
               onSent={() => {
+                sent.current.add(question.id);
+                const next = nextWaiting();
+                if (next) return show(next);
                 advancePast(question);
                 onSent();
               }}

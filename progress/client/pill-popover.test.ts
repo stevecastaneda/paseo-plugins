@@ -21,7 +21,8 @@ function text(node: unknown): string {
   return node && typeof node === "object" ? text((node as Element).props?.children) : "";
 }
 
-function popover(questions: string[]) {
+// `given`: questions whose answer already went out from Paseo.
+function popover(questions: string[], given: string[] = []) {
   let messages: unknown;
   let slots: unknown[] = [];
   let cursor = 0;
@@ -51,7 +52,17 @@ function popover(questions: string[]) {
   messages = h.load("client/i18n.ts").messagesFor("en");
   const { AttentionList } = h.load("client/pill-popover.tsx");
   const copied: string[] = [];
-  const dashboard = { questions: { open: questions.map((id) => ({ id, question: `Question ${id}`, options: [] })) }, stuck: [] };
+  const dashboard = {
+    questions: {
+      open: questions.map((id) => ({
+        id,
+        question: `Question ${id}`,
+        options: [],
+        ...(given.includes(id) ? { given: { answer: { choice: "A" }, state: "sent" } } : {}),
+      })),
+    },
+    stuck: [],
+  };
   const render = () => {
     cursor = 0;
     const tree = AttentionList({
@@ -130,11 +141,25 @@ test("reopening the popover returns to the shown question, and after a copy to t
   assert.equal(p.open().shown, "Q3", "the copy closed the popover; the next open lands on the next question");
 });
 
-test("reopening the popover after a send shows the question after it", () => {
+test("a send with another question waiting stays open on the next one, and the last send closes it", () => {
   const p = popover(["Q1", "Q2"]);
   p.open().sent();
-  assert.deepEqual(p.copied, ["sent"]);
-  assert.equal(p.open().shown, "Q2");
+  assert.deepEqual(p.copied, [], "still open");
+  assert.equal(p.render().shown, "Q2");
+  p.render().sent();
+  assert.deepEqual(p.copied, ["sent"], "Q1's answer went out, so nothing is left to answer here");
+  assert.equal(p.open().shown, "Q2", "reopened on the last question handled");
+});
+
+test("a send steps past questions already answered from Paseo, back to an earlier one if need be", () => {
+  const p = popover(["Q1", "Q2", "Q3", "Q4"], ["Q4"]);
+  const view = p.open();
+  view.next.onPress();
+  p.render().next.onPress();
+  assert.equal(p.render().shown, "Q3");
+  p.render().sent();
+  assert.deepEqual(p.copied, []);
+  assert.equal(p.render().shown, "Q1", "Q4's answer is out, so it wraps to Q1");
 });
 
 test("a single question has no stepping header", () => {
