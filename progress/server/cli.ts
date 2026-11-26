@@ -5,7 +5,7 @@ import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { isSettled, type Dashboard, type NextIds, type Ticket } from "../shared/dashboard.ts";
-import { DELIVERABLE_KINDS, TICKET_STATUSES, type FileLink, type ProgressEvent } from "../shared/events.ts";
+import { DELIVERABLE_KINDS, PROGRESS_FIELDS, TICKET_STATUSES, type FileLink, type ProgressEvent } from "../shared/events.ts";
 import { QUESTION_MODE_RULES, type QuestionMode } from "../shared/question-modes.ts";
 import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
 import { outside, progressRoot } from "./paths.ts";
@@ -13,7 +13,7 @@ import { installLauncher } from "./launcher.ts";
 import { saveRunCopy } from "./store.ts";
 import { readQuestionMode } from "./question-mode.ts";
 import { dashboardText } from "../shared/show.ts";
-import { formatMinutes } from "../shared/format.ts";
+import { formatEta, formatMinutes } from "../shared/format.ts";
 import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
 import { parseWorkspaceId, type WorkspaceId } from "../shared/workspace.ts";
@@ -46,6 +46,7 @@ interface Command {
     cwd: string;
     root: string;
     mode: QuestionMode;
+    now: Date;
   }): { event: EventDraft; message: string };
 }
 
@@ -74,6 +75,48 @@ function statusOption(value: unknown) {
     throw new UsageError(`--status must be one of: ${TICKET_STATUSES.join(", ")}.`);
   }
   return status as (typeof TICKET_STATUSES)[number];
+}
+
+// "73", "73%", "73.5" or a count, "26000/36400", as percent rounded to a tenth. "" clears it.
+function percentOption(value: unknown): number | "" | undefined {
+  if (value === undefined) return undefined;
+  const raw = String(value).trim();
+  if (raw === "") return "";
+  const count = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(raw);
+  const percent = count ? (Number(count[1]) / Number(count[2])) * 100 : /^\d+(\.\d+)?\s*%?$/.test(raw) ? Number(raw.replace(/\s*%$/, "")) : NaN;
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+    throw new UsageError(`--progress must be a percent from 0 to 100, like 73, or a count like 26000/36400, got "${raw}".`);
+  }
+  return Math.round(percent * 10) / 10;
+}
+
+// When the work should be done, as an ISO time. "" clears it. Takes the time
+// left ("25m", "1h 20m", "90s"), a clock time on this computer ("16:10", the
+// next one to come), or an ISO date and time with its time zone.
+function etaOption(value: unknown, now: Date): string | undefined {
+  if (value === undefined) return undefined;
+  const raw = String(value).trim();
+  if (raw === "") return "";
+  const fail = () => new UsageError(`--eta must be the time left like 25m or 1h 20m, a clock time like 16:10, or an ISO time, got "${raw}".`);
+  const left = /^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?:in)?)?\s*(?:(\d+)\s*s)?$/i.exec(raw);
+  if (left && (left[1] || left[2] || left[3])) {
+    const seconds = Number(left[1] ?? 0) * 3600 + Number(left[2] ?? 0) * 60 + Number(left[3] ?? 0);
+    return new Date(now.getTime() + seconds * 1000).toISOString();
+  }
+  const clock = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (clock) {
+    const [hours, minutes] = [Number(clock[1]), Number(clock[2])];
+    if (hours > 23 || minutes > 59) throw fail();
+    const at = new Date(now);
+    at.setHours(hours, minutes, 0, 0);
+    if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 1);
+    return at.toISOString();
+  }
+  // Only with a time zone, so the time can't mean another moment elsewhere.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.test(raw) && !Number.isNaN(Date.parse(raw))) {
+    return new Date(Date.parse(raw)).toISOString();
+  }
+  throw fail();
 }
 
 function stringOption(value: unknown): string | undefined {
@@ -187,7 +230,10 @@ function addedByOthersText(tickets: Ticket[], dashboard: Dashboard): string {
   ].join("\n");
 }
 
-function shown(value: unknown) {
+function shown(key: string, value: unknown, now: Date) {
+  if (value === "" && (PROGRESS_FIELDS as readonly string[]).includes(key)) return "cleared";
+  if (key === "progress") return `${value}%`;
+  if (key === "eta") return formatEta(String(value), now.getTime());
   return typeof value === "object" ? ((value as FileLink).path ?? (value as FileLink).url) : value;
 }
 
@@ -246,8 +292,8 @@ const commands: Record<string, Command> = {
     },
   },
   "ticket update": {
-    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]]`,
-    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that. --source is where the ticket is written up ("" clears it).`,
+    usage: `ticket update <id> [--status <status>] [--stage <name>] [--title <text>] [--estimate <minutes>] [--note <text>] [--waits-for <id>] [--source <path or http(s) URL>[=<label>]] [--progress <percent>] [--eta <time>] [--detail <text>]`,
+    summary: `Change a ticket. Statuses: ${TICKET_STATUSES.join(", ")}. --stage names the step in progress, like Build or Fixes ("" clears it). --waits-for names a ticket it can't start before ("" clears it); waiting is not stuck, so don't mark it blocked for that. --source is where the ticket is written up ("" clears it). For a long job that reports how far it is, like a training run: --progress is the percent done, like 73, or a count like 26000/36400; --eta is when it should be done, as the time left like 25m or 1h 20m, a clock time like 16:10, or an ISO time; --detail is one line about where it is, like "Step 26000/36400". "" clears each, and they go away once the ticket is done or skipped. Report as often as every minute: a report keeps the ticket from turning stuck, stays out of its history, and replaces the previous one while nothing else was recorded in between.`,
     options: {
       status: { type: "string" },
       stage: { type: "string" },
@@ -256,8 +302,11 @@ const commands: Record<string, Command> = {
       note: { type: "string" },
       "waits-for": { type: "string" },
       source: { type: "string" },
+      progress: { type: "string" },
+      eta: { type: "string" },
+      detail: { type: "string" },
     },
-    run({ positionals, values, state, cwd, root }) {
+    run({ positionals, values, state, cwd, root, now }) {
       const ticket = existingTicket(state, positionals[0]);
       const rawWaitsFor = values["waits-for"] === undefined ? undefined : String(values["waits-for"]).trim();
       const waitsFor = rawWaitsFor === undefined || rawWaitsFor === "" ? rawWaitsFor : existingTicket(state, rawWaitsFor).id;
@@ -278,10 +327,18 @@ const commands: Record<string, Command> = {
         note: stringOption(values.note),
         waitsFor,
         source: values.source === undefined ? undefined : String(values.source).trim() === "" ? ("" as const) : parseFile(String(values.source), cwd, root),
+        progress: percentOption(values.progress),
+        eta: etaOption(values.eta, now),
+        detail: stringOption(values.detail),
       };
       const changes = Object.entries(event).filter(([key, value]) => key !== "type" && key !== "id" && value !== undefined);
-      if (!changes.length) throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, --waits-for, or --source.");
-      return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${shown(value)}`).join(", ")}` };
+      if (!changes.length)
+        throw new UsageError("Nothing to change. Pass --status, --stage, --title, --estimate, --note, --waits-for, --source, --progress, --eta, or --detail.");
+      const status = event.status ?? ticket.status;
+      if (isSettled({ status }) && PROGRESS_FIELDS.some((field) => event[field] !== undefined && String(event[field]).trim() !== "")) {
+        throw new UsageError(`${ticket.id} is ${status}. Progress shows only on a ticket that isn't done or skipped.`);
+      }
+      return { event, message: `Updated ${ticket.id}: ${changes.map(([key, value]) => `${key} ${shown(key, value, now)}`).join(", ")}` };
     },
   },
   "ticket remove": {
@@ -615,7 +672,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         if (finished && command !== commands.start) {
           throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
         }
-        const { event, message: summary } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode });
+        const { event, message: summary } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode, now: now() });
         const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
         return { event: { ...event, by: options.agentId }, result: `${summary}${added}` };
       },

@@ -221,7 +221,7 @@ function clock(now: Date) {
   };
 }
 
-export function isSettled(ticket: Ticket): boolean {
+export function isSettled(ticket: Pick<Ticket, "status">): boolean {
   return ticket.status === "done" || ticket.status === "skipped";
 }
 
@@ -462,11 +462,11 @@ function nextIds(all: ProgressEvent[], inRun: ProgressEvent[]): NextIds {
 
 // A report changes only the fields it names; "" clears one. Nothing left is no progress.
 function reportedProgress(current: TicketProgress | undefined, event: Extract<ProgressEvent, { type: "ticket.update" }>): TicketProgress | undefined {
-  const next: TicketProgress = { ...current, at: event.ts };
-  if (event.progress !== undefined) next.percent = event.progress === "" ? undefined : event.progress;
-  if (event.eta !== undefined) next.eta = event.eta || undefined;
-  if (event.detail !== undefined) next.detail = event.detail || undefined;
-  return next.percent === undefined && !next.eta && !next.detail ? undefined : next;
+  const percent = event.progress === undefined ? current?.percent : event.progress === "" ? undefined : event.progress;
+  const eta = event.eta === undefined ? current?.eta : event.eta || undefined;
+  const detail = event.detail === undefined ? current?.detail : event.detail || undefined;
+  if (percent === undefined && !eta && !detail) return undefined;
+  return { ...(percent !== undefined ? { percent } : {}), ...(eta ? { eta } : {}), ...(detail ? { detail } : {}), at: event.ts };
 }
 
 function progress(tickets: Ticket[], startedAt: string | undefined): Dashboard["progress"] {
