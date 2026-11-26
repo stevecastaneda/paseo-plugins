@@ -537,7 +537,8 @@ const commands: Record<string, Command> = {
   },
   "ticker set": {
     usage: `ticker set "<text>"`,
-    summary: 'Show one line at the top saying what you are doing right now. Pass "" to hide it.',
+    summary:
+      'Show one line at the top saying what you are doing right now. Pass "" to hide it. A job\'s percent, time left and step belong on its ticket (ticket update --progress, --eta, --detail), not here, or the user sees them twice.',
     run({ positionals }) {
       if (positionals[0]?.trim() === "") return clearTicker();
       const text = required(positionals[0], "ticker text");

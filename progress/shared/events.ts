@@ -158,8 +158,7 @@ export type ProgressEventType = ProgressEvent["type"];
 
 // The ticket.update fields a running job reports, maybe every minute. They are
 // no change to the ticket's story, so they stay out of its history, and the
-// file keeps only the latest report while nothing else is written (see
-// `compactReport` in progress-file.ts).
+// file keeps only the latest report (see `compactRepeated` in progress-file.ts).
 export const PROGRESS_FIELDS = ["progress", "eta", "detail"] as const;
 
 type TicketUpdate = Extract<ProgressEvent, { type: "ticket.update" }>;
@@ -169,4 +168,11 @@ export function isProgressReport(event: ProgressEvent): event is TicketUpdate {
   if (event.type !== "ticket.update") return false;
   const fields = Object.entries(event).filter(([key, value]) => value !== undefined && !["v", "ts", "by", "type", "id"].includes(key));
   return fields.length > 0 && fields.every(([key]) => (PROGRESS_FIELDS as readonly string[]).includes(key));
+}
+
+// What a newer event of the same key makes unreadable: a ticket's progress
+// report, or the ticker, which shows only its latest line. Null for the rest.
+export function repeatKey(event: ProgressEvent): string | null {
+  if (isProgressReport(event)) return `progress:${event.id}`;
+  return event.type === "ticker.set" ? "ticker" : null;
 }

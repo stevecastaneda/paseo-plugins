@@ -13,7 +13,7 @@ import {
   type NextIds,
   type ParsedLine,
 } from "../shared/dashboard.ts";
-import { EVENT_VERSION, eventSchema, isProgressReport, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, type ProgressEvent } from "../shared/events.ts";
+import { EVENT_VERSION, eventSchema, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, repeatKey, type ProgressEvent } from "../shared/events.ts";
 import type { WorkspaceId } from "../shared/workspace.ts";
 import { withLock } from "./lock.ts";
 import type { DashboardAt } from "./paths.ts";
@@ -70,7 +70,7 @@ function findStore(root: string, home = homedir()): Store {
 }
 
 // The parsed file per folder, kept until its size, change time or file moves.
-// The file grows, or a progress report replaces it (see `compactReport`), and
+// The file grows, or a repeated report replaces it (see `compactRepeated`), and
 // the panel and pills read it every few seconds.
 const parsedFiles = new Map<string, { size: number; mtimeMs: number; ctimeMs: number; ino: number; parsed: ParsedFile }>();
 const views = new WeakMap<ParsedFile, Map<WorkspaceId | null, Views>>();
@@ -122,7 +122,7 @@ export async function appendProgress<T>(
     if (!checked.success) {
       throw new InvalidEvent(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));
     }
-    const compacted = compactReport(text, checked.data);
+    const compacted = compactRepeated(text, checked.data);
     if (compacted !== null) {
       // A rename replaces the file whole, so a reader sees the old file or the new one.
       const replaced = await writeFileIn(directory, PROGRESS_FILE_NAME, compacted, { atomic: true }).then(
@@ -150,12 +150,14 @@ export async function appendProgress<T>(
   });
 }
 
-// A job that reports its progress every minute would fill the file with
-// lines nobody reads again. So while nothing but progress reports follow a
-// ticket's last report, a new report for it replaces that line, keeping any
-// field only the old one set. The file as it should be, or null to append.
-export function compactReport(text: string, event: ProgressEvent): string | null {
-  if (!isProgressReport(event) || !text.endsWith("\n")) return null;
+// A job that reports its progress every minute, often with a ticker line
+// beside it, would fill the file with lines nobody reads again. So while only
+// progress reports and ticker lines follow the last one of the same key (see
+// `repeatKey`), a new one replaces that line. A report keeps any field only
+// the old one set. The file as it should be, or null to append.
+export function compactRepeated(text: string, event: ProgressEvent): string | null {
+  const key = repeatKey(event);
+  if (key === null || !text.endsWith("\n")) return null;
   const lines = text.slice(0, -1).split("\n");
   for (let index = lines.length - 1; index >= 0; index--) {
     if (!lines[index].trim()) continue;
@@ -165,10 +167,11 @@ export function compactReport(text: string, event: ProgressEvent): string | null
     } catch {
       return null;
     }
-    if (!isProgressReport(earlier)) return null;
-    if (earlier.id !== event.id) continue;
+    const earlierKey = repeatKey(earlier);
+    if (earlierKey === null) return null;
+    if (earlierKey !== key) continue;
     lines.splice(index, 1);
-    lines.push(JSON.stringify({ ...earlier, ...withoutUndefined(event) }));
+    lines.push(JSON.stringify(event.type === "ticker.set" ? event : { ...earlier, ...withoutUndefined(event) }));
     return `${lines.join("\n")}\n`;
   }
   return null;

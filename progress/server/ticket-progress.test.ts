@@ -9,7 +9,7 @@ import { test, type TestContext } from "node:test";
 import { promisify } from "node:util";
 import type { AgentToolContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { compactReport, readProgress } from "./progress-file.ts";
+import { compactRepeated, readProgress } from "./progress-file.ts";
 import { outsideDirectory } from "./store.ts";
 import { progressTools } from "./tool.ts";
 import { formatEta } from "../shared/format.ts";
@@ -162,6 +162,27 @@ test("a report replaces the last one while nothing else is recorded in between",
   assert.equal(ticket.stage, "Densify", "an update with a real change stays its own line");
 });
 
+test("a ticker line set beside each report replaces the last one too", async (t) => {
+  const w = await trainingRun(t);
+  const before = (await w.lines()).length;
+  for (let minute = 1; minute <= 30; minute++) {
+    w.at(minute);
+    await w.run("ticker", "set", `Training: ${minute}%`);
+    await w.run("ticket", "update", "T02", "--progress", String(minute), "--detail", `Step ${minute}`);
+  }
+  assert.equal((await w.lines()).length, before + 2);
+  const dashboard = await w.dashboard();
+  assert.deepEqual(dashboard.ticker, { text: "Training: 30%", since: minutes(30).toISOString(), by: "agent-1" });
+  assert.equal(dashboard.tickets.find((ticket) => ticket.id === "T02")!.progress?.percent, 30);
+
+  // Anything else, a cleared ticker included, keeps what came before it.
+  await w.run("ticker", "clear");
+  await w.run("ticker", "set", "Exporting");
+  await w.run("ticket", "update", "T02", "--progress", "31");
+  assert.equal((await w.lines()).length, before + 5);
+  assert.equal((await w.dashboard()).ticker?.text, "Exporting");
+});
+
 test("only progress-only updates are reports, and a file that doesn't end in a full line is appended to", () => {
   const base = { v: 1 as const, ts: minutes(0).toISOString(), type: "ticket.update" as const, id: "T01" };
   assert.equal(isProgressReport({ ...base, progress: 5 }), true);
@@ -170,10 +191,10 @@ test("only progress-only updates are reports, and a file that doesn't end in a f
   assert.equal(isProgressReport({ ...base, status: "working" }), false);
   const report: ProgressEvent = { ...base, progress: 6 };
   const line = JSON.stringify({ ...base, progress: 5 });
-  assert.equal(compactReport(`${line}\n`, report), `${JSON.stringify({ ...base, progress: 6 })}\n`);
-  assert.equal(compactReport(line, report), null);
-  assert.equal(compactReport(`${line}\nnot json\n`, report), null);
-  assert.equal(compactReport(`${line}\n`, { ...base, progress: 6, stage: "x" }), null);
+  assert.equal(compactRepeated(`${line}\n`, report), `${JSON.stringify({ ...base, progress: 6 })}\n`);
+  assert.equal(compactRepeated(line, report), null);
+  assert.equal(compactRepeated(`${line}\nnot json\n`, report), null);
+  assert.equal(compactRepeated(`${line}\n`, { ...base, progress: 6, stage: "x" }), null);
 });
 
 test("the ETA is the time left, a clock time, or an ISO time, and stored as an exact moment", async (t) => {
