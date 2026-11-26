@@ -672,7 +672,15 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         if (finished && command !== commands.start) {
           throw new UsageError(`The run "${state.dashboard.run!.title}" is finished. Start new work with: ${USAGE_NAME} start "<title>"`);
         }
-        const { event, message: summary } = command.run({ positionals: parsed.positionals, values: parsed.values, state, cwd: options.cwd, root, mode, now: now() });
+        const { event, message: summary } = command.run({
+          positionals: parsed.positionals,
+          values: parsed.values,
+          state,
+          cwd: options.cwd,
+          root,
+          mode,
+          now: now(),
+        });
         const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
         return { event: { ...event, by: options.agentId }, result: `${summary}${added}` };
       },

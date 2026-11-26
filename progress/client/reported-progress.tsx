@@ -48,7 +48,13 @@ export function ReportedProgressLine({ colors, progress, now }: { colors: Colors
           {eta ? (
             <Text
               numberOfLines={1}
-              style={{ flexShrink: 1, color: eta.past ? colors.statusWarning : colors.foregroundMuted, fontSize: 12, lineHeight: 17, fontVariant: ["tabular-nums"] }}
+              style={{
+                flexShrink: 1,
+                color: eta.past ? colors.statusWarning : colors.foregroundMuted,
+                fontSize: 12,
+                lineHeight: 17,
+                fontVariant: ["tabular-nums"],
+              }}
             >
               {eta.left}
             </Text>
@@ -85,7 +91,13 @@ export function ReportedProgressPanel({ colors, progress, now }: { colors: Color
           <View accessibilityLiveRegion="polite" style={{ alignItems: "flex-end", flexShrink: 1 }}>
             <Text
               numberOfLines={1}
-              style={{ color: eta.past ? colors.statusWarning : colors.foreground, fontSize: 14, lineHeight: 19, fontWeight: "600", fontVariant: ["tabular-nums"] }}
+              style={{
+                color: eta.past ? colors.statusWarning : colors.foreground,
+                fontSize: 14,
+                lineHeight: 19,
+                fontWeight: "600",
+                fontVariant: ["tabular-nums"],
+              }}
             >
               {eta.left}
             </Text>

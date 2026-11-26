@@ -1,4 +1,13 @@
-import { EVENT_VERSION, eventSchema, PROGRESS_FIELDS, type DELIVERABLE_KINDS, type FileLink, type ProgressEvent, type QuestionOption, type TicketStatus } from "./events.ts";
+import {
+  EVENT_VERSION,
+  eventSchema,
+  PROGRESS_FIELDS,
+  type DELIVERABLE_KINDS,
+  type FileLink,
+  type ProgressEvent,
+  type QuestionOption,
+  type TicketStatus,
+} from "./events.ts";
 import type { GivenAnswer } from "./answers.ts";
 import { QUESTION_MODE_RULES, type QuestionState } from "./question-modes.ts";
 

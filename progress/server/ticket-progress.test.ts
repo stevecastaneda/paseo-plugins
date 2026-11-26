@@ -65,11 +65,20 @@ test("a job reports percent, ETA and a detail line on its ticket", async (t) => 
   const result = await w.run("ticket", "update", "T02", "--progress", "26000/36400", "--eta", "25m", "--detail", "Step 26000/36400");
   assert.equal(result.code, 0, result.text);
   assert.equal(result.text, `Updated T02: progress 71.4%, eta ${formatEta(minutes(35).toISOString(), minutes(10).getTime())}, detail Step 26000/36400`);
-  assert.deepEqual((await w.ticket("T02")).progress, { percent: 71.4, eta: minutes(35).toISOString(), detail: "Step 26000/36400", at: minutes(10).toISOString() });
+  assert.deepEqual((await w.ticket("T02")).progress, {
+    percent: 71.4,
+    eta: minutes(35).toISOString(),
+    detail: "Step 26000/36400",
+    at: minutes(10).toISOString(),
+  });
 
   w.at(11);
   await w.run("ticket", "update", "T02", "--progress", "73%");
-  assert.deepEqual((await w.ticket("T02")).progress, { percent: 73, eta: minutes(35).toISOString(), detail: "Step 26000/36400", at: minutes(11).toISOString() }, "a report changes only what it names");
+  assert.deepEqual(
+    (await w.ticket("T02")).progress,
+    { percent: 73, eta: minutes(35).toISOString(), detail: "Step 26000/36400", at: minutes(11).toISOString() },
+    "a report changes only what it names",
+  );
 
   await w.run("ticket", "update", "T02", "--detail", "");
   await w.run("ticket", "update", "T02", "--eta", "");
@@ -210,7 +219,10 @@ test("show prints a ticket's progress for the agent", async (t) => {
   await w.run("ticket", "update", "T02", "--progress", "73", "--eta", "16m", "--detail", "Step 26000/36400");
   w.at(12);
   const { text } = await w.run("show");
-  assert.match(text, new RegExp(`\\n {6}Progress: 73% done, ETA ${escape(formatEta(minutes(26).toISOString(), minutes(12).getTime()))}, Step 26000/36400, reported 2m ago\\n`));
+  assert.match(
+    text,
+    new RegExp(`\\n {6}Progress: 73% done, ETA ${escape(formatEta(minutes(26).toISOString(), minutes(12).getTime()))}, Step 26000/36400, reported 2m ago\\n`),
+  );
   assert.match(text, /64% of estimated work done/);
 });
 
