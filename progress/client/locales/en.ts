@@ -148,11 +148,10 @@ export const messages: ProgressMessages = {
   fileChanged: "the file changed while it was loading. Try again.",
   outsideTitle: "This file is outside the worktree, so Progress won't show it.",
   outsideWhy:
-    "Agents choose the files listed here, and a repo an agent reads could trick it into listing private files such as SSH keys. To see it here, send your agent this:",
+    "Agents choose the files listed here, and a repo an agent reads could trick it into listing private files such as SSH keys. Send your agent this so it saves files where Progress can show them:",
   copyPromptLabel: "Copy the prompt",
   copiedPrompt: "Copied prompt. Paste it to your agent.",
-  movePrompt: (title: string, path: string) =>
-    `Progress can't show "${title}" because ${path} is outside this worktree. Move the file into the worktree and add it to Progress again.`,
+  savePrompt: "Progress shows only files inside this worktree. Save the screenshots and reports you make for Progress inside the worktree from now on.",
   openInTab: (title: string) => `Open ${title} in a tab`,
   localHistory: "Run history stays on this computer.",
   historyStopped: "Runs will stay on this computer. Files already saved stay in the repo.",

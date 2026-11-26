@@ -119,7 +119,7 @@ export interface ProgressMessages {
   outsideWhy: string;
   copyPromptLabel: string;
   copiedPrompt: string;
-  movePrompt: (title: string, path: string) => string;
+  savePrompt: string;
   openInTab: (title: string) => string;
   localHistory: string;
   historyStopped: string;

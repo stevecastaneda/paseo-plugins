@@ -3,7 +3,7 @@ import { copyText, Icon, Markdown, ScrollView, useToast } from "@getpaseo/plugin
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, type LayoutChangeEvent, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
-import { absolutePath, ATTACHMENT_ROW, type Attachment, AttachmentList, isHostOpenable, isPreviewable } from "./attachments";
+import { ATTACHMENT_ROW, type Attachment, AttachmentList, isHostOpenable, isPreviewable } from "./attachments";
 import { errorText } from "./errors";
 import { folderAttachments, isFolder, isPieced, PDF_MIME_TYPE, previewKind } from "../shared/attachments";
 import { canOpenOnHost, previewDeliverable, readDeliverablePiece } from "../shared/rpc";
@@ -211,7 +211,7 @@ export function PreviewContent({
       {/* The path row under the file sits 8px below; a quote block needs a group's gap. */}
       {preview.data?.kind === "outside" ? (
         <View style={{ marginBottom: 8 }}>
-          <OutsideNotice colors={colors} prompt={m.movePrompt(attachment.title, absolutePath(attachment.path!, workspaceDirectory))} />
+          <OutsideNotice colors={colors} />
         </View>
       ) : null}
       {preview.data?.kind === "text" ? (
@@ -633,14 +633,15 @@ function CopyIconButton({ colors, label, onPress }: { colors: Colors; label: str
   );
 }
 
-// Why Progress won't show a file outside the worktree, and a prompt that asks the
-// agent to move it, ready to copy.
-export function OutsideNotice({ colors, prompt }: { colors: Colors; prompt: string }) {
+// Why Progress won't show a file outside the worktree, and a prompt to copy. The
+// prompt names no file and asks for nothing to be moved, because the agent chose
+// the title and path, and the file may be private.
+export function OutsideNotice({ colors }: { colors: Colors }) {
   const { messages: m } = useProgressLanguage();
   const toast = useToast();
   async function copy() {
     try {
-      await copyText(prompt);
+      await copyText(m.savePrompt);
       toast.show(m.copiedPrompt, { variant: "success" });
     } catch {
       toast.error(m.copyFailure);
@@ -658,7 +659,7 @@ export function OutsideNotice({ colors, prompt }: { colors: Colors; prompt: stri
       </View>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: colors.border }}>
         <Text selectable style={{ flex: 1, minWidth: 0, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>
-          {prompt}
+          {m.savePrompt}
         </Text>
         <CopyIconButton colors={colors} label={m.copyPromptLabel} onPress={() => void copy()} />
       </View>

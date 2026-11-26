@@ -76,7 +76,7 @@ export function WriteUp({
         )
       ) : null}
       {all && parts?.truncated ? <Text style={muted}>{m.truncatedText}</Text> : null}
-      {data?.kind === "outside" ? <OutsideNotice colors={colors} prompt={m.movePrompt(source.title, absolutePath(source.path!, workspaceDirectory))} /> : null}
+      {data?.kind === "outside" ? <OutsideNotice colors={colors} /> : null}
       {preview.error ? <Text style={muted}>{m.readError(errorText(preview.error, m.unknownError))}</Text> : null}
       {/* The file on the left, opening it whole; expanding in place on the right. */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
