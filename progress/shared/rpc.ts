@@ -198,6 +198,7 @@ export const previewDeliverable = defineRpc({
     z.object({ kind: z.literal("text"), text: z.string(), bytes: z.number(), truncated: z.boolean() }),
     z.object({ kind: z.literal("markdown"), markdown: z.string(), bytes: z.number(), truncated: z.boolean() }),
     z.object({ kind: z.literal("folder"), entries: z.array(z.object({ name: z.string(), folder: z.boolean() })), truncated: z.boolean() }),
+    z.object({ kind: z.literal("outside") }),
   ]),
 });
 

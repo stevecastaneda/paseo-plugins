@@ -1,5 +1,5 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
-import { Icon, Markdown, ScrollView } from "@getpaseo/plugin/client/ui";
+import { copyText, Icon, Markdown, ScrollView, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, type LayoutChangeEvent, Platform, Pressable, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
@@ -208,6 +208,12 @@ export function PreviewContent({
           {m.previewError(preview.error instanceof FileChangedError ? m.fileChanged : errorText(preview.error, m.unknownError))}
         </Text>
       ) : null}
+      {/* The path row under the file sits 8px below; a quote block needs a group's gap. */}
+      {preview.data?.kind === "outside" ? (
+        <View style={{ marginBottom: 8 }}>
+          <OutsideNotice colors={colors} />
+        </View>
+      ) : null}
       {preview.data?.kind === "text" ? (
         <View style={{ padding: 10, borderRadius: 6, backgroundColor: colors.surface0, opacity: stepping ? 0.6 : 1 }}>
           <Text selectable style={{ color: colors.foreground, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 12, lineHeight: 18 }}>
@@ -264,21 +270,7 @@ export function PreviewContent({
         <Text selectable numberOfLines={1} ellipsizeMode="middle" style={[caption, { flex: 1, minWidth: 0 }]}>
           {attachment.path}
         </Text>
-        {/* Optical: the 22px button centers on the 17px caption line without growing it. */}
-        <PressScale
-          accessibilityRole="button"
-          accessibilityLabel={m.copyItemPath(attachment.title)}
-          hitSlop={6}
-          outerStyle={{ marginVertical: -3 }}
-          onPress={onCopyPath}
-          style={({ pressed, hovered }) => ({
-            padding: 4,
-            borderRadius: 4,
-            backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent",
-          })}
-        >
-          <Icon name="Copy" size={14} color={colors.foregroundMuted} />
-        </PressScale>
+        <CopyIconButton colors={colors} label={m.copyItemPath(attachment.title)} onPress={onCopyPath} />
       </View>
     );
   // Back on the left, Previous and Next in the middle, Open on the right.
@@ -299,7 +291,9 @@ export function PreviewContent({
             onBlur={() => setQuiet(false)}
           />
         ) : null}
-        {canOpen ? <DialogButton colors={colors} icon="ExternalLink" label={m.open} accessibilityLabel={m.openDefault} onPress={onOpenOnHost} /> : null}
+        {canOpen && preview.data?.kind !== "outside" ? (
+          <DialogButton colors={colors} icon="ExternalLink" label={m.open} accessibilityLabel={m.openDefault} onPress={onOpenOnHost} />
+        ) : null}
       </View>
     </View>
   );
@@ -497,13 +491,19 @@ const FOLDER_ROW_HEIGHT = ATTACHMENT_ROW.lineHeight + ATTACHMENT_ROW.paddingVert
 
 // Roughly how tall the preview draws, including wrapped lines.
 function estimatedHeight(
-  data: { kind: "image" | "video" | "pdf" } | { kind: "text"; text: string } | { kind: "folder"; entries: unknown[]; truncated: boolean } | undefined,
+  data:
+    | { kind: "image" | "video" | "pdf" | "outside" }
+    | { kind: "text"; text: string }
+    | { kind: "folder"; entries: unknown[]; truncated: boolean }
+    | undefined,
   aspectRatio: number,
   maxMediaHeight: number,
 ): number {
   if (!data) return 0;
   if (data.kind === "folder") return Math.max(1, data.entries.length + (data.truncated ? 1 : 0)) * FOLDER_ROW_HEIGHT;
   if (data.kind === "pdf") return maxMediaHeight;
+  // The explanation and the prompt wrap to about seven lines.
+  if (data.kind === "outside") return 7 * 18 + 28;
   if (data.kind !== "text") return Math.min(CONTENT_WIDTH / aspectRatio, maxMediaHeight);
   const lines = data.text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0);
   return lines * 18 + 20;
@@ -610,6 +610,60 @@ export function DialogButton({
       <Icon name={icon} size={14} color={colors.foreground} />
       {label ? <Text style={{ color: colors.foreground, fontSize: 13, lineHeight: 18 }}>{label}</Text> : null}
     </PressScale>
+  );
+}
+
+// Optical: the 22px button centers on a 17-18px text line without growing it.
+function CopyIconButton({ colors, label, onPress }: { colors: Colors; label: string; onPress(): void }) {
+  return (
+    <PressScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
+      outerStyle={{ marginVertical: -3 }}
+      onPress={onPress}
+      style={({ pressed, hovered }) => ({
+        padding: 4,
+        borderRadius: 4,
+        backgroundColor: pressed ? colors.border : hovered ? colors.surface2 : "transparent",
+      })}
+    >
+      <Icon name="Copy" size={14} color={colors.foregroundMuted} />
+    </PressScale>
+  );
+}
+
+// Why Progress won't show a file outside the worktree, and a prompt to copy. The
+// prompt names no file and asks for nothing to be moved, because the agent chose
+// the title and path, and the file may be private.
+export function OutsideNotice({ colors }: { colors: Colors }) {
+  const { messages: m } = useProgressLanguage();
+  const toast = useToast();
+  async function copy() {
+    try {
+      await copyText(m.savePrompt);
+      toast.show(m.copiedPrompt, { variant: "success" });
+    } catch {
+      toast.error(m.copyFailure);
+    }
+  }
+  return (
+    <View style={{ gap: 16 }}>
+      <View style={{ gap: 4 }}>
+        <Text selectable style={{ color: colors.foreground, fontSize: 12, lineHeight: 18, fontWeight: "600" }}>
+          {m.outsideTitle}
+        </Text>
+        <Text selectable style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+          {m.outsideWhy}
+        </Text>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: colors.border }}>
+        <Text selectable style={{ flex: 1, minWidth: 0, color: colors.foreground, fontSize: 12, lineHeight: 18 }}>
+          {m.savePrompt}
+        </Text>
+        <CopyIconButton colors={colors} label={m.copyPromptLabel} onPress={() => void copy()} />
+      </View>
+    </View>
   );
 }
 

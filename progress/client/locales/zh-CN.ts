@@ -145,6 +145,12 @@ export const messages: ProgressMessages = {
   fitToWidth: "适应宽度",
   fitToScreen: "适应屏幕",
   fileChanged: "文件在加载过程中发生了变化。请重试。",
+  outsideTitle: "此文件位于工作树之外，因此 Progress 不会显示它。",
+  outsideWhy:
+    "这里列出的文件由智能体选择，而智能体读取的仓库可能诱导它列出 SSH 密钥等私密文件。把下面这段话发给智能体，让它把文件保存在 Progress 能显示的位置：",
+  copyPromptLabel: "复制提示词",
+  copiedPrompt: "已复制提示词。请粘贴给智能体。",
+  savePrompt: "Progress 只显示此工作树内的文件。从现在起，请把为 Progress 制作的截图和报告保存在工作树内。",
   openInTab: (title: string) => `在标签页中打开 ${title}`,
   localHistory: "运行记录保存在这台电脑上。",
   historyStopped: "运行记录将保存在这台电脑上。已保存的文件会保留在仓库中。",
