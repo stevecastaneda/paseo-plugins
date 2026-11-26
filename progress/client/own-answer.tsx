@@ -70,6 +70,8 @@ function OwnAnswerField({
   // Set only to move the cursor after an edit on a phone; the keyboard owns it otherwise.
   const [cursor, setCursor] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
+  // The buttons sit inside the field, so its text wraps short of them at whatever width they take in this language.
+  const [buttonsWidth, setButtonsWidth] = useState(0);
   const keep = (next: string) => {
     if (next) drafts.set(key, next);
     else drafts.delete(key);
@@ -85,7 +87,7 @@ function OwnAnswerField({
     });
   };
   return (
-    <View style={{ gap: 6 }}>
+    <View>
       <TextInput
         multiline
         value={words}
@@ -117,7 +119,8 @@ function OwnAnswerField({
             lineHeight: 19,
             minHeight: 37,
             maxHeight: 200,
-            paddingHorizontal: 10,
+            paddingLeft: 10,
+            paddingRight: written ? buttonsWidth + 17 : 10,
             paddingVertical: 8,
             borderRadius: 12,
             borderWidth: 1,
@@ -129,7 +132,11 @@ function OwnAnswerField({
         ]}
       />
       {written ? (
-        <View style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
+        <View
+          onLayout={(event) => setButtonsWidth(event.nativeEvent.layout.width)}
+          // 9 from the edge, in line with the buttons of the choices above: their card's 1px border and 8px padding.
+          style={{ position: "absolute", right: 9, bottom: 8, flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
           {onSend ? (
             <AnswerButton colors={colors} button={button} icon="Send" label={m.send} accessibilityLabel={m.sendOwnAnswer(question.id)} onPress={submit} />
           ) : null}
