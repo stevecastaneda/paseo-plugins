@@ -10,6 +10,7 @@ import { IconSwap, PressScale, Presence, StaggerRoot, nativeDriver } from "./mot
 import { SectionTitle } from "./section-title";
 import { raised } from "./surfaces";
 import { unbroken, When } from "./when";
+import { ReportedProgressLine } from "./reported-progress";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Platform, ScrollView, Text, View } from "react-native";
 import {
@@ -557,9 +558,17 @@ function Segment({ colors, segment, liveness }: { colors: Colors; segment: Progr
         : segment.status === "blocked" && !segment.waiting
           ? colors.statusDanger
           : colors.surface2;
-  return (
-    <View style={{ flex: segment.estimateMin, backgroundColor: color, opacity: working ? 0.45 : 1, overflow: "hidden" }}>
+  const rest = (flex: number) => (
+    <View style={{ flex, backgroundColor: color, opacity: working ? 0.45 : 1, overflow: "hidden" }}>
       {working && liveness === "running" ? <Shimmer /> : null}
+    </View>
+  );
+  if (segment.reported === undefined) return rest(segment.estimateMin);
+  // The share its job reports done fills solid from the start.
+  return (
+    <View style={{ flex: segment.estimateMin, flexDirection: "row" }}>
+      <View style={{ width: `${segment.reported * 100}%`, backgroundColor: colors.accent }} />
+      {rest(1)}
     </View>
   );
 }
@@ -804,6 +813,7 @@ function TicketRow({
         {ticket.waitingFor ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{m.waitsFor(shortTitle(ticket.waitingFor.title))}</Text>
         ) : null}
+        {ticket.progress ? <ReportedProgressLine colors={colors} progress={ticket.progress} now={now} /> : null}
         {ticket.note ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{ticket.note}</Text> : null}
       </View>
       {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. The estimate slot fits "45m" up to "9h 45m"; longer ones grow rather than clip. */}
