@@ -21,6 +21,7 @@ const ECHO = "REPORTED-COPY";
 const reported = join(work, "reported plugin");
 mkdirSync(join(reported, "server"), { recursive: true });
 mkdirSync(join(reported, "skills", "paseo-progress"), { recursive: true });
+writeFileSync(join(reported, "skills", "paseo-progress", "SKILL.md"), "---\nname: paseo-progress\ndescription: Reported copy.\n---\n");
 writeFileSync(join(reported, "server", "cli.ts"), `console.log("${ECHO} " + JSON.stringify(process.argv.slice(2)));\n`);
 
 // A stand-in for Paseo's command. It answers `plugin ls progress --json` and
@@ -144,6 +145,21 @@ const linked = serverCall(
   `async (m) => { await m.installSkill(${paths}, ${JSON.stringify(reported)}); return (await m.skillStatus(${paths}, ${JSON.stringify(reported)})).state; }`,
 );
 check("Install skill links all three folders", linked.out === `"current"`, linked.detail);
+// Antigravity is a Go program that reads ~/.gemini/config/skills and ~/.agents/skills (#151).
+const go = run("go", ["version"]);
+if (go.code === 0) {
+  const antigravityFolders = [join(home, ".gemini", "config", "skills"), join(home, ".agents", "skills")];
+  const scan = run("go", ["run", ".", ...antigravityFolders], { cwd: join(pluginDir, "scripts", "skill-scan") });
+  for (const folder of antigravityFolders) {
+    check(
+      `a Go program like Antigravity finds the skill in ${folder}`,
+      scan.out.split(/\r?\n/).some((line) => line.startsWith(`found ${join(folder, "paseo-progress")} `)),
+      scan.detail,
+    );
+  }
+} else {
+  console.log("SKIP  a Go program like Antigravity finds the skill (no Go here)");
+}
 if (windows) {
   // A junction needs no admin rights or Developer Mode; a directory symlink does.
   const link = join(home, ".claude", "skills", "paseo-progress");

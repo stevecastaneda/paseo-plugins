@@ -7,6 +7,8 @@ on:
     paths:
       - progress/server/launcher.ts
       - progress/server/skill.ts
+      - progress/server/system.ts
+      - progress/scripts/skill-scan/**
       - progress/scripts/windows-check.mjs
       - .github/workflows/progress-windows.yml
   workflow_dispatch:
@@ -23,5 +25,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
       - run: npm run check:windows
         working-directory: progress
