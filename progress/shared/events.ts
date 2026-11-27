@@ -17,10 +17,8 @@ export type TicketStatus = z.infer<typeof ticketStatusSchema>;
 const text = z.string().trim().min(1);
 const minutes = z.number().int().positive().max(100_000);
 // `by` is the Paseo agent that wrote the event, absent when run outside Paseo.
-// `ws` is the Paseo workspace whose dashboard the event belongs to. Events
-// without it are the folder's: written before dashboards were per workspace,
-// or outside Paseo. An older plugin drops the field and reads every event as
-// the folder's, so the version stays 1.
+// An older plugin's z.object strips `ws` and reads every event as the folder's,
+// so the version stays 1.
 const base = { v: z.literal(EVENT_VERSION), ts: z.iso.datetime(), by: text.optional(), ws: workspaceIdSchema.optional() };
 
 export const questionOptionSchema = z.object({

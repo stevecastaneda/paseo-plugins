@@ -46,15 +46,11 @@ export function progressRoot(cwd: string, agentCwd: string | undefined): string 
   return agentCwd && subagentCheckout ? findRoot(agentCwd) : root;
 }
 
-// Which dashboard. `root` is the worktree: its store, the base of stored paths,
-// its saved run history. `workspace` picks which Paseo workspace's view of
-// that store is read and written; null is the folder's own.
 export interface DashboardAt {
   root: string;
   workspace: WorkspaceId | null;
 }
 
-// The dashboard the panel's RPC input names.
 export function panelDashboardAt(input: { workspaceId: string; workspaceDirectory: string }): DashboardAt {
   return { root: findRoot(input.workspaceDirectory), workspace: parseWorkspaceId(input.workspaceId) };
 }

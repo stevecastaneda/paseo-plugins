@@ -80,7 +80,6 @@ async function worktree(t: TestContext) {
     directory,
     // Where the working files are, outside the repo.
     store,
-    // The folder's own dashboard, which every test without a Paseo workspace reads.
     dashboardAt: { root: directory, workspace: null },
     output,
     at(minute: number) {
@@ -291,7 +290,7 @@ test("opening the panel is remembered in the worktree", async (t) => {
   const w = await worktree(t);
   await w.run("start", "Export");
   assert.equal((await w.dashboard()).panelOpened, false);
-  await markPanelOpened(w.dashboardAt);
+  await markPanelOpened(w.dashboardAt.root);
   assert.equal((await w.dashboard()).panelOpened, true);
   await w.run("start", "Another run");
   assert.equal((await w.dashboard()).panelOpened, true, "a new run doesn't bring the pill back");
@@ -624,7 +623,7 @@ test("opening the panel changes the response version without rebuilding the dash
   const input = { workspaceId: "ws-1", workspaceDirectory: w.directory };
   const first = await handleGetDashboard(input, context);
   assert.ok("dashboard" in first);
-  await markPanelOpened(w.dashboardAt);
+  await markPanelOpened(w.dashboardAt.root);
   const opened = await handleGetDashboard({ ...input, since: first.version }, context);
   assert.ok("dashboard" in opened);
   assert.strictEqual(opened.dashboard, first.dashboard);

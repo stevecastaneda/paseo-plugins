@@ -65,7 +65,7 @@ class OutsideWorktree extends Error {}
 
 // A deliverable or question attachment the agent recorded, found by reference,
 // so the panel can never reach an arbitrary path. Only files inside the
-// worktree resolve. A reference names an item on the dashboard `at` shows.
+// worktree resolve.
 async function resolveAttachment(at: DashboardAt, ref: string, verb: string): Promise<{ path: string; realTarget: string; worktree: string }> {
   const { base, inner } = splitRef(ref);
   const worktree = at.root;

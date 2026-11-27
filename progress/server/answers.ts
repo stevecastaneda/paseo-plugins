@@ -133,7 +133,6 @@ export class AnswerQueue {
     return result;
   }
 
-  // Two workspaces on one folder can each have a Q1 asked in the same minute.
   private find(at: DashboardAt, { questionId, askedAt }: Pick<AnswerTarget, "questionId" | "askedAt">): Entry | undefined {
     return this.entries.find(
       (entry) => entry.root === at.root && parseWorkspaceId(entry.workspaceId) === at.workspace && entry.questionId === questionId && entry.askedAt === askedAt,
@@ -217,7 +216,6 @@ function nextStep({ status, pendingPermissions }: Pick<AgentHandle, "status" | "
   return trigger === "turn-canceled" || status === "closed" ? "held" : "send";
 }
 
-// answers.json sits where any program of the user's can write, so its workspace ID is parsed again.
 function entryAt(entry: Pick<Entry, "root" | "workspaceId">): DashboardAt {
   return { root: entry.root, workspace: parseWorkspaceId(entry.workspaceId) };
 }

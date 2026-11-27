@@ -1,6 +1,3 @@
-// Several Paseo workspaces open on one folder: each gets its own dashboard,
-// from the same progress file. Lines without a workspace are the folder's,
-// as every line written before dashboards were per workspace is.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -29,8 +26,7 @@ delete process.env.PASEO_WORKSPACE_ID;
 
 const A = "wks_00000000000000aa";
 const B = "wks_00000000000000bb";
-// What a panel sends for a workspace ID Progress can't read: the folder's dashboard.
-const FOLDER = "ws-1";
+const NOT_A_WORKSPACE_ID = "ws-1";
 const context = { paseo: {} as PluginHandlerContext["paseo"] };
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
@@ -44,8 +40,6 @@ async function folder(t: TestContext) {
   return {
     directory,
     file,
-    // `workspace` null runs the command outside Paseo, which writes the lines
-    // every earlier version wrote.
     async run(workspace: string | null, ...argv: string[]) {
       output.length = 0;
       const code = await runCli(argv, { cwd: directory, now: () => new Date(T0), out: (line) => output.push(line), workspace: parseWorkspaceId(workspace) });
@@ -91,19 +85,20 @@ test("two workspaces on one folder each keep their own run, in one file", async 
   assert.deepEqual((await readdir(outsideDirectory(f.directory))).toSorted(), ["progress.jsonl"], "no folder per workspace");
 });
 
+function versionAsOf1_16_3(text: string, shownFile: string): string {
+  const read = { configured: true, dashboard: reduceProgress(parseProgress(text), new Date()).dashboard, panelOpened: false };
+  return createHash("sha1")
+    .update(JSON.stringify(read) + JSON.stringify([false, shownFile, null, true, ""]))
+    .digest("base64url");
+}
+
 test("a run from before the update shows in every workspace, and an open panel doesn't redraw", async (t) => {
   const f = await folder(t);
   await f.run(null, "start", "Old run");
   await f.run(null, "ticket", "add", "Ticket 01: Login", "--estimate", "30");
-  // How 1.16.3 versioned the folder's dashboard for its panel.
-  const text = await readFile(f.file, "utf8");
-  const read = { configured: true, dashboard: reduceProgress(parseProgress(text), new Date()).dashboard, panelOpened: false };
-  const shown = (await f.dashboard(A)).file;
-  const before = createHash("sha1")
-    .update(JSON.stringify(read) + JSON.stringify([false, shown, null, true, ""]))
-    .digest("base64url");
+  const before = versionAsOf1_16_3(await readFile(f.file, "utf8"), (await f.dashboard(A)).file);
 
-  for (const workspace of [A, B, FOLDER]) {
+  for (const workspace of [A, B, NOT_A_WORKSPACE_ID]) {
     assert.equal(await f.title(workspace), "Old run");
     assert.deepEqual(await f.panel(workspace, before), { unchanged: true, version: before }, `${workspace} keeps the version its panel has`);
   }
@@ -118,7 +113,7 @@ test("a workspace that carries on the old run takes it along", async (t) => {
   assert.equal((await f.run(A, "ticket", "update", "T01", "--status", "done")).code, 0);
   assert.equal(await f.ticket(A, "T01"), "done");
   assert.equal(await f.title(B), "no dashboard", "B no longer shows A's run");
-  assert.equal(await f.ticket(FOLDER, "T01"), "not_started", "the folder's own run is as it was");
+  assert.equal(await f.ticket(NOT_A_WORKSPACE_ID, "T01"), "not_started", "the folder's own run is as it was");
   const update = await f.run(B, "ticket", "update", "T01", "--status", "working");
   assert.equal(update.code, 0, "an agent in B that was on the run can still carry it on");
   assert.equal(await f.ticket(B, "T01"), "working");
@@ -155,7 +150,7 @@ test("a finished old run leaves the workspaces without lines once any workspace 
     run: "closed",
     panelOpened: false,
   });
-  assert.equal(await f.title(FOLDER), "Old run", "the folder's own dashboard still shows it");
+  assert.equal(await f.title(NOT_A_WORKSPACE_ID), "Old run", "the folder's own dashboard still shows it");
 });
 
 test("ids count per workspace, and a change in one leaves the other's alone", async (t) => {
@@ -176,7 +171,7 @@ test("a shell's update after a workspace carried the run on doesn't reach the wo
   await f.run(A, "ticket", "update", "T01", "--status", "working");
   assert.equal((await f.run(null, "ticket", "update", "T01", "--status", "done")).code, 0);
   assert.equal(await f.ticket(A, "T01"), "working");
-  assert.equal(await f.ticket(FOLDER, "T01"), "done");
+  assert.equal(await f.ticket(NOT_A_WORKSPACE_ID, "T01"), "done");
 });
 
 test("ten first commands at once in one workspace get ten ids", async (t) => {

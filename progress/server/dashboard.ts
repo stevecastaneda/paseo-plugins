@@ -10,7 +10,7 @@ import { historyFolder, inGitRepo, listFolders, setHistoryFolder } from "./store
 const versions = new WeakMap<Dashboard, { key: string; version: string }>();
 
 export async function handleMarkPanelOpened(input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext) {
-  await markPanelOpened(panelDashboardAt(input));
+  await markPanelOpened(panelDashboardAt(input).root);
   return {};
 }
 

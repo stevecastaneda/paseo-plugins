@@ -25,8 +25,6 @@ export interface CliOptions {
   // The Paseo agent running the command, recorded on each event it writes.
   agentId?: string;
   agentCwd?: string;
-  // The Paseo workspace whose dashboard the command reads and writes; null
-  // for the folder's own, outside Paseo.
   workspace: WorkspaceId | null;
 }
 
