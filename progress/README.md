@@ -188,7 +188,7 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ### 1.17.0
 
-- [New] **One dashboard per workspace.** Paseo can open several workspaces on one folder. They used to share one Progress dashboard, so a new run in one replaced the run in the other. Now each workspace has its own. A worktree with one workspace looks the same as before, and a run that was going when you updated stays on screen and carries on. Progress now needs Paseo 0.16 or later, the first version that tells an agent's shell which workspace it's in.
+- [New] **One dashboard per workspace.** Paseo can open several workspaces on one folder. They used to share one Progress dashboard, so a new run in one replaced the run in the other. Now each workspace has its own. A worktree with one workspace looks the same as before, and a run that was going when you updated stays on screen and carries on. An agent that a schedule starts gets a workspace of its own, so its progress now shows there, not on your other workspaces. With the schedule's **Archive on finish** on (the default), that workspace and its dashboard are archived when the run ends. Turn it off to keep them. Progress now needs Paseo 0.16 or later, the first version that tells an agent's shell which workspace it's in.
 
 ### 1.16.3
 
