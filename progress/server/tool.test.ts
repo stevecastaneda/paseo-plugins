@@ -11,7 +11,6 @@ import type { AgentToolContext, PluginServerContext, PluginSessionOpenRequest } 
 import type { z } from "zod";
 import { PROGRESS_TOOL_NAMES } from "../shared/tools.ts";
 import { readProgress } from "./progress-file.ts";
-import { outsideDirectory } from "./store.ts";
 import { ANSWER_NOTE, attachProgressTools, progressTools, toolsState } from "./tool.ts";
 
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
@@ -41,7 +40,7 @@ async function worktree(t: TestContext) {
       return tool.execute(parsed, context(cwd));
     },
     async dashboard() {
-      return (await readProgress(outsideDirectory(directory), new Date())).dashboard;
+      return (await readProgress({ root: directory, workspace: null }, new Date())).dashboard;
     },
   };
 }

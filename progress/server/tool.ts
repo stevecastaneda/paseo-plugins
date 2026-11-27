@@ -3,6 +3,7 @@ import { z } from "zod";
 import { DELIVERABLE_KINDS, ticketStatusSchema } from "../shared/events.ts";
 import type { ToolsState } from "../shared/rpc.ts";
 import { PROGRESS_TOOL_NAMES, type ProgressToolName } from "../shared/tools.ts";
+import { parseWorkspaceId } from "../shared/workspace.ts";
 import { commandSummary, runCli } from "./cli.ts";
 
 // defineAgentTool's typing for a tool named by its key in `tools`. Paseo
@@ -20,7 +21,7 @@ function agentTool<Input extends z.ZodType>(
 
 async function run(args: string[], { agent }: AgentToolContext): Promise<AgentToolResult> {
   const lines: string[] = [];
-  const code = await runCli(args, { cwd: agent.cwd, agentId: agent.id, out: (line) => lines.push(line) });
+  const code = await runCli(args, { cwd: agent.cwd, agentId: agent.id, workspace: parseWorkspaceId(agent.workspaceId), out: (line) => lines.push(line) });
   return { text: lines.join("\n"), isError: code !== 0 };
 }
 

@@ -7,7 +7,7 @@ import { realpathSync } from "node:fs";
 import { readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join, normalize, resolve } from "node:path";
-import { latestRun, parseProgress } from "../shared/dashboard.ts";
+import type { SavedRun } from "./progress-file.ts";
 import { hasGitEntry, inGitFolder, outside } from "./paths.ts";
 import { makeFoldersIn, runProgram, writeFileIn } from "./system.ts";
 
@@ -131,23 +131,17 @@ export function runFileName(startedAt: string, title: string): string {
 
 // After each change: when the repo saves runs, rewrite the current run's file
 // with every event from its start. Runs before the first start aren't saved.
-export async function saveRunCopy(root: string, text: string): Promise<void> {
+export async function saveRunCopy(root: string, run: SavedRun | null): Promise<void> {
+  if (!run) return;
   const folder = await historyFolder(root);
   if (!folder) return;
-  // The run the dashboard shows. A start line it can't read is no run.
-  const [start] = latestRun(parseProgress(text).events);
-  if (start?.event.type !== "run.start") return;
-  const lines = text
-    .split("\n")
-    .slice(start.line - 1)
-    .filter((line) => line.trim());
   // The saved-runs folder in the real worktree, made one step at a time. None
   // when any step is a link or a file: a cloned repo can commit a link that
   // leads out of it.
   const directory = await makeFoldersIn(await realpath(root), folder);
   if (!directory) return;
   // A rename replaces a link at the run's file instead of writing through it.
-  await writeFileIn(directory, runFileName(start.event.ts, start.event.title), `${lines.join("\n")}\n`, { atomic: true });
+  await writeFileIn(directory, runFileName(run.startedAt, run.title), `${run.lines.join("\n")}\n`, { atomic: true });
 }
 
 // The folders directly inside one folder of the worktree ("" is the top), for

@@ -10,12 +10,13 @@ import { QUESTION_MODE_RULES, type QuestionMode } from "../shared/question-modes
 import { appendProgress, InvalidEvent, readLatestRun, readProgress, type EventDraft } from "./progress-file.ts";
 import { outside, progressRoot } from "./paths.ts";
 import { installLauncher } from "./launcher.ts";
-import { findStore, saveRunCopy } from "./store.ts";
+import { saveRunCopy } from "./store.ts";
 import { readQuestionMode } from "./question-mode.ts";
 import { dashboardText } from "../shared/show.ts";
 import { formatMinutes } from "../shared/format.ts";
 import { imageMimeType } from "../shared/attachments.ts";
 import { homedir } from "node:os";
+import { parseWorkspaceId, type WorkspaceId } from "../shared/workspace.ts";
 
 export interface CliOptions {
   cwd: string;
@@ -24,6 +25,9 @@ export interface CliOptions {
   // The Paseo agent running the command, recorded on each event it writes.
   agentId?: string;
   agentCwd?: string;
+  // The Paseo workspace whose dashboard the command reads and writes; null
+  // for the folder's own, outside Paseo.
+  workspace: WorkspaceId | null;
 }
 
 class UsageError extends Error {}
@@ -575,11 +579,10 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
       return 0;
     }
     if (first === "show") {
-      const root = progressRoot(options.cwd, options.agentCwd);
-      const store = await findStore(root);
-      const { dashboard } = await readProgress(store.directory, now());
-      const added = addedByOthersText(addedByOthers(await readLatestRun(store.directory), dashboard, options.agentId), dashboard);
-      out(`Worktree: ${root}\n${modeLine(await readQuestionMode())}\n\n${dashboardText(dashboard, now().getTime())}${added}`);
+      const at = { root: progressRoot(options.cwd, options.agentCwd), workspace: options.workspace };
+      const { dashboard } = await readProgress(at, now());
+      const added = addedByOthersText(addedByOthers(await readLatestRun(at), dashboard, options.agentId), dashboard);
+      out(`Worktree: ${at.root}\n${modeLine(await readQuestionMode())}\n\n${dashboardText(dashboard, now().getTime())}${added}`);
       return 0;
     }
     const target = resolve(options.cwd, (argv[1] ?? DEFAULT_LAUNCHER).replace(/^~(?=$|\/)/, homedir()));
@@ -605,10 +608,9 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
       throw new UsageError((error as Error).message);
     }
     const root = progressRoot(options.cwd, options.agentCwd);
-    const store = await findStore(root);
     const mode = await readQuestionMode();
     const message = await appendProgress(
-      store.directory,
+      { root, workspace: options.workspace },
       now,
       (state) => {
         const finished = state.dashboard.run?.finished;
@@ -619,7 +621,7 @@ export async function runCli(argv: string[], options: CliOptions): Promise<numbe
         const added = command === commands.start ? "" : addedByOthersText(addedByOthers(state.events, state.dashboard, options.agentId), state.dashboard);
         return { event: { ...event, by: options.agentId }, result: `${summary}${added}` };
       },
-      (text) => saveRunCopy(root, text),
+      (run) => saveRunCopy(root, run),
     );
     out(message);
     return 0;
@@ -646,6 +648,7 @@ if (isMain()) {
     cwd: process.cwd(),
     agentId: process.env.PASEO_AGENT_ID || undefined,
     agentCwd: process.env.PASEO_AGENT_CWD || undefined,
+    workspace: parseWorkspaceId(process.env.PASEO_WORKSPACE_ID),
   }).then(
     (code) => {
       process.exitCode = code;
