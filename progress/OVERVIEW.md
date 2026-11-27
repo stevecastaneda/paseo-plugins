@@ -9,7 +9,7 @@ Agents get the Progress tools once you turn on **Settings → your host → Agen
 Nothing updates unless the agent records it, so agents need the plugin's skill. The panel has two setup buttons, and each one shows where it will write before you press it:
 
 - Install command writes `~/.local/bin/paseo-progress` on the daemon host. With Paseo tools on, the command is only a fallback.
-- Install skill links the plugin's `paseo-progress` skill into `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`. New agent sessions pick it up.
+- Install skill copies the plugin's `paseo-progress` skill into `~/.agents/skills`, `~/.claude/skills` and `~/.gemini/config/skills`, and keeps those copies up to date. New agent sessions pick it up.
 
 Both work from files inside the plugin and download nothing. Neither one replaces a file you made.
 

@@ -1,70 +1,119 @@
-import { lstat, readFile, readlink } from "node:fs/promises";
+import { lstat, readdir, readFile, readlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { paseoCommands, PLUGIN_ID } from "./launcher.ts";
-import { linkFolderIn, removeLinkIn, runCommandLine, runProgram } from "./system.ts";
+import { removeLinkIn, runCommandLine, runProgram, writeFileIn } from "./system.ts";
 
 export const SKILL_NAME = "paseo-progress";
 
 // The same three folders Paseo installs its own skills into: the shared
-// ~/.agents folder plus Claude Code's and Codex's own.
+// ~/.agents folder (Codex, Gemini CLI, Antigravity 1.5.16 and later), Claude
+// Code's, and Antigravity's own.
 export function defaultSkillPaths(home = homedir()): string[] {
-  return [".agents", ".claude", ".codex"].map((folder) => join(home, folder, "skills", SKILL_NAME));
+  return [[".agents"], [".claude"], [".gemini", "config"]].map((folder) => join(home, ...folder, "skills", SKILL_NAME));
+}
+
+// Earlier versions linked the skill here too. Codex reads ~/.agents/skills,
+// so this one only gave it a second copy.
+export function retiredSkillPaths(home = homedir()): string[] {
+  return [join(home, ".codex", "skills", SKILL_NAME)];
 }
 
 export function skillSource(pluginDirectory: string): string {
   return join(pluginDirectory, "skills", SKILL_NAME);
 }
 
-// The skill is a link into the copy of the plugin Paseo runs, so plugin
-// updates reach agents without reinstalling. "outdated" is a link this plugin
-// made to a copy Paseo no longer runs; "foreign" is anything else.
+export function readPluginSkill(pluginDirectory: string): Promise<string> {
+  return readFile(join(skillSource(pluginDirectory), "SKILL.md"), "utf8");
+}
+
+// Each install is a copied folder, not a link: Go programs such as
+// Antigravity skip Windows junctions, and a real symlink there needs admin
+// rights or Developer Mode.
+const MARKER = ".installed-by-paseo-progress";
+const MARKER_TEXT =
+  "Paseo's Progress plugin installed this copy of the skill and replaces it when the plugin updates.\n" +
+  "Delete this file to keep the folder as your own. Progress then leaves it alone.\n";
+
 export type SkillState = "missing" | "current" | "outdated" | "foreign";
 
-export async function skillState(path: string, pluginDirectory: string): Promise<SkillState> {
-  const stats = await lstat(path).catch(() => null);
-  if (!stats) return "missing";
-  if (!stats.isSymbolicLink()) return "foreign";
-  const target = resolve(dirname(path), await readlink(path));
-  if (target === skillSource(pluginDirectory)) return "current";
-  return basename(target) === SKILL_NAME && basename(dirname(target)) === "skills" ? "outdated" : "foreign";
+type Found =
+  // An empty folder too, as a crash right after making it leaves.
+  | { kind: "nothing" }
+  | { kind: "link" }
+  // `skill` is null when a crash left the marker without SKILL.md.
+  | { kind: "copy"; skill: string | null }
+  | { kind: "other" };
+
+async function inspect(path: string): Promise<Found> {
+  let stats;
+  try {
+    stats = await lstat(path);
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? { kind: "nothing" } : { kind: "other" };
+  }
+  if (stats.isSymbolicLink()) {
+    const target = resolve(dirname(path), await readlink(path));
+    return basename(target) === SKILL_NAME && basename(dirname(target)) === "skills" ? { kind: "link" } : { kind: "other" };
+  }
+  const entries = stats.isDirectory() ? await readdir(path).catch(() => null) : null;
+  if (!entries) return { kind: "other" };
+  if (entries.length === 0) return { kind: "nothing" };
+  if (!entries.includes(MARKER)) return { kind: "other" };
+  return { kind: "copy", skill: await readFile(join(path, "SKILL.md"), "utf8").catch(() => null) };
 }
 
-// Repoints each link this plugin made to an old copy at the copy Paseo runs
-// now. Paseo puts every update in a new folder, so this follows each update.
-// Returns whether it wrote.
-export async function relinkSkill(paths: string[], pluginDirectory: string): Promise<boolean> {
+function stateOf(found: Found, skill: string): SkillState {
+  switch (found.kind) {
+    case "nothing":
+      return "missing";
+    case "link":
+      return "outdated";
+    case "copy":
+      return found.skill === skill ? "current" : "outdated";
+    case "other":
+      return "foreign";
+  }
+}
+
+// The marker goes before SKILL.md, so a crash leaves a copy that reads
+// outdated and the next load finishes it.
+async function place(path: string, found: Exclude<Found, { kind: "other" }>, skill: string) {
+  const [folder, name] = [dirname(path), basename(path)];
+  if (found.kind === "link") await removeLinkIn(folder, name);
+  if (found.kind !== "copy") await writeFileIn(folder, join(name, MARKER), MARKER_TEXT);
+  await writeFileIn(folder, join(name, "SKILL.md"), skill, { atomic: true });
+}
+
+// "update" runs on load and never adds a copy where there is none; "install"
+// is the button, which also fills those paths.
+export async function syncSkill(paths: string[], skill: string, mode: "update" | "install"): Promise<boolean> {
+  const found = await Promise.all(paths.map(inspect));
+  if (mode === "install" && found.every((at) => at.kind === "other")) {
+    throw new Error(`${paths.join(", ")} already exist and were not installed by this plugin.`);
+  }
+  let wrote = false;
+  for (const [index, at] of found.entries()) {
+    if (at.kind === "other" || stateOf(at, skill) === "current") continue;
+    if (at.kind === "nothing" && mode === "update") continue;
+    await place(paths[index], at, skill);
+    wrote = true;
+  }
+  return wrote;
+}
+
+export async function retireSkill(paths: string[]): Promise<boolean> {
   let wrote = false;
   for (const path of paths) {
-    if ((await skillState(path, pluginDirectory)) !== "outdated") continue;
+    if ((await inspect(path)).kind !== "link") continue;
     await removeLinkIn(dirname(path), basename(path));
-    await link(path, pluginDirectory);
     wrote = true;
   }
   return wrote;
 }
 
-// Links the skill wherever it is missing or points at an old copy of the
-// plugin. Leaves alone anything else at those paths. Returns whether it wrote.
-export async function installSkill(paths: string[], pluginDirectory: string): Promise<boolean> {
-  const states = await Promise.all(paths.map((path) => skillState(path, pluginDirectory)));
-  if (states.every((state) => state === "foreign")) throw new Error(`${paths.join(", ")} already exist and were not linked by this plugin.`);
-  let wrote = await relinkSkill(paths, pluginDirectory);
-  for (const [index, path] of paths.entries()) {
-    if (states[index] !== "missing") continue;
-    await link(path, pluginDirectory);
-    wrote = true;
-  }
-  return wrote;
-}
-
-async function link(path: string, pluginDirectory: string) {
-  await linkFolderIn(dirname(path), basename(path), skillSource(pluginDirectory));
-}
-
-// "current" once every folder that can take the link has it.
-export async function skillStatus(paths: string[], pluginDirectory: string) {
-  const targets = await Promise.all(paths.map(async (path) => ({ path, state: await skillState(path, pluginDirectory) })));
+export async function skillStatus(paths: string[], skill: string) {
+  const targets = await Promise.all(paths.map(async (path) => ({ path, state: stateOf(await inspect(path), skill) })));
   const states = targets.map((target) => target.state);
   const state: SkillState = states.includes("outdated")
     ? "outdated"
@@ -101,20 +150,24 @@ function askPaseo(cli: string) {
 }
 
 // Runs once per load, when the server starts: an update reloads the bundle.
-// Only repoints links the user already asked for; new ones wait for Install
-// skill. A failure leaves the links as they were, and status says so.
+// New copies wait for Install skill. A failure leaves the copies as they
+// were, and status says so.
 let repair: Promise<unknown> | null = null;
 
 export function repairSkill(): Promise<unknown> {
   repair ??= findPluginDirectory()
-    .then((directory) => relinkSkill(defaultSkillPaths(), directory))
+    .then(readPluginSkill)
+    .then(async (skill) => {
+      await syncSkill(defaultSkillPaths(), skill, "update");
+      await retireSkill(retiredSkillPaths());
+    })
     .catch(() => {});
   return repair;
 }
 
 export async function handleSkillStatus() {
   await repairSkill();
-  return skillStatus(defaultSkillPaths(), await findPluginDirectory());
+  return skillStatus(defaultSkillPaths(), await readPluginSkill(await findPluginDirectory()));
 }
 
 // SKILL.md's frontmatter holds one-line fields; only the description is shown.
@@ -129,15 +182,13 @@ export function skillDocument(text: string): { markdown: string; description: st
 }
 
 export async function handleReadSkill() {
-  return skillDocument(await readFile(join(skillSource(await findPluginDirectory()), "SKILL.md"), "utf8"));
+  return skillDocument(await readPluginSkill(await findPluginDirectory()));
 }
 
-// Runs only when the user presses Install skill. Links that only need to
-// follow an update are repointed on their own (repairSkill), which must finish
-// first: both would unlink the same outdated link.
+// repairSkill must finish first: both would rewrite the same outdated copy.
 export async function handleInstallSkill() {
   await repairSkill();
-  const pluginDirectory = await findPluginDirectory();
-  await installSkill(defaultSkillPaths(), pluginDirectory);
-  return skillStatus(defaultSkillPaths(), pluginDirectory);
+  const skill = await readPluginSkill(await findPluginDirectory());
+  await syncSkill(defaultSkillPaths(), skill, "install");
+  return skillStatus(defaultSkillPaths(), skill);
 }

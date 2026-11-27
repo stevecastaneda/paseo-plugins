@@ -153,7 +153,7 @@ export interface ProgressMessages {
   skillName: string;
   viewSkill: string;
   skillNotInstalled: string;
-  skillLinkOutdated: string;
+  skillOutOfDate: string;
   installing: string;
   loadingSettings: string;
   tryAgain: string;

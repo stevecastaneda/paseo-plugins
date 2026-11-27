@@ -108,7 +108,7 @@ function SkillSettings({ colors, hostId }: { colors: Colors; hostId: string }) {
         <SettingsAction label={m.skillName} hint={document.data?.description || undefined} actionLabel={m.viewSkill} onPress={() => setOpen(true)} />
         {skill.notice?.action ? (
           <SettingsAction
-            label={skill.state === "outdated" ? m.skillLinkOutdated : m.skillNotInstalled}
+            label={skill.state === "outdated" ? m.skillOutOfDate : m.skillNotInstalled}
             hint={skill.notice.text}
             actionLabel={skill.pending ? m.installing : skill.notice.action}
             disabled={skill.pending}
