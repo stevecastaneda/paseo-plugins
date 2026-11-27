@@ -1,12 +1,14 @@
 // Checks that paseo-progress and Install skill find Paseo when its command is
-// a .cmd file, the way Paseo Desktop ships it on Windows (#84), and that
-// PowerShell and cmd can run paseo-progress. Mac tests can't see this, so CI
-// runs it on Windows; elsewhere it runs only the checks that apply.
+// a .cmd file, the way Paseo Desktop ships it on Windows (#84), that
+// PowerShell and cmd can run paseo-progress, and that the skill installs as
+// plain folders a Go program like Antigravity loads (#151). Mac tests can't
+// see this, so CI runs it on Windows; elsewhere it runs only the checks that
+// apply.
 // Usage: node scripts/windows-check.mjs. Exits 1 if any check fails.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const windows = process.platform === "win32";
@@ -21,6 +23,7 @@ const ECHO = "REPORTED-COPY";
 const reported = join(work, "reported plugin");
 mkdirSync(join(reported, "server"), { recursive: true });
 mkdirSync(join(reported, "skills", "paseo-progress"), { recursive: true });
+writeFileSync(join(reported, "skills", "paseo-progress", "SKILL.md"), "---\nname: paseo-progress\ndescription: Reported copy.\n---\n");
 writeFileSync(join(reported, "server", "cli.ts"), `console.log("${ECHO} " + JSON.stringify(process.argv.slice(2)));\n`);
 
 // A stand-in for Paseo's command. It answers `plugin ls progress --json` and
@@ -136,28 +139,74 @@ if (windows) {
   );
 }
 
-// Linking on its own, apart from finding Paseo, so each failure shows alone.
 const paths = `m.defaultSkillPaths(${JSON.stringify(home)})`;
-const linked = serverCall(
-  env(),
-  "skill.ts",
-  `async (m) => { await m.installSkill(${paths}, ${JSON.stringify(reported)}); return (await m.skillStatus(${paths}, ${JSON.stringify(reported)})).state; }`,
-);
-check("Install skill links all three folders", linked.out === `"current"`, linked.detail);
-if (windows) {
-  // A junction needs no admin rights or Developer Mode; a directory symlink does.
-  const link = join(home, ".claude", "skills", "paseo-progress");
-  const type = run("powershell", ["-NoProfile", "-Command", `(Get-Item -LiteralPath '${link}').LinkType`]);
-  check("the skill link is a junction", type.out === "Junction", type.detail);
-  const moved = join(work, "moved plugin");
-  mkdirSync(join(moved, "skills", "paseo-progress"), { recursive: true });
-  const relinked = serverCall(
+const skillFolders = [join(home, ".agents", "skills"), join(home, ".claude", "skills"), join(home, ".gemini", "config", "skills")];
+function syncSkill(plugin, mode) {
+  return serverCall(
     env(),
     "skill.ts",
-    `async (m) => { const before = (await m.skillStatus(${paths}, ${JSON.stringify(moved)})).state; await m.installSkill(${paths}, ${JSON.stringify(moved)}); return [before, (await m.skillStatus(${paths}, ${JSON.stringify(moved)})).state]; }`,
+    `async (m) => { const skill = await m.readPluginSkill(${JSON.stringify(plugin)}); const before = (await m.skillStatus(${paths}, skill)).state; await m.syncSkill(${paths}, skill, "${mode}"); await m.retireSkill(m.retiredSkillPaths(${JSON.stringify(home)})); return [before, (await m.skillStatus(${paths}, skill)).state]; }`,
   );
-  check("a link to an old copy of the plugin is replaced", relinked.out === `["outdated","current"]`, relinked.detail);
 }
+function copiesArePlainFolders(when) {
+  for (const folder of skillFolders) {
+    const skill = join(folder, "paseo-progress");
+    const plain = existsSync(join(skill, "SKILL.md")) && lstatSync(skill).isDirectory();
+    const reparse = windows
+      ? run("powershell", ["-NoProfile", "-Command", `(Get-Item -LiteralPath '${skill}').Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)`])
+      : { out: "False", detail: "" };
+    check(`${when}, ${folder} holds a plain folder with SKILL.md`, plain && reparse.out === "False", reparse.detail || skill);
+  }
+}
+const go = run("go", ["version"]);
+function goFinds(when) {
+  if (go.code !== 0) {
+    console.log(`SKIP  ${when}, a Go program like Antigravity finds the skill (no Go here)`);
+    return;
+  }
+  const antigravityFolders = [join(home, ".gemini", "config", "skills"), join(home, ".agents", "skills")];
+  const scan = run("go", ["run", ".", ...antigravityFolders], { cwd: join(pluginDir, "scripts", "skill-scan") });
+  for (const folder of antigravityFolders) {
+    check(
+      `${when}, a Go program like Antigravity finds the skill in ${folder}`,
+      scan.out.split(/\r?\n/).some((line) => line.startsWith(`found ${join(folder, "paseo-progress")} `)),
+      scan.detail,
+    );
+  }
+}
+
+const installed = syncSkill(reported, "install");
+check("Install skill copies the skill into all three folders", installed.out === `["missing","current"]`, installed.detail);
+copiesArePlainFolders("after Install skill");
+goFinds("after Install skill");
+
+const updated = join(work, "updated plugin");
+mkdirSync(join(updated, "skills", "paseo-progress"), { recursive: true });
+writeFileSync(join(updated, "skills", "paseo-progress", "SKILL.md"), "---\nname: paseo-progress\ndescription: Updated copy.\n---\n");
+const followed = syncSkill(updated, "update");
+check(
+  "a copy follows a plugin update that changes SKILL.md",
+  followed.out === `["outdated","current"]` && readFileSync(join(skillFolders[1], "paseo-progress", "SKILL.md"), "utf8").includes("Updated copy."),
+  followed.detail,
+);
+
+const oldSkill = join(reported, "skills", "paseo-progress");
+const codex = join(home, ".codex", "skills", "paseo-progress");
+mkdirSync(dirname(codex), { recursive: true });
+for (const skill of [...skillFolders.map((folder) => join(folder, "paseo-progress")), codex]) {
+  rmSync(skill, { recursive: true, force: true });
+  symlinkSync(oldSkill, skill, "junction");
+}
+const migrated = syncSkill(updated, "update");
+check("an old junction becomes a copy on load", migrated.out === `["outdated","current"]`, migrated.detail);
+check(
+  "nothing is written through an old junction",
+  readFileSync(join(oldSkill, "SKILL.md"), "utf8").includes("Reported copy.") && !existsSync(join(oldSkill, ".installed-by-paseo-progress")),
+  oldSkill,
+);
+check("the old ~/.codex/skills junction is removed", lstatSync(codex, { throwIfNoEntry: false }) === undefined, codex);
+copiesArePlainFolders("after an old junction migrates");
+goFinds("after an old junction migrates");
 
 rmSync(work, { recursive: true, force: true });
 console.log(`\n${results.filter(Boolean).length} of ${results.length} checks pass (${process.platform}, Node ${process.version})`);

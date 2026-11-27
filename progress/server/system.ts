@@ -13,7 +13,7 @@
 // may be a link, which a cloned repo could commit to lead the change elsewhere.
 import { exec, execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { appendFile, chmod, type FileHandle, lstat, mkdir, open, rename, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import { appendFile, chmod, type FileHandle, lstat, mkdir, open, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -103,14 +103,6 @@ export async function makeFoldersIn(folder: string, name: string): Promise<strin
 
 export async function removeIn(folder: string, name: string, { recursive = false } = {}): Promise<void> {
   await rm(await placeIn(folder, name), { recursive, force: true });
-}
-
-// A junction on Windows, where a folder symlink needs admin rights or
-// Developer Mode. Other systems ignore the type and make a symlink.
-export async function linkFolderIn(folder: string, name: string, target: string): Promise<void> {
-  const path = await placeIn(folder, name);
-  await mkdir(dirname(path), { recursive: true });
-  await symlink(target, path, "junction");
 }
 
 export async function removeLinkIn(folder: string, name: string): Promise<void> {

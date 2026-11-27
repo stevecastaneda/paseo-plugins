@@ -116,14 +116,16 @@ While it's on, the banner stops asking you to install the command and only offer
 
 ## Agent skill
 
-The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions, and finish. It has agents use the Progress tools when they have them and the command otherwise, stays short, and leaves the details to `paseo-progress --help`. Press **Install skill** in the Progress panel. It links `paseo-progress` into `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills` (the folders Paseo installs its own skills into), pointing at the copy of the plugin Paseo runs, so plugin updates reach agents. On Windows the links are junctions, which don't need admin rights or Developer Mode. Paseo puts each plugin update in a new folder, so when Progress starts it repoints the links it made to that folder. If it can't, the button changes to **Update skill**. It never replaces a skill it didn't link; that folder is skipped. To read what agents get, open **View skill** under Agent Skills in Progress settings.
+The plugin ships an agent skill, `paseo-progress`, that tells agents when to run each command during a multi-ticket job: set up the run, move tickets through their stages, ask questions, and finish. It has agents use the Progress tools when they have them and the command otherwise, stays short, and leaves the details to `paseo-progress --help`. Press **Install skill** in the Progress panel. It copies `paseo-progress` into `~/.agents/skills` (Codex, Gemini CLI and newer Antigravity), `~/.claude/skills` (Claude Code) and `~/.gemini/config/skills` (Antigravity), the folders Paseo installs its own skills into. Each copy is a plain folder, so Antigravity loads it on Windows too, with no admin rights or Developer Mode. A copy Progress made holds a `.installed-by-paseo-progress` file. When a plugin update changes the skill, Progress rewrites those copies as it starts. If it can't, the button changes to **Update skill**. Delete the `.installed-by-paseo-progress` file to keep a copy as your own, and Progress leaves it alone. It never replaces a skill folder it didn't make; that folder is skipped. To read what agents get, open **View skill** under Agent Skills in Progress settings.
 
 From a terminal instead:
 
 ```sh
 skill="$(paseo plugin ls progress --json | node -pe 'JSON.parse(require("fs").readFileSync(0))[0].path')/skills/paseo-progress"
-for dir in ~/.agents/skills ~/.claude/skills ~/.codex/skills; do mkdir -p "$dir" && ln -s "$skill" "$dir/paseo-progress"; done
+for dir in ~/.agents/skills ~/.claude/skills ~/.gemini/config/skills; do mkdir -p "$dir" && cp -R "$skill" "$dir/"; done
 ```
+
+Copies made this way have no `.installed-by-paseo-progress` file, so Progress counts them as yours and doesn't update them. Run the commands again after an update that changes the skill.
 
 ## Recording progress
 
@@ -185,6 +187,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.17.1
+
+- [Fixed] **The skill loads in Antigravity, on Windows too.** **Install skill** used to put links in your skills folders, and on Windows those links are junctions, which Antigravity skips. Progress now copies the skill as a plain folder into `~/.agents/skills`, `~/.claude/skills` and `~/.gemini/config/skills`. Links from earlier versions turn into copies on their own when Progress starts. The link in `~/.codex/skills` is removed, because Codex reads `~/.agents/skills`. Press **Install skill** once to add Antigravity's folder. If you copied the skill into `~/.gemini/config/skills` by hand, delete that copy first, or Progress leaves it alone.
 
 ### 1.17.0
 

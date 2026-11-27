@@ -2,7 +2,7 @@
 // dashboard the panel would get.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
+import { appendFile, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import { basename, delimiter, dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -16,7 +16,7 @@ import { panelDashboardAt } from "./paths.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, livenessOf, statusLineState, type Ticket } from "../shared/dashboard.ts";
 import { defaultLauncherPath, installLauncher, launcherStatus, paseoCommands } from "./launcher.ts";
-import { defaultSkillPaths, installSkill, relinkSkill, skillDocument, skillSource, skillStatus } from "./skill.ts";
+import { defaultSkillPaths, retiredSkillPaths, retireSkill, skillDocument, skillSource, skillStatus, syncSkill } from "./skill.ts";
 import {
   canOpenFiles,
   hostOpener,
@@ -2087,68 +2087,108 @@ test("plain-text deliverables open in the default browser; pictures, video, audi
   assert.deepEqual(openCommand("/w/spec.md", "linux", null), ["xdg-open", ["/w/spec.md"]]);
 });
 
-test("the skill is linked for every agent only on request, follows the copy Paseo runs, and never replaces another file", async (t) => {
+test("Install skill copies the skill for every agent, updates only its own copies, and never replaces another file", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "progress-skill-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const paths = defaultSkillPaths(home);
   assert.deepEqual(
     paths.map((path) => path.slice(home.length)),
-    ["/.agents/skills/paseo-progress", "/.claude/skills/paseo-progress", "/.codex/skills/paseo-progress"],
+    ["/.agents/skills/paseo-progress", "/.claude/skills/paseo-progress", "/.gemini/config/skills/paseo-progress"],
   );
-  const plugin = join(home, "plugin");
-  assert.equal((await skillStatus(paths, plugin)).state, "missing");
+  assert.equal((await skillStatus(paths, "v1")).state, "missing");
+  await mkdir(paths[1], { recursive: true });
   await mkdir(paths[2], { recursive: true });
-  assert.equal(await installSkill(paths, plugin), true);
-  assert.equal(await readlink(paths[0]), skillSource(plugin));
-  assert.equal(await readlink(paths[1]), skillSource(plugin));
-  assert.deepEqual(
-    await skillStatus(paths, plugin),
-    {
-      state: "current",
-      targets: [
-        { path: paths[0], state: "current" },
-        { path: paths[1], state: "current" },
-        { path: paths[2], state: "foreign" },
-      ],
-    },
-    "someone else's skill folder is left alone",
-  );
-  assert.equal(await installSkill(paths, plugin), false, "current links are left as is");
-  const moved = join(home, "other-checkout");
-  assert.equal((await skillStatus(paths, moved)).state, "outdated", "Paseo now runs another copy");
-  assert.equal(await installSkill(paths, moved), true);
-  assert.equal(await readlink(paths[1]), skillSource(moved));
-  await assert.rejects(installSkill([paths[2]], plugin), /were not linked by this plugin/);
+  await writeFile(join(paths[2], "SKILL.md"), "mine");
+  assert.equal(await syncSkill(paths, "v1", "install"), true);
+  for (const path of paths.slice(0, 2)) {
+    assert.equal((await lstat(path)).isDirectory(), true, `${path} is a plain folder, not a link`);
+    assert.equal(await readFile(join(path, "SKILL.md"), "utf8"), "v1", "a missing path and an empty folder both get the copy");
+  }
+  assert.equal(await readFile(join(paths[2], "SKILL.md"), "utf8"), "mine", "a folder without the marker is someone else's");
+  assert.deepEqual(await skillStatus(paths, "v1"), {
+    state: "current",
+    targets: [
+      { path: paths[0], state: "current" },
+      { path: paths[1], state: "current" },
+      { path: paths[2], state: "foreign" },
+    ],
+  });
+  assert.equal(await syncSkill(paths, "v1", "install"), false, "current copies are left as is");
+  assert.equal(await syncSkill(paths, "v1", "update"), false, "a plugin update that keeps SKILL.md writes nothing");
+  assert.equal((await skillStatus(paths, "v2")).state, "outdated", "the plugin's SKILL.md changed");
+  assert.equal(await syncSkill(paths, "v2", "update"), true);
+  assert.equal(await readFile(join(paths[0], "SKILL.md"), "utf8"), "v2");
+  assert.equal(await readFile(join(paths[2], "SKILL.md"), "utf8"), "mine");
+  await assert.rejects(syncSkill([paths[2]], "v2", "install"), /were not installed by this plugin/);
+  const elsewhere = join(home, "other", "skills", "paseo-progress");
+  await mkdir(dirname(elsewhere), { recursive: true });
+  await symlink(join(home, "some-folder"), elsewhere, "junction");
+  assert.equal((await skillStatus([elsewhere], "v2")).state, "foreign", "a link this plugin didn't make");
 });
 
-test("after an update, links the user made follow the new copy without touching anything else", async (t) => {
+test("on load, links from earlier versions become copies, a missing copy waits for Install skill, and the old Codex link goes", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "progress-skill-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const [linked, other, missing] = defaultSkillPaths(home);
-  const paths = [linked, other, missing];
-  await installSkill([linked], join(home, "old-copy"));
-  await mkdir(other, { recursive: true });
-  const updated = join(home, "new-copy");
-  assert.equal((await skillStatus(paths, updated)).state, "outdated");
-  assert.equal(await relinkSkill(paths, updated), true);
-  assert.equal(await readlink(linked), skillSource(updated));
+  const paths = defaultSkillPaths(home);
+  const [agents, claude] = paths;
+  const [codex] = retiredSkillPaths(home);
+  const running = join(home, "new-copy");
+  const old = join(home, "old-copy");
+  for (const [plugin, text] of [
+    [running, "v2"],
+    [old, "v1"],
+  ]) {
+    await mkdir(skillSource(plugin), { recursive: true });
+    await writeFile(join(skillSource(plugin), "SKILL.md"), text);
+  }
+  for (const [path, plugin] of [
+    [agents, running],
+    [claude, old],
+    [codex, old],
+  ]) {
+    await mkdir(dirname(path), { recursive: true });
+    await symlink(skillSource(plugin), path, "junction");
+  }
   assert.deepEqual(
-    (await skillStatus(paths, updated)).targets,
-    [
-      { path: linked, state: "current" },
-      { path: other, state: "foreign" },
-      { path: missing, state: "missing" },
-    ],
-    "someone else's folder stays, and no new link is made without Install skill",
+    (await skillStatus(paths, "v2")).targets.map((target) => target.state),
+    ["outdated", "outdated", "missing"],
+    "every link from before copies is outdated, even one to the copy Paseo runs",
   );
-  assert.equal(await relinkSkill(paths, updated), false, "a second run finds nothing to do");
-  assert.equal(await readlink(linked), skillSource(updated));
+  assert.equal(await syncSkill(paths, "v2", "update"), true);
+  for (const path of [agents, claude]) {
+    assert.equal((await lstat(path)).isSymbolicLink(), false, `${path} is a copy now`);
+    assert.equal(await readFile(join(path, "SKILL.md"), "utf8"), "v2");
+  }
+  assert.equal(await readFile(join(skillSource(old), "SKILL.md"), "utf8"), "v1", "nothing is written through an old link");
+  assert.deepEqual(await readdir(skillSource(running)), ["SKILL.md"], "the plugin's own folder is untouched");
+  assert.deepEqual(
+    (await skillStatus(paths, "v2")).targets.map((target) => target.state),
+    ["current", "current", "missing"],
+    "no new copy is made without Install skill",
+  );
+  assert.equal(await syncSkill(paths, "v2", "update"), false, "a second run finds nothing to do");
+  await rm(join(claude, "SKILL.md"));
+  assert.equal((await skillStatus(paths, "v2")).state, "outdated", "a copy a crash left without SKILL.md");
+  assert.equal(await syncSkill(paths, "v2", "update"), true);
+  assert.equal(await readFile(join(claude, "SKILL.md"), "utf8"), "v2");
+
+  assert.equal(await retireSkill([codex]), true);
+  await assert.rejects(lstat(codex), { code: "ENOENT" });
+  await mkdir(codex);
+  await writeFile(join(codex, "SKILL.md"), "mine");
+  assert.equal(await retireSkill([codex]), false);
+  assert.equal(await readFile(join(codex, "SKILL.md"), "utf8"), "mine", "a real folder in ~/.codex/skills is left alone");
 });
 
 test("Settings shows the skill as agents read it, without its frontmatter", async () => {
   const shipped = skillDocument(await readFile(join(skillSource(fileURLToPath(new URL("..", import.meta.url))), "SKILL.md"), "utf8"));
   assert.match(shipped.description, /^Keep the Paseo Progress dashboard live/);
   assert.match(shipped.markdown, /^# Paseo progress\n/);
+  assert.deepEqual(
+    await readdir(skillSource(fileURLToPath(new URL("..", import.meta.url)))),
+    ["SKILL.md"],
+    "installs copy SKILL.md alone, so a second file needs skill.ts to copy it too",
+  );
   assert.deepEqual(skillDocument('---\r\nname: x\r\ndescription: "Quoted: yes"\r\n---\r\n\nBody'), { markdown: "Body", description: "Quoted: yes" });
   assert.deepEqual(skillDocument("# No frontmatter"), { markdown: "# No frontmatter", description: "" });
 });
