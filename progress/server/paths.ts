@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { parseWorkspaceId, type WorkspaceId } from "../shared/workspace.ts";
 
 // Whether a path from relative(root, target) leaves the root. "..notes" is a
 // name inside it, not a step out.
@@ -43,4 +44,17 @@ export function progressRoot(cwd: string, agentCwd: string | undefined): string 
   const folder = dirname(root);
   const subagentCheckout = basename(folder) === "worktrees" && basename(dirname(folder)) === ".claude";
   return agentCwd && subagentCheckout ? findRoot(agentCwd) : root;
+}
+
+// Which dashboard. `root` is the worktree: its store, the base of stored paths,
+// its saved run history. `workspace` picks which Paseo workspace's view of
+// that store is read and written; null is the folder's own.
+export interface DashboardAt {
+  root: string;
+  workspace: WorkspaceId | null;
+}
+
+// The dashboard the panel's RPC input names.
+export function panelDashboardAt(input: { workspaceId: string; workspaceDirectory: string }): DashboardAt {
+  return { root: findRoot(input.workspaceDirectory), workspace: parseWorkspaceId(input.workspaceId) };
 }
