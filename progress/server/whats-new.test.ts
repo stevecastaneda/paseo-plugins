@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { outsideDirectory } from "./store.ts";
+import { outsideDirectory } from "./progress-file.ts";
 import { changelog, headline, markWhatsNewSeen, whatsNew, whatsNewPath } from "./whats-new.ts";
 
 const README = `# Plugin

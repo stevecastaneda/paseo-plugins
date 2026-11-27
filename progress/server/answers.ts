@@ -11,9 +11,10 @@ import { z } from "zod";
 import { type Answer, answerMessage, answerSchema, type AnswerState, ANSWER_STATES, type GivenAnswer, sameAnswer, type SendResult } from "../shared/answers.ts";
 import type { Dashboard, Question } from "../shared/dashboard.ts";
 import type { answerSettings } from "../shared/settings.ts";
-import { findRoot } from "./paths.ts";
+import { parseWorkspaceId } from "../shared/workspace.ts";
+import { type DashboardAt, panelDashboardAt } from "./paths.ts";
 import { readProgress } from "./progress-file.ts";
-import { findStore, stateRoot } from "./store.ts";
+import { stateRoot } from "./store.ts";
 import { writeFileIn } from "./system.ts";
 
 type Paseo = PluginHandlerContext["paseo"];
@@ -64,14 +65,14 @@ export class AnswerQueue {
   // `now` skips the wait for the turn to end.
   send(target: AnswerTarget, answer: Answer, now = false): Promise<SendResult> {
     return this.run(async () => {
-      const root = findRoot(target.workspaceDirectory);
-      const question = await openQuestion(root, target);
+      const at = panelDashboardAt(target);
+      const question = await openQuestion(at, target);
       if (!question) return "closed";
       if (!question.agentId || !answerMessage(question, answer)) return "gone";
-      const before = this.find(root, target);
+      const before = this.find(at, target);
       if (before?.state === "sent" && sameAnswer(before.answer, answer)) return "sent";
       const entry: Entry = {
-        root,
+        root: at.root,
         workspaceId: target.workspaceId,
         questionId: target.questionId,
         askedAt: target.askedAt,
@@ -88,7 +89,7 @@ export class AnswerQueue {
 
   cancel(target: AnswerTarget): Promise<void> {
     return this.run(async () => {
-      const entry = this.find(findRoot(target.workspaceDirectory), target);
+      const entry = this.find(panelDashboardAt(target), target);
       if (!entry || entry.state === "sent") return;
       this.drop(entry);
       await this.save();
@@ -121,8 +122,8 @@ export class AnswerQueue {
     });
   }
 
-  given(root: string, question: Question): GivenAnswer | undefined {
-    const entry = this.find(root, { questionId: question.id, askedAt: question.askedAt });
+  given(at: DashboardAt, question: Question): GivenAnswer | undefined {
+    const entry = this.find(at, { questionId: question.id, askedAt: question.askedAt });
     return entry && { answer: entry.answer, state: entry.state };
   }
 
@@ -132,8 +133,10 @@ export class AnswerQueue {
     return result;
   }
 
-  private find(root: string, { questionId, askedAt }: Pick<AnswerTarget, "questionId" | "askedAt">): Entry | undefined {
-    return this.entries.find((entry) => entry.root === root && entry.questionId === questionId && entry.askedAt === askedAt);
+  private find(at: DashboardAt, { questionId, askedAt }: Pick<AnswerTarget, "questionId" | "askedAt">): Entry | undefined {
+    return this.entries.find(
+      (entry) => entry.root === at.root && parseWorkspaceId(entry.workspaceId) === at.workspace && entry.questionId === questionId && entry.askedAt === askedAt,
+    );
   }
 
   private waitingFor(agentId: string): Entry[] {
@@ -150,7 +153,7 @@ export class AnswerQueue {
     const going: Entry[] = [];
     for (const entry of entries) {
       // Answered in the chat, withdrawn, or left behind by a new run meanwhile.
-      const question = await openQuestion(entry.root, entry);
+      const question = await openQuestion(entryAt(entry), entry);
       const message = question?.agentId === entry.agentId && question ? answerMessage(question, entry.answer) : null;
       if (message) {
         messages.push(message);
@@ -194,7 +197,7 @@ export class AnswerQueue {
   }
 
   private async save(): Promise<void> {
-    const open = await Promise.all(this.entries.map((entry) => openQuestion(entry.root, entry).catch(() => undefined)));
+    const open = await Promise.all(this.entries.map((entry) => openQuestion(entryAt(entry), entry).catch(() => undefined)));
     // An answer is done with once the agent has recorded it or a new run left its question behind.
     this.entries = this.entries.filter((_, index) => open[index]);
     // Only for this user to read. The answer still goes out when it can't be saved.
@@ -213,14 +216,18 @@ function nextStep({ status, pendingPermissions }: Pick<AgentHandle, "status" | "
   return trigger === "turn-canceled" || status === "closed" ? "held" : "send";
 }
 
-async function openQuestion(root: string, { questionId, askedAt }: Pick<AnswerTarget, "questionId" | "askedAt">): Promise<Question | undefined> {
-  const { dashboard } = await readProgress(findStore(root).directory);
+function entryAt(entry: Pick<Entry, "root" | "workspaceId">): DashboardAt {
+  return { root: entry.root, workspace: parseWorkspaceId(entry.workspaceId) };
+}
+
+async function openQuestion(at: DashboardAt, { questionId, askedAt }: Pick<AnswerTarget, "questionId" | "askedAt">): Promise<Question | undefined> {
+  const { dashboard } = await readProgress(at);
   return dashboard.questions.open.find((question) => question.id === questionId && question.askedAt === askedAt);
 }
 
 // The dashboard with the user's answer on each open question that has one.
-export function withAnswers(dashboard: Dashboard, root: string, queue?: AnswerQueue): { dashboard: Dashboard; key: string } {
-  const given = dashboard.questions.open.map((question) => queue?.given(root, question));
+export function withAnswers(dashboard: Dashboard, at: DashboardAt, queue?: AnswerQueue): { dashboard: Dashboard; key: string } {
+  const given = dashboard.questions.open.map((question) => queue?.given(at, question));
   if (!given.some(Boolean)) return { dashboard, key: "" };
   const open = dashboard.questions.open.map((question, index) => (given[index] ? { ...question, given: given[index] } : question));
   return { dashboard: { ...dashboard, questions: { ...dashboard.questions, open } }, key: JSON.stringify(given) };

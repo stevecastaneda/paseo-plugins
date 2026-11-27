@@ -221,6 +221,13 @@
             "importNames": ["createRequire", "default"],
             "message": "require() loads modules this lint can't see."
           }
+        ],
+        "patterns": [
+          {
+            "group": ["**/progress-file", "**/progress-file.ts"],
+            "importNames": ["findStore", "outsideDirectory"],
+            "message": "Only Progress's server/progress-file.ts finds a worktree's store, so every read and write gets the Paseo workspace's view of it. Use readProgress, readLatestRun, appendProgress or markPanelOpened."
+          }
         ]
       }
     ],

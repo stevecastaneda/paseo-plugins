@@ -1,18 +1,16 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
 import { hasTicketsAndAllSettled, type Dashboard } from "../shared/dashboard.ts";
-import { PROGRESS_FILE_NAME } from "../shared/events.ts";
 import type { AttentionResult, DashboardResult, RunState } from "../shared/rpc.ts";
 import { type AnswerQueue, withAnswers } from "./answers.ts";
 import { markPanelOpened, readProgress } from "./progress-file.ts";
-import { findRoot } from "./paths.ts";
-import { findStore, historyFolder, inGitRepo, listFolders, setHistoryFolder } from "./store.ts";
+import { findRoot, panelDashboardAt } from "./paths.ts";
+import { historyFolder, inGitRepo, listFolders, setHistoryFolder } from "./store.ts";
 
 const versions = new WeakMap<Dashboard, { key: string; version: string }>();
 
 export async function handleMarkPanelOpened(input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext) {
-  await markPanelOpened((await findStore(findRoot(input.workspaceDirectory))).directory);
+  await markPanelOpened(panelDashboardAt(input).root);
   return {};
 }
 
@@ -24,13 +22,11 @@ export async function handleGetDashboard(
   answers?: AnswerQueue,
 ): Promise<DashboardResult | { unchanged: true; version: string }> {
   answers?.capture(context.paseo);
-  const root = findRoot(input.workspaceDirectory);
-  const store = await findStore(root);
-  const result = await readProgress(store.directory);
-  const file = join(store.shown, PROGRESS_FILE_NAME);
-  const savedTo = await historyFolder(root);
-  const inRepo = await inGitRepo(root);
-  const answered = withAnswers(result.dashboard, root, answers);
+  const at = panelDashboardAt(input);
+  const { file, ...result } = await readProgress(at);
+  const savedTo = await historyFolder(at.root);
+  const inRepo = await inGitRepo(at.root);
+  const answered = withAnswers(result.dashboard, at, answers);
   const key = JSON.stringify([result.panelOpened, file, savedTo, inRepo, answered.key]);
   let cached = versions.get(result.dashboard);
   if (!cached || cached.key !== key) {
@@ -43,12 +39,12 @@ export async function handleGetDashboard(
     versions.set(result.dashboard, cached);
   }
   const { version } = cached;
-  return input.since === version ? { unchanged: true, version } : { ...result, dashboard: answered.dashboard, file, savedTo, inRepo, root, version };
+  return input.since === version ? { unchanged: true, version } : { ...result, dashboard: answered.dashboard, file, savedTo, inRepo, root: at.root, version };
 }
 
 // Just what a message-box pill needs, so polling every workspace stays small.
 export async function handleGetAttention(input: { workspaceId: string; workspaceDirectory: string }, _context: PluginHandlerContext): Promise<AttentionResult> {
-  const { configured, dashboard, panelOpened } = await readProgress((await findStore(findRoot(input.workspaceDirectory))).directory);
+  const { configured, dashboard, panelOpened } = await readProgress(panelDashboardAt(input));
   return {
     configured,
     questions: dashboard.questions.open.length,

@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { answerMessage, answerSchema } from "../shared/answers.ts";
+import { parseWorkspaceId } from "../shared/workspace.ts";
 import { AnswerQueue, whenWorkingFrom, withAnswers } from "./answers.ts";
 import { runCli } from "./cli.ts";
 import { handleGetDashboard } from "./dashboard.ts";
-import { findRoot } from "./paths.ts";
-import { readProgress } from "./progress-file.ts";
-import { git, outsideDirectory } from "./store.ts";
+import { panelDashboardAt } from "./paths.ts";
+import { outsideDirectory, readProgress } from "./progress-file.ts";
+import { git } from "./store.ts";
 
 type Agent = { status: string; workspaceId: string; archivedAt: string | null; pendingPermissions: unknown[]; gone?: boolean; fails?: boolean };
 
@@ -48,20 +49,18 @@ async function setup(t: TestContext, mode: "queue" | "now" = "queue") {
     queue.capture(paseo);
     return queue;
   };
-  const run = (...argv: string[]) => runCli(argv, { cwd: directory, now: () => new Date(), out() {}, agentId: "a1" });
+  const run = (...argv: string[]) => runCli(argv, { cwd: directory, now: () => new Date(), out() {}, agentId: "a1", workspace: null });
   await run("start", "Run");
   const ask = () => run("question", "ask", "Spacing", "Even?", "--option", "A=Even | Balanced", "--option", "B=Leave | No change", "--recommend", "A");
   await ask();
-  const open = async () => (await readProgress(outsideDirectory(directory))).dashboard.questions.open;
+  const at = panelDashboardAt({ workspaceId: "w", workspaceDirectory: directory });
+  const open = async () => (await readProgress(at)).dashboard.questions.open;
   const target = async (index = 0) => {
     const question = (await open())[index];
     return { workspaceId: "w", workspaceDirectory: directory, questionId: question.id, askedAt: question.askedAt };
   };
   const given = async (queue: AnswerQueue) => {
-    const root = findRoot(directory);
-    return withAnswers((await readProgress(outsideDirectory(directory))).dashboard, root, queue).dashboard.questions.open.map(
-      (question) => question.given?.state,
-    );
+    return withAnswers((await readProgress(at)).dashboard, at, queue).dashboard.questions.open.map((question) => question.given?.state);
   };
   return { directory, home, agent, sends, paseo, start, run, ask, target, given, texts: () => sends.map((send) => send.text) };
 }
@@ -269,6 +268,37 @@ test("the panel hears about an answer, and only then", async (t) => {
   const second = await handleGetDashboard({ ...input, since: first.version }, context, queue);
   assert.ok("dashboard" in second);
   assert.deepEqual(second.dashboard.questions.open[0].given, { answer: { choice: "B" }, state: "sent" });
+});
+
+test("two workspaces on one folder keep their answers apart, even to questions asked the same minute", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "progress-answers-"));
+  const home = await mkdtemp(join(tmpdir(), "progress-home-"));
+  t.after(() => Promise.all([directory, home, outsideDirectory(directory)].map((path) => rm(path, { recursive: true, force: true }))));
+  await git(directory, ["init", "-q"]);
+  const workspaces: Record<string, string> = { a1: "wks_00000000000000aa", b1: "wks_00000000000000bb" };
+  const asked = new Date("2026-11-25T11:00:00Z");
+  for (const [agentId, workspaceId] of Object.entries(workspaces)) {
+    const run = (...argv: string[]) => runCli(argv, { cwd: directory, now: () => asked, out() {}, agentId, workspace: parseWorkspaceId(workspaceId) });
+    await run("start", "Run");
+    await run("question", "ask", "Spacing", "Even?", "--option", "A=Even | Balanced", "--option", "B=Leave | No change", "--recommend", "A");
+  }
+  const paseo = {
+    agents: { ref: (id: string) => ({ status: "running", workspaceId: workspaces[id], archivedAt: null, pendingPermissions: [], refresh: async () => ({}) }) },
+  } as never;
+  const queue = new AnswerQueue(async () => "queue", home);
+  queue.capture(paseo);
+  const target = (workspaceId: string) => ({ workspaceId, workspaceDirectory: directory, questionId: "Q1", askedAt: asked.toISOString() });
+  const given = async (workspaceId: string) => {
+    const at = panelDashboardAt({ workspaceId, workspaceDirectory: directory });
+    return withAnswers((await readProgress(at)).dashboard, at, queue).dashboard.questions.open.map((question) => question.given);
+  };
+  assert.equal(await queue.send(target(workspaces.a1), { choice: "A" }), "queued");
+  assert.equal(await queue.send(target(workspaces.b1), { choice: "B" }), "queued");
+  assert.deepEqual(await given(workspaces.a1), [{ answer: { choice: "A" }, state: "queued" }]);
+  assert.deepEqual(await given(workspaces.b1), [{ answer: { choice: "B" }, state: "queued" }]);
+  await queue.cancel(target(workspaces.b1));
+  assert.deepEqual(await given(workspaces.b1), [undefined]);
+  assert.deepEqual(await given(workspaces.a1), [{ answer: { choice: "A" }, state: "queued" }], "B's cancel leaves A's answer");
 });
 
 test("a message carries the reference and the user's answer, never an agent's words", () => {

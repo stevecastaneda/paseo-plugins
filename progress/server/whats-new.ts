@@ -109,7 +109,7 @@ export async function markWhatsNewSeen(version: string, home = homedir()): Promi
   await writeFileIn(stateRoot(home), WHATS_NEW_NAME, `${JSON.stringify({ seen: version })}\n`, { atomic: true });
 }
 
-// A worktree's folder (see outsideDirectory) means the plugin was in use
+// A worktree's folder (see outsideDirectory in progress-file.ts) means the plugin was in use
 // before this version, so this is an update, not a new install.
 async function usedBefore(home: string): Promise<boolean> {
   const entries = await readdir(stateRoot(home), { withFileTypes: true }).catch(() => []);

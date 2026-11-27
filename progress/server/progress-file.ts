@@ -1,76 +1,121 @@
-// Everything that reads or writes a worktree's progress files: the event log
-// the command appends to and the panel-opened marker. Each function takes the
-// folder that holds them, which `findStore` in store.ts picks. The command and
-// the panel's RPC handlers go through here, so they agree on how they're read.
+import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
-import { EMPTY_DASHBOARD, latestRun, parseProgress, reduceProgress, type Dashboard, type NextIds } from "../shared/dashboard.ts";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
+import {
+  EMPTY_DASHBOARD,
+  latestRun,
+  parseProgress,
+  reduceProgress,
+  type Dashboard,
+  type FileIssue,
+  type NextIds,
+  type ParsedLine,
+} from "../shared/dashboard.ts";
 import { EVENT_VERSION, eventSchema, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, type ProgressEvent } from "../shared/events.ts";
+import type { WorkspaceId } from "../shared/workspace.ts";
 import { withLock } from "./lock.ts";
+import type { DashboardAt } from "./paths.ts";
+import { stateRoot } from "./store.ts";
 import { appendFileIn, makeFolder, writeFileIn } from "./system.ts";
 
 const LOCK_NAME = `${PROGRESS_FILE_NAME}.lock`;
 
-// An event as a command builds it; `append` stamps the version and time.
-export type EventDraft = { [K in ProgressEvent["type"]]: Omit<Extract<ProgressEvent, { type: K }>, "v" | "ts"> }[ProgressEvent["type"]];
+export type EventDraft = { [K in ProgressEvent["type"]]: Omit<Extract<ProgressEvent, { type: K }>, "v" | "ts" | "ws"> }[ProgressEvent["type"]];
 
 // A draft the event schema rejects. The message names each bad field.
 export class InvalidEvent extends Error {}
 
 export interface ProgressRead {
-  // Whether the worktree has a progress file at all.
   configured: boolean;
   dashboard: Dashboard;
   panelOpened: boolean;
+  file: string;
 }
 
-// The parsed file per folder, kept until its size or change time moves. The
-// file only grows, and the panel and pills read it every few seconds.
-const parsedFiles = new Map<string, { size: number; mtimeMs: number; ctimeMs: number; parsed: ReturnType<typeof parseProgress> }>();
-// Replaced file snapshots and their derived data can be collected together.
-const dashboards = new WeakMap<ReturnType<typeof parseProgress>, { dashboard: Dashboard; from: number; until: number }>();
+export interface SavedRun {
+  startedAt: string;
+  title: string;
+  lines: string[];
+}
+
+interface ParsedFile {
+  events: ParsedLine[];
+  issues: FileIssue[];
+  raw: string[];
+}
+
+interface View {
+  events: ParsedLine[];
+  issues: FileIssue[];
+}
+
+type Views = { shown: View; buildsOn: View };
+
+type Store = { directory: string; shown: string };
+
+export function outsideDirectory(root: string, home = homedir()): string {
+  let real = root;
+  try {
+    real = realpathSync(root);
+  } catch {}
+  const hash = createHash("sha1").update(real).digest("hex").slice(0, 8);
+  return join(stateRoot(home), `${basename(real)}-${hash}`);
+}
+
+function findStore(root: string, home = homedir()): Store {
+  const directory = outsideDirectory(root, home);
+  return { directory, shown: directory.startsWith(home) ? `~${directory.slice(home.length)}` : directory };
+}
+
+const parsedFiles = new Map<string, { size: number; mtimeMs: number; ctimeMs: number; parsed: ParsedFile }>();
+const views = new WeakMap<ParsedFile, Map<WorkspaceId | null, Views>>();
+const dashboards = new WeakMap<View, { dashboard: Dashboard; from: number; until: number }>();
 
 // The dashboard at `now`, for the panel, the pills and `show`. Repeated reads
 // reuse the last one until the file changes or a stale or overdue time passes.
 // Stale and overdue checks use the daemon host's clock, the same clock the
 // command stamps events with.
-export async function readProgress(directory: string, now = new Date()): Promise<ProgressRead> {
-  const parsed = await readParsed(directory);
-  const panelOpened = await exists(join(directory, PANEL_OPENED_NAME));
-  if (parsed === null) return { configured: false, dashboard: EMPTY_DASHBOARD, panelOpened };
-  let cached = dashboards.get(parsed);
+export async function readProgress(at: DashboardAt, now = new Date()): Promise<ProgressRead> {
+  const store = findStore(at.root);
+  const file = join(store.shown, PROGRESS_FILE_NAME);
+  const parsed = await readParsed(store.directory);
+  const panelOpened = await exists(join(store.directory, PANEL_OPENED_NAME));
+  if (parsed === null) return { configured: false, dashboard: EMPTY_DASHBOARD, panelOpened, file };
+  const { shown } = viewOf(parsed, at.workspace);
+  let cached = dashboards.get(shown);
   // A backwards clock jump must also re-evaluate stale/overdue state.
   if (!cached || now.getTime() < cached.from || now.getTime() >= cached.until) {
-    const { dashboard, validUntil } = reduceProgress(parsed, now);
+    const { dashboard, validUntil } = reduceProgress(shown, now);
     cached = { dashboard, from: now.getTime(), until: validUntil };
-    dashboards.set(parsed, cached);
+    dashboards.set(shown, cached);
   }
-  return { configured: true, dashboard: cached.dashboard, panelOpened };
+  const configured = shown.events.length > 0 || shown.issues.length > 0 || parsed.events.length === 0;
+  return { configured, dashboard: cached.dashboard, panelOpened, file };
 }
 
 // The events of the latest run, oldest first.
-export async function readLatestRun(directory: string): Promise<ProgressEvent[]> {
-  return latestRun((await readParsed(directory))?.events ?? []).map(({ event }) => event);
+export async function readLatestRun(at: DashboardAt): Promise<ProgressEvent[]> {
+  const parsed = await readParsed(findStore(at.root).directory);
+  return latestRun(parsed ? viewOf(parsed, at.workspace).shown.events : []).map(({ event }) => event);
 }
 
-// Appends the one event `write` builds from the file as it is now. Commands
-// that run at once take turns, so each sees the others' events and no two hand
-// out the same id. `write` may throw to append nothing.
 export async function appendProgress<T>(
-  directory: string,
+  at: DashboardAt,
   now: () => Date,
   // `events` is the latest run as it is now, oldest first.
   write: (state: { dashboard: Dashboard; nextIds: NextIds; events: ProgressEvent[] }) => { event: EventDraft; result: T },
-  // Runs before the lock is released, with the whole file as it now is.
-  after?: (text: string) => Promise<void>,
+  after?: (run: SavedRun | null) => Promise<void>,
 ): Promise<T> {
+  const { directory } = findStore(at.root);
   await makeFolder(directory);
   return withLock(directory, LOCK_NAME, async () => {
     const text = (await readText(directory)) ?? "";
-    const parsed = parseProgress(text);
-    const { dashboard, nextIds } = reduceProgress(parsed, now());
-    const { event, result } = write({ dashboard, nextIds, events: latestRun(parsed.events).map((line) => line.event) });
-    const checked = eventSchema.safeParse({ v: EVENT_VERSION, ts: now().toISOString(), ...withoutUndefined(event) });
+    const { buildsOn } = workspaceView(parseFile(text), at.workspace);
+    const { dashboard, nextIds } = reduceProgress(buildsOn, now());
+    const { event, result } = write({ dashboard, nextIds, events: latestRun(buildsOn.events).map((line) => line.event) });
+    const checked = eventSchema.safeParse({ v: EVENT_VERSION, ts: now().toISOString(), ...withoutUndefined({ ...event, ws: at.workspace ?? undefined }) });
     if (!checked.success) {
       throw new InvalidEvent(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));
     }
@@ -78,13 +123,62 @@ export async function appendProgress<T>(
     const lead = text && !text.endsWith("\n") ? "\n" : "";
     const line = `${lead}${JSON.stringify(checked.data)}\n`;
     await appendFileIn(directory, PROGRESS_FILE_NAME, line);
-    await after?.(text + line);
+    if (after) {
+      const written = parseFile(text + line);
+      await after(savedRun(written, workspaceView(written, at.workspace).buildsOn));
+    }
     return result;
   });
 }
 
-export async function markPanelOpened(directory: string): Promise<void> {
-  await writeFileIn(directory, PANEL_OPENED_NAME, "");
+export async function markPanelOpened(root: string): Promise<void> {
+  await writeFileIn(findStore(root).directory, PANEL_OPENED_NAME, "");
+}
+
+function workspaceView(file: ParsedFile, workspace: WorkspaceId | null): Views {
+  const { events, issues } = file;
+  const forks = new Map<WorkspaceId, ParsedLine>();
+  for (const line of events) if (line.event.ws && !forks.has(line.event.ws)) forks.set(line.event.ws, line);
+
+  const fork = workspace && forks.get(workspace);
+  if (fork) {
+    const own = { events: events.filter(({ line, event }) => event.ws === workspace || (!event.ws && line < fork.line)), issues };
+    return { shown: own, buildsOn: own };
+  }
+  const folder = { events: events.filter(({ event }) => !event.ws), issues };
+  if (!workspace) return { shown: folder, buildsOn: folder };
+  return { shown: folderRunLeftBehind(folder.events, forks) ? { events: [], issues } : folder, buildsOn: folder };
+}
+
+function folderRunLeftBehind(folderEvents: ParsedLine[], forks: Map<WorkspaceId, ParsedLine>): boolean {
+  const run = latestRun(folderEvents);
+  const runStart = run[0]?.event.type === "run.start" ? run[0].line : 0;
+  const carriedOn = [...forks.values()].some(({ line, event }) => line > runStart && event.type !== "run.start");
+  const finished = run.some(({ event }) => event.type === "run.finish");
+  return carriedOn || (finished && forks.size > 0);
+}
+
+function viewOf(file: ParsedFile, workspace: WorkspaceId | null): Views {
+  let byWorkspace = views.get(file);
+  if (!byWorkspace) views.set(file, (byWorkspace = new Map()));
+  let found = byWorkspace.get(workspace);
+  if (!found) byWorkspace.set(workspace, (found = workspaceView(file, workspace)));
+  return found;
+}
+
+function savedRun(file: ParsedFile, view: View): SavedRun | null {
+  const [start] = latestRun(view.events);
+  if (start?.event.type !== "run.start") return null;
+  const lines = [...view.events, ...view.issues]
+    .map(({ line }) => line)
+    .filter((line) => line >= start.line)
+    .toSorted((a, b) => a - b)
+    .map((line) => file.raw[line - 1]);
+  return { startedAt: start.event.ts, title: start.event.title, lines };
+}
+
+function parseFile(text: string): ParsedFile {
+  return { ...parseProgress(text), raw: text.split("\n") };
 }
 
 async function readText(directory: string): Promise<string | null> {
@@ -96,7 +190,7 @@ async function readText(directory: string): Promise<string | null> {
   }
 }
 
-async function readParsed(directory: string): Promise<ReturnType<typeof parseProgress> | null> {
+async function readParsed(directory: string): Promise<ParsedFile | null> {
   const info = await stat(join(directory, PROGRESS_FILE_NAME)).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return null;
     throw error;
@@ -113,7 +207,7 @@ async function readParsed(directory: string): Promise<ReturnType<typeof parsePro
     parsedFiles.delete(directory);
     return null;
   }
-  const parsed = parseProgress(text);
+  const parsed = parseFile(text);
   parsedFiles.set(directory, { size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs, parsed });
   return parsed;
 }

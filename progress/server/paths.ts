@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { parseWorkspaceId, type WorkspaceId } from "../shared/workspace.ts";
 
 // Whether a path from relative(root, target) leaves the root. "..notes" is a
 // name inside it, not a step out.
@@ -43,4 +44,13 @@ export function progressRoot(cwd: string, agentCwd: string | undefined): string 
   const folder = dirname(root);
   const subagentCheckout = basename(folder) === "worktrees" && basename(dirname(folder)) === ".claude";
   return agentCwd && subagentCheckout ? findRoot(agentCwd) : root;
+}
+
+export interface DashboardAt {
+  root: string;
+  workspace: WorkspaceId | null;
+}
+
+export function panelDashboardAt(input: { workspaceId: string; workspaceDirectory: string }): DashboardAt {
+  return { root: findRoot(input.workspaceDirectory), workspace: parseWorkspaceId(input.workspaceId) };
 }

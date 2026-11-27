@@ -2,19 +2,14 @@
 // in to saving. The working files never touch the repo: they live outside it,
 // one folder per worktree, so git never sees them and nothing needs hiding.
 // Only runs the user asks to save are written into the repo, one file per run.
-import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
 import { readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join, normalize, resolve } from "node:path";
-import { latestRun, parseProgress } from "../shared/dashboard.ts";
+import { join, normalize, resolve } from "node:path";
+import type { SavedRun } from "./progress-file.ts";
 import { hasGitEntry, inGitFolder, outside } from "./paths.ts";
 import { makeFoldersIn, runProgram, writeFileIn } from "./system.ts";
 
 const SAVE_RUNS_KEY = "paseo-progress.saveRuns";
-
-// `directory` holds the working files. `shown` names it for people.
-export type Store = { directory: string; shown: string };
 
 // Git runs in the worktree through -C, never from it: a cloned repo can commit a git.exe.
 export async function git(root: string, args: string[]): Promise<{ code: number; stdout: string }> {
@@ -30,24 +25,6 @@ export async function git(root: string, args: string[]): Promise<{ code: number;
 // The plugin's per-user folder on this computer.
 export function stateRoot(home = homedir()): string {
   return join(home, ".local", "state", "paseo-progress");
-}
-
-// One folder per worktree on this computer, named so a person can tell which
-// worktree it belongs to.
-export function outsideDirectory(root: string, home = homedir()): string {
-  let real = root;
-  try {
-    real = realpathSync(root);
-  } catch {}
-  const hash = createHash("sha1").update(real).digest("hex").slice(0, 8);
-  return join(stateRoot(home), `${basename(real)}-${hash}`);
-}
-
-// The worktree's working files, always outside the repo. Progress never reads
-// a repo's .scratch, where 0.1.x kept them: a cloned repo could put anything there.
-export function findStore(root: string, home = homedir()): Store {
-  const directory = outsideDirectory(root, home);
-  return { directory, shown: directory.startsWith(home) ? `~${directory.slice(home.length)}` : directory };
 }
 
 // The repo's saved-history folder, kept in its local git config, which every
@@ -131,23 +108,17 @@ export function runFileName(startedAt: string, title: string): string {
 
 // After each change: when the repo saves runs, rewrite the current run's file
 // with every event from its start. Runs before the first start aren't saved.
-export async function saveRunCopy(root: string, text: string): Promise<void> {
+export async function saveRunCopy(root: string, run: SavedRun | null): Promise<void> {
+  if (!run) return;
   const folder = await historyFolder(root);
   if (!folder) return;
-  // The run the dashboard shows. A start line it can't read is no run.
-  const [start] = latestRun(parseProgress(text).events);
-  if (start?.event.type !== "run.start") return;
-  const lines = text
-    .split("\n")
-    .slice(start.line - 1)
-    .filter((line) => line.trim());
   // The saved-runs folder in the real worktree, made one step at a time. None
   // when any step is a link or a file: a cloned repo can commit a link that
   // leads out of it.
   const directory = await makeFoldersIn(await realpath(root), folder);
   if (!directory) return;
   // A rename replaces a link at the run's file instead of writing through it.
-  await writeFileIn(directory, runFileName(start.event.ts, start.event.title), `${lines.join("\n")}\n`, { atomic: true });
+  await writeFileIn(directory, runFileName(run.startedAt, run.title), `${run.lines.join("\n")}\n`, { atomic: true });
 }
 
 // The folders directly inside one folder of the worktree ("" is the top), for
