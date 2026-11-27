@@ -2,7 +2,7 @@
 
 # Progress
 
-A plugin for Paseo 0.15 and later that gives each worktree a live progress dashboard. Agents record progress with the Progress tools Paseo hands them, or with the `paseo-progress` command. Each change adds one line to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.
+A plugin for Paseo 0.16 and later that gives each Paseo workspace a live progress dashboard. Agents record progress with the Progress tools Paseo hands them, or with the `paseo-progress` command. Each change adds one line to the worktree's progress file. That file lives outside the repo, so git never sees it. The **Progress** panel draws the dashboard from that file and updates by itself.
 
 <img src="images/1-panel.png" alt="The Progress panel in Explorer" width="440">
 
@@ -72,6 +72,8 @@ Progress translates its own labels, not what agents write. Titles, questions, ch
 
 Each worktree's progress lives outside the repo, in its own folder under `~/.local/state/paseo-progress/` on the daemon host. There's nothing to set up and nothing to hide: git never sees these files, and the plugin never edits a `.gitignore` or git's exclude file. The panel's empty state shows the exact path.
 
+Paseo can open several workspaces on one folder, and each one gets its own dashboard. They share the folder's progress file. Each line names the workspace that wrote it, so a run started in one workspace never shows in another. A run recorded before Progress 1.17.0 belongs to no workspace, so it shows in every workspace on its folder. When an agent in one workspace records on that run, that workspace carries it on and the others stop showing it. A finished run stops showing as soon as any workspace on the folder records something of its own.
+
 ### Saving run history to the repo
 
 If you want to keep runs, at the bottom of the panel press **Save to repo…** and pick a folder (or name a new one). From then on, each run is saved as its own file there, like `history/20261001-064512-export-feature.jsonl`, and updated as the run goes. Commit them like any other file. One file per run means two branches never write the same file, so merges don't conflict. The lock and the panel marker never go there.
@@ -125,7 +127,7 @@ for dir in ~/.agents/skills ~/.claude/skills ~/.codex/skills; do mkdir -p "$dir"
 
 ## Recording progress
 
-Run `paseo-progress --help` for every command, and `paseo-progress <command> --help` for one. Commands find the worktree root from the current directory. A Claude Code subagent that works in its own checkout under `.claude/worktrees/` records on the dashboard of the worktree its Paseo agent runs in.
+Run `paseo-progress --help` for every command, and `paseo-progress <command> --help` for one. Commands find the worktree root from the current directory. They record on the dashboard of the Paseo workspace they run in. Paseo sets `PASEO_WORKSPACE_ID` in every agent's shell and every workspace terminal. A Claude Code subagent that works in its own checkout under `.claude/worktrees/` records on the dashboard of the worktree its Paseo agent runs in.
 
 ```sh
 paseo-progress start "Loan Options snapshots" --subtitle "4 tickets"
@@ -169,7 +171,9 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Agents get the Progress tools only with Paseo tools turned on for the host. The setting also lets agents start, message and stop other agents, so Progress leaves it to you.
 - An agent waiting on background subagents counts as idle. If those subagents record nothing, the dashboard shows "possibly stale" after 15 minutes while they're still working.
 - The command runs on the machine that hosts the Paseo daemon, and it needs Node.js 22.18 or later there.
-- Each worktree keeps its own dashboard. There's no view across worktrees.
+- Each Paseo workspace keeps its own dashboard. There's no view across workspaces.
+- `paseo-progress` run from a shell outside Paseo belongs to no workspace. It records on the folder's dashboard, which a workspace stops showing once one of its agents records something.
+- A question asked before 1.17.0 in a run two workspaces shared shows only in the workspace that carries the run on. An answer sent from there doesn't reach an agent in the other workspace, so answer that agent in its own chat.
 - Progress folders outside the repo stay behind when a worktree is deleted. They're small, and you can delete them from `~/.local/state/paseo-progress/`.
 - Paseo can't open a panel without switching you to its workspace. So a new run shows a "Progress" pill, and you open the panel yourself.
 - Pills check busy worktrees every 5 seconds and quiet ones every 30. In a quiet worktree, a new question can take up to half a minute to show.
@@ -181,6 +185,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.17.0
+
+- [New] **One dashboard per workspace.** Paseo can open several workspaces on one folder. They used to share one Progress dashboard, so a new run in one replaced the run in the other. Now each workspace has its own. A worktree with one workspace looks the same as before, and a run that was going when you updated stays on screen and carries on. Progress now needs Paseo 0.16 or later, the first version that tells an agent's shell which workspace it's in.
 
 ### 1.16.3
 
