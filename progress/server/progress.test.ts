@@ -11,7 +11,7 @@ import { promisify } from "node:util";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleListFolders, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
-import { markPanelOpened, readProgress } from "./progress-file.ts";
+import { markPanelOpened, outsideDirectory, readProgress } from "./progress-file.ts";
 import { panelDashboardAt } from "./paths.ts";
 import { formatMinutes, formatTimeOfDay, formatWorkDone } from "../shared/format.ts";
 import { finishedToFold, headlineText, livenessOf, statusLineState, type Ticket } from "../shared/dashboard.ts";
@@ -42,7 +42,7 @@ import {
   isFolder,
   opensOnHost,
 } from "../shared/attachments.ts";
-import { findStore, outsideDirectory, runFileName } from "./store.ts";
+import { runFileName } from "./store.ts";
 import { mirrorQuestionMode, questionModePath, readQuestionMode, writeQuestionMode } from "./question-mode.ts";
 import type { QuestionMode } from "../shared/question-modes.ts";
 import { ticketStory } from "../shared/ticket-story.ts";
@@ -2214,7 +2214,7 @@ test("outside git it works the same", async (t) => {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "progress-nogit-")));
   t.after(() => rm(directory, { recursive: true, force: true }));
   assert.equal(await runCli(["start", "Run"], { workspace: null, cwd: directory, now: () => minutes(0), out: () => {} }), 0);
-  assert.equal((await findStore(directory)).directory, outsideDirectory(directory));
+  assert.deepEqual(await readdir(outsideDirectory(directory)), ["progress.jsonl"]);
   assert.deepEqual(await readdir(directory), []);
   const result = await handleGetDashboard({ workspaceId: "ws-1", workspaceDirectory: directory }, context);
   assert.ok("dashboard" in result);

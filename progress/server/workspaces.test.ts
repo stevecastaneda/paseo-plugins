@@ -17,7 +17,7 @@ import { runCli } from "./cli.ts";
 import { handleGetAttention, handleGetDashboard, handleMarkPanelOpened, handleSetHistoryFolder } from "./dashboard.ts";
 import { previewDeliverable } from "./open.ts";
 import { panelDashboardAt } from "./paths.ts";
-import { outsideDirectory } from "./store.ts";
+import { outsideDirectory } from "./progress-file.ts";
 import { progressTools } from "./tool.ts";
 
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";

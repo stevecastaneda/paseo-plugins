@@ -9,8 +9,8 @@ import { AnswerQueue, whenWorkingFrom, withAnswers } from "./answers.ts";
 import { runCli } from "./cli.ts";
 import { handleGetDashboard } from "./dashboard.ts";
 import { panelDashboardAt } from "./paths.ts";
-import { readProgress } from "./progress-file.ts";
-import { git, outsideDirectory } from "./store.ts";
+import { outsideDirectory, readProgress } from "./progress-file.ts";
+import { git } from "./store.ts";
 
 type Agent = { status: string; workspaceId: string; archivedAt: string | null; pendingPermissions: unknown[]; gone?: boolean; fails?: boolean };
 

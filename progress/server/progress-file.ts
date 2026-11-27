@@ -3,8 +3,11 @@
 // dashboard it's for and finds the store itself, so no caller can read a
 // worktree's file without saying whose view of it. The command and the panel's
 // RPC handlers go through here, so they agree on how it's read.
+import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
 import {
   EMPTY_DASHBOARD,
   latestRun,
@@ -19,7 +22,7 @@ import { EVENT_VERSION, eventSchema, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, type
 import type { WorkspaceId } from "../shared/workspace.ts";
 import { withLock } from "./lock.ts";
 import type { DashboardAt } from "./paths.ts";
-import { findStore } from "./store.ts";
+import { stateRoot } from "./store.ts";
 import { appendFileIn, makeFolder, writeFileIn } from "./system.ts";
 
 const LOCK_NAME = `${PROGRESS_FILE_NAME}.lock`;
@@ -65,6 +68,27 @@ interface View {
 // `shown` is what the dashboard displays; `base` is what its next command
 // builds on. They differ only while a workspace's display hides a run.
 type Views = { shown: View; base: View };
+
+// `directory` holds the working files. `shown` names it for people.
+type Store = { directory: string; shown: string };
+
+// One folder per worktree on this computer, named so a person can tell which
+// worktree it belongs to.
+export function outsideDirectory(root: string, home = homedir()): string {
+  let real = root;
+  try {
+    real = realpathSync(root);
+  } catch {}
+  const hash = createHash("sha1").update(real).digest("hex").slice(0, 8);
+  return join(stateRoot(home), `${basename(real)}-${hash}`);
+}
+
+// The worktree's working files, always outside the repo. Progress never reads
+// a repo's .scratch, where 0.1.x kept them: a cloned repo could put anything there.
+function findStore(root: string, home = homedir()): Store {
+  const directory = outsideDirectory(root, home);
+  return { directory, shown: directory.startsWith(home) ? `~${directory.slice(home.length)}` : directory };
+}
 
 // The parsed file per store, kept until its size or change time moves. The
 // file only grows, and the panel and pills read it every few seconds.
