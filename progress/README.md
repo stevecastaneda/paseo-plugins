@@ -189,6 +189,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.19.1
+
+- [Fixed] **Clearer Korean wording.** A question's asker now reads 질문자 instead of 출처, and the stale warning no longer says twice that the work may have stopped.
+
 ### 1.19.0
 
 - [New] **Korean.** Progress now comes in English, Korean and Simplified Chinese. Pick 한국어 under Display in Progress settings, or let it follow each device's language. Thanks to @junnnie8 for the translation.
