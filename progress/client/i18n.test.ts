@@ -113,11 +113,14 @@ test("a job's reported percent and ETA read in the viewer's language, relative t
   assert.equal(formatClientPercent("en", 71.4), "71.4%");
   assert.equal(formatClientPercent("en", 73), "73%");
   assert.equal(formatClientPercent("zh-CN", 73), "73%");
+  assert.equal(formatClientPercent("ko", 73), "73%");
   const now = new Date(2026, 9, 21, 15, 0).getTime();
   const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString();
   const around = (minutes: number, locale: string) => new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(new Date(at(minutes)));
   assert.deepEqual(plain(formatClientEta("en", at(70), now)), { left: "1h 10m left", around: `done around ${around(70, "en")}`, past: false });
   assert.deepEqual(plain(formatClientEta("zh-CN", at(16), now)), { left: "剩余 16 分钟", around: `预计 ${around(16, "zh-CN")} 完成`, past: false });
+  assert.deepEqual(plain(formatClientEta("ko", at(16), now)), { left: "16분 남음", around: `${around(16, "ko")}쯤 완료 예정`, past: false });
+  assert.deepEqual(plain(formatClientEta("ko", at(-3), now)), { left: "예정보다 3분 지남", around: `${around(-3, "ko")}쯤 완료 예정`, past: true });
   assert.equal(formatClientEta("en", at(0.5), now).left, "due now");
   assert.deepEqual(plain(formatClientEta("en", at(-3), now)), { left: "due 3m ago", around: `done around ${around(-3, "en")}`, past: true });
 });

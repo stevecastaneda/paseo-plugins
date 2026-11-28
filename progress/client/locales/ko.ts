@@ -243,6 +243,12 @@ export const messages: ProgressMessages = {
   waitingForTicket: (id: string) => `${id} 대기 중`,
   openItem: (title: string) => `${title} 열기`,
   workedEstimate: (worked: string, estimate: string) => `예상 ${estimate} 중 ${worked} 작업`,
+  timeLeft: (duration: string) => `${duration} 남음`,
+  doneAround: (time: string) => `${time}쯤 완료 예정`,
+  dueNow: "곧 완료 예정",
+  dueAgo: (duration: string) => `예정보다 ${duration} 지남`,
+  reportedProgress: (percent: string) => `${percent} 완료`,
+  reportedAgo: (ago: string) => `${ago} 보고됨`,
   byTimeHint: (id: string, label: string) =>
     `“시간 기준”으로 표시된 항목은 ${id}에 직접 태그되지 않았으며, 이 ${label} 작업이 진행되는 동안 발생한 항목입니다.`,
   openAgentChat: (title: string) => `${title} 대화 열기`,
