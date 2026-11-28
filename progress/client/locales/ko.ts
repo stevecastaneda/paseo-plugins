@@ -198,7 +198,7 @@ export const messages: ProgressMessages = {
   readProgressError: (error: string) => `진행 상황을 읽을 수 없습니다: ${error}`,
   savedOutside: ["진행 상황은 저장소 바깥의 ", "에 저장되므로 git에 추적되지 않습니다."],
   staleWarning: (duration: string) =>
-    `작업이 멈춘 것 같습니다. ${duration} 동안 업데이트가 없습니다. 작업이 멈췄을 수 있으므로 다음 업데이트까지 진행 중 항목에 경고가 표시됩니다.`,
+    `진행 상황이 오래되었을 수 있습니다. ${duration} 동안 업데이트가 없습니다. 작업이 멈췄을 수 있으므로 다음 업데이트까지 진행 중 항목에 경고가 표시됩니다.`,
   itemHeading: (label: string) => label,
   noItems: (label: string) => `아직 ${label} 항목이 없습니다.`,
   skippedLines: (count: number, file: string) => `${file}에서 ${count}줄을 건너뛰었습니다: `,
@@ -223,7 +223,7 @@ export const messages: ProgressMessages = {
   copiedQuestion: (id: string) => `답변용 ${id} 복사됨`,
   copyQuestion: (id: string) => `답변용 ${id} 복사`,
   questionChoices: (id: string) => `${id} 선택지`,
-  raisedBy: (name: string) => `, 출처: ${name}`,
+  raisedBy: (name: string) => `, 질문자: ${name}`,
   copyChoiceForAgent: (id: string, letter: string) => `에이전트용 ${id} ${letter} 복사`,
   sendChoiceToAgent: (id: string, letter: string) => `에이전트에 ${id} ${letter} 보내기`,
   sentAnswer: (id: string) => `${id}에 대한 답변을 보냈습니다`,
