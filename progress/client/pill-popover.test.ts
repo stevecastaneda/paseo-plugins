@@ -21,8 +21,8 @@ function text(node: unknown): string {
   return node && typeof node === "object" ? text((node as Element).props?.children) : "";
 }
 
-// `given`: questions whose answer already went out from Paseo.
-function popover(questions: string[], given: string[] = []) {
+// `given`: the state of an answer already given from Paseo, by question.
+function popover(questions: string[], given: Record<string, string> = {}) {
   let messages: unknown;
   let slots: unknown[] = [];
   let cursor = 0;
@@ -58,7 +58,7 @@ function popover(questions: string[], given: string[] = []) {
         id,
         question: `Question ${id}`,
         options: [],
-        ...(given.includes(id) ? { given: { answer: { choice: "A" }, state: "sent" } } : {}),
+        ...(given[id] ? { given: { answer: { choice: "A" }, state: given[id] } } : {}),
       })),
     },
     stuck: [],
@@ -152,7 +152,7 @@ test("a send with another question waiting stays open on the next one, and the l
 });
 
 test("a send steps past questions already answered from Paseo, back to an earlier one if need be", () => {
-  const p = popover(["Q1", "Q2", "Q3", "Q4"], ["Q4"]);
+  const p = popover(["Q1", "Q2", "Q3", "Q4"], { Q4: "sent" });
   const view = p.open();
   view.next.onPress();
   p.render().next.onPress();
@@ -160,6 +160,13 @@ test("a send steps past questions already answered from Paseo, back to an earlie
   p.render().sent();
   assert.deepEqual(p.copied, []);
   assert.equal(p.render().shown, "Q1", "Q4's answer is out, so it wraps to Q1");
+});
+
+test("a send steps to a question whose answer is held, but past a queued one", () => {
+  const p = popover(["Q1", "Q2", "Q3"], { Q2: "queued", Q3: "held" });
+  p.open().sent();
+  assert.deepEqual(p.copied, [], "Q3's answer never went out, so it still waits");
+  assert.equal(p.render().shown, "Q3");
 });
 
 test("a single question has no stepping header", () => {

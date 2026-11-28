@@ -196,8 +196,10 @@ export function AttentionList({
     setShownId(target.id);
   };
   const advancePast = (handled: Question) => shownQuestions.set(workspaceId, (open[index + 1] ?? handled).id);
-  // The next question no answer has gone out for yet: after this one, then from the top.
-  const nextWaiting = () => [...open.slice(index + 1), ...open.slice(0, index)].find((other) => !other.given && !sent.current.has(other.id));
+  // The next question no answer has gone out or is queued for: after this one, then from the top.
+  // A held answer never went out, so its question still waits, as in `ChoiceButtons`.
+  const answered = (other: Question) => other.given?.state === "sent" || other.given?.state === "queued" || sent.current.has(other.id);
+  const nextWaiting = () => [...open.slice(index + 1), ...open.slice(0, index)].find((other) => !answered(other));
   const step = { colors, touch, onSurface1, onPress: show };
   const stepping = open.length > 1;
   const position = m.questionPosition(open.length);
