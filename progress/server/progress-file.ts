@@ -13,7 +13,7 @@ import {
   type NextIds,
   type ParsedLine,
 } from "../shared/dashboard.ts";
-import { EVENT_VERSION, eventSchema, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, repeatKey, type ProgressEvent } from "../shared/events.ts";
+import { EVENT_VERSION, eventSchema, isProgressReport, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, repeatKey, type ProgressEvent } from "../shared/events.ts";
 import type { WorkspaceId } from "../shared/workspace.ts";
 import { withLock } from "./lock.ts";
 import type { DashboardAt } from "./paths.ts";
@@ -172,7 +172,11 @@ export function compactRepeated(text: string, event: ProgressEvent): string | nu
     }
     const earlierKey = repeatKey(earlier);
     if (earlierKey === null) return null;
-    if (earlierKey !== key) continue;
+    if (earlierKey !== key) {
+      // Another agent's report on the same ticket: moving this one past it would reorder their fields.
+      if (isProgressReport(event) && isProgressReport(earlier) && earlier.id === event.id) return null;
+      continue;
+    }
     // A workspace's first line marks where it split off the folder's run (see `workspaceView`), so it stays put.
     if (event.ws && !lines.slice(0, index).some((line) => workspaceOf(line) === event.ws)) return null;
     lines.splice(index, 1);
@@ -182,9 +186,12 @@ export function compactRepeated(text: string, event: ProgressEvent): string | nu
   return null;
 }
 
-function workspaceOf(line: string): unknown {
+// The workspace of a line the reader shows. An unreadable line isn't where a
+// workspace split off (see `workspaceView`), even when it carries one.
+function workspaceOf(line: string): WorkspaceId | undefined {
   try {
-    return JSON.parse(line).ws;
+    const parsed = eventSchema.safeParse(JSON.parse(line));
+    return parsed.success ? parsed.data.ws : undefined;
   } catch {
     return undefined;
   }

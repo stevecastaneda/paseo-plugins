@@ -104,7 +104,7 @@ function etaOption(value: unknown, now: Date): string | undefined {
   const at = etaMoment(raw, now);
   if (at === null) throw fail();
   // Also keeps the time in the range a Date can print (an invalid one is NaN, so not within).
-  if (!(at.getTime() - now.getTime() <= MAX_ETA_MS)) throw new UsageError(`--eta must be within a year, got "${raw}".`);
+  if (!(Math.abs(at.getTime() - now.getTime()) <= MAX_ETA_MS)) throw new UsageError(`--eta must be within a year, got "${raw}".`);
   return at.toISOString();
 }
 
@@ -124,7 +124,9 @@ function etaMoment(raw: string, now: Date): Date | null {
     return at;
   }
   // Only with a time zone, so the time can't mean another moment elsewhere.
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.test(raw) && !Number.isNaN(Date.parse(raw))) {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.exec(raw);
+  // Date.parse rolls a day past the month's end into the next month, like February 30 into March 2.
+  if (iso && !Number.isNaN(Date.parse(raw)) && Number(iso[3]) <= new Date(Date.UTC(Number(iso[1]), Number(iso[2]), 0)).getUTCDate()) {
     return new Date(Date.parse(raw));
   }
   return null;
@@ -137,7 +139,9 @@ const MAX_DETAIL_LENGTH = 200;
 // One line, so `show` can't print what looks like another ticket, and short.
 function detailOption(value: unknown): string | undefined {
   const line = stringOption(value)?.replace(/\s+/g, " ").trim();
-  return line && line.length > MAX_DETAIL_LENGTH ? `${line.slice(0, MAX_DETAIL_LENGTH - 1)}…` : line;
+  // Counted in characters, so the cut never splits an emoji.
+  const characters = line ? Array.from(line) : [];
+  return characters.length > MAX_DETAIL_LENGTH ? `${characters.slice(0, MAX_DETAIL_LENGTH - 1).join("")}…` : line;
 }
 
 function stringOption(value: unknown): string | undefined {
