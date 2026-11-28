@@ -20,7 +20,7 @@ The dashboard shows:
 
 <img src="images/5-settings.png" alt="Progress settings in Paseo: Questions set to Work around, Language set to System, the Agent Skills section with View skill, and Agent tools showing Paseo tools off with how to turn them on" width="600">
 
-The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new once, including any versions you skipped. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with an open question, its choices and their Send and Copy buttons, and what is stuck, so you can answer without leaving the chat. With more than one question, the arrows beside **Question 1 of 3** step through them. After you send or copy an answer, the popover opens on the next question. **Open Progress** at the bottom opens the panel in Explorer.
+The panel lives in Explorer, beside the agent chat, so you can watch both. Open it from Command Center with **Open Progress**. The cog at the top right of the panel opens the plugin's Settings. After an update, the panel shows what's new once, including any versions you skipped. When questions are waiting or something is stuck, a pill above the message box says so, for example `3 questions`. With something stuck too, it shortens to `3Q · 1 stuck` to fit. Pressing it opens a popover with an open question, its choices and their Send and Copy buttons, and what is stuck, so you can answer without leaving the chat. With more than one question, the arrows beside **Question 1 of 3** step through them. After you send an answer, the popover stays open on the next question still waiting for one, and closes once none is left. After you copy one, it closes so you can paste, and opens on the next question the next time. **Open Progress** at the bottom opens the panel in Explorer.
 
 <img src="images/4-pill.png" alt="The pill above the message box, showing two questions waiting" width="600">
 
@@ -188,6 +188,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.18.1
+
+- [Fixed] **Answer one question after another from the pill.** Sending an answer in the popover above the message box used to close it. Now it moves to the next question still waiting for an answer, and closes only when none is left.
 
 ### 1.18.0
 
