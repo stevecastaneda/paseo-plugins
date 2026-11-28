@@ -42,7 +42,7 @@ async function worktree(t: TestContext) {
   return workspaceIn(await folder(t), A);
 }
 
-function workspaceIn(directory: string, workspace: string) {
+function workspaceIn(directory: string, workspace: string, agentId = "agent-1") {
   const store = outsideDirectory(directory);
   const at = { root: directory, workspace: parseWorkspaceId(workspace) };
   let clock = 0;
@@ -57,7 +57,7 @@ function workspaceIn(directory: string, workspace: string) {
         cwd: directory,
         now: () => minutes(clock),
         out: (line) => output.push(line),
-        agentId: "agent-1",
+        agentId,
         workspace: at.workspace,
       });
       return { code, text: output.join("\n") };
@@ -234,6 +234,19 @@ test("two workspaces on one folder each fold their own reports and ticker, and l
   });
 });
 
+test("an agent folds only its own reports and ticker lines, so it hears about a new ticket once", async (t) => {
+  const directory = await folder(t);
+  const x = await trainingRun(t, workspaceIn(directory, A, "agent-x"));
+  const y = workspaceIn(directory, A, "agent-y");
+  await x.run("ticker", "set", "Training: 1%");
+  await y.run("ticket", "add", "Step 04: Publish", "--estimate", "15");
+  assert.match((await x.run("ticker", "set", "Training: 2%")).text, /Another session added a step/, "x hears about T04");
+  await y.run("ticker", "set", "Publishing");
+  await y.run("ticket", "update", "T02", "--progress", "3");
+  assert.doesNotMatch((await x.run("ticker", "set", "Training: 4%")).text, /Another session added/, "and only once");
+  assert.equal((await x.dashboard()).ticker?.text, "Training: 4%");
+});
+
 const reportLine = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), type: "ticket.update", id: "T01", ...event });
 const workspaceReport = (ws?: string): ProgressEvent => ({
   v: 1,
@@ -271,6 +284,22 @@ test("a report doesn't move a line past where a workspace split off the folder's
       workspaceReport(A),
     ],
     "lines of B and of the folder in between don't count",
+  );
+  assert.equal(
+    compactRepeated(
+      `${reportLine({ v: 2, progress: 5, ws: A })}\n${reportLine({ progress: 5, ws: A })}\n${reportLine({ status: "done" })}\n`,
+      workspaceReport(A),
+    ),
+    null,
+    "an unreadable line of A's isn't where A split off, so A's first readable line stays put",
+  );
+  assert.equal(
+    compactRepeated(
+      `${reportLine({ ws: A, eta: "" })}\n${reportLine({ ws: A, by: "agent-y", eta: minutes(30).toISOString() })}\n`,
+      workspaceReport(A),
+    ),
+    null,
+    "a report doesn't move past another agent's report on the same ticket, so the later ETA still wins",
   );
 });
 
@@ -310,6 +339,9 @@ test("the ETA is the time left, a clock time, or an ISO time, and stored as an e
   }
   assert.match(String(await eta("2400000000h")), /^--eta must be within a year/, "no RangeError");
   assert.match(String(await eta("9999-12-31T23:59Z")), /^--eta must be within a year/, "an ISO time too");
+  assert.match(String(await eta("2020-01-01T00:00Z")), /^--eta must be within a year/, "in the past too");
+  assert.equal(await eta("2026-09-27T19:00Z"), "2026-09-27T19:00:00.000Z", "a job running late can say it was due an hour ago");
+  assert.match(String(await eta("2026-02-30T10:00Z")), /^--eta must be the time left like 25m/, "no February 30");
   assert.equal(await eta("8760h"), minutes(365 * 24 * 60).toISOString());
   const started = performance.now();
   assert.match(String(await eta(`1h${" ".repeat(40_000)}x`)), /^--eta must be the time left like 25m/);
@@ -337,6 +369,8 @@ test("the detail is one line of at most 200 characters", async (t) => {
   assert.equal((await w.ticket("T02")).progress?.detail, "Step 4 T03 Looks like a ticket");
   await w.run("ticket", "update", "T02", "--detail", "x".repeat(500));
   assert.equal((await w.ticket("T02")).progress?.detail, `${"x".repeat(199)}…`);
+  await w.run("ticket", "update", "T02", "--detail", "🚀".repeat(300));
+  assert.equal((await w.ticket("T02")).progress?.detail, `${"🚀".repeat(199)}…`, "counted in characters, so no emoji is cut in half");
 });
 
 test("show prints a ticket's progress for the agent", async (t) => {

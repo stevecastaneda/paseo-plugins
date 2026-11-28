@@ -20,49 +20,29 @@ export function ReportedBar({ colors, percent, height }: { colors: Colors; perce
   );
 }
 
-// Under the ticket's title in the list: "73%", a slim bar and the time left,
-// then the job's own line.
+// Under the ticket's title in the list: a bar across the row, "64.3% · 13m left",
+// then the job's own line. Muted like the row's other lines, so the title leads.
 export function ReportedProgressLine({ colors, progress, now }: { colors: Colors; progress: TicketProgress; now: number }) {
-  const { messages: m, locale } = useProgressLanguage();
+  const { locale } = useProgressLanguage();
   const eta = progress.eta ? formatClientEta(locale, progress.eta, now) : null;
+  const percent = progress.percent !== undefined ? formatClientPercent(locale, progress.percent) : null;
+  const line = { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 } as const;
   return (
-    <View style={{ gap: 2, paddingTop: 2 }}>
-      {progress.percent !== undefined || eta ? (
-        <View
-          accessible
-          accessibilityLabel={[progress.percent !== undefined ? m.reportedProgress(formatClientPercent(locale, progress.percent)) : "", eta?.left ?? ""]
-            .filter(Boolean)
-            .join(m.listSeparator)}
-          style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-        >
-          {progress.percent !== undefined ? (
-            <>
-              <Text style={{ color: colors.foreground, fontSize: 12, lineHeight: 17, fontWeight: "600", fontVariant: ["tabular-nums"] }}>
-                {formatClientPercent(locale, progress.percent)}
-              </Text>
-              <View style={{ flex: 1, minWidth: 24, maxWidth: 160 }}>
-                <ReportedBar colors={colors} percent={progress.percent} height={4} />
-              </View>
-            </>
-          ) : null}
-          {eta ? (
-            <Text
-              numberOfLines={1}
-              style={{
-                flexShrink: 1,
-                color: eta.past ? colors.statusWarning : colors.foregroundMuted,
-                fontSize: 12,
-                lineHeight: 17,
-                fontVariant: ["tabular-nums"],
-              }}
-            >
-              {eta.left}
-            </Text>
-          ) : null}
+    <View style={{ gap: 2 }}>
+      {progress.percent !== undefined ? (
+        <View style={{ paddingVertical: 4 }}>
+          <ReportedBar colors={colors} percent={progress.percent} height={4} />
         </View>
       ) : null}
+      {percent || eta ? (
+        <Text numberOfLines={1} style={{ ...line, fontVariant: ["tabular-nums"] }}>
+          {percent ? <Text style={{ color: colors.foreground }}>{percent}</Text> : null}
+          {percent && eta ? " · " : null}
+          {eta ? <Text style={{ color: eta.past ? colors.statusWarning : colors.foregroundMuted }}>{eta.left}</Text> : null}
+        </Text>
+      ) : null}
       {progress.detail ? (
-        <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+        <Text numberOfLines={1} style={line}>
           {progress.detail}
         </Text>
       ) : null}

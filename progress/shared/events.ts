@@ -172,8 +172,10 @@ export function isProgressReport(event: ProgressEvent): event is TicketUpdate {
 
 // What a newer event of the same key makes unreadable: a ticket's progress
 // report, or the ticker, which shows only its latest line. Null for the rest.
-// Each workspace has its own tickets and ticker in the shared file.
+// Each workspace has its own tickets and ticker in the shared file. An agent
+// replaces only its own lines, since its last line is where it last saw the
+// run (see `addedByOthers` in cli.ts).
 export function repeatKey(event: ProgressEvent): string | null {
-  if (isProgressReport(event)) return `progress:${event.ws ?? ""}:${event.id}`;
-  return event.type === "ticker.set" ? `ticker:${event.ws ?? ""}` : null;
+  if (isProgressReport(event)) return JSON.stringify(["progress", event.ws ?? "", event.by ?? "", event.id]);
+  return event.type === "ticker.set" ? JSON.stringify(["ticker", event.ws ?? "", event.by ?? ""]) : null;
 }

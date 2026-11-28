@@ -798,6 +798,7 @@ function TicketRow({
         >
           {ticket.title}
         </Text>
+        {ticket.progress ? <ReportedProgressLine colors={colors} progress={ticket.progress} now={now} /> : null}
         {ticket.status === "working" && ticket.stage && ticket.stageSince ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
             {m.stageStarted(ticket.stage)}
@@ -813,7 +814,6 @@ function TicketRow({
         {ticket.waitingFor ? (
           <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{m.waitsFor(shortTitle(ticket.waitingFor.title))}</Text>
         ) : null}
-        {ticket.progress ? <ReportedProgressLine colors={colors} progress={ticket.progress} now={now} /> : null}
         {ticket.note ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{ticket.note}</Text> : null}
       </View>
       {/* Fixed slots so the Package icon and estimates line up down the list, whether or not a row has deliverables; they're listed in its dialog. The estimate slot fits "45m" up to "9h 45m"; longer ones grow rather than clip. */}
