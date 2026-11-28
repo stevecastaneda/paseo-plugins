@@ -123,9 +123,15 @@ export async function appendProgress<T>(
       throw new InvalidEvent(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));
     }
     const compacted = compactRepeated(text, checked.data);
-    // A rename replaces the file whole, so a reader sees the old file or the new one.
-    // Windows refuses the rename while another program holds the file open; append instead.
-    let written = compacted === null ? null : await writeFileIn(directory, PROGRESS_FILE_NAME, compacted, { atomic: true }).then(() => compacted, () => null);
+    let written: string | null = null;
+    if (compacted !== null) {
+      // A rename replaces the file whole, so a reader sees the old file or the new one.
+      // Windows refuses the rename while another program holds the file open; append instead.
+      written = await writeFileIn(directory, PROGRESS_FILE_NAME, compacted, { atomic: true }).then(
+        () => compacted,
+        () => null,
+      );
+    }
     if (written === null) {
       // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
       const lead = text && !text.endsWith("\n") ? "\n" : "";

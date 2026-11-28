@@ -97,7 +97,8 @@ function etaOption(value: unknown, now: Date): string | undefined {
   if (value === undefined) return undefined;
   const raw = String(value).trim();
   if (raw === "") return "";
-  const fail = () => new UsageError(`--eta must be the time left like 25m or 1h 20m, a clock time like 16:10, or an ISO time, got "${raw.slice(0, MAX_ETA_LENGTH)}".`);
+  const fail = () =>
+    new UsageError(`--eta must be the time left like 25m or 1h 20m, a clock time like 16:10, or an ISO time, got "${raw.slice(0, MAX_ETA_LENGTH)}".`);
   // Longer is no ETA, and the time-left pattern backtracks on a long run of spaces.
   if (raw.length > MAX_ETA_LENGTH) throw fail();
   const left = /^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?:in)?)?\s*(?:(\d+)\s*s)?$/i.exec(raw);

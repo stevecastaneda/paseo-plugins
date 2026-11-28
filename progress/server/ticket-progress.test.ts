@@ -53,7 +53,13 @@ function workspaceIn(directory: string, workspace: string) {
     },
     async run(...argv: string[]) {
       const output: string[] = [];
-      const code = await runCli(argv, { cwd: directory, now: () => minutes(clock), out: (line) => output.push(line), agentId: "agent-1", workspace: at.workspace });
+      const code = await runCli(argv, {
+        cwd: directory,
+        now: () => minutes(clock),
+        out: (line) => output.push(line),
+        agentId: "agent-1",
+        workspace: at.workspace,
+      });
       return { code, text: output.join("\n") };
     },
     async lines() {
@@ -215,7 +221,11 @@ test("two workspaces on one folder each fold their own reports and ticker, and l
   const [shownA, shownB] = [await a.dashboard(), await b.dashboard()];
   assert.equal(shownA.ticker?.text, "Training the model: 5%");
   assert.equal(shownB.ticker?.text, "Exporting the mesh: 5%");
-  assert.deepEqual(shownA.tickets.find((ticket) => ticket.id === "T02")!.progress, { percent: 5, at: minutes(5).toISOString() }, "no ETA or detail from B's T02");
+  assert.deepEqual(
+    shownA.tickets.find((ticket) => ticket.id === "T02")!.progress,
+    { percent: 5, at: minutes(5).toISOString() },
+    "no ETA or detail from B's T02",
+  );
   assert.deepEqual(shownB.tickets.find((ticket) => ticket.id === "T02")!.progress, {
     percent: 10,
     eta: minutes(65).toISOString(),
@@ -226,12 +236,25 @@ test("two workspaces on one folder each fold their own reports and ticker, and l
 
 test("a report doesn't move a line past where a workspace split off the folder's run", () => {
   const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), type: "ticket.update", id: "T01", ...event });
-  const report = (ws?: string): ProgressEvent => ({ v: 1, ts: minutes(1).toISOString(), type: "ticket.update", id: "T01", progress: 6, ...(ws ? { ws: parseWorkspaceId(ws)! } : {}) });
+  const report = (ws?: string): ProgressEvent => ({
+    v: 1,
+    ts: minutes(1).toISOString(),
+    type: "ticket.update",
+    id: "T01",
+    progress: 6,
+    ...(ws ? { ws: parseWorkspaceId(ws)! } : {}),
+  });
   assert.equal(compactRepeated(`${line({ progress: 5 })}\n${line({ progress: 5, ws: A })}\n`, report()), null, "a folder report stays before A's lines");
   assert.equal(compactRepeated(`${line({ progress: 5, ws: A })}\n${line({ status: "done" })}\n`, report(A)), null, "A's first line marks its split");
-  const compacted = compactRepeated(`${line({ stage: "x", ws: A })}\n${line({ progress: 5, ws: A })}\n${line({ progress: 1, ws: B })}\n${line({ status: "done" })}\n`, report(A));
+  const compacted = compactRepeated(
+    `${line({ stage: "x", ws: A })}\n${line({ progress: 5, ws: A })}\n${line({ progress: 1, ws: B })}\n${line({ status: "done" })}\n`,
+    report(A),
+  );
   assert.deepEqual(
-    compacted?.trimEnd().split("\n").map((entry) => JSON.parse(entry)),
+    compacted
+      ?.trimEnd()
+      .split("\n")
+      .map((entry) => JSON.parse(entry)),
     [JSON.parse(line({ stage: "x", ws: A })), JSON.parse(line({ progress: 1, ws: B })), JSON.parse(line({ status: "done" })), report(A)],
     "lines of B and of the folder in between don't count",
   );
