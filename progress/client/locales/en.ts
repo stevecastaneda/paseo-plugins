@@ -244,6 +244,12 @@ export const messages: ProgressMessages = {
   waitingForTicket: (id: string) => `Waiting for ${id}`,
   openItem: (title: string) => `Open ${title}`,
   workedEstimate: (worked: string, estimate: string) => `Worked ${worked} of a ${estimate} estimate`,
+  timeLeft: (duration: string) => `${duration} left`,
+  doneAround: (time: string) => `done around ${time}`,
+  dueNow: "due now",
+  dueAgo: (duration: string) => `due ${duration} ago`,
+  reportedProgress: (percent: string) => `${percent} done`,
+  reportedAgo: (ago: string) => `Reported ${ago}`,
   byTimeHint: (id: string, label: string) =>
     `Items marked “by time” weren't tagged to ${id}; they happened while it was the ${label.toLowerCase()} being worked on.`,
   openAgentChat: (title: string) => `Open the chat with ${title}`,

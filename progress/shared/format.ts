@@ -40,6 +40,12 @@ export function formatAgo(iso: string, nowMs: number): string {
   return minutes < 1 ? "just now" : `${formatMinutes(minutes)} ago`;
 }
 
+// When a job expects to be done: "4:10 PM (in 1h 20m)", or "(2m ago)" once past.
+export function formatEta(iso: string, nowMs: number): string {
+  const left = (Date.parse(iso) - nowMs) / 60_000;
+  return `${formatTimeOfDay(iso, nowMs)} (${left >= 1 ? `in ${formatMinutes(left)}` : left > -1 ? "now" : `${formatMinutes(-left)} ago`})`;
+}
+
 export function minutesSince(iso: string, nowMs: number): number {
   return Math.max(0, (nowMs - Date.parse(iso)) / 60_000);
 }

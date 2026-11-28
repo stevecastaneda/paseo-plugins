@@ -69,6 +69,20 @@ export function formatClientAgo(locale: ProgressLocale, iso: string, nowMs: numb
   return minutes < 1 ? m.justNow : m.ago(formatClientMinutes(locale, minutes));
 }
 
+// "73%" or "71.4%", in the locale's digits.
+export function formatClientPercent(locale: ProgressLocale, percent: number): string {
+  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1 }).format(percent / 100);
+}
+
+// When a job expects to be done: how long is left ("16m left", or "due 3m ago"
+// once past) and the clock time ("done around 4:10 PM").
+export function formatClientEta(locale: ProgressLocale, iso: string, nowMs: number): { left: string; around: string; past: boolean } {
+  const m = messagesFor(locale);
+  const minutes = (Date.parse(iso) - nowMs) / 60_000;
+  const left = minutes >= 1 ? m.timeLeft(formatClientMinutes(locale, minutes)) : minutes > -1 ? m.dueNow : m.dueAgo(formatClientMinutes(locale, -minutes));
+  return { left, around: m.doneAround(formatClientTimeOfDay(locale, iso, nowMs)), past: minutes <= -1 };
+}
+
 export function clientHeadline(locale: ProgressLocale, dashboard: Dashboard): HeadlinePart[] {
   const m = messagesFor(locale);
   const counted = dashboard.tickets.filter((ticket) => ticket.status !== "skipped");

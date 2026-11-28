@@ -39,6 +39,7 @@ Move each ticket through `--status working --stage Build`, then the stages `Revi
   - To copy text, select a hidden textarea and call `document.execCommand("copy")`. `navigator.clipboard` throws an error.
   - Check that each script parses before you add the page. One syntax error stops that whole script, and the page can open blank.
 - A ticket past its estimate with no update turns stuck. Keep its stage current, or raise its `--estimate`.
+- For a long job that reports how far it is, like a training run or a big import, put that on its ticket while it runs: `ticket update T07 --progress 73 --eta 16m --detail "Step 26000/36400"`. `--progress` takes a percent or a count like `26000/36400`, and `--eta` the time left like `1h 20m`, a clock time like `16:10`, or an ISO time. Report as often as every minute, from a loop or the job's own log; repeated reports don't clutter the dashboard. They go away when the ticket is done. Don't repeat the percent or time left in `ticker set`: the ticket already shows them, so the user would see them twice.
 - A ticket another session adds is part of the plan. Work it in order.
 - `--status blocked` and `stuck set` are for things outside the run, like a service that's down or missing access.
 - Put this in a subagent's prompt, with the ticket id filled in. While you wait on it, its updates are the dashboard's only sign the work is moving:

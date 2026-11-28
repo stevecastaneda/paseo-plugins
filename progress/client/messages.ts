@@ -211,6 +211,13 @@ export interface ProgressMessages {
   waitingForTicket: (id: string) => string;
   openItem: (title: string) => string;
   workedEstimate: (worked: string, estimate: string) => string;
+  // A job's own progress on its ticket: "16m left", "done around 4:10 PM".
+  timeLeft: (duration: string) => string;
+  doneAround: (time: string) => string;
+  dueNow: string;
+  dueAgo: (duration: string) => string;
+  reportedProgress: (percent: string) => string;
+  reportedAgo: (ago: string) => string;
   byTimeHint: (id: string, label: string) => string;
   openAgentChat: (title: string) => string;
   stageLabel: (stage: string) => string;
