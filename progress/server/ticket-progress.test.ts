@@ -294,10 +294,7 @@ test("a report doesn't move a line past where a workspace split off the folder's
     "an unreadable line of A's isn't where A split off, so A's first readable line stays put",
   );
   assert.equal(
-    compactRepeated(
-      `${reportLine({ ws: A, eta: "" })}\n${reportLine({ ws: A, by: "agent-y", eta: minutes(30).toISOString() })}\n`,
-      workspaceReport(A),
-    ),
+    compactRepeated(`${reportLine({ ws: A, eta: "" })}\n${reportLine({ ws: A, by: "agent-y", eta: minutes(30).toISOString() })}\n`, workspaceReport(A)),
     null,
     "a report doesn't move past another agent's report on the same ticket, so the later ETA still wins",
   );
