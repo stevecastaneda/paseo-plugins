@@ -3,10 +3,11 @@ import type { LanguagePreference } from "../shared/settings";
 import type { TimelineLabel } from "../shared/ticket-story";
 import type { ProgressMessages } from "./messages";
 import { messages as en } from "./locales/en";
+import { messages as ko } from "./locales/ko";
 import { messages as zhCN } from "./locales/zh-CN";
 
 export type { ProgressMessages } from "./messages";
-export type ProgressLocale = "en" | "zh-CN";
+export type ProgressLocale = "en" | "ko" | "zh-CN";
 
 export function systemLocale(): string {
   try {
@@ -19,6 +20,7 @@ export function systemLocale(): string {
 export function resolveLocale(preference: LanguagePreference, system = systemLocale()): ProgressLocale {
   if (preference !== "system") return preference;
   const [language, ...rest] = system.replaceAll("_", "-").toLowerCase().split("-");
+  if (language === "ko") return "ko";
   // Extensions like "-u-nu-hanidec" say nothing about the script.
   const singleton = rest.findIndex((part) => part.length === 1);
   const subtags = singleton === -1 ? rest : rest.slice(0, singleton);
@@ -29,8 +31,10 @@ export function resolveLocale(preference: LanguagePreference, system = systemLoc
   return subtags.length === 0 || subtags.some((part) => ["cn", "sg"].includes(part)) ? "zh-CN" : "en";
 }
 
+const MESSAGES: Record<ProgressLocale, ProgressMessages> = { en, ko, "zh-CN": zhCN };
+
 export function messagesFor(locale: ProgressLocale): ProgressMessages {
-  return locale === "zh-CN" ? zhCN : en;
+  return MESSAGES[locale];
 }
 
 export function formatClientMinutes(locale: ProgressLocale, totalMin: number): string {

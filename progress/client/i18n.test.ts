@@ -12,11 +12,14 @@ const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
 
 test("explicit preferences override system locale without selecting Simplified for Traditional Chinese", () => {
   const { resolveLocale } = clientHarness(directory).load("client/i18n.ts");
+  for (const system of ["ko", "ko-KR", "ko_KR", "KO-kr", "ko-KR-u-ca-gregory"]) assert.equal(resolveLocale("system", system), "ko", system);
   for (const system of ["zh", "zh-CN", "zh_SG", "zh-Hans", "zh-Hans-CN", "ZH-hans-sg", "zh-Hans-HK", "zh-Hans-TW", "zh-u-nu-hanidec", "zh-CN-u-ca-chinese"])
     assert.equal(resolveLocale("system", system), "zh-CN", system);
   for (const system of ["", "en-US", "fr-FR", "zh-TW", "zh-HK", "zh-MO", "zh-Hant", "zh-Hant-CN", "zh-Hant-TW-u-nu-hanidec", "zh-US"])
     assert.equal(resolveLocale("system", system), "en", system);
+  assert.equal(resolveLocale("en", "ko-KR"), "en");
   assert.equal(resolveLocale("en", "zh-CN"), "en");
+  assert.equal(resolveLocale("ko", "en-US"), "ko");
   assert.equal(resolveLocale("zh-CN", "en-US"), "zh-CN");
 });
 
@@ -26,6 +29,7 @@ test("display preferences and question behavior have separate documents and defa
   assert.equal(displaySettings.scope, "host");
   assert.equal(questionSettings.id, "questions");
   assert.deepEqual(plain(displaySettings.schema.parse({})), { language: "system" });
+  assert.deepEqual(plain(displaySettings.schema.parse({ language: "ko" })), { language: "ko" });
   assert.deepEqual(plain(questionSettings.schema.parse({})), { mode: "work-around" });
   assert.equal(displaySettings.schema.safeParse({ language: "fr" }).success, false);
   assert.deepEqual(plain(questionSettings.schema.parse({ mode: "stop", language: "zh-CN" })), { mode: "stop" });
@@ -34,21 +38,27 @@ test("display preferences and question behavior have separate documents and defa
 test("catalogs cover statuses, modes and note kinds while preserving authored interpolation", () => {
   const { messagesFor } = clientHarness(directory).load("client/i18n.ts");
   const en = messagesFor("en");
+  const ko = messagesFor("ko");
   const zh = messagesFor("zh-CN");
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(ko).sort());
   assert.deepEqual(Object.keys(en).sort(), Object.keys(zh).sort());
+  assert.deepEqual(Object.keys(en.status), Object.keys(ko.status));
   assert.deepEqual(Object.keys(en.status), Object.keys(zh.status));
   assert.deepEqual(Object.keys(en.questionModes), ["stop", "work-around", "keep-building"]);
+  assert.deepEqual(Object.keys(en.noteKinds), Object.keys(ko.noteKinds));
   assert.deepEqual(Object.keys(en.noteKinds), Object.keys(zh.noteKinds));
   assert.deepEqual([0, 1, 2].map(en.questionCount), ["0 questions", "1 question", "2 questions"]);
+  assert.deepEqual([0, 1, 2].map(ko.questionCount), ["질문 0개", "질문 1개", "질문 2개"]);
   assert.deepEqual([0, 1, 2].map(zh.questionCount), ["0 个问题", "1 个问题", "2 个问题"]);
   const authored = "API ${x} <b>Quoted</b> /tmp/My File.md";
-  for (const m of [en, zh]) {
+  for (const m of [en, ko, zh]) {
     assert.ok(m.openItem(authored).includes(authored));
     assert.ok(m.copyItemPath(authored).includes(authored));
     assert.ok(m.stageLabel(authored).includes(authored));
     assert.ok(m.headlineDone(1, 2, authored).toLowerCase().includes(authored.toLowerCase()));
     assert.ok(m.itemHeading(authored).startsWith(authored));
   }
+  assert.equal(ko.itemHeading("Ticket"), "Ticket");
   assert.equal(zh.itemHeading("Ticket"), "Ticket");
 });
 
@@ -56,25 +66,30 @@ test("client duration boundaries localize while shared CLI formatters remain Eng
   const h = clientHarness(directory);
   const { formatClientMinutes, formatClientWorkDone, formatClientAgo } = h.load("client/i18n.ts");
   const { formatMinutes, formatWorkDone } = h.load("shared/format.ts");
-  const cases: Array<[number, string, string]> = [
-    [-1, "<1m", "<1 分钟"],
-    [0, "<1m", "<1 分钟"],
-    [0.99, "<1m", "<1 分钟"],
-    [1, "1m", "1 分钟"],
-    [59.9, "59m", "59 分钟"],
-    [60, "1h", "1 小时"],
-    [61, "1h 1m", "1 小时 1 分钟"],
-    [120, "2h", "2 小时"],
+  const cases: Array<[number, string, string, string]> = [
+    [-1, "<1m", "1분 미만", "<1 分钟"],
+    [0, "<1m", "1분 미만", "<1 分钟"],
+    [0.99, "<1m", "1분 미만", "<1 分钟"],
+    [1, "1m", "1분", "1 分钟"],
+    [59.9, "59m", "59분", "59 分钟"],
+    [60, "1h", "1시간", "1 小时"],
+    [61, "1h 1m", "1시간 1분", "1 小时 1 分钟"],
+    [120, "2h", "2시간", "2 小时"],
   ];
-  for (const [minutes, en, zh] of cases) {
+  for (const [minutes, en, ko, zh] of cases) {
     assert.equal(formatClientMinutes("en", minutes), en);
+    assert.equal(formatClientMinutes("ko", minutes), ko);
     assert.equal(formatClientMinutes("zh-CN", minutes), zh);
     assert.equal(formatMinutes(minutes), en);
   }
+  assert.equal(formatClientWorkDone("ko", 0, 90), "0분 / 1시간 30분");
+  assert.equal(formatClientWorkDone("ko", 30, 90, 62), "1시간 2분");
   assert.equal(formatClientWorkDone("zh-CN", 0, 90), "0 分钟 / 1 小时 30 分钟");
   assert.equal(formatClientWorkDone("zh-CN", 30, 90, 62), "1 小时 2 分钟");
   assert.equal(formatWorkDone(0, 90), "0m of 1h 30m");
   const now = Date.parse("2026-10-21T12:00:00Z");
+  assert.equal(formatClientAgo("ko", new Date(now - 59_999).toISOString(), now), "방금");
+  assert.equal(formatClientAgo("ko", new Date(now - 60_000).toISOString(), now), "1분 전");
   assert.equal(formatClientAgo("zh-CN", new Date(now - 59_999).toISOString(), now), "刚刚");
   assert.equal(formatClientAgo("zh-CN", new Date(now - 60_000).toISOString(), now), "1 分钟前");
   assert.equal(formatClientAgo("en", new Date(now - 60_000).toISOString(), now), "1m ago");
@@ -83,7 +98,7 @@ test("client duration boundaries localize while shared CLI formatters remain Eng
 test("clock formatting uses explicit locales and local calendar-day boundaries", () => {
   const { formatClientClock, formatClientTimeOfDay } = clientHarness(directory).load("client/i18n.ts");
   const at = new Date(2026, 9, 21, 13, 8);
-  for (const locale of ["en", "zh-CN"]) {
+  for (const locale of ["en", "ko", "zh-CN"]) {
     const full = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
     const time = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(at);
     assert.equal(formatClientClock(locale, at.toISOString()), full);
@@ -98,11 +113,14 @@ test("a job's reported percent and ETA read in the viewer's language, relative t
   assert.equal(formatClientPercent("en", 71.4), "71.4%");
   assert.equal(formatClientPercent("en", 73), "73%");
   assert.equal(formatClientPercent("zh-CN", 73), "73%");
+  assert.equal(formatClientPercent("ko", 73), "73%");
   const now = new Date(2026, 9, 21, 15, 0).getTime();
   const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString();
   const around = (minutes: number, locale: string) => new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(new Date(at(minutes)));
   assert.deepEqual(plain(formatClientEta("en", at(70), now)), { left: "1h 10m left", around: `done around ${around(70, "en")}`, past: false });
   assert.deepEqual(plain(formatClientEta("zh-CN", at(16), now)), { left: "剩余 16 分钟", around: `预计 ${around(16, "zh-CN")} 完成`, past: false });
+  assert.deepEqual(plain(formatClientEta("ko", at(16), now)), { left: "16분 남음", around: `${around(16, "ko")}쯤 완료 예정`, past: false });
+  assert.deepEqual(plain(formatClientEta("ko", at(-3), now)), { left: "예정보다 3분 지남", around: `${around(-3, "ko")}쯤 완료 예정`, past: true });
   assert.equal(formatClientEta("en", at(0.5), now).left, "due now");
   assert.deepEqual(plain(formatClientEta("en", at(-3), now)), { left: "due 3m ago", around: `done around ${around(-3, "en")}`, past: true });
 });
@@ -138,6 +156,11 @@ test("headlines derive from structured counts while preserving server copy and c
     { text: "1 question waiting for you", tone: "normal" },
     { text: "1 stuck", tone: "danger" },
   ]);
+  assert.deepEqual(plain(clientHeadline("ko", dashboard)), [
+    { text: "API Task 1/2 완료", tone: "normal" },
+    { text: "질문 1개 대기 중", tone: "normal" },
+    { text: "막힘 1건", tone: "danger" },
+  ]);
   assert.deepEqual(plain(clientHeadline("zh-CN", dashboard)), [
     { text: "API Task 已完成 1/2", tone: "normal" },
     { text: "1 个问题等待你的回答", tone: "normal" },
@@ -162,6 +185,7 @@ test("timeline descriptors preserve English labels and distinguish Added from la
     Date.parse("2026-10-21T00:04:00Z"),
   );
   assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("en"), step.label))), ["Added", "Authored stage stage", "Back to not started", "Done"]);
+  assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("ko"), step.label))), ["추가됨", "Authored stage 단계", "시작 전으로 되돌림", "완료"]);
   assert.deepEqual(plain(steps.map((step) => timelineLabel(messagesFor("zh-CN"), step.label))), ["已添加", "Authored stage 阶段", "恢复为未开始", "已完成"]);
 });
 
@@ -219,6 +243,8 @@ test("pending and failed settings reads leave content usable, and a saved overri
     assert.equal(language.settings.status, status);
   }
   h.setStatus("ready");
+  h.setLanguage("ko");
+  assert.equal(h.renderProvider().messages.questions, "질문");
   h.setLanguage("zh-CN");
   assert.equal(h.renderProvider().messages.questions, "问题");
   assert.ok(h.definitions.every((id) => id === "display"));
@@ -242,12 +268,17 @@ test("pill icons update same-mode titles and labels without extra polls and igno
     assert.equal(pill.button.title, attention ? "Progress needs you" : "Open Progress");
     assert.equal(pill.button.label, attention ? "2Q · 1 stuck" : "Progress");
     const timers = h.timers.size;
-    setLanguage("zh-CN");
     const renderIcon = () => {
       const icon = pill.button.icon({ workspaceId: "w", size: 12, color: "gray", theme: { colors: {} } });
       const child = icon.props.children;
       child.type(child.props);
     };
+    setLanguage("ko");
+    renderIcon();
+    effects.shift()?.();
+    assert.equal(pill.button.title, attention ? "Progress 확인 필요" : "Progress 열기");
+    assert.equal(pill.button.label, attention ? "질문 2 · 막힘 1건" : "Progress");
+    setLanguage("zh-CN");
     renderIcon();
     effects.shift()?.();
     assert.equal(pill.button.title, attention ? "Progress 需要你处理" : "打开 Progress");

@@ -62,7 +62,7 @@ Setting `PASEO_PROGRESS_PLUGIN_DIR` to a plugin folder makes the command run tha
 
 ## Language
 
-Progress comes in English and Simplified Chinese. To pick one, open the cog in the Progress panel and choose **Display → Language**. **System** follows each device's language and falls back to English for anything other than Simplified Chinese, so Traditional Chinese stays in English for now.
+Progress comes in English, Korean and Simplified Chinese. To pick one, open the cog in the Progress panel and choose **Display → Language**. **System** follows each device's language and falls back to English for anything other than Korean and Simplified Chinese, so Traditional Chinese stays in English for now.
 
 The choice is saved on the Paseo host, so every device connected to it shows the same language. Progress can't follow Paseo's own language setting, because Paseo doesn't share it with plugins. Open dialogs and pills switch as soon as you change it. The **Progress** name and its **Open Progress** and **Settings** entries stay in English.
 
@@ -188,6 +188,10 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 - Stale warnings and overdue times use the daemon host's clock.
 
 ## Changelog
+
+### 1.19.0
+
+- [New] **Korean.** Progress now comes in English, Korean and Simplified Chinese. Pick 한국어 under Display in Progress settings, or let it follow each device's language. Thanks to @junnnie8 for the translation.
 
 ### 1.18.1
 
