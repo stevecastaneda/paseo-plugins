@@ -101,30 +101,37 @@ function etaOption(value: unknown, now: Date): string | undefined {
     new UsageError(`--eta must be the time left like 25m or 1h 20m, a clock time like 16:10, or an ISO time, got "${raw.slice(0, MAX_ETA_LENGTH)}".`);
   // Longer is no ETA, and the time-left pattern backtracks on a long run of spaces.
   if (raw.length > MAX_ETA_LENGTH) throw fail();
+  const at = etaMoment(raw, now);
+  if (at === null) throw fail();
+  // Also keeps the time in the range a Date can print (an invalid one is NaN, so not within).
+  if (!(at.getTime() - now.getTime() <= MAX_ETA_MS)) throw new UsageError(`--eta must be within a year, got "${raw}".`);
+  return at.toISOString();
+}
+
+function etaMoment(raw: string, now: Date): Date | null {
   const left = /^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?:in)?)?\s*(?:(\d+)\s*s)?$/i.exec(raw);
   if (left && (left[1] || left[2] || left[3])) {
     const seconds = Number(left[1] ?? 0) * 3600 + Number(left[2] ?? 0) * 60 + Number(left[3] ?? 0);
-    if (seconds > MAX_ETA_SECONDS) throw new UsageError(`--eta must be within a year, got "${raw}".`);
-    return new Date(now.getTime() + seconds * 1000).toISOString();
+    return new Date(now.getTime() + seconds * 1000);
   }
   const clock = /^(\d{1,2}):(\d{2})$/.exec(raw);
   if (clock) {
     const [hours, minutes] = [Number(clock[1]), Number(clock[2])];
-    if (hours > 23 || minutes > 59) throw fail();
+    if (hours > 23 || minutes > 59) return null;
     const at = new Date(now);
     at.setHours(hours, minutes, 0, 0);
     if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 1);
-    return at.toISOString();
+    return at;
   }
   // Only with a time zone, so the time can't mean another moment elsewhere.
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.test(raw) && !Number.isNaN(Date.parse(raw))) {
-    return new Date(Date.parse(raw)).toISOString();
+    return new Date(Date.parse(raw));
   }
-  throw fail();
+  return null;
 }
 
 const MAX_ETA_LENGTH = 40;
-const MAX_ETA_SECONDS = 365 * 24 * 3600;
+const MAX_ETA_MS = 365 * 24 * 3600 * 1000;
 const MAX_DETAIL_LENGTH = 200;
 
 // One line, so `show` can't print what looks like another ticket, and short.

@@ -234,28 +234,42 @@ test("two workspaces on one folder each fold their own reports and ticker, and l
   });
 });
 
+const reportLine = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), type: "ticket.update", id: "T01", ...event });
+const workspaceReport = (ws?: string): ProgressEvent => ({
+  v: 1,
+  ts: minutes(1).toISOString(),
+  type: "ticket.update",
+  id: "T01",
+  progress: 6,
+  ...(ws ? { ws: parseWorkspaceId(ws)! } : {}),
+});
+
 test("a report doesn't move a line past where a workspace split off the folder's run", () => {
-  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), type: "ticket.update", id: "T01", ...event });
-  const report = (ws?: string): ProgressEvent => ({
-    v: 1,
-    ts: minutes(1).toISOString(),
-    type: "ticket.update",
-    id: "T01",
-    progress: 6,
-    ...(ws ? { ws: parseWorkspaceId(ws)! } : {}),
-  });
-  assert.equal(compactRepeated(`${line({ progress: 5 })}\n${line({ progress: 5, ws: A })}\n`, report()), null, "a folder report stays before A's lines");
-  assert.equal(compactRepeated(`${line({ progress: 5, ws: A })}\n${line({ status: "done" })}\n`, report(A)), null, "A's first line marks its split");
+  assert.equal(
+    compactRepeated(`${reportLine({ progress: 5 })}\n${reportLine({ progress: 5, ws: A })}\n`, workspaceReport()),
+    null,
+    "a folder report stays before A's lines",
+  );
+  assert.equal(
+    compactRepeated(`${reportLine({ progress: 5, ws: A })}\n${reportLine({ status: "done" })}\n`, workspaceReport(A)),
+    null,
+    "A's first line marks its split",
+  );
   const compacted = compactRepeated(
-    `${line({ stage: "x", ws: A })}\n${line({ progress: 5, ws: A })}\n${line({ progress: 1, ws: B })}\n${line({ status: "done" })}\n`,
-    report(A),
+    `${reportLine({ stage: "x", ws: A })}\n${reportLine({ progress: 5, ws: A })}\n${reportLine({ progress: 1, ws: B })}\n${reportLine({ status: "done" })}\n`,
+    workspaceReport(A),
   );
   assert.deepEqual(
     compacted
       ?.trimEnd()
       .split("\n")
       .map((entry) => JSON.parse(entry)),
-    [JSON.parse(line({ stage: "x", ws: A })), JSON.parse(line({ progress: 1, ws: B })), JSON.parse(line({ status: "done" })), report(A)],
+    [
+      JSON.parse(reportLine({ stage: "x", ws: A })),
+      JSON.parse(reportLine({ progress: 1, ws: B })),
+      JSON.parse(reportLine({ status: "done" })),
+      workspaceReport(A),
+    ],
     "lines of B and of the folder in between don't count",
   );
 });
@@ -295,6 +309,7 @@ test("the ETA is the time left, a clock time, or an ISO time, and stored as an e
     assert.match(String(await eta(bad)), /^--eta must be the time left like 25m/, bad);
   }
   assert.match(String(await eta("2400000000h")), /^--eta must be within a year/, "no RangeError");
+  assert.match(String(await eta("9999-12-31T23:59Z")), /^--eta must be within a year/, "an ISO time too");
   assert.equal(await eta("8760h"), minutes(365 * 24 * 60).toISOString());
   const started = performance.now();
   assert.match(String(await eta(`1h${" ".repeat(40_000)}x`)), /^--eta must be the time left like 25m/);
