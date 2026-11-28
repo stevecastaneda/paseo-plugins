@@ -189,10 +189,13 @@ The progress file, `progress.jsonl`, holds one JSON event per line, each with a 
 
 ## Changelog
 
+### 1.18.1
+
+- [Fixed] **Answer one question after another from the pill.** Sending an answer in the popover above the message box used to close it. Now it moves to the next question still waiting for an answer, and closes only when none is left.
+
 ### 1.18.0
 
 - [New] **A ticket's own progress.** A long job, like a training run, can report its percent, when it should be done and a line like "Step 26000/36400" with `ticket update T07 --progress 73 --eta 16m --detail "…"`, or the same fields in `progress_ticket_update`. The ticket's row shows the percent with a slim bar and the time left, its dialog shows them large with the clock time it should be done, and the run's bar counts the share done. Reports can come every minute without filling the progress file or the ticket's timeline, and a ticker line set beside each report replaces the last one too.
-- [Fixed] **Answer one question after another from the pill.** Sending an answer in the popover above the message box used to close it. Now it moves to the next question still waiting for an answer, and closes only when none is left.
 
 ### 1.17.1
 
