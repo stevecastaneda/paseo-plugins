@@ -9,11 +9,11 @@ import { test, type TestContext } from "node:test";
 import { promisify } from "node:util";
 import type { AgentToolContext } from "@getpaseo/plugin/server";
 import { runCli } from "./cli.ts";
-import { compactRepeated, readProgress } from "./progress-file.ts";
-import { outsideDirectory } from "./store.ts";
+import { compactRepeated, outsideDirectory, readProgress } from "./progress-file.ts";
 import { progressTools } from "./tool.ts";
 import { formatEta } from "../shared/format.ts";
 import { isProgressReport, type ProgressEvent } from "../shared/events.ts";
+import { parseWorkspaceId } from "../shared/workspace.ts";
 
 process.env.GIT_CONFIG_GLOBAL = "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -22,15 +22,29 @@ const HOME = await realpath(await mkdtemp(join(tmpdir(), "progress-home-")));
 process.env.HOME = HOME;
 process.env.USERPROFILE = HOME;
 test.after(() => rm(HOME, { recursive: true, force: true }));
+delete process.env.PASEO_WORKSPACE_ID;
+
+// Inside Paseo every event names its workspace, and two workspaces on one folder share the file.
+const A = "wks_00000000000000aa";
+const B = "wks_00000000000000bb";
 
 const T0 = Date.parse("2026-09-27T19:59:00.000Z");
 const minutes = (count: number) => new Date(T0 + count * 60_000);
 
-async function worktree(t: TestContext) {
+async function folder(t: TestContext) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "progress-")));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await promisify(execFile)("git", ["init", "-q"], { cwd: directory });
+  return directory;
+}
+
+async function worktree(t: TestContext) {
+  return workspaceIn(await folder(t), A);
+}
+
+function workspaceIn(directory: string, workspace: string) {
   const store = outsideDirectory(directory);
+  const at = { root: directory, workspace: parseWorkspaceId(workspace) };
   let clock = 0;
   return {
     directory,
@@ -39,19 +53,19 @@ async function worktree(t: TestContext) {
     },
     async run(...argv: string[]) {
       const output: string[] = [];
-      const code = await runCli(argv, { cwd: directory, now: () => minutes(clock), out: (line) => output.push(line), agentId: "agent-1" });
+      const code = await runCli(argv, { cwd: directory, now: () => minutes(clock), out: (line) => output.push(line), agentId: "agent-1", workspace: at.workspace });
       return { code, text: output.join("\n") };
     },
     async lines() {
       return (await readFile(join(store, "progress.jsonl"), "utf8")).trimEnd().split("\n");
     },
-    dashboard: (minute = clock) => readProgress(store, minutes(minute)).then((read) => read.dashboard),
-    ticket: async (id: string, minute = clock) => (await readProgress(store, minutes(minute))).dashboard.tickets.find((ticket) => ticket.id === id)!,
+    dashboard: (minute = clock) => readProgress(at, minutes(minute)).then((read) => read.dashboard),
+    ticket: async (id: string, minute = clock) => (await readProgress(at, minutes(minute))).dashboard.tickets.find((ticket) => ticket.id === id)!,
   };
 }
 
-async function trainingRun(t: TestContext) {
-  const w = await worktree(t);
+async function trainingRun(t: TestContext, w?: ReturnType<typeof workspaceIn>) {
+  w ??= await worktree(t);
   await w.run("start", "Splats", "--item-label", "Step");
   await w.run("ticket", "add", "Step 01: Prepare", "--estimate", "30", "--status", "done");
   await w.run("ticket", "add", "Step 02: Train", "--estimate", "90", "--status", "working", "--stage", "Training");
@@ -143,6 +157,7 @@ test("a report replaces the last one while nothing else is recorded in between",
     v: 1,
     ts: minutes(31).toISOString(),
     by: "agent-1",
+    ws: A,
     type: "ticket.update",
     id: "T02",
     progress: 30,
@@ -183,6 +198,45 @@ test("a ticker line set beside each report replaces the last one too", async (t)
   assert.equal((await w.dashboard()).ticker?.text, "Exporting");
 });
 
+test("two workspaces on one folder each fold their own reports and ticker, and leave the other's alone", async (t) => {
+  const directory = await folder(t);
+  const a = await trainingRun(t, workspaceIn(directory, A));
+  const b = await trainingRun(t, workspaceIn(directory, B));
+  const before = (await a.lines()).length;
+  for (let minute = 1; minute <= 5; minute++) {
+    a.at(minute);
+    b.at(minute);
+    await a.run("ticker", "set", `Training the model: ${minute}%`);
+    await a.run("ticket", "update", "T02", "--progress", String(minute));
+    await b.run("ticker", "set", `Exporting the mesh: ${minute}%`);
+    await b.run("ticket", "update", "T02", "--progress", String(minute * 2), "--eta", "1h", "--detail", `Mesh ${minute}`);
+  }
+  assert.equal((await a.lines()).length, before + 4, "one ticker line and one report per workspace");
+  const [shownA, shownB] = [await a.dashboard(), await b.dashboard()];
+  assert.equal(shownA.ticker?.text, "Training the model: 5%");
+  assert.equal(shownB.ticker?.text, "Exporting the mesh: 5%");
+  assert.deepEqual(shownA.tickets.find((ticket) => ticket.id === "T02")!.progress, { percent: 5, at: minutes(5).toISOString() }, "no ETA or detail from B's T02");
+  assert.deepEqual(shownB.tickets.find((ticket) => ticket.id === "T02")!.progress, {
+    percent: 10,
+    eta: minutes(65).toISOString(),
+    detail: "Mesh 5",
+    at: minutes(5).toISOString(),
+  });
+});
+
+test("a report doesn't move a line past where a workspace split off the folder's run", () => {
+  const line = (event: object) => JSON.stringify({ v: 1, ts: minutes(0).toISOString(), type: "ticket.update", id: "T01", ...event });
+  const report = (ws?: string): ProgressEvent => ({ v: 1, ts: minutes(1).toISOString(), type: "ticket.update", id: "T01", progress: 6, ...(ws ? { ws: parseWorkspaceId(ws)! } : {}) });
+  assert.equal(compactRepeated(`${line({ progress: 5 })}\n${line({ progress: 5, ws: A })}\n`, report()), null, "a folder report stays before A's lines");
+  assert.equal(compactRepeated(`${line({ progress: 5, ws: A })}\n${line({ status: "done" })}\n`, report(A)), null, "A's first line marks its split");
+  const compacted = compactRepeated(`${line({ stage: "x", ws: A })}\n${line({ progress: 5, ws: A })}\n${line({ progress: 1, ws: B })}\n${line({ status: "done" })}\n`, report(A));
+  assert.deepEqual(
+    compacted?.trimEnd().split("\n").map((entry) => JSON.parse(entry)),
+    [JSON.parse(line({ stage: "x", ws: A })), JSON.parse(line({ progress: 1, ws: B })), JSON.parse(line({ status: "done" })), report(A)],
+    "lines of B and of the folder in between don't count",
+  );
+});
+
 test("only progress-only updates are reports, and a file that doesn't end in a full line is appended to", () => {
   const base = { v: 1 as const, ts: minutes(0).toISOString(), type: "ticket.update" as const, id: "T01" };
   assert.equal(isProgressReport({ ...base, progress: 5 }), true);
@@ -217,6 +271,11 @@ test("the ETA is the time left, a clock time, or an ISO time, and stored as an e
   for (const bad of ["soon", "25", "24:00", "2026-09-27T23:10"]) {
     assert.match(String(await eta(bad)), /^--eta must be the time left like 25m/, bad);
   }
+  assert.match(String(await eta("2400000000h")), /^--eta must be within a year/, "no RangeError");
+  assert.equal(await eta("8760h"), minutes(365 * 24 * 60).toISOString());
+  const started = performance.now();
+  assert.match(String(await eta(`1h${" ".repeat(40_000)}x`)), /^--eta must be the time left like 25m/);
+  assert.ok(performance.now() - started < 200, "a long value is refused before the pattern runs");
 });
 
 test("progress is a percent or a count, and only on a ticket that isn't done or skipped", async (t) => {
@@ -232,6 +291,14 @@ test("progress is a percent or a count, and only on a ticket that isn't done or 
   const finishing = await w.run("ticket", "update", "T02", "--status", "done", "--detail", "Last step");
   assert.equal(finishing.code, 1, "nor on one this update finishes");
   assert.equal((await w.run("ticket", "update", "T01", "--progress", "")).code, 0, "clearing is always fine");
+});
+
+test("the detail is one line of at most 200 characters", async (t) => {
+  const w = await trainingRun(t);
+  await w.run("ticket", "update", "T02", "--detail", "Step 4\n  T03  Looks like a ticket\r\n");
+  assert.equal((await w.ticket("T02")).progress?.detail, "Step 4 T03 Looks like a ticket");
+  await w.run("ticket", "update", "T02", "--detail", "x".repeat(500));
+  assert.equal((await w.ticket("T02")).progress?.detail, `${"x".repeat(199)}…`);
 });
 
 test("show prints a ticket's progress for the agent", async (t) => {
@@ -251,7 +318,7 @@ test("the ticket update tool passes progress, ETA and detail to the command", as
   const w = await trainingRun(t);
   const tool = progressTools.find((candidate) => candidate.name === "progress_ticket_update")!;
   const context = {
-    agent: { id: "agent-7", workspaceId: "w", parentAgentId: null, provider: "claude", cwd: w.directory, title: null, background: false, metadata: {} },
+    agent: { id: "agent-7", workspaceId: A, parentAgentId: null, provider: "claude", cwd: w.directory, title: null, background: false, metadata: {} },
     paseo: {} as AgentToolContext["paseo"],
     signal: new AbortController().signal,
   };

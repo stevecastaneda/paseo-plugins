@@ -97,10 +97,13 @@ function etaOption(value: unknown, now: Date): string | undefined {
   if (value === undefined) return undefined;
   const raw = String(value).trim();
   if (raw === "") return "";
-  const fail = () => new UsageError(`--eta must be the time left like 25m or 1h 20m, a clock time like 16:10, or an ISO time, got "${raw}".`);
+  const fail = () => new UsageError(`--eta must be the time left like 25m or 1h 20m, a clock time like 16:10, or an ISO time, got "${raw.slice(0, MAX_ETA_LENGTH)}".`);
+  // Longer is no ETA, and the time-left pattern backtracks on a long run of spaces.
+  if (raw.length > MAX_ETA_LENGTH) throw fail();
   const left = /^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?:in)?)?\s*(?:(\d+)\s*s)?$/i.exec(raw);
   if (left && (left[1] || left[2] || left[3])) {
     const seconds = Number(left[1] ?? 0) * 3600 + Number(left[2] ?? 0) * 60 + Number(left[3] ?? 0);
+    if (seconds > MAX_ETA_SECONDS) throw new UsageError(`--eta must be within a year, got "${raw}".`);
     return new Date(now.getTime() + seconds * 1000).toISOString();
   }
   const clock = /^(\d{1,2}):(\d{2})$/.exec(raw);
@@ -117,6 +120,16 @@ function etaOption(value: unknown, now: Date): string | undefined {
     return new Date(Date.parse(raw)).toISOString();
   }
   throw fail();
+}
+
+const MAX_ETA_LENGTH = 40;
+const MAX_ETA_SECONDS = 365 * 24 * 3600;
+const MAX_DETAIL_LENGTH = 200;
+
+// One line, so `show` can't print what looks like another ticket, and short.
+function detailOption(value: unknown): string | undefined {
+  const line = stringOption(value)?.replace(/\s+/g, " ").trim();
+  return line && line.length > MAX_DETAIL_LENGTH ? `${line.slice(0, MAX_DETAIL_LENGTH - 1)}…` : line;
 }
 
 function stringOption(value: unknown): string | undefined {
@@ -329,7 +342,7 @@ const commands: Record<string, Command> = {
         source: values.source === undefined ? undefined : String(values.source).trim() === "" ? ("" as const) : parseFile(String(values.source), cwd, root),
         progress: percentOption(values.progress),
         eta: etaOption(values.eta, now),
-        detail: stringOption(values.detail),
+        detail: detailOption(values.detail),
       };
       const changes = Object.entries(event).filter(([key, value]) => key !== "type" && key !== "id" && value !== undefined);
       if (!changes.length)

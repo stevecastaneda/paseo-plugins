@@ -123,28 +123,19 @@ export async function appendProgress<T>(
       throw new InvalidEvent(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));
     }
     const compacted = compactRepeated(text, checked.data);
-    if (compacted !== null) {
-      // A rename replaces the file whole, so a reader sees the old file or the new one.
-      const replaced = await writeFileIn(directory, PROGRESS_FILE_NAME, compacted, { atomic: true }).then(
-        () => true,
-        // Windows refuses the rename while another program holds the file open; append instead.
-        () => false,
-      );
-      if (replaced) {
-        if (after) {
-          const written = parseFile(compacted);
-          await after(savedRun(written, workspaceView(written, at.workspace).buildsOn));
-        }
-        return result;
-      }
+    // A rename replaces the file whole, so a reader sees the old file or the new one.
+    // Windows refuses the rename while another program holds the file open; append instead.
+    let written = compacted === null ? null : await writeFileIn(directory, PROGRESS_FILE_NAME, compacted, { atomic: true }).then(() => compacted, () => null);
+    if (written === null) {
+      // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
+      const lead = text && !text.endsWith("\n") ? "\n" : "";
+      const line = `${lead}${JSON.stringify(checked.data)}\n`;
+      await appendFileIn(directory, PROGRESS_FILE_NAME, line);
+      written = text + line;
     }
-    // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
-    const lead = text && !text.endsWith("\n") ? "\n" : "";
-    const line = `${lead}${JSON.stringify(checked.data)}\n`;
-    await appendFileIn(directory, PROGRESS_FILE_NAME, line);
     if (after) {
-      const written = parseFile(text + line);
-      await after(savedRun(written, workspaceView(written, at.workspace).buildsOn));
+      const parsed = parseFile(written);
+      await after(savedRun(parsed, workspaceView(parsed, at.workspace).buildsOn));
     }
     return result;
   });
@@ -154,7 +145,8 @@ export async function appendProgress<T>(
 // beside it, would fill the file with lines nobody reads again. So while only
 // progress reports and ticker lines follow the last one of the same key (see
 // `repeatKey`), a new one replaces that line. A report keeps any field only
-// the old one set. The file as it should be, or null to append.
+// the old one set. Other workspaces' lines in between don't count, since they
+// aren't on this one's dashboard. The file as it should be, or null to append.
 export function compactRepeated(text: string, event: ProgressEvent): string | null {
   const key = repeatKey(event);
   if (key === null || !text.endsWith("\n")) return null;
@@ -167,14 +159,29 @@ export function compactRepeated(text: string, event: ProgressEvent): string | nu
     } catch {
       return null;
     }
+    if (earlier.ws !== event.ws) {
+      // Moving a folder line past a workspace's lines could move it out of that workspace's view.
+      if (!event.ws) return null;
+      continue;
+    }
     const earlierKey = repeatKey(earlier);
     if (earlierKey === null) return null;
     if (earlierKey !== key) continue;
+    // A workspace's first line marks where it split off the folder's run (see `workspaceView`), so it stays put.
+    if (event.ws && !lines.slice(0, index).some((line) => workspaceOf(line) === event.ws)) return null;
     lines.splice(index, 1);
     lines.push(JSON.stringify(event.type === "ticker.set" ? event : { ...earlier, ...withoutUndefined(event) }));
     return `${lines.join("\n")}\n`;
   }
   return null;
+}
+
+function workspaceOf(line: string): unknown {
+  try {
+    return JSON.parse(line).ws;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function markPanelOpened(root: string): Promise<void> {

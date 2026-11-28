@@ -166,13 +166,14 @@ type TicketUpdate = Extract<ProgressEvent, { type: "ticket.update" }>;
 // A ticket.update that only reports progress.
 export function isProgressReport(event: ProgressEvent): event is TicketUpdate {
   if (event.type !== "ticket.update") return false;
-  const fields = Object.entries(event).filter(([key, value]) => value !== undefined && !["v", "ts", "by", "type", "id"].includes(key));
+  const fields = Object.entries(event).filter(([key, value]) => value !== undefined && !["v", "ts", "ws", "by", "type", "id"].includes(key));
   return fields.length > 0 && fields.every(([key]) => (PROGRESS_FIELDS as readonly string[]).includes(key));
 }
 
 // What a newer event of the same key makes unreadable: a ticket's progress
 // report, or the ticker, which shows only its latest line. Null for the rest.
+// Each workspace has its own tickets and ticker in the shared file.
 export function repeatKey(event: ProgressEvent): string | null {
-  if (isProgressReport(event)) return `progress:${event.id}`;
-  return event.type === "ticker.set" ? "ticker" : null;
+  if (isProgressReport(event)) return `progress:${event.ws ?? ""}:${event.id}`;
+  return event.type === "ticker.set" ? `ticker:${event.ws ?? ""}` : null;
 }
