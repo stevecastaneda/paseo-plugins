@@ -1,6 +1,6 @@
 import type { Dashboard } from "./dashboard.ts";
 import { headlineText, shortTitle } from "./dashboard.ts";
-import { formatAgo, formatClock, formatMinutes, formatWorkDone, minutesSince } from "./format.ts";
+import { formatAgo, formatClock, formatEta, formatMinutes, formatWorkDone, minutesSince } from "./format.ts";
 import type { QuestionState } from "./question-modes.ts";
 
 const STATUS: Record<string, string> = { not_started: "Not started", working: "Working", blocked: "Blocked", done: "Done", skipped: "Skipped" };
@@ -50,6 +50,11 @@ export function dashboardText(dashboard: Dashboard, nowMs: number): string {
     const stage = ticket.status === "working" && ticket.stage ? `, ${ticket.stage} stage` : "";
     const status = ticket.waitingFor ? `Waiting for ${ticket.waitingFor.id}` : STATUS[ticket.status];
     lines.push(`  ${ticket.id}  ${status}${stage}  ${formatMinutes(ticket.estimateMin)}  ${ticket.title}`);
+    if (ticket.progress) {
+      const { percent, eta, detail, at } = ticket.progress;
+      const parts = [percent !== undefined ? `${percent}% done` : "", eta ? `ETA ${formatEta(eta, nowMs)}` : "", detail ?? ""].filter(Boolean);
+      lines.push(`      Progress: ${parts.join(", ")}, reported ${formatAgo(at, nowMs)}`);
+    }
     if (ticket.source) lines.push(`      Source: ${ticket.source.path ?? ticket.source.url}${ticket.source.label ? ` (${ticket.source.label})` : ""}`);
   }
   if (dashboard.questions.open.length) {

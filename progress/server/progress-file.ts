@@ -13,7 +13,7 @@ import {
   type NextIds,
   type ParsedLine,
 } from "../shared/dashboard.ts";
-import { EVENT_VERSION, eventSchema, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, type ProgressEvent } from "../shared/events.ts";
+import { EVENT_VERSION, eventSchema, isProgressReport, PANEL_OPENED_NAME, PROGRESS_FILE_NAME, repeatKey, type ProgressEvent } from "../shared/events.ts";
 import type { WorkspaceId } from "../shared/workspace.ts";
 import { withLock } from "./lock.ts";
 import type { DashboardAt } from "./paths.ts";
@@ -69,7 +69,10 @@ function findStore(root: string, home = homedir()): Store {
   return { directory, shown: directory.startsWith(home) ? `~${directory.slice(home.length)}` : directory };
 }
 
-const parsedFiles = new Map<string, { size: number; mtimeMs: number; ctimeMs: number; parsed: ParsedFile }>();
+// The parsed file per folder, kept until its size, change time or file moves.
+// The file grows, or a repeated report replaces it (see `compactRepeated`), and
+// the panel and pills read it every few seconds.
+const parsedFiles = new Map<string, { size: number; mtimeMs: number; ctimeMs: number; ino: number; parsed: ParsedFile }>();
 const views = new WeakMap<ParsedFile, Map<WorkspaceId | null, Views>>();
 const dashboards = new WeakMap<View, { dashboard: Dashboard; from: number; until: number }>();
 
@@ -119,16 +122,79 @@ export async function appendProgress<T>(
     if (!checked.success) {
       throw new InvalidEvent(checked.error.issues.map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`).join("; "));
     }
-    // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
-    const lead = text && !text.endsWith("\n") ? "\n" : "";
-    const line = `${lead}${JSON.stringify(checked.data)}\n`;
-    await appendFileIn(directory, PROGRESS_FILE_NAME, line);
+    const compacted = compactRepeated(text, checked.data);
+    let written: string | null = null;
+    if (compacted !== null) {
+      // A rename replaces the file whole, so a reader sees the old file or the new one.
+      // Windows refuses the rename while another program holds the file open; append instead.
+      written = await writeFileIn(directory, PROGRESS_FILE_NAME, compacted, { atomic: true }).then(
+        () => compacted,
+        () => null,
+      );
+    }
+    if (written === null) {
+      // A line cut short (a killed command, a hand edit) would swallow this event, so start a new line.
+      const lead = text && !text.endsWith("\n") ? "\n" : "";
+      const line = `${lead}${JSON.stringify(checked.data)}\n`;
+      await appendFileIn(directory, PROGRESS_FILE_NAME, line);
+      written = text + line;
+    }
     if (after) {
-      const written = parseFile(text + line);
-      await after(savedRun(written, workspaceView(written, at.workspace).buildsOn));
+      const parsed = parseFile(written);
+      await after(savedRun(parsed, workspaceView(parsed, at.workspace).buildsOn));
     }
     return result;
   });
+}
+
+// A job that reports its progress every minute, often with a ticker line
+// beside it, would fill the file with lines nobody reads again. So while only
+// progress reports and ticker lines follow the last one of the same key (see
+// `repeatKey`), a new one replaces that line. A report keeps any field only
+// the old one set. Other workspaces' lines in between don't count, since they
+// aren't on this one's dashboard. The file as it should be, or null to append.
+export function compactRepeated(text: string, event: ProgressEvent): string | null {
+  const key = repeatKey(event);
+  if (key === null || !text.endsWith("\n")) return null;
+  const lines = text.slice(0, -1).split("\n");
+  for (let index = lines.length - 1; index >= 0; index--) {
+    if (!lines[index].trim()) continue;
+    let earlier: ProgressEvent;
+    try {
+      earlier = eventSchema.parse(JSON.parse(lines[index]));
+    } catch {
+      return null;
+    }
+    if (earlier.ws !== event.ws) {
+      // Moving a folder line past a workspace's lines could move it out of that workspace's view.
+      if (!event.ws) return null;
+      continue;
+    }
+    const earlierKey = repeatKey(earlier);
+    if (earlierKey === null) return null;
+    if (earlierKey !== key) {
+      // Another agent's report on the same ticket: moving this one past it would reorder their fields.
+      if (isProgressReport(event) && isProgressReport(earlier) && earlier.id === event.id) return null;
+      continue;
+    }
+    // A workspace's first line marks where it split off the folder's run (see `workspaceView`), so it stays put.
+    if (event.ws && !lines.slice(0, index).some((line) => workspaceOf(line) === event.ws)) return null;
+    lines.splice(index, 1);
+    lines.push(JSON.stringify(event.type === "ticker.set" ? event : { ...earlier, ...withoutUndefined(event) }));
+    return `${lines.join("\n")}\n`;
+  }
+  return null;
+}
+
+// The workspace of a line the reader shows. An unreadable line isn't where a
+// workspace split off (see `workspaceView`), even when it carries one.
+function workspaceOf(line: string): WorkspaceId | undefined {
+  try {
+    const parsed = eventSchema.safeParse(JSON.parse(line));
+    return parsed.success ? parsed.data.ws : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function markPanelOpened(root: string): Promise<void> {
@@ -200,7 +266,8 @@ async function readParsed(directory: string): Promise<ParsedFile | null> {
     return null;
   }
   const cached = parsedFiles.get(directory);
-  if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs && cached.ctimeMs === info.ctimeMs) return cached.parsed;
+  if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs && cached.ctimeMs === info.ctimeMs && cached.ino === info.ino)
+    return cached.parsed;
   // Stat before reading: if the file grows in between, the next stat won't match and it's read again.
   const text = await readText(directory);
   if (text === null) {
@@ -208,7 +275,7 @@ async function readParsed(directory: string): Promise<ParsedFile | null> {
     return null;
   }
   const parsed = parseFile(text);
-  parsedFiles.set(directory, { size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs, parsed });
+  parsedFiles.set(directory, { size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs, ino: info.ino, parsed });
   return parsed;
 }
 

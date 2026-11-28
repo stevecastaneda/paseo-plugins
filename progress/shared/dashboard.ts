@@ -1,4 +1,13 @@
-import { EVENT_VERSION, eventSchema, type DELIVERABLE_KINDS, type FileLink, type ProgressEvent, type QuestionOption, type TicketStatus } from "./events.ts";
+import {
+  EVENT_VERSION,
+  eventSchema,
+  PROGRESS_FIELDS,
+  type DELIVERABLE_KINDS,
+  type FileLink,
+  type ProgressEvent,
+  type QuestionOption,
+  type TicketStatus,
+} from "./events.ts";
 import type { GivenAnswer } from "./answers.ts";
 import { QUESTION_MODE_RULES, type QuestionState } from "./question-modes.ts";
 
@@ -8,6 +17,19 @@ export interface TicketChange {
   status?: TicketStatus;
   stage?: string;
   note?: string;
+}
+
+// What a running job last reported about itself, like a training run. Gone
+// once the ticket is done or skipped.
+export interface TicketProgress {
+  // 0 to 100.
+  percent?: number;
+  // When it expects to be done.
+  eta?: string;
+  // Where the work is, like "Step 26000/36400".
+  detail?: string;
+  // When it last reported.
+  at: string;
 }
 
 export interface Ticket {
@@ -30,6 +52,7 @@ export interface Ticket {
   source?: FileLink;
   // The Paseo agent that last added or updated it, when written from Paseo.
   agentId?: string;
+  progress?: TicketProgress;
   // Every status, stage and note change, starting with when it was added.
   history: TicketChange[];
 }
@@ -102,6 +125,8 @@ export interface ProgressSegment {
   estimateMin: number;
   status: TicketStatus;
   waiting?: boolean;
+  // The share of a ticket not done yet that its job reports done, 0 to 1.
+  reported?: number;
 }
 
 export interface Dashboard {
@@ -126,7 +151,8 @@ export interface Dashboard {
   activity: Activity[];
   // `by` is the Paseo agent that set it, when set from Paseo.
   ticker: { text: string; since: string; by?: string } | null;
-  // Share of estimated minutes in done tickets. Skipped tickets are left out.
+  // Share of estimated minutes in done tickets, plus the reported share of
+  // each ticket not done yet. Skipped tickets are left out.
   // `tookMin`: once every counted ticket is done, the real time from the run's
   // start to the last one finishing.
   progress: { percent: number; doneMin: number; totalMin: number; tookMin?: number; segments: ProgressSegment[] };
@@ -204,7 +230,7 @@ function clock(now: Date) {
   };
 }
 
-export function isSettled(ticket: Ticket): boolean {
+export function isSettled(ticket: Pick<Ticket, "status">): boolean {
   return ticket.status === "done" || ticket.status === "skipped";
 }
 
@@ -303,6 +329,8 @@ export function reduceProgress(
         if (event.note !== undefined) ticket.note = event.note || undefined;
         if (event.waitsFor !== undefined) ticket.waitsFor = event.waitsFor || undefined;
         if (event.source !== undefined) ticket.source = event.source || undefined;
+        if (PROGRESS_FIELDS.some((field) => event[field] !== undefined)) ticket.progress = reportedProgress(ticket.progress, event);
+        if (isSettled(ticket)) ticket.progress = undefined;
         if (event.by) ticket.agentId = event.by;
         break;
       }
@@ -441,25 +469,46 @@ function nextIds(all: ProgressEvent[], inRun: ProgressEvent[]): NextIds {
   };
 }
 
+// A report changes only the fields it names; "" clears one. Nothing left is no progress.
+function reportedProgress(current: TicketProgress | undefined, event: Extract<ProgressEvent, { type: "ticket.update" }>): TicketProgress | undefined {
+  const percent = event.progress === undefined ? current?.percent : event.progress === "" ? undefined : event.progress;
+  const eta = event.eta === undefined ? current?.eta : event.eta || undefined;
+  const detail = event.detail === undefined ? current?.detail : event.detail || undefined;
+  if (percent === undefined && !eta && !detail) return undefined;
+  return { ...(percent !== undefined ? { percent } : {}), ...(eta ? { eta } : {}), ...(detail ? { detail } : {}), at: event.ts };
+}
+
 function progress(tickets: Ticket[], startedAt: string | undefined): Dashboard["progress"] {
   const counted = tickets.filter((ticket) => ticket.status !== "skipped");
   const totalMin = counted.reduce((sum, ticket) => sum + ticket.estimateMin, 0);
-  const doneMin = counted.filter((ticket) => ticket.status === "done").reduce((sum, ticket) => sum + ticket.estimateMin, 0);
+  // A ticket not done yet counts with the share its job reports done.
+  const reported = (ticket: Ticket) => (ticket.progress?.percent ?? 0) / 100;
+  const doneMin = counted.reduce((sum, ticket) => sum + ticket.estimateMin * (ticket.status === "done" ? 1 : reported(ticket)), 0);
+  const allCountedDone = counted.length > 0 && counted.every((ticket) => ticket.status === "done");
   // All done: the last ticket to settle, done or skipped, ended the work.
-  const allDone = counted.length > 0 && counted.every((ticket) => ticket.status === "done") && tickets.every(isSettled);
+  const allDone = allCountedDone && tickets.every(isSettled);
   const endedAt = Math.max(...tickets.map((ticket) => Date.parse(ticket.statusSince)));
+  const percent = totalMin ? Math.round((doneMin / totalMin) * 100) : 0;
   return {
-    percent: totalMin ? Math.round((doneMin / totalMin) * 100) : 0,
+    // 100% only once every ticket is done, whatever the reports round to.
+    percent: allCountedDone ? percent : Math.min(percent, 99),
     doneMin,
     totalMin,
     tookMin: allDone && startedAt ? Math.max(0, (endedAt - Date.parse(startedAt)) / 60_000) : undefined,
-    segments: counted.map(({ id, estimateMin, status, waitingFor }) => ({ id, estimateMin, status, waiting: Boolean(waitingFor) })),
+    segments: counted.map((ticket) => ({
+      id: ticket.id,
+      estimateMin: ticket.estimateMin,
+      status: ticket.status,
+      waiting: Boolean(ticket.waitingFor),
+      ...(ticket.progress?.percent !== undefined ? { reported: reported(ticket) } : {}),
+    })),
   };
 }
 
 function lastTicketUpdate(ticket: Ticket, activity: Activity[]): number {
   return Math.max(
     ...ticket.history.map((change) => Date.parse(change.at)),
+    ...(ticket.progress ? [Date.parse(ticket.progress.at)] : []),
     ...activity.filter((entry) => entry.ticketId === ticket.id).map((entry) => Date.parse(entry.at)),
   );
 }
@@ -476,7 +525,7 @@ function stuckItems(
     if (ticket.status === "blocked" && !ticket.waitingFor) {
       items.push({ kind: "blocked", key: `blocked:${ticket.id}`, ticketId: ticket.id, title: ticket.title, since: ticket.statusSince, note: ticket.note });
     } else if (ticket.status === "working") {
-      // Any sign of work resets the clock: a status, stage or note change, or activity tagged to the ticket.
+      // Any sign of work resets the clock: a status, stage or note change, a progress report, or activity tagged to the ticket.
       const lastUpdate = lastTicketUpdate(ticket, activity);
       // Overdue once more than the estimate has passed, so a millisecond after it.
       if (reached(lastUpdate + ticket.estimateMin * 60_000 + 1)) {

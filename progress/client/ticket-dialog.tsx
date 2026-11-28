@@ -14,6 +14,7 @@ import { StillDot, WorkingIcon } from "./spinner";
 import { StatusBadge } from "./status-badge";
 import { type TabEntry, TabStrip } from "./tabs";
 import { TimeBar } from "./time-bar";
+import { ReportedProgressPanel } from "./reported-progress";
 import { WriteUp } from "./write-up";
 import { useProgressLanguage } from "./language";
 
@@ -250,7 +251,9 @@ export function TicketStoryView({
             {formatClientWorkDone(locale, story.workedMin, ticket.estimateMin)}
           </Text>
         </View>
-        <TimeBar colors={colors} workedMin={story.workedMin} estimateMin={ticket.estimateMin} />
+        {/* A job's own progress says more than time against the estimate, so it takes the bar's place. */}
+        {ticket.progress ? <ReportedProgressPanel colors={colors} progress={ticket.progress} now={now} /> : null}
+        {ticket.progress?.percent === undefined ? <TimeBar colors={colors} workedMin={story.workedMin} estimateMin={ticket.estimateMin} /> : null}
         {ticker ? (
           <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 }}>
             {ticker}
