@@ -6,7 +6,7 @@ import React, { type ReactNode, useState } from "react";
 import { Text, View } from "react-native";
 import { DEFAULT_QUESTION_MODE, QUESTION_MODES } from "../shared/question-modes";
 import { readSkill } from "../shared/rpc";
-import { answerSettings, questionSettings, LANGUAGE_PREFERENCES, WHEN_WORKING } from "../shared/settings";
+import { answerSettings, questionSettings, LANGUAGE_PREFERENCES, type LanguagePreference, WHEN_WORKING } from "../shared/settings";
 import { parseBlocks, withoutTitle } from "../shared/blocks";
 import { errorText } from "./errors";
 import { useProgressLanguage } from "./language";
@@ -67,10 +67,16 @@ function AnswerSettings({ theme }: Pick<PluginSurfaceProps, "theme">) {
   );
 }
 
+const LANGUAGE_LABELS: Record<Exclude<LanguagePreference, "system">, string> = {
+  en: "English",
+  ko: "한국어",
+  "zh-CN": "简体中文",
+};
+
 function DisplaySettings({ theme }: Pick<PluginSurfaceProps, "theme">) {
   const { messages: m, settings } = useProgressLanguage();
   const muted = { color: theme.colors.foregroundMuted, fontSize: 13, lineHeight: 19 };
-  const options = LANGUAGE_PREFERENCES.map((value) => ({ value, label: value === "system" ? m.systemLanguage : value === "en" ? "English" : "简体中文" }));
+  const options = LANGUAGE_PREFERENCES.map((value) => ({ value, label: value === "system" ? m.systemLanguage : LANGUAGE_LABELS[value] }));
   return (
     <Section colors={theme.colors} icon="Languages" title={m.display}>
       {settings.status === "loading" ? (

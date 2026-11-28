@@ -21,7 +21,7 @@ export const answerSettings = defineSettings({
   schema: z.object({ whenWorking: z.enum(WHEN_WORKING).default("queue") }),
 });
 
-export const LANGUAGE_PREFERENCES = ["system", "en", "zh-CN"] as const;
+export const LANGUAGE_PREFERENCES = ["system", "en", "ko", "zh-CN"] as const;
 export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number];
 
 export const displaySettings = defineSettings({
